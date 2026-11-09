@@ -469,8 +469,14 @@
   positive <- target > 0
   relative_mcse[positive] <- mcse[positive] / target[positive]
   contribution_variance <- apply(contributions, 1L, stats::var)
+  # Rows that share one conditional law differ by rounding alone (sd / mean up
+  # to 1.35e-15 measured across platforms), and an inefficiency estimated from
+  # that noise says nothing about the draws: such contributions count as
+  # constant, whose ESS is the Kish value. Real variation stays estimated at
+  # any scale above this floor.
+  rounding_sd <- 16 * .Machine[["double.eps"]] * rowMeans(abs(contributions))
   inefficiency <- rep(1, length(mcse))
-  estimated <- contribution_variance > 0 & is.finite(mcse)
+  estimated <- sqrt(contribution_variance) > rounding_sd & is.finite(mcse)
   inefficiency[estimated] <- pmax(
     1,
     n * mcse[estimated]^2 / contribution_variance[estimated]

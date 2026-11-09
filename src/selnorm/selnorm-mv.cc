@@ -321,7 +321,7 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
           if (slot >= 0 && !cached)
             scratch.projection_log_cache[static_cast<std::size_t>(slot) * order + j] = log_probability;
         }
-        if (!(products[j] > 0.0L) || !std::isfinite(products[j])) {
+        if (!selnorm_direct_product_usable(products[j])) {
           direct_ok = false;
           break;
         }
@@ -345,7 +345,7 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
         moment += products[j] * weight * (nodes[offset + j] + shift);
       }
     }
-    if (integral > 0.0L && std::isfinite(integral)) {
+    if (selnorm_direct_product_usable(integral)) {
       if (tilted_mean != nullptr) {
         *tilted_mean = static_cast<double>(moment / integral);
       }
@@ -3561,10 +3561,10 @@ bool factor_nested_rule_log_integral(
     power[j] = power[j - 1] * static_cast<std::size_t>(order);
   }
 
-  std::vector<std::vector<long double>> own(node_count);
-  std::vector<std::vector<long double>> integral(node_count);
+  std::vector<std::vector<SelNormNodeProduct>> own(node_count);
+  std::vector<std::vector<SelNormNodeProduct>> integral(node_count);
   std::vector<std::vector<double>> row_means;
-  std::vector<std::vector<long double>> row_normalizers;
+  std::vector<std::vector<SelNormNodeProduct>> row_normalizers;
   if (projection != nullptr) {
     row_means.resize(static_cast<std::size_t>(context.dimension));
     row_normalizers.resize(static_cast<std::size_t>(context.dimension));
@@ -3574,7 +3574,7 @@ bool factor_nested_rule_log_integral(
   const auto accumulate_rows = [&](const std::vector<int> &rows,
                                    std::size_t size,
                                    const std::vector<int> &row_axes,
-                                   std::vector<long double> &target) {
+                                   std::vector<SelNormNodeProduct> &target) {
     std::vector<double> conditional_means(size);
     for (int row : rows) {
       conditional_means[0] = context.mean[row];
@@ -3612,7 +3612,7 @@ bool factor_nested_rule_log_integral(
     return true;
   };
 
-  std::vector<long double> base(1, 1.0L);
+  std::vector<SelNormNodeProduct> base(1, 1.0L);
   if (!accumulate_rows(free_rows, 1, no_axes, base)) return false;
 
   std::vector<long double> weights(static_cast<std::size_t>(order));
@@ -3645,17 +3645,14 @@ bool factor_nested_rule_log_integral(
           lower + static_cast<std::size_t>(point) * prefix
         ];
       }
-      if (!(integral[q][lower] > 0.0L) ||
-          !std::isfinite(integral[q][lower])) {
-        return false;
-      }
+      if (!selnorm_node_product_usable(integral[q][lower])) return false;
     }
   }
 
-  long double total = base[0];
+  SelNormNodeProduct total = base[0];
   for (int root : roots) total *= integral[root][0];
-  if (!(total > 0.0L) || !std::isfinite(total)) return false;
-  *result = static_cast<double>(std::log(total));
+  if (!selnorm_node_product_usable(total)) return false;
+  *result = selnorm_node_product_log(total);
 
   if (projection != nullptr) {
     // The upward messages already integrate every deeper factor. Their
@@ -3795,7 +3792,10 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
       latent[factor] = nodes[offset + index];
       term *= weights[static_cast<std::size_t>(index)];
     }
-    for (int i = 0; i < context.dimension; ++i) {
+    // A term that passes through the subnormal range has lost bits even when
+    // later rows of weight above one bring it back.
+    direct_ok = selnorm_direct_term_usable(term);
+    for (int i = 0; i < context.dimension && direct_ok; ++i) {
       double conditional_mean = context.mean[i];
       for (int factor = 0; factor < context.rank; ++factor) {
         conditional_mean +=
@@ -3810,6 +3810,7 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
       );
       if (!direct_ok) break;
       term *= static_cast<long double>(normalizer);
+      direct_ok = selnorm_direct_term_usable(term);
     }
     direct_sum += term;
     direct_ok = direct_ok && std::isfinite(direct_sum) && direct_sum > 0.0L;
@@ -4045,13 +4046,13 @@ bool shift_certificate_accepts(const ShiftCertificate &certificate,
 class FactorNestedRung {
  public:
   struct Messages {
-    long double free_product = 1.0L;
-    std::vector<std::vector<long double> > rows, own, integral;
+    SelNormNodeProduct free_product = 1.0L;
+    std::vector<std::vector<SelNormNodeProduct> > rows, own, integral;
   };
 
   // `scratch` (call-owned, may be null) holds the workspaces of the double
   // precision node products; without it, or when it is not attempted, every
-  // product is accumulated in long double.
+  // product is accumulated as a SelNormNodeProduct.
   FactorNestedRung(const FactorNormalizerContext &context,
                    const FactorForestPlan &plan, const double *nodes,
                    const double *log_weights, int offset, int order,
@@ -4078,15 +4079,15 @@ class FactorNestedRung {
   {
     ready_ = false;
     if (!plan_.valid) return false;
-    long double total = 0.0L;
+    SelNormNodeProduct total = 0.0L;
     if (!run(-1, 0.0, nullptr, &base_, &total)) return false;
-    *log_value = static_cast<double>(std::log(total));
+    *log_value = selnorm_node_product_log(total);
     ready_ = std::isfinite(*log_value);
     return ready_;
   }
 
   // Whether the last run (evaluate() or a shifted copy) accumulated its node
-  // products in double rather than falling back to long double.
+  // products in double rather than falling back to the full-range products.
   bool lean_used() const { return lean_used_; }
 
   // Tilted mean of every axis (plan order) from the retained messages.
@@ -4131,16 +4132,17 @@ class FactorNestedRung {
     mean->assign(axes, 0.0);
     covariance->assign(axes * axes, 0.0);
     for (int root : plan_.roots) {
-      std::vector<long double> probability(order, 0.0L);
-      long double total = 0.0L;
+      std::vector<SelNormNodeProduct> mass(order, 0.0L);
+      SelNormNodeProduct total = 0.0L;
       for (std::size_t node = 0; node < order; ++node) {
-        probability[node] = weights_[node] * base_.own[static_cast<std::size_t>(root)][node];
-        total += probability[node];
+        mass[node] = weights_[node] * base_.own[static_cast<std::size_t>(root)][node];
+        total += mass[node];
       }
-      if (!(total > 0.0L) || !std::isfinite(total)) return false;
+      if (!selnorm_node_product_usable(total)) return false;
+      std::vector<long double> probability(order, 0.0L);
       long double root_mean = 0.0L;
       for (std::size_t node = 0; node < order; ++node) {
-        probability[node] /= total;
+        probability[node] = mass[node] / total;
         root_mean += probability[node] * nodes_[node];
       }
       long double root_variance = 0.0L;
@@ -4158,16 +4160,16 @@ class FactorNestedRung {
       std::vector<long double> leaf_mean(leaves.size(), 0.0L);
       for (std::size_t l = 0; l < leaves.size(); ++l) {
         const std::size_t leaf = static_cast<std::size_t>(leaves[l]);
-        const std::vector<long double> &rows = base_.own[leaf];
-        const std::vector<long double> &integral = base_.integral[leaf];
+        const std::vector<SelNormNodeProduct> &rows = base_.own[leaf];
+        const std::vector<SelNormNodeProduct> &integral = base_.integral[leaf];
         long double within_variance = 0.0L;
         for (std::size_t node = 0; node < order; ++node) {
-          long double first = 0.0L;
+          SelNormNodeProduct first = 0.0L;
           for (std::size_t point = 0; point < order; ++point) {
             first += weights_[point] * rows[node + point * order] * nodes_[point];
           }
           conditional[l][node] = first / integral[node];
-          long double second = 0.0L;
+          SelNormNodeProduct second = 0.0L;
           for (std::size_t point = 0; point < order; ++point) {
             const long double deviation = nodes_[point] - conditional[l][node];
             second += weights_[point] * rows[node + point * order] * deviation * deviation;
@@ -4207,9 +4209,9 @@ class FactorNestedRung {
   bool shifted(int axis, double delta, double *log_value, bool reuse = true) const
   {
     if (!ready_) return false;
-    long double total = 0.0L;
+    SelNormNodeProduct total = 0.0L;
     if (!run(axis, delta, reuse ? &base_ : nullptr, &shifted_messages_, &total)) return false;
-    *log_value = static_cast<double>(std::log(total));
+    *log_value = selnorm_node_product_log(total);
     return std::isfinite(*log_value);
   }
 
@@ -4240,25 +4242,25 @@ class FactorNestedRung {
     }
     const std::size_t pairs = static_cast<std::size_t>(order_) * static_cast<std::size_t>(order_);
     const bool coarse_average = log_average_2 != nullptr;
-    long double total_2 = base_.free_product;
-    long double total_4 = base_.free_product;
+    SelNormNodeProduct total_2 = base_.free_product;
+    SelNormNodeProduct total_4 = base_.free_product;
     for (int root : plan_.roots) {
-      long double sum_2 = 0.0L;
-      long double sum_4 = 0.0L;
+      SelNormNodeProduct sum_2 = 0.0L;
+      SelNormNodeProduct sum_4 = 0.0L;
       for (int root_index = 0; root_index < grid; ++root_index) {
         const bool coarse_root = root_index % 2 == 0;
         const double root_delta = delta(root, root_index);
-        std::vector<long double> own_4(static_cast<std::size_t>(order_), 1.0L);
+        std::vector<SelNormNodeProduct> own_4(static_cast<std::size_t>(order_), 1.0L);
         if (!accumulate_rows(plan_.node_rows[root], static_cast<std::size_t>(order_),
                              plan_.axes[root], own_4, root, root_delta)) return false;
-        std::vector<long double> own_2;
+        std::vector<SelNormNodeProduct> own_2;
         if (coarse_average) own_2 = own_4;
         for (int leaf : plan_.children[root]) {
-          std::vector<long double> inner_2(
+          std::vector<SelNormNodeProduct> inner_2(
             coarse_average ? static_cast<std::size_t>(order_) : 0, 0.0L);
-          std::vector<long double> inner_4(static_cast<std::size_t>(order_), 0.0L);
+          std::vector<SelNormNodeProduct> inner_4(static_cast<std::size_t>(order_), 0.0L);
           for (int leaf_index = 0; leaf_index < grid; ++leaf_index) {
-            std::vector<long double> rows(pairs, 1.0L);
+            std::vector<SelNormNodeProduct> rows(pairs, 1.0L);
             if (!accumulate_rows(plan_.node_rows[leaf], pairs, plan_.axes[leaf], rows,
                                  root, root_delta, leaf, delta(leaf, leaf_index))) {
               return false;
@@ -4266,13 +4268,13 @@ class FactorNestedRung {
             const std::vector<long double> &leaf_weights =
               weights[static_cast<std::size_t>(leaf)][static_cast<std::size_t>(leaf_index)];
             for (int lower = 0; lower < order_; ++lower) {
-              long double value = 0.0L;
+              SelNormNodeProduct value = 0.0L;
               for (int point = 0; point < order_; ++point) {
                 value += leaf_weights[static_cast<std::size_t>(point)] *
                   rows[static_cast<std::size_t>(lower) +
                        static_cast<std::size_t>(point) * static_cast<std::size_t>(order_)];
               }
-              if (!(value > 0.0L) || !std::isfinite(value)) return false;
+              if (!selnorm_node_product_usable(value)) return false;
               inner_4[static_cast<std::size_t>(lower)] += value;
               if (coarse_average && coarse_root && leaf_index % 2 == 0) {
                 inner_2[static_cast<std::size_t>(lower)] += value;
@@ -4294,12 +4296,12 @@ class FactorNestedRung {
       total_4 *= sum_4 / grid;
       total_2 *= sum_2 / 2.0L;
     }
-    if (!(total_4 > 0.0L) || !std::isfinite(total_4)) return false;
+    if (!selnorm_node_product_usable(total_4)) return false;
     if (coarse_average) {
-      if (!(total_2 > 0.0L) || !std::isfinite(total_2)) return false;
-      *log_average_2 = static_cast<double>(std::log(total_2));
+      if (!selnorm_node_product_usable(total_2)) return false;
+      *log_average_2 = selnorm_node_product_log(total_2);
     }
-    *log_average_4 = static_cast<double>(std::log(total_4));
+    *log_average_4 = selnorm_node_product_log(total_4);
     return true;
   }
 
@@ -4337,10 +4339,10 @@ class FactorNestedRung {
   // `target`. With `lean` the products are accumulated in double and the call
   // is all or nothing: false leaves `target` untouched (a normalizer failed
   // its checks or the node products left the double range), and the caller
-  // evaluates the rung with the long double products.
+  // evaluates the rung with the full-range products.
   bool accumulate_rows(const std::vector<int> &rows, std::size_t size,
                        const std::vector<int> &row_axes,
-                       std::vector<long double> &target, int shifted_axis,
+                       std::vector<SelNormNodeProduct> &target, int shifted_axis,
                        double delta, int second_axis = -1,
                        double second_delta = 0.0, bool lean = false) const
   {
@@ -4382,10 +4384,10 @@ class FactorNestedRung {
   // evaluation to reuse (null: evaluate everything); `axis` is the shifted
   // plan axis (negative: none).
   bool run(int axis, double delta, const Messages *base, Messages *out,
-           long double *total) const
+           SelNormNodeProduct *total) const
   {
     // The double products first; any row out of range discards that attempt and
-    // the whole evaluation is repeated with the long double products.
+    // the whole evaluation is repeated with the full-range products.
     lean_used_ = false;
     if (scratch_ != nullptr && scratch_->attempted() &&
         run_pass(axis, delta, base, out, total, true)) {
@@ -4396,20 +4398,20 @@ class FactorNestedRung {
   }
 
   bool run_pass(int axis, double delta, const Messages *base, Messages *out,
-                long double *total, bool lean) const
+                SelNormNodeProduct *total, bool lean) const
   {
     Messages &m = *out;
-    m.rows.assign(node_count_, std::vector<long double>());
-    m.own.assign(node_count_, std::vector<long double>());
-    m.integral.assign(node_count_, std::vector<long double>());
-    std::vector<const std::vector<long double> *> integral_view(node_count_, nullptr);
+    m.rows.assign(node_count_, std::vector<SelNormNodeProduct>());
+    m.own.assign(node_count_, std::vector<SelNormNodeProduct>());
+    m.integral.assign(node_count_, std::vector<SelNormNodeProduct>());
+    std::vector<const std::vector<SelNormNodeProduct> *> integral_view(node_count_, nullptr);
     std::vector<long double> shifted_weights;
     if (axis >= 0) {
       certificate_shifted_weights(nodes_, log_weights_, order_, delta, &shifted_weights);
     }
 
     if (base == nullptr) {
-      std::vector<long double> free_product(1, 1.0L);
+      std::vector<SelNormNodeProduct> free_product(1, 1.0L);
       const std::vector<int> no_axes;
       if (!accumulate_rows(plan_.free_rows, 1, no_axes, free_product, -1, 0.0,
                            -1, 0.0, lean)) return false;
@@ -4437,7 +4439,7 @@ class FactorNestedRung {
       }
       m.own[q] = rows_changed ? m.rows[q] : base->rows[q];
       for (int child : plan_.children[q]) {
-        const std::vector<long double> &message = *integral_view[child];
+        const std::vector<SelNormNodeProduct> &message = *integral_view[child];
         for (std::size_t point = 0; point < size; ++point) {
           m.own[q][point] *= message[point];
         }
@@ -4450,17 +4452,14 @@ class FactorNestedRung {
             lower + static_cast<std::size_t>(point) * prefix
           ];
         }
-        if (!(m.integral[q][lower] > 0.0L) ||
-            !std::isfinite(m.integral[q][lower])) {
-          return false;
-        }
+        if (!selnorm_node_product_usable(m.integral[q][lower])) return false;
       }
       integral_view[q] = &m.integral[q];
     }
 
-    long double result = m.free_product;
+    SelNormNodeProduct result = m.free_product;
     for (int root : plan_.roots) result *= (*integral_view[root])[0];
-    if (!(result > 0.0L) || !std::isfinite(result)) return false;
+    if (!selnorm_node_product_usable(result)) return false;
     *total = result;
     return true;
   }
@@ -4689,6 +4688,8 @@ class FactorTensorRung {
         term *= moved[factor] ? shifted_weights[factor][index[factor]] :
           weights_[index[factor]];
       }
+      // Checked after every factor, as in factor_rule_log_integral.
+      if (!selnorm_direct_term_usable(term)) return false;
       for (int i = 0; i < context_.dimension; ++i) {
         double conditional_mean = context_.mean[i];
         for (std::size_t factor = 0; factor < rank; ++factor) {
@@ -4702,6 +4703,7 @@ class FactorTensorRung {
               context_.omega, context_.selection, nullptr, nullptr, &omega_last,
               &normalizer, 1, false)) return false;
         term *= static_cast<long double>(normalizer);
+        if (!selnorm_direct_term_usable(term)) return false;
       }
       direct_sum += term;
       if (!std::isfinite(direct_sum) || !(direct_sum > 0.0L)) return false;
@@ -5194,6 +5196,10 @@ bool factor_anisotropic_rule_integral(
     lower_size *= static_cast<std::size_t>(points);
   }
 
+  // The rows check every product they make; a weight product must start in range.
+  for (std::size_t point = 0; point < total; ++point) {
+    if (!selnorm_direct_term_usable((*value)[point])) return false;
+  }
   for (int row = 0; row < context.dimension; ++row) {
     (*conditional)[0] = context.mean[row];
     lower_size = 1;
@@ -5220,7 +5226,7 @@ bool factor_anisotropic_rule_integral(
 
   long double sum = 0.0L;
   for (std::size_t point = 0; point < total; ++point) sum += (*value)[point];
-  if (!(sum > 0.0L) || !std::isfinite(sum)) return false;
+  if (!selnorm_direct_product_usable(sum)) return false;
   *result = sum;
   return true;
 }
@@ -5692,7 +5698,7 @@ int cpp_selnorm_factor_box_rng(
           selection_se[row], omega, selection, &product);
         if (preparation) ++preparation_work;
       }
-      direct = direct && product > 0.0L && std::isfinite(product);
+      direct = direct && selnorm_direct_product_usable(product);
     }
     if (direct) return static_cast<double>(std::log(product));
     // Unsafe direct products retain the complete existing scalar log path.

@@ -452,6 +452,21 @@ bool cpp_selnorm_step_cdf_plan(
 }
 
 
+// One normalizer into a node product; false when the product left its range.
+static inline bool multiply_step_normalizer(long double &product, double normalizer)
+{
+  product *= static_cast<long double>(normalizer);
+  return selnorm_direct_product_usable(product);
+}
+
+#if !SELNORM_LONG_DOUBLE_HAS_RANGE
+static inline bool multiply_step_normalizer(SelNormScaledProduct &product, double normalizer)
+{
+  product *= normalizer;
+  return selnorm_node_product_usable(product);
+}
+#endif
+
 // Mean and product arrays are contiguous (stride one) across this batch.
 // SELNORM_TAIL_MAX_BINS bounds changed boundaries, rather than the bin count.
 // Telescoped step normalizers for a whole quadrature batch. For one row the
@@ -460,9 +475,10 @@ bool cpp_selnorm_step_cdf_plan(
 // batched kernel. Returns false without a usable result whenever the row's
 // geometry or any normalizer falls outside the direct form, and the caller's
 // unchanged log-scale evaluator takes over.
+template <class Product>
 bool step_normalizer_batch_telescoping(
   const double *mean, std::size_t count, double sd, double sei,
-  const double *omega, const SelNormKernelData &data, long double *product)
+  const double *omega, const SelNormKernelData &data, Product *product)
 {
   if (!data.trusted_step_partition || !data.telescope_probabilities ||
       data.n_bins < 1) {
@@ -516,18 +532,17 @@ bool step_normalizer_batch_telescoping(
           !(value > 1e-8 * magnitude[index])) {
         return false;
       }
-      long double &target = product[start + index];
-      target *= static_cast<long double>(value);
-      if (!(target > 0.0L) || !std::isfinite(target)) return false;
+      if (!multiply_step_normalizer(product[start + index], value)) return false;
     }
   }
   return true;
 }
 
 
-bool cpp_selnorm_step_normalizer_product(
+template <class Product>
+static bool step_normalizer_product(
   const double *mean, std::size_t count, double sd, double sei,
-  const double *omega, const SelNormKernelData &data, long double *product)
+  const double *omega, const SelNormKernelData &data, Product *product)
 {
   if (!(sd > 0) || !std::isfinite(sd) ||
       !(sei > 0) || !std::isfinite(sei) || !data.trusted_step_partition ||
@@ -569,12 +584,11 @@ bool cpp_selnorm_step_normalizer_product(
           !(normalizer > 1e-8 * (absolute_last + std::abs(contribution)))) {
         return false;
       }
-      product[i] *= static_cast<long double>(normalizer);
-      if (!(product[i] > 0.0L) || !std::isfinite(product[i])) return false;
+      if (!multiply_step_normalizer(product[i], normalizer)) return false;
     }
     return true;
   }
-  std::vector<long double> attempted_product(product, product + count);
+  std::vector<Product> attempted_product(product, product + count);
   if (step_normalizer_batch_telescoping(mean, count, sd, sei, omega, data,
                                        attempted_product.data())) {
     std::copy(attempted_product.begin(), attempted_product.end(), product);
@@ -590,11 +604,26 @@ bool cpp_selnorm_step_normalizer_product(
           nullptr, nullptr, &omega_last, &normalizer)) {
       return false;
     }
-    product[i] *= static_cast<long double>(normalizer);
-    if (!(product[i] > 0.0L) || !std::isfinite(product[i])) return false;
+    if (!multiply_step_normalizer(product[i], normalizer)) return false;
   }
   return true;
 }
+
+bool cpp_selnorm_step_normalizer_product(
+  const double *mean, std::size_t count, double sd, double sei,
+  const double *omega, const SelNormKernelData &data, long double *product)
+{
+  return step_normalizer_product(mean, count, sd, sei, omega, data, product);
+}
+
+#if !SELNORM_LONG_DOUBLE_HAS_RANGE
+bool cpp_selnorm_step_normalizer_product(
+  const double *mean, std::size_t count, double sd, double sei,
+  const double *omega, const SelNormKernelData &data, SelNormScaledProduct *product)
+{
+  return step_normalizer_product(mean, count, sd, sei, omega, data, product);
+}
+#endif
 
 void SelNormDoubleProducts::build(
   const double *residual_sd, const double *selection_se, int rows,

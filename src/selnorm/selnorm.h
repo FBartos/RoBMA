@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <vector>
 #include "selnorm-fma.h"
+#include "selnorm-node-product.h"
 
 // Longest step partition the batched tail kernel hoists cutoffs for; longer
 // partitions use the unchanged per-element evaluator.
@@ -203,6 +204,12 @@ bool cpp_selnorm_step_normalizer_product(
   const double *mean, std::size_t count, double sd, double sei,
   const double *omega, const SelNormKernelData &data, long double *product
 );
+#if !SELNORM_LONG_DOUBLE_HAS_RANGE
+bool cpp_selnorm_step_normalizer_product(
+  const double *mean, std::size_t count, double sd, double sei,
+  const double *omega, const SelNormKernelData &data, SelNormScaledProduct *product
+);
+#endif
 
 // Double-precision node products for the product ladders: the arithmetic of the
 // batch routine behind cpp_selnorm_step_normalizer_product with the node
@@ -211,7 +218,7 @@ bool cpp_selnorm_step_normalizer_product(
 // that call. A plan belongs to one call (the batch entries are threaded) and is
 // never shared. It is not usable when `rows * log2(smallest positive omega)` is
 // below -960, where the node products leave the double range for any row, or
-// when a row's geometry is unsupported (the caller then keeps the long double
+// when a row's geometry is unsupported (the caller then keeps the full-range
 // routine above).
 class SelNormDoubleProducts {
  public:
@@ -225,7 +232,7 @@ class SelNormDoubleProducts {
   // node product must lie in [2^-960, 2^960]. False means "out of range": the
   // products are untouched after a failed check and partly updated after a
   // product out of range, and the caller discards every product of the rung
-  // and evaluates it with the long double routine.
+  // and evaluates it with the full-range routine.
   bool multiply(int row, const double *mean, std::size_t count, double *product,
                 double *normalizer) const;
 

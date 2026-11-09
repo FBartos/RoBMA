@@ -385,14 +385,18 @@
     )
   }
 
+  # The solver places the nodes to an absolute error of a few eps (measured up to
+  # 2e-15 at the boundaries of symmetric small shapes), so whether a node that close
+  # to 0 or 1 lands inside the unit interval is noise and differs between platforms.
+  node_noise_floor <- 64 * .Machine[["double.eps"]]
   if (anyNA(out[["grid"]]) || any(!is.finite(out[["grid"]])) ||
-      any(out[["grid"]] <= 0 | out[["grid"]] >= 1) ||
+      any(pmin(out[["grid"]], 1 - out[["grid"]]) < node_noise_floor) ||
       anyNA(out[["log_weights"]]) ||
       any(!is.finite(out[["log_weights"]]))) {
     # The nodes of the rule are quantiles of the prior and its weights are log
     # masses. For shapes this extreme (a prior far more concentrated than the
     # doubles around its mean resolve, or one with absurdly small shapes whose
-    # mass sits at 0 and 1) a node underflows to 0 or rounds to 1, or a weight
+    # mass sits at 0 and 1) a node falls within that noise of 0 or 1, or a weight
     # overflows or underflows to a non-finite log. AGHQ refuses the very
     # concentrated ones as well (see BETA_CLOSED_FORM_MAX_SHAPE_SUM in
     # src/glmm-aghq.cc); no grid can serve them, so say what to change.

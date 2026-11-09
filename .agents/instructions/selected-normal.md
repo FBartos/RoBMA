@@ -426,6 +426,14 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   is repeated unchanged in long double. Values agree to 1e-13 relative. Tensor
   direct sums, the tier, `best` and projection paths keep long double, and no
   scratch is static (the batch entries are threaded).
+- Range of the node products: products of many rows leave the double range. The
+  nested rule keeps them in `SelNormNodeProduct` (`src/selnorm/selnorm-node-product.h`):
+  a long double, bit for bit, where it has more range than double, and a mantissa
+  with a binary exponent per node where it does not (Apple silicon). The cluster,
+  tensor, sparse-grid and factor-box rules keep long double and have a log-scale
+  or randomized fallback, which on such a platform also takes any product that
+  reaches the subnormal range at any factor, also when later weights above one
+  would bring it back.
 - Corrected sampler: `selection.sampler = "coarse_corrected"`
   (`src/samplers/CoarseCorrectedSlice.cc`) makes one slice transition per
   eligible scalar update on a surrogate density and accepts it with the ratio

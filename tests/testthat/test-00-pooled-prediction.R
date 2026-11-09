@@ -38,7 +38,10 @@ test_that("pooled effect prediction intervals are exact predictive mixture quant
   expect_identical(RNGkind(), kind_before)
   mixture <- attr(pooled, "prediction_mixture", exact = TRUE)
   expect_named(mixture, c("location", "scale"))
-  expect_identical(unname(mixture[["location"]][, 1L]), unname(posterior_samples[, "mu"]))
+  # The mean of equal contributions is exact in extended precision; the gap on
+  # Apple silicon is at most 5.6e-17.
+  .test_expect_exact_or_within(unname(mixture[["location"]][, 1L]), unname(posterior_samples[, "mu"]),
+                               4 * .Machine$double.eps)
   expect_identical(unname(mixture[["scale"]][, 1L]), unname(posterior_samples[, "tau"]))
   expect_identical(colnames(mixture[["location"]]), "mu")
   expect_identical(summary(pooled_effect(object, .posterior_samples = posterior_samples)),

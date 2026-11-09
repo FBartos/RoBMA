@@ -515,6 +515,27 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
     "or a fixed base rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
   ))
 
+  # Nodes within the solver's noise of 0 or 1 refuse the prior, whichever side of
+  # the boundary the noise put them: on every platform for shapes below about 2e-8.
+  for (shapes in list(c(1e-9, 1e-9), c(1e-8, 1e-8), c(1e-12, 1e-12), c(1e-10, 1), c(1, 1e-10),
+                      c(1e-10, 1e-8), c(1e-8, 1e-10))) {
+    condition <- tryCatch(.glmm_beta_prior_grid(
+      BayesTools::prior("beta", list(alpha = shapes[[1L]], beta = shapes[[2L]])), 1200L), error = identity)
+    expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
+    expect_s3_class(condition, "RoBMA_glmm_numerical_error")
+  }
+  # A dataset whose base-rate integral reaches the grid stops the same way.
+  condition <- tryCatch(.outcome_pdf.binom(1L, 0L, 20L, 20L, matrix(.1), matrix(.2),
+    BayesTools::prior("beta", list(alpha = 1e-9, beta = 1e-9))), error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
+  # Ordinary shapes keep the rule of the solver unchanged.
+  for (shapes in list(c(1e-7, 1e-7), c(1e-3, 1e-3), c(.5, .5), c(1, 1), c(2, 5), c(50, 50), c(3, 97))) {
+    grid <- .glmm_beta_prior_grid(BayesTools::prior("beta", list(alpha = shapes[[1L]], beta = shapes[[2L]])), 1200L)
+    rule <- statmod::gauss.quad.prob(1200L, dist = "beta", alpha = shapes[[1L]], beta = shapes[[2L]])
+    expect_identical(grid[["grid"]], rule[["nodes"]])
+    expect_identical(grid[["log_weights"]], log(rule[["weights"]]))
+  }
+
   # Shapes whose Jacobi recurrence overflows stop inside statmod with a raw
   # foreign-function error; they are the same unavailable prior.
   for (prior in list(

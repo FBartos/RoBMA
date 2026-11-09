@@ -152,7 +152,8 @@ test_that("continuous regplot sorts duplicate evaluations with every interval", 
   actual <- regplot(fixture$object, mod = "sei", at = c(.3, .1, .2, .1),
     pi = TRUE, si = TRUE, as_data = TRUE)
   expect_identical(actual$pred$x, x)
-  expect_equal(actual$pred$y, x, tolerance = 0)
+  # Exact in extended precision; the gap on Apple silicon is at most 1.1e-16.
+  .test_expect_exact_or_within(actual$pred$y, x, 4 * .Machine$double.eps)
   expect_identical(actual$sei, x)
   for (band in c("ci", "pi", "si")) {
     expect_identical(actual[[band]]$x, c(x, rev(x)))

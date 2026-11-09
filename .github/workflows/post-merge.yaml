@@ -23,4 +23,6 @@ jobs:
   tests:
     uses: ./.github/workflows/R-CMD-tests.yaml
     with:
-      matrix: '[{"os": "ubuntu-latest", "r": "4.6"}]'
+      matrix: >-
+        [{"os": "ubuntu-latest", "r": "4.6"},
+         {"os": "macos-latest", "r": "4.6"}]
