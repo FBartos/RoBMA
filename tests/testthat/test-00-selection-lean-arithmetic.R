@@ -80,9 +80,12 @@ test_that("double node products agree with the long double rules on random block
       }
     }
   }
-  # not vacuous: the double products are a different arithmetic, not a relabelled copy
-  expect_gt(differing, 0L)
-  expect_gt(difference, 0)
+  # not vacuous: the double products are a different arithmetic, not a relabelled
+  # copy, where long double is wider than double (elsewhere both round alike)
+  if (.test_long_double_extended()) {
+    expect_gt(differing, 0L)
+    expect_gt(difference, 0)
+  }
 })
 
 test_that("single-boundary products preserve checks across vector and block remainders", {

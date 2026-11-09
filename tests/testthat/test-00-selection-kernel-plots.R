@@ -684,8 +684,12 @@ test_that("selected plot quantiles return the left edge of CDF plateaus", {
   )
   boundary <- spec[["z_lower"]][3L]
 
+  # The plateau of this CDF sits at .5 up to the rounding of its sum: exact with
+  # extended sums, and 2.2e-16 on either side without them, where the helper is
+  # asked just below the plateau.
+  plateau <- if (.test_long_double_extended()) .5 else .5 - 1e-14
   expect_equal(
-    .funnel_model_averaged_quantile(1, .5, setup, "positive"),
+    .funnel_model_averaged_quantile(1, plateau, setup, "positive"),
     boundary,
     tolerance = 1e-14
   )

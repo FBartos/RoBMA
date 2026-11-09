@@ -268,7 +268,8 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
     V_new   = c(1e-300, 1e300)
   )
   expect_identical(actual[["vi"]], c(1e-300, 1e300))
-  expect_identical(actual[["sei"]], c(1e-150, 1e150))
+  # Not the literals 1e-150 and 1e150: R parses those in the precision of long double.
+  expect_identical(actual[["sei"]], sqrt(c(1e-300, 1e300)))
 
   expect_error(
     .predict_known_v_newdata_add_vi(

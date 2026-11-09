@@ -35,17 +35,24 @@ test_that("the tail kernel agrees with pnorm across the supported range", {
 })
 
 
+# Reference values computed to 20 significant digits with an arbitrary-precision
+# implementation of the complementary error function: 0.0227501319481792072,
+# 2.8665157187919391167e-7, 6.2209605742717841235e-16, 2.7536241186062336951e-89,
+# 5.7255712225245768227e-300. They are written in hexadecimal because R parses
+# decimal literals in the precision of long double, which loses digits where it is
+# double (1.1e-5 relative at the last one on Apple silicon).
+.test_tail_reference <- c(
+  `2`  = 0x1.74bcf82c9d860p-6,
+  `5`  = 0x1.33ca2f2133831p-22,
+  `8`  = 0x1.669d2c90d55cep-51,
+  `20` = 0x1.c0bd0f1880783p-295,
+  `37` = 0x1.eaccc6bfeb0afp-995
+)
+
+
 test_that("the tail kernel matches an arbitrary-precision reference", {
 
-  # Reference values computed to 20 significant digits with an
-  # arbitrary-precision implementation of the complementary error function.
-  exact <- c(
-    `2`  = 0.0227501319481792072,
-    `5`  = 2.8665157187919391167e-7,
-    `8`  = 6.2209605742717841235e-16,
-    `20` = 2.7536241186062336951e-89,
-    `37` = 5.7255712225245768227e-300
-  )
+  exact <- .test_tail_reference
   kernel <- .selnorm_normal_upper_tail(as.numeric(names(exact)))
   expect_lt(max(abs(kernel / exact - 1)), 1e-15)
 })
@@ -151,8 +158,7 @@ test_that("the fallback lane is as accurate as the vectorized one", {
   positive   <- dispatched > 0
   expect_lt(max(abs(fallback[positive] / dispatched[positive] - 1)), 1e-14)
 
-  exact <- c(`8` = 6.2209605742717841235e-16, `20` = 2.7536241186062336951e-89,
-             `37` = 5.7255712225245768227e-300)
+  exact <- .test_tail_reference[c("8", "20", "37")]
   expect_lt(max(abs(.selnorm_normal_upper_tail(as.numeric(names(exact)),
                                                scalar = TRUE) / exact - 1)), 1e-15)
 })

@@ -170,7 +170,9 @@ test_that("known-V estimate residual variance avoids PSD subtraction", {
   subtractive <- sampling_variance^2 / marginal_variance -
     rowSums((V_W_X %*% B) * V_W_X)
 
-  expect_true(any(subtractive < 0))
+  # The subtractive form cancels to rounding here: negative with the extended sums
+  # of rowSums(), and on either side of zero without them.
+  if (.test_long_double_extended()) expect_true(any(subtractive < 0))
   expect_true(all(projection[["sampling_residual_variance"]] >= 0))
 })
 

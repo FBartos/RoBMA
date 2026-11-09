@@ -1,3 +1,11 @@
+## development version
+### Changes
+- beta base-rate priors with shapes below about 2e-8, such as `Beta(1e-9, 1e-9)`, stop with an explanation on every platform
+
+### Fixes
+- the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
+- selection models with many estimates on one random effect are no longer refused or slow on Apple silicon
+
 ## version 4.1.1
 ### Breaking changes
 - requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod

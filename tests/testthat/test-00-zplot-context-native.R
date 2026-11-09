@@ -252,6 +252,18 @@
   if (inherits(reference, "error")) {
     expect_s3_class(native, "error")
     expect_identical(conditionMessage(native), conditionMessage(reference))
+  } else if (.test_fused_multiply_add() && !is.null(reference)) {
+    # The R controller rounds a * b + c twice and the native batch once. Measured
+    # gaps on Apple silicon: 1.8e-15 relative on the density, 3.1e-11 absolute on
+    # the error diagnostics, whose small sums cancel; everything else stays exact.
+    errors <- grep("_error$", names(reference), value = TRUE)
+    exact  <- setdiff(names(reference), c("density", errors))
+    expect_identical(names(native), names(reference))
+    expect_identical(native[exact], reference[exact])
+    gap <- abs(native[["density"]] - reference[["density"]])
+    scale <- pmax(abs(native[["density"]]), abs(reference[["density"]]))
+    expect_lte(max(gap[gap > 0] / scale[gap > 0], 0), 16 * .Machine$double.eps)
+    expect_lte(max(abs(unlist(native[errors]) - unlist(reference[errors]))), 1e-10)
   } else {
     expect_identical(native, reference)
   }

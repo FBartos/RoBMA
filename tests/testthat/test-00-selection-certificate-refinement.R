@@ -132,6 +132,72 @@ test_that("a forest whose rows narrow the tier gate beyond its edges reaches the
   expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference), .005)
 })
 
+test_that("node products below the range of double keep the nested rule and its accuracy", {
+
+  # One leaf axis owns K rows of weight .01, so its products at the far nodes reach
+  # .01^K, which leaves the range of double from K = 162. The rule stays on the nested
+  # path on every platform; the references are plain-R rules on the log scale.
+  for (count in c(161L, 162L, 256L)) {
+    block <- .test_cert_block(list(
+      list(count = 115L, loading = c(.001, 1, 0), sd = .249373398318475, mean = 1.93906024750322, sei = 1),
+      list(count = count, loading = c(.001, 0, -1), sd = .103488784220421, mean = 1.91516049392521, sei = 1)),
+      c(1, .01))
+    info <- paste("rows", count)
+    shift <- c(0, 0, .2)
+    probe <- .test_cert_probe(block, 9L, shift_axis = 3L, shift_delta = .2)
+    terms <- .test_cert_tensor_moments(block, 9L)
+    expect_identical(probe[["path"]], .test_cert_paths[["nested"]], info = info)
+    expect_lt(abs(probe[["log_normalizer"]] - .test_cert_tensor_log_integral(block, 9L)), 1e-11, label = info)
+    expect_lt(max(abs(probe[["reuse_value"]] - .test_cert_tensor_log_integral(block, 9L, shift = shift))), 1e-11,
+              label = info)
+    expect_identical(probe[["reuse_value"]], probe[["full_value"]], info = info)
+    expect_lt(max(abs(probe[["moment_mean"]] - terms[["mean"]])), 1e-10, label = info)
+    expect_lt(max(abs(probe[["moment_covariance"]] - as.vector(terms[["covariance"]]))), 1e-10, label = info)
+
+    finest <- .test_cert_probe(block, 95L)
+    expect_identical(finest[["path"]], .test_cert_paths[["nested"]], info = info)
+    expect_true(finest[["refined"]], info = info)
+    reference <- .test_cert_reference_forest(block)
+    expect_lt(.test_cert_relative_error(finest[["refined_4"]], reference), 5e-4, label = info)
+    expect_lt(.test_cert_relative_error(.test_cert_native_factor(block)[["log_normalizer"]], reference), .005,
+              label = info)
+  }
+})
+
+test_that("a normalizer below the normal range of double keeps its accuracy", {
+
+  # Every node product sits near .01^K: the whole normalizer passes through the
+  # subnormal range of double, where a plain double product has lost its bits, and
+  # leaves it from K = 162. Each rule stays within rounding of its reference.
+  for (count in c(156L, 158L, 160L, 161L, 162L)) {
+    info <- paste("rows", count)
+
+    cluster <- .test_cert_block(list(.test_cert_small_group(count, .01, 1, -6)), c(1, .01))
+    reference <- .test_cert_reference_parallel(cluster)
+    expect_lt(.test_cert_relative_error(.test_cert_probe(cluster, 63L, cluster = TRUE)[["log_normalizer"]], reference),
+              1e-9, label = paste("cluster rung", info))
+    expect_lt(.test_cert_relative_error(.test_cert_native_cluster(cluster)[["log_normalizer"]], reference),
+              1e-9, label = paste("cluster kernel", info))
+
+    forest <- .test_cert_block(list(.test_cert_parallel_group(count, c(.01, .01), 1, -6)), c(1, .01))
+    probe  <- .test_cert_probe(forest, 63L)
+    expect_identical(probe[["path"]], .test_cert_paths[["nested"]], info = info)
+    expect_lt(.test_cert_relative_error(probe[["log_normalizer"]], .test_cert_reference_parallel(forest)),
+              1e-9, label = paste("nested rung", info))
+
+    # partial overlaps: no forest, so a tensor rule, direct or on the log scale
+    half <- count %/% 2L
+    crossing <- .test_cert_block(list(
+      .test_cert_small_group(count - 2L * (half %/% 2L), c(.01, .01), 1, -6),
+      .test_cert_small_group(half %/% 2L, c(.01, 0), 1, -6),
+      .test_cert_small_group(half %/% 2L, c(0, .01), 1, -6)), c(1, .01))
+    probe <- .test_cert_probe(crossing, 15L, refine = FALSE)
+    expect_true(probe[["path"]] %in% .test_cert_paths[c("tensor_direct", "tensor_log")], info = info)
+    expect_lt(.test_cert_relative_error(probe[["log_normalizer"]], .test_cert_tensor_log_integral(crossing, 15L)),
+              1e-9, label = paste("tensor rung", info))
+  }
+})
+
 test_that("a block whose refinement checks fail goes on to the randomized fallback", {
 
   # Blocks of the research battery (seed 41) that the refinement tier does not

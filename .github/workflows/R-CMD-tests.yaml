@@ -1,7 +1,7 @@
 name: R-unit-tests
 
 # Runs the standard profile against cached standard fits. post-merge.yaml calls
-# this workflow for Linux.
+# this workflow for Linux and Apple silicon.
 on:
   push:
     branches: [master, development]
@@ -84,5 +84,6 @@ jobs:
           # The hosted Windows runner takes about 1.7 times as long as the
           # reference machine, where the standard budget is 1200 seconds.
           ROBMA_STANDARD_GATE_SECONDS: "2400"
+          TESTTHAT_MAX_FAILS: Inf
         run: |
           Rscript tools/test-profile.R standard

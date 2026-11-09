@@ -98,7 +98,7 @@ cache validation, including `run_tests()` preparation and required-evidence chec
 the runner separately reports the full profile wall time.
 `ROBMA_STANDARD_GATE_SECONDS` overrides the budget only for slower machines:
 the GitHub Windows runner takes about 1.7 times as long, and the unit-test
-workflow sets 2400.
+workflow sets 2400, which the Linux and Apple silicon lanes of `post-merge` share.
 Standard uses the explicit `profile == "standard"` catalog membership, rather
 than every `tier == "core"` entry. Certification extends the catalog and
 selects its own declared fit subsets; excluded core entries are not standard
@@ -210,6 +210,10 @@ by another test.
   cached fit's `info` during `test-01-*`, then reuse it in post-fit tests.
 - Justify tolerances from Monte Carlo or numerical error. Do not use a fixed
   package-wide tolerance merely because it makes a test pass.
+- Keep an exact check on the platforms where it holds. Apple silicon has no
+  extended long double and fuses multiply-adds, so relax a bit-for-bit check only
+  behind `.test_long_double_extended()` or `.test_fused_multiply_add()`
+  (`tests/testthat/helper-platform.R`), with the measured gap in a comment.
 - State numerical error explicitly with absolute, relative, log, or peak-scaled
   comparisons where scale matters. Do not rely on testthat edition-specific
   `expect_equal()` normalization for small probabilities or near-zero quantities.

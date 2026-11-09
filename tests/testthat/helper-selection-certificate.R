@@ -117,12 +117,15 @@
 # The fields are compared to `rounding` in absolute terms: they are the log normalizer and
 # log density and errors relative to the normalizer, so rounding of the normalizer's sums
 # moves all of them by the same absolute amount. One-ulp perturbations of a block's means
-# and SDs move them by up to 3e-10, and the Linux build (GCC and glibc) differs from the
-# Windows build (MinGW) that stored them by up to 2.3e-10. A change of proposals or of the
-# design moves them by the order of the relative MCSE, at least 8e-8 in the stored blocks.
+# and SDs move them by up to 4.3e-9, except that an occasional perturbation of blocks 17, 24,
+# 25 and 37 of the stored reference moves a stage by up to 6.6e-4. The Linux build (GCC and
+# glibc) differs from the Windows build (MinGW) that stored them by up to 2.3e-10. A change
+# of proposals or of the design moves them by the order of the relative MCSE, at least 8e-8
+# in the stored blocks. `compare_stored = FALSE` keeps only the comparison of the run with
+# its own stage, for a block whose stored output does not hold on this platform.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
-                                              rounding = 5e-9, info = "") {
+                                              rounding = 5e-9, info = "", compare_stored = TRUE) {
 
   difference <- function(x, y, field) abs(as.numeric(x[[field]]) - as.numeric(y[[field]]))
   matches <- function(x, y) all(vapply(fields, function(field) difference(x, y, field) <= rounding,
@@ -140,8 +143,10 @@
   new <- stop_stage(.selection_qmc_z())
   testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
   for (field in fields) {
-    testthat::expect_lte(difference(results[[old]], expected, field), rounding,
-      label = paste(info, "stored output, stage", stages[[old]], field))
+    if (compare_stored) {
+      testthat::expect_lte(difference(results[[old]], expected, field), rounding,
+        label = paste(info, "stored output, stage", stages[[old]], field))
+    }
     testthat::expect_lte(difference(results[[new]], actual, field), rounding,
       label = paste(info, "run, stage", stages[[new]], field))
   }
@@ -829,15 +834,22 @@
 # The accepted order of the certificate ladder recomputed from the probe's rung
 # values: finite, the two successive changes and the tail gate within the
 # tolerance, the sharpness gate and the certificate; NA when every affordable
-# rung is rejected.
+# rung is rejected. As in the kernels, only the node budget ends the ladder. A rung
+# the budget affords must evaluate: one that fails numerically is an error here,
+# because it would otherwise read as a rung the certificate rejected.
 .test_cert_probe_ladder <- function(block, tolerance = .005) {
 
   tolerance <- min(tolerance, .005)
+  depth <- .selection_factor_support_forest_depth(block[["loading"]] != 0)
+  cost_exponent <- if (is.na(depth)) block[["rank"]] else depth + 1L
   previous <- -Inf
   previous_change <- Inf
   for (order in SELNORM_FACTOR_QUADRATURE_ORDERS) {
+    if (!.selnorm_factor_rule_affordable(order, cost_exponent)) break
     probe <- .test_cert_probe(block, order, tolerance = tolerance, refine = FALSE)
-    if (probe[["path"]] == .test_cert_paths[["declined"]]) break
+    if (probe[["path"]] == .test_cert_paths[["declined"]] || !is.finite(probe[["log_normalizer"]])) {
+      stop("The rule of order ", order, " is affordable but did not evaluate.", call. = FALSE)
+    }
     value <- probe[["log_normalizer"]]
     difference <- previous - value
     change <- if (!is.finite(difference) || abs(difference) > 50) Inf else abs(expm1(difference))
