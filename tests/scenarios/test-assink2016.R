@@ -1421,5 +1421,5 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   ### Diagnostics ----
   scenario_plot("RoBMA-funnel-mv-V-cond", funnel(fit_RoBMA_mv_V_cond, main = "default"))
   scenario_plot("RoBMA-qqnorm-mv-V-cond", qqnorm(fit_RoBMA_mv_V_cond, main = "default"))
-  scenario_plot("RoBMA-zplot-mv-V-cond", zplot(fit_RoBMA_mv_V_cond, to = 10, main = "default"))
+  scenario_plot("RoBMA-zplot-mv-V-cond", zplot(fit_RoBMA_mv_V_cond, to = 10, main = "default", max_samples = 250))
 })

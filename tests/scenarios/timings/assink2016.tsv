@@ -407,7 +407,7 @@ plot	RoBMA-funnel-mv-V-cond	0.320000000	0.944629	4.6.0	Windows/x86_64-w64-mingw3
 plot	RoBMA-qqnorm-mv-V-cond	1.280000000	1.096582	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-ranef-2	0.250000000	0.780566	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-ranef-4	0.180000000	0.741211	4.6.0	Windows/x86_64-w64-mingw32
-plot	RoBMA-zplot-mv-V-cond	8.280000000	0.882227	4.6.0	Windows/x86_64-w64-mingw32
+plot	RoBMA-zplot-mv-V-cond	8.280000000	0.693945	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPEESE-PEESE-plot-V	0.660000000	0.789160	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPEESE-bfunnel-mv-V	1.530000000	0.590430	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPEESE-funnel-mv-V	0.070000000	0.536816	4.6.0	Windows/x86_64-w64-mingw32
