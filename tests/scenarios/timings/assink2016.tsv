@@ -407,7 +407,7 @@ plot	RoBMA-funnel-mv-V-cond	0.320000000	0.944629	4.6.0	Windows/x86_64-w64-mingw3
 plot	RoBMA-qqnorm-mv-V-cond	1.280000000	1.096582	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-ranef-2	0.250000000	0.780566	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-ranef-4	0.180000000	0.741211	4.6.0	Windows/x86_64-w64-mingw32
-plot	RoBMA-zplot-mv-V-cond	8.280000000	0.882227	4.6.0	Windows/x86_64-w64-mingw32
+plot	RoBMA-zplot-mv-V-cond	8.280000000	0.693945	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPEESE-PEESE-plot-V	0.660000000	0.789160	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPEESE-bfunnel-mv-V	1.530000000	0.590430	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPEESE-funnel-mv-V	0.070000000	0.536816	4.6.0	Windows/x86_64-w64-mingw32
@@ -461,7 +461,7 @@ plot	funnel_BMA_mv	0.170000000	1.095996	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_brma_mv	1.750000000	1.177148	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_brma_mv_reg	1.030000000	1.294238	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_means_plot	0.510000000	0.850098	4.6.0	Windows/x86_64-w64-mingw32
-plot	posterior-fit_RoBMA_mv_cond	380.120000000	3.158301	4.6.0	Windows/x86_64-w64-mingw32
+plot	posterior-fit_RoBMA_mv_cond	247.950000000	1.222656	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-fit_RoBMA_mv_diag_cond	24.820000000	1.370703	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_BMA_mv	1.870000000	1.309375	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_brma_mv	0.930000000	1.290918	4.6.0	Windows/x86_64-w64-mingw32

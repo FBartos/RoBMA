@@ -1387,7 +1387,7 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
     lines(fit_RoBMA_mv_V_cond, "tau_total", density_method = "qCMDE")
 
     plot(fit_RoBMA_mv_V_cond,  "study: tau", prior = TRUE)
-    lines(fit_RoBMA_mv_V_cond, "study: tau", density_method = "qCMDE", density_control = list(samples = Inf))
+    lines(fit_RoBMA_mv_V_cond, "study: tau", density_method = "qCMDE", density_control = list(samples = 2000))
 
     plot(fit_RoBMA_mv_V_cond,  "esid_study: tau", prior = TRUE)
     lines(fit_RoBMA_mv_V_cond, "esid_study: tau", density_method = "qCMDE")
@@ -1421,5 +1421,5 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   ### Diagnostics ----
   scenario_plot("RoBMA-funnel-mv-V-cond", funnel(fit_RoBMA_mv_V_cond, main = "default"))
   scenario_plot("RoBMA-qqnorm-mv-V-cond", qqnorm(fit_RoBMA_mv_V_cond, main = "default"))
-  scenario_plot("RoBMA-zplot-mv-V-cond", zplot(fit_RoBMA_mv_V_cond, to = 10, main = "default"))
+  scenario_plot("RoBMA-zplot-mv-V-cond", zplot(fit_RoBMA_mv_V_cond, to = 10, main = "default", max_samples = 250))
 })
