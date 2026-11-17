@@ -1,8 +1,12 @@
 ## development version
+### Features
+- `update()` gains `adapt` to set the adaptation of one extension
+
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
 
 ### Fixes
+- extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
 - selection models with many estimates on one random effect are no longer refused or slow on Apple silicon
 

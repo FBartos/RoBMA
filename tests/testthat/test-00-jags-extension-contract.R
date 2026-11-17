@@ -17,7 +17,8 @@ test_that(".fit forwards only supported BayesTools extension controls", {
       cores           = cores,
       silent          = silent,
       worker_output   = worker_output,
-      runtime_cache   = runtime_cache
+      runtime_cache   = runtime_cache,
+      adapt           = adapt
     )
     return(fit)
   })
@@ -30,6 +31,7 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   object <- list(
     fit                = stored_fit,
     fit_control        = list(
+      adapt    = 600L,
       parallel = FALSE,
       cores    = NULL,
       silent   = TRUE,
@@ -71,8 +73,10 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   expect_identical(
     names(forwarded),
     c("fit", "autofit_control", "parallel", "cores", "silent",
-      "worker_output", "runtime_cache")
+      "worker_output", "runtime_cache", "adapt")
   )
+  # an extension adapts as the initial fit unless 'adapt' overrides it
+  expect_identical(forwarded[["adapt"]], 600L)
   expect_identical(forwarded[["fit"]], stored_fit)
   expect_identical(forwarded[["autofit_control"]], object[["autofit_control"]])
   expect_false("seed" %in% names(forwarded))
@@ -85,6 +89,9 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   # passes no prior list and excludes no parameters by name.
   expect_false("prior_list" %in% names(checked))
   expect_false("add_parameters" %in% names(checked))
+
+  expect_silent(.fit(object, extend = TRUE, adapt = 900L))
+  expect_identical(forwarded[["adapt"]], 900L)
 })
 
 

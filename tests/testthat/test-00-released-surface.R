@@ -101,6 +101,17 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
   return(get(name, envir = .surface_fit_env, inherits = FALSE))
 }
 
+# The surface fits adapt for only 50 iterations, so runjags reports incomplete
+# adaptation for their extensions as for the fits themselves.
+.surface_update <- function(...) {
+
+  withCallingHandlers(update(...), warning = function(condition) {
+    if (grepl("adaptation phase", conditionMessage(condition), fixed = TRUE)) {
+      invokeRestart("muffleWarning")
+    }
+  })
+}
+
 test_that("predict(newdata = TRUE) returns the aggregated prediction", {
 
   mods <- .surface_fit("mods")
@@ -217,7 +228,7 @@ test_that("update() has no seed argument and the extension continues the stored 
   expect_false("seed" %in% names(formals(update.brma)))
   expect_identical(
     names(formals(update.brma)),
-    c("object", "formula.", "...", "sample_extend", "slab", "autofit_control",
+    c("object", "formula.", "...", "sample_extend", "adapt", "slab", "autofit_control",
       "convergence_checks", "recompute", "parallel", "cores", "silent", "evaluate")
   )
 
@@ -228,12 +239,12 @@ test_that("update() has no seed argument and the extension continues the stored 
   )
 
   # the chains continue their stored generator states, so a repeated extension is identical
-  extend <- function() as.numeric(as_draws_matrix(update(fit, sample_extend = 20))[, "mu"])
+  extend <- function() as.numeric(as_draws_matrix(.surface_update(fit, sample_extend = 20))[, "mu"])
   first  <- extend()
   expect_length(first, 2 * (100 + 20))
   expect_identical(first, extend())
   expect_identical(
-    update(fit, sample_extend = 20)[["fit_control"]][["seed"]],
+    .surface_update(fit, sample_extend = 20)[["fit_control"]][["seed"]],
     fit[["fit_control"]][["seed"]]
   )
 })
@@ -283,7 +294,7 @@ test_that("fitted objects store the default summary shown by print() and summary
   expect_identical(summary(other_version), stored)
 
   # update() stores the summary of the extended fit
-  extended <- update(fit, sample_extend = 20)
+  extended <- .surface_update(fit, sample_extend = 20)
   extended_uncached <- extended
   extended_uncached[["print_summary"]] <- NULL
   expect_identical(extended[["print_summary"]][["summary"]], summary(extended_uncached))
