@@ -20,6 +20,12 @@ acceptance decisions in the current R process.
 \details{
 Enable the alternative for future fits with
 \code{RoBMA.options(selection.sampler = "coarse_corrected")}.
+The default \code{"default"} does not use it; parameters that the options
+\code{sampler.blocks} and \code{sampler.gates} declare to the factor slice
+and gated samplers of the BayesTools JAGS module (see
+\code{\link{RoBMA.options}}) keep those samplers under either setting, so
+set the two options to \code{FALSE} for the corrected sampler to update
+them as well.
 Every proposal is corrected against the full original likelihood and prior.
 Only the selection normalizer used to construct proposals is coarsened.
 A reversible slice transition for that surrogate is followed by a

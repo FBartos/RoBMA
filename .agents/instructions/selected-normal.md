@@ -464,7 +464,27 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`
   pins the surrogate values, fallbacks and purity, and
   `test-00-selection-coarse-exactness.R` the exactness of the corrected chains
-  against QUADPACK references.
+  against QUADPACK references. The factory skips any node with a `dbt_block` or
+  `dbt_gate` marker child, so declared nodes keep the BayesTools samplers below
+  whatever the factory order.
+- BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
+  `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
+  marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`
+  samplers claim; the model, priors and posterior are unchanged. Gates
+  (`sampler.gates`, default on): every fit whose bias prior is a bias mixture.
+  Blocks (`sampler.blocks`, default on): fits with a selection likelihood (not
+  all sources conditioned) and an estimated heterogeneity parameter, as a
+  function of the combined prior list chosen by prior-object predicates (no
+  node names): a single model blocks every eligible prior (simple continuous
+  scalars and treatment/independent factors without random-effect metadata, the
+  single weight function, the plain allocation SD and Dirichlet allocation
+  weights) except the unit-level latents `theta`, `gamma`, `sampling_z`, `pi`,
+  `phi`; an ensemble blocks the allocation SD and weights only. Mixtures,
+  spike-and-slab, ordered, point and discrete priors, inclusion priors and other
+  random-effect priors are never declared. So `selection.sampler = "default"`
+  is no longer stock JAGS sampling everywhere, and under `"coarse_corrected"`
+  block members and gated nodes stay with the BayesTools samplers unless
+  `sampler.blocks` / `sampler.gates` are `FALSE`.
 
 Known limits: blocks routed to the Smolyak grid (chains of rank three or more
 and other supports the certificate rejects) keep the per-transition rule, so
