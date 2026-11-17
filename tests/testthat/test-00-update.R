@@ -363,7 +363,7 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
     .package = "RoBMA"
   )
 
-  for (adapt in list(49, 0, 50.5, NA, Inf, "100", c(100, 200))) {
+  for (adapt in list(49, 0, 50.5, NA, Inf, "100", c(100, 200), numeric(0), .Machine$integer.max + 1)) {
     fitting_error <- tryCatch(
       brma.norm(yi = c(0.1, 0.2), sei = c(0.05, 0.06), measure = "GEN", adapt = adapt, only_data = TRUE),
       error = conditionMessage
