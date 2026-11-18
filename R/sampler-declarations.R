@@ -24,6 +24,28 @@
 }
 
 
+# A fitting error raised by a BayesTools sampler keeps its message and gains a
+# hint: the option that returns the declared parameters to the stock JAGS
+# samplers, and a request to report the model (the density could not be
+# computed, or a declaration is wrong).
+.sampler_error_hint <- function(message) {
+
+  option <- if (grepl("Factor slice sampler:", message, fixed = TRUE)) {
+    "sampler.blocks"
+  } else if (grepl("gated node changes the likelihood", message, fixed = TRUE)) {
+    "sampler.gates"
+  } else {
+    return(message)
+  }
+
+  return(paste0(
+    message, "\nThe error was raised by a sampler of the BayesTools JAGS module that RoBMA uses by default. ",
+    "Refit with 'RoBMA.options(", option, " = FALSE)' to sample these parameters with the ordinary JAGS ",
+    "samplers, and please report the model to the RoBMA developers."
+  ))
+}
+
+
 # Gates: a bias-mixture prior, with or without a weight function branch.
 .sampler_gates_declared <- function(fit_priors) {
 

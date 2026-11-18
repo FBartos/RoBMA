@@ -390,3 +390,34 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   .fit(object, extend = TRUE)
   expect_false(any(c("sampler_gates", "sampler_blocks") %in% names(forwarded)))
 })
+
+
+test_that("an error of a BayesTools sampler names the option that turns it off", {
+
+  setup  <- .declaration_data()
+  object <- bselmodel(yi = yi, vi = vi, data = setup[["data"]], measure = "SMD", only_priors = TRUE)
+  fit_error <- function(message) {
+    testthat::local_mocked_bindings(
+      JAGS_fit = function(...) simpleError(message),
+      .package = "BayesTools")
+    .fit(object)[["errors"]]
+  }
+
+  messages <- c(
+    blocks = "Error in node mu\nFactor slice sampler: failure to calculate the log density of the block at a proposal",
+    gates  = "Error in node PET_1\ngated node changes the likelihood while its gate is closed"
+  )
+  for (option in names(messages)) {
+    errors <- fit_error(messages[[option]])
+    expect_length(errors, 1L)
+    # the original message stays, followed by the hint
+    expect_true(startsWith(errors, messages[[option]]), info = option)
+    expect_true(grepl(paste0("RoBMA.options(sampler.", option, " = FALSE)"), errors, fixed = TRUE),
+                info = option)
+    expect_true(grepl("please report the model", errors, fixed = TRUE), info = option)
+  }
+
+  # other errors are passed on unchanged
+  expect_identical(fit_error("Error in node y\nFailure to calculate log density"),
+                   "Error in node y\nFailure to calculate log density")
+})

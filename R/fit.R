@@ -806,7 +806,7 @@
     if(grepl("Unknown function", fit$message))
       stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.", call. = FALSE)
 
-    fit_error_message       <- fit$message
+    fit_error_message       <- .sampler_error_hint(fit$message)
     fit                     <- list()
     attr(fit, "prior_list") <- fit_priors
 
