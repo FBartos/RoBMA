@@ -388,6 +388,40 @@ test_that("an ensemble's allocation block follows the ensemble switch of the blo
 })
 
 
+test_that("a factor block leaves the allocation block undeclared only where its coarse rule is affordable", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+
+  # the sampler's rule: order^rank nodes within the budget of 2^18
+  expect_identical(.Call("RoBMA_selnorm_factor_rule_affordable", c(7, 9, 7, 63, 95), c(6, 6, 7, 3, 3),
+                         PACKAGE = "RoBMA"), c(TRUE, FALSE, FALSE, TRUE, FALSE))
+  expect_error(.Call("RoBMA_selnorm_factor_rule_affordable", 7.5, 6, PACKAGE = "RoBMA"))
+
+  # the schedule's rule 3 has order 7, rule 4 order 9, rule 10 order 63 and
+  # rule 11 order 95
+  cases <- list(
+    list(rank = 6L, max_rules = 3L, block = FALSE),
+    list(rank = 6L, max_rules = 4L, block = TRUE),
+    list(rank = 7L, max_rules = 3L, block = TRUE),
+    list(rank = 3L, max_rules = 10L, block = FALSE),
+    list(rank = 3L, max_rules = 11L, block = TRUE)
+  )
+  for (case in cases) {
+    label  <- paste0("rank ", case$rank, ", max_rules ", case$max_rules)
+    object <- do.call(RoBMA.mv, c(.coarse_factor_ensemble_args(case$rank), list(only_priors = TRUE)))
+    plan   <- .data_selection_execution_plan(object[["data"]])
+    expect_identical(plan[["block_methods"]], "factor", info = label)
+    expect_identical(plan[["factor_ranks"]], case$rank, info = label)
+    RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = case$max_rules)
+    expect_identical(.sampler_ensemble_block(object[["data"]]), case$block, info = label)
+    # the stock sampler always declares it
+    RoBMA.options(selection.sampler = "default")
+    expect_true(.sampler_ensemble_block(object[["data"]]), info = label)
+  }
+})
+
+
 test_that("the options switch the declarations off", {
 
   old_options <- RoBMA.options()

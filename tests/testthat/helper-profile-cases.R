@@ -430,7 +430,8 @@ certification_cases <- function() {
           "declared nodes get the BayesTools samplers and the others keep theirs",
           "guarded priors keep the stock samplers",
           "declarations hold through parallel chains, autofit and update()",
-          "a serial update() of a selection model adapts its factor slice block"
+          "a serial update() of a selection model adapts its factor slice block",
+          "an ensemble declares its allocation block exactly when no corrected sampler takes it"
         )),
         .required_tests("test-00-selection-coarse-exactness.R", c(
           "the corrected chain on a rank-one cluster block targets the exact posterior",

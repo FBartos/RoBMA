@@ -262,3 +262,50 @@ test_that("a serial update() of a selection model adapts its factor slice block"
   ratio <- ess(2001:4000) / ess(1:2000)
   expect_true(all(ratio > .5), info = paste(names(ratio), round(ratio, 2), collapse = ", "))
 })
+
+
+# A brief fit of the factor-block ensemble of .coarse_factor_ensemble_args()
+# with the corrected selection sampler at the rule budget 'max_rules'.
+.declaration_factor_ensemble <- function(rank, max_rules) {
+
+  previous <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules")]
+  on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
+  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = max_rules)
+  suppressWarnings(do.call(RoBMA::RoBMA.mv, c(.coarse_factor_ensemble_args(rank), list(
+    chains = 1L, adapt = 50L, burnin = 50L, sample = 100L, seed = 1L, parallel = FALSE, silent = TRUE,
+    convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)))))
+}
+
+
+test_that("an ensemble declares its allocation block exactly when no corrected sampler takes it", {
+
+  skip_on_cran()
+  skip_if_not_certification("These fits (about 30 s) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+
+  # the coarse rule of a rank-three block: order 7 (rule 3) is affordable, order
+  # 95 (rule 11, the last) is not (95^3 nodes exceed the budget); the exact
+  # boundary at higher ranks is checked on the declarations alone (fits of
+  # rank six and seven take minutes)
+  cases <- list(
+    list(rank = 3L, max_rules = 3L, engaged = TRUE),
+    list(rank = 3L, max_rules = 11L, engaged = FALSE)
+  )
+  for (case in cases) {
+    label <- paste0("rank ", case$rank, ", max_rules ", case$max_rules)
+    fit   <- .declaration_factor_ensemble(case$rank, case$max_rules)
+    plan  <- RoBMA:::.data_selection_execution_plan(fit[["data"]])
+    expect_identical(plan[["block_methods"]], "factor", info = label)
+    expect_identical(plan[["factor_ranks"]], case$rank, info = label)
+    expect_null(fit[["fit"]][["errors"]], info = label)
+    samplers <- fit[["fit"]][["samplers"]]
+    blocks   <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+    corrected <- any(samplers[["Sampler"]] == "RoBMA::CoarseCorrectedSlice")
+    allocation_sd <- grepl("ALLOCx_heterogeneity__allocation_sd", samplers[["Node"]], fixed = TRUE)
+    expect_identical(corrected, case$engaged, info = label)
+    # the block is declared exactly when the corrected sampler engages nothing
+    expect_identical(NROW(blocks) > 0L, !case$engaged, info = label)
+    expect_identical(samplers[["Sampler"]][allocation_sd],
+                     if (case$engaged) "RoBMA::CoarseCorrectedSlice" else "BayesTools::FactorSlice", info = label)
+  }
+})

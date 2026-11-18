@@ -520,11 +520,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   spike-and-slab, ordered, point and discrete priors, inclusion priors and other
   random-effect priors are never declared. An ensemble declares its block
   unless the corrected sampler can take its allocation nodes
-  (`.sampler_ensemble_block()`): under `"coarse_corrected"` with a dependent
-  selection block (dense, rank-one or factor) and a product-rule branch or a
-  dense block; with singleton blocks only, or best-weight branches on cluster
-  and factor blocks (every corrected sampler would fall back by rule (c)), the
-  block stays.
+  (`.sampler_ensemble_block()`): under `"coarse_corrected"` with a block the
+  sampler engages (dense, rank-one, or factor with its coarse rule affordable
+  at its rank, decided by the native `RoBMA_selnorm_factor_rule_affordable`)
+  and a product-rule branch or a dense block; with singleton blocks only,
+  unaffordable factor rules, or best-weight branches on cluster and factor
+  blocks (every corrected sampler would fall back by rule (c)), the block
+  stays.
   So `selection.sampler = "default"` is no longer stock JAGS sampling
   everywhere, and under `"coarse_corrected"` block members and gated nodes stay
   with the BayesTools samplers unless `sampler.blocks` / `sampler.gates` are

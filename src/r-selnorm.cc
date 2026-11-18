@@ -569,6 +569,34 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
   ROBMA_NATIVE_END
 }
 
+// Whether the corrected sampler's factor rule of each order is affordable at the
+// matching declared rank: the node budget the sampler applies when it decides
+// whether a factor block has a coarse rule (selnorm_factor_rule_affordable).
+extern "C" SEXP RoBMA_selnorm_factor_rule_affordable(SEXP order, SEXP rank)
+{
+  ROBMA_NATIVE_BEGIN(order, rank)
+  if (TYPEOF(order) != REALSXP || TYPEOF(rank) != REALSXP || XLENGTH(order) != XLENGTH(rank)) {
+    Rf_error("'order' and 'rank' must be numeric vectors of equal length.");
+  }
+  const R_xlen_t n = XLENGTH(order);
+  const double *orders = REAL(order);
+  const double *ranks = REAL(rank);
+  for (R_xlen_t i = 0; i < n; ++i) {
+    if (!std::isfinite(orders[i]) || orders[i] < 1 || orders[i] != std::floor(orders[i]) ||
+        orders[i] > std::numeric_limits<int>::max() || !std::isfinite(ranks[i]) || ranks[i] < 1 ||
+        ranks[i] != std::floor(ranks[i]) || ranks[i] > std::numeric_limits<int>::max()) {
+      Rf_error("'order' and 'rank' must be positive whole numbers.");
+    }
+  }
+  SEXP out = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; ++i) {
+    LOGICAL(out)[i] = selnorm_factor_rule_affordable(static_cast<int>(orders[i]), static_cast<int>(ranks[i]));
+  }
+  UNPROTECT(1);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 // The per-fit counters of the corrected sampler in this process, read and then,
 // when 'clear' is TRUE, cleared (the runtime report of each fit).
 extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)

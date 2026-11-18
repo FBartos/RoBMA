@@ -86,19 +86,32 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 
 # Whether a model-averaged fit declares its allocation block: yes unless the
 # corrected selection sampler is on ('selection.sampler = "coarse_corrected"')
-# and can take the allocation parameters, which needs a dependent selection
-# block (dense, rank-one or factor; singletons never engage it) and, unless one
-# of them is dense, a selection branch with the product rule (cluster and
-# factor blocks under best-weight rules only have the exact density as their
-# surrogate, so every corrected sampler would fall back).
+# and can take the allocation parameters, which needs a selection block it
+# engages: a dense or rank-one block, or a factor block whose coarse rule (rule
+# min(selection.coarse_max_rules, rules) of its schedule) the sampler's node
+# budget affords at the block's rank (singletons never engage it). Unless one
+# of them is dense, it also needs a selection branch with the product rule
+# (cluster and factor blocks under best-weight rules only have the exact
+# density as their surrogate, so every corrected sampler would fall back).
 .sampler_ensemble_block <- function(data) {
 
   if (!identical(RoBMA.get_option("selection.sampler"), "coarse_corrected") ||
       !.is_data_joint_selection(data)) {
     return(TRUE)
   }
-  methods <- .data_selection_execution_plan(data)[["block_methods"]]
-  if (!any(methods %in% c("dense", "rank_one", "factor"))) {
+  plan    <- .data_selection_execution_plan(data)
+  methods <- plan[["block_methods"]]
+  engaged <- methods %in% c("dense", "rank_one")
+  factor  <- which(methods == "factor")
+  if (length(factor) > 0L) {
+    orders <- plan[["factor_quadrature"]][["orders"]]
+    order  <- orders[[min(RoBMA.get_option("selection.coarse_max_rules"), length(orders))]]
+    # the sampler's own affordability rule, not a copy of it
+    engaged[factor] <- .Call("RoBMA_selnorm_factor_rule_affordable",
+                             rep(as.numeric(order), length(factor)),
+                             as.numeric(plan[["factor_ranks"]][factor]), PACKAGE = "RoBMA")
+  }
+  if (!any(engaged)) {
     return(TRUE)
   }
   model    <- .data_selection_model(data)
