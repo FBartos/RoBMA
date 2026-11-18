@@ -31,9 +31,9 @@
 # 'incomplete', never a pass. Models (dat.assink2016 unless named, V from
 # metafor::vcalc()): bselmodel.mv and RoBMA.mv with the full V; RoBMA.mv on the
 # sampling variances only; 'dense', blocks of three Markov-correlated rows
-# (twelve studies) fitted in both arms with relative_tolerance = .05 and 16
-# scrambles (under the default selection control the dense normalizer is
-# rejected by its QMC diagnostics in both arms);
+# (twelve studies) fitted in both arms with relative_tolerance = .1, 16
+# scrambles and up to 32,768 points per scramble (under the default selection
+# control the dense normalizer is rejected by its QMC diagnostics in both arms);
 # 'rank_one' (constant correlation .6); 'factor' (the three studies whose full-V
 # blocks route to the factor rules); 'best_ensemble' (RoBMA.mv whose bias
 # branches all use the best-weight rule, six studies); 'meta_regression'
@@ -142,12 +142,15 @@ model_specs <- function() {
                              data = factor_studies)
   # the first three estimates of every study with at least three: blocks of
   # three rows with Markov correlations (.8, .64, .8), which route to the dense
-  # rules; the default selection control rejects their normalizer in both arms,
-  # so both arms fit them with a looser tolerance and more scrambles
+  # rules; the default selection control rejects their normalizer in both arms
+  # (and relative_tolerance .05 with 16 scrambles still did, at a relative MCSE
+  # of .023-.028), so both arms fit them with a looser tolerance and a larger
+  # QMC budget
   position <- stats::ave(assink[["esid"]], assink[["study"]], FUN = seq_along)
   count    <- stats::ave(assink[["esid"]], assink[["study"]], FUN = length)
   dense    <- assink[position <= 3L & count >= 3L, ]
-  dense_control <- RoBMA::set_selection_likelihood_control(relative_tolerance = .05, scrambles = 16L)
+  dense_control <- RoBMA::set_selection_likelihood_control(
+    relative_tolerance = .1, scrambles = 16L, max_points_per_scramble = 32768L)
   best  <- RoBMA::selection_model(weight_rule = "best", group = "study")
   best_studies <- assink[assink[["study"]] %in% c(1, 2, 4, 6, 7, 10), ]
   V_best <- metafor::vcalc(vi, cluster = study, obs = esid, rho = .6, data = best_studies)
