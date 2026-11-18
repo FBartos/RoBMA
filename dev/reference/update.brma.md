@@ -13,6 +13,7 @@ update(
   formula. = NULL,
   ...,
   sample_extend = NULL,
+  adapt = NULL,
   slab = NULL,
   autofit_control = NULL,
   convergence_checks = NULL,
@@ -42,6 +43,14 @@ update(
 - sample_extend:
 
   integer. Number of additional samples per chain.
+
+- adapt:
+
+  integer. Number of adaptation iterations run when JAGS rebuilds the
+  sampler for this extension. Defaults to `NULL`, which uses the `adapt`
+  of the initial fit. A supplied value applies to this extension only
+  and does not replace the initial setting that later extensions without
+  `adapt` use. Requires `sample_extend`.
 
 - slab:
 
@@ -87,14 +96,15 @@ The updated `brma` object.
 
 ## Details
 
-Extending a fit preserves the fitted model and adds posterior samples.
-No additional burn-in is requested. Rebuilding the compiled JAGS model,
-for example after loading a saved fit, for parallel workers, or under
-runjags' repeatable-method settings, can rerun adaptation before
-collecting those samples. Retained selection caches store normalizer
-calculations, not JAGS model pointers or sampler tuning. Prior, data,
-and model-structure updates are intentionally not supported by this
-method. For
+Extending a fit preserves the fitted model and its posterior samples and
+adds new samples. No additional burn-in is requested. The extension
+rebuilds the compiled JAGS model from the stored chain states, which
+resets the sampler tuning, so JAGS adapts again for `adapt` iterations
+(the initial fit's setting unless supplied) before collecting those
+samples. Warnings that adaptation was incomplete are kept with the fit's
+warnings. Retained selection caches store normalizer calculations, not
+JAGS model pointers or sampler tuning. Prior, data, and model-structure
+updates are intentionally not supported by this method. For
 [`brma.mv()`](https://fbartos.github.io/RoBMA/dev/reference/brma.mv.md)
 objects, the stored `V`, `R`, known-`V` backend, and marginalized
 random-effect metadata are preserved because the fitted model structure

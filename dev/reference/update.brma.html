@@ -11,7 +11,7 @@ quantities."><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9001</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9002</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -80,6 +80,7 @@ quantities.</p>
 <span>  formula. <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span>,</span>
 <span>  sample_extend <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  adapt <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  slab <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  autofit_control <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  convergence_checks <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -110,6 +111,14 @@ quantities.</p>
 
 <dt id="arg-sample-extend">sample_extend<a class="anchor" aria-label="anchor" href="#arg-sample-extend"></a></dt>
 <dd><p>integer. Number of additional samples per chain.</p></dd>
+
+
+<dt id="arg-adapt">adapt<a class="anchor" aria-label="anchor" href="#arg-adapt"></a></dt>
+<dd><p>integer. Number of adaptation iterations run when JAGS rebuilds
+the sampler for this extension. Defaults to <code>NULL</code>, which uses the
+<code>adapt</code> of the initial fit. A supplied value applies to this
+extension only and does not replace the initial setting that later
+extensions without <code>adapt</code> use. Requires <code>sample_extend</code>.</p></dd>
 
 
 <dt id="arg-slab">slab<a class="anchor" aria-label="anchor" href="#arg-slab"></a></dt>
@@ -156,11 +165,13 @@ after extension (<code>"all"</code>) or dropped with a warning (<code>"drop"</co
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Extending a fit preserves the fitted model and adds posterior samples. No
-additional burn-in is requested. Rebuilding the compiled JAGS model, for
-example after loading a saved fit, for parallel workers, or under runjags'
-repeatable-method settings, can rerun adaptation before collecting those
-samples. Retained selection caches store normalizer calculations, not JAGS
+    <p>Extending a fit preserves the fitted model and its posterior samples and
+adds new samples. No additional burn-in is requested. The extension
+rebuilds the compiled JAGS model from the stored chain states, which resets
+the sampler tuning, so JAGS adapts again for <code>adapt</code> iterations (the
+initial fit's setting unless supplied) before collecting those samples.
+Warnings that adaptation was incomplete are kept with the fit's warnings.
+Retained selection caches store normalizer calculations, not JAGS
 model pointers or sampler tuning. Prior, data, and model-structure updates are intentionally not
 supported by this method. For <code><a href="brma.mv.html">brma.mv()</a></code> objects, the stored <code>V</code>,
 <code>R</code>, known-<code>V</code> backend, and marginalized random-effect metadata are
