@@ -148,10 +148,22 @@ test_that("the record sums the runs of every process and adds the input record o
   expect_true(extended[["complete"]])
   expect_identical(.selection_sampler_record(NULL, .fallback_settings, previous = record, extension = TRUE), record)
 
-  # the worst-sampler rate is NA until a sampler reaches a checkpoint
+  # the worst-sampler rate is NA when no sampler of any run has enough proposals
   none <- .selection_sampler_record(list(list(.fallback_report_value(2, 0, 0, 0, 100, 100))), .fallback_settings)
   expect_identical(none[["min_sampler_rate"]], NA_real_)
-  expect_identical(.selection_sampler_record(list(), .fallback_settings)[["acceptance_rate"]], NA_real_)
+  expect_true(none[["complete"]])
+
+  # a fresh fit without any report counted nothing; an extension without a
+  # retained run (a failed extension) adds nothing and keeps the input's state
+  for (empty in list(NULL, list())) {
+    fresh <- .selection_sampler_record(empty, .fallback_settings)
+    expect_identical(fresh[["acceptance_rate"]], NA_real_)
+    expect_false(fresh[["complete"]])
+    expect_identical(.selection_sampler_record(empty, .fallback_settings, previous = record, extension = TRUE),
+                     record)
+    expect_false(.selection_sampler_record(empty, .fallback_settings, extension = TRUE,
+                                           previous = utils::modifyList(record, list(complete = FALSE)))[["complete"]])
+  }
 
   # part of the chain without a count: an extension of a fit without a record,
   # a process whose report failed, or an input that was incomplete

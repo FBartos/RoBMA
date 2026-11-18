@@ -312,8 +312,10 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
   counts  <- stats::setNames(numeric(length(.selection_sampler_count_names)),
                              .selection_sampler_count_names)
   rates   <- numeric()
-  # A process whose report is missing leaves part of the chain uncounted.
-  complete <- TRUE
+  # A process whose report is missing leaves part of the chain uncounted, and a
+  # fit without any report counted nothing; an extension without a retained run
+  # (a failed extension returns its input) drew nothing new.
+  complete <- extension || length(values) > 0L
   for (run in values) {
     for (process in run) {
       if (is.null(process)) {
