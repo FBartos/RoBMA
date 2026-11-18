@@ -10,6 +10,12 @@
 #       [--workers=6] [--seeds=10]
 #   Rscript tools/verify-sampler-declarations.R --part=timing --out=<dir>
 #       [--seeds=3] [--models=<regex>]
+#   Rscript tools/verify-sampler-declarations.R --part=selftest
+#
+# Every planned run is counted per model and arm (planned, completed, failed,
+# missing); a comparison or timing with a failed or missing run is reported as
+# 'incomplete', not as a pass. --part=selftest checks the comparison code on
+# synthetic run records (no fits) and stops on a wrong shape or decision.
 #
 # Models (dat.assink2016, V from metafor::vcalc() as in the assink2016
 # scenario): 'bselmodel' (univariate, heterogeneity), 'bselmodel.mv' (full V,
@@ -60,12 +66,14 @@ opt  <- function(name, default = NULL) {
   sub(paste0("^--", name, "="), "", hit[[length(hit)]])
 }
 part    <- opt("part", "compare")
-out_dir <- opt("out")
+out_dir <- opt("out", if (identical(part, "selftest")) tempfile("verify-selftest-") else NULL)
 workers <- as.integer(opt("workers", "6"))
 seeds   <- as.integer(opt("seeds", if (identical(part, "timing")) "3" else "10"))
 models_re <- opt("models", ".")
 if (is.null(out_dir)) stop("Supply --out=<directory>.", call. = FALSE)
-if (!part %in% c("compare", "rerun", "timing")) stop("--part must be compare, rerun or timing.", call. = FALSE)
+if (!part %in% c("compare", "rerun", "timing", "selftest")) {
+  stop("--part must be compare, rerun, timing or selftest.", call. = FALSE)
+}
 dir.create(file.path(out_dir, "runs"), recursive = TRUE, showWarnings = FALSE)
 options(warn = 1, width = 200)
 
@@ -294,9 +302,49 @@ run_jobs <- function(jobs, specs, n_workers) {
   }
 }
 
+# The saved runs of the jobs; a job without a saved run is marked missing.
 read_runs <- function(jobs) {
 
-  lapply(jobs, function(job) readRDS(run_file(job)))
+  lapply(jobs, function(job) {
+    file <- run_file(job)
+    if (!file.exists(file)) return(list(job = job, error = "missing run file", missing = TRUE))
+    readRDS(file)
+  })
+}
+
+# Planned, completed, failed and missing runs per model and arm.
+run_counts <- function(runs) {
+
+  if (length(runs) == 0L) {
+    return(data.frame(model = character(), arm = character(), planned = integer(), completed = integer(),
+                      failed = integer(), missing = integer(), stringsAsFactors = FALSE))
+  }
+  rows <- data.frame(
+    model   = vapply(runs, function(run) run[["job"]][["model"]], character(1)),
+    arm     = vapply(runs, function(run) run[["job"]][["arm"]], character(1)),
+    missing = vapply(runs, function(run) isTRUE(run[["missing"]]), logical(1)),
+    failed  = vapply(runs, function(run) !is.null(run[["error"]]) && !isTRUE(run[["missing"]]), logical(1)),
+    stringsAsFactors = FALSE
+  )
+  rows[["completed"]] <- as.integer(!rows[["missing"]] & !rows[["failed"]])
+  rows[["failed"]]    <- as.integer(rows[["failed"]])
+  rows[["missing"]]   <- as.integer(rows[["missing"]])
+  rows[["planned"]]   <- 1L
+  counts <- stats::aggregate(cbind(planned, completed, failed, missing) ~ model + arm, data = rows, FUN = sum)
+
+  return(counts[order(counts[["model"]], counts[["arm"]]), , drop = FALSE])
+}
+
+# A run-by-quantity matrix (one row per run, one column per name) for zero, one
+# or several names; 'extract' returns a run's named values.
+run_matrix <- function(runs, names, extract) {
+
+  values <- matrix(NA_real_, nrow = length(runs), ncol = length(names), dimnames = list(NULL, names))
+  for (i in seq_along(runs)) {
+    if (length(names) > 0L) values[i, ] <- unname(extract(runs[[i]], names))
+  }
+
+  return(values)
 }
 
 
@@ -307,33 +355,33 @@ welch_table <- function(runs, model, quantities = NULL) {
   runs <- Filter(function(run) run[["job"]][["model"]] == model && is.null(run[["error"]]), runs)
   arms <- vapply(runs, function(run) run[["job"]][["arm"]], character(1))
   names_all <- unique(unlist(lapply(runs, function(run) names(run[["means"]]))))
-  # a level of an indicator absent from a run has frequency zero there
-  means <- t(vapply(runs, function(run) {
-    values <- run[["means"]][names_all]
-    values[is.na(values) & grepl("==", names_all, fixed = TRUE)] <- 0
-    values
-  }, numeric(length(names_all))))
-  colnames(means) <- names_all
   if (!is.null(quantities)) {
-    means <- means[, intersect(quantities, names_all), drop = FALSE]
+    names_all <- intersect(names_all, quantities)
   }
+  # a level of an indicator absent from a run has frequency zero there
+  means <- run_matrix(runs, names_all, function(run, names) {
+    values <- run[["means"]][names]
+    values[is.na(values) & grepl("==", names, fixed = TRUE)] <- 0
+    values
+  })
   table <- welch_rows(means, arms, model, "mean", "primary")
 
   # secondary: run SDs and tail frequencies, when the runs recorded them
-  if (all(vapply(runs, function(run) !is.null(run[["sds"]]) && !is.null(run[["thinned"]]), logical(1)))) {
+  if (length(runs) > 0L &&
+      all(vapply(runs, function(run) !is.null(run[["sds"]]) && !is.null(run[["thinned"]]), logical(1)))) {
     names_sd <- Reduce(intersect, lapply(runs, function(run) names(run[["sds"]])))
     if (!is.null(quantities)) names_sd <- intersect(names_sd, quantities)
-    sds <- t(vapply(runs, function(run) run[["sds"]][names_sd], numeric(length(names_sd))))
-    colnames(sds) <- names_sd
-    # the tail: above the pooled 90% quantile of the 'off' arm
-    off_draws <- do.call(rbind, lapply(runs[arms == "off"], function(run) run[["thinned"]][, names_sd, drop = FALSE]))
-    cut <- apply(off_draws, 2L, stats::quantile, probs = .9, names = FALSE)
-    tails <- t(vapply(runs, function(run) {
-      colMeans(sweep(run[["thinned"]][, names_sd, drop = FALSE], 2L, cut, ">"))
-    }, numeric(length(names_sd))))
-    colnames(tails) <- names_sd
-    table <- rbind(table, welch_rows(sds, arms, model, "sd", "secondary"),
-                   welch_rows(tails, arms, model, "tail90", "secondary"))
+    if (length(names_sd) > 0L) {
+      sds <- run_matrix(runs, names_sd, function(run, names) run[["sds"]][names])
+      # the tail: above the pooled 90% quantile of the 'off' arm
+      off_draws <- do.call(rbind, lapply(runs[arms == "off"], function(run) run[["thinned"]][, names_sd, drop = FALSE]))
+      cut <- apply(off_draws, 2L, stats::quantile, probs = .9, names = FALSE)
+      tails <- run_matrix(runs, names_sd, function(run, names) {
+        colMeans(sweep(run[["thinned"]][, names, drop = FALSE], 2L, cut, ">"))
+      })
+      table <- rbind(table, welch_rows(sds, arms, model, "sd", "secondary"),
+                     welch_rows(tails, arms, model, "tail90", "secondary"))
+    }
   }
 
   return(table)
@@ -367,19 +415,47 @@ welch_rows <- function(values, arms, model, statistic, kind) {
   do.call(rbind, rows)
 }
 
-decide <- function(table) {
+# The decision of one model and kind: 'incomplete' when any planned run of the
+# model failed or is missing, otherwise 'pass' or 'fail' by the D4 rule.
+decide <- function(table, model, kind, counts) {
 
+  counts <- counts[counts[["model"]] == model, , drop = FALSE]
+  arm_count <- function(arm, field) {
+    value <- counts[[field]][counts[["arm"]] == arm]
+    if (length(value) == 0L) 0L else as.integer(value)
+  }
+  t <- if (is.null(table)) numeric() else table[["t"]]
+  p <- if (is.null(table)) numeric() else table[["p_beyond_2"]]
+  complete <- sum(counts[["failed"]]) == 0L && sum(counts[["missing"]]) == 0L &&
+    all(vapply(c("on", "off"), arm_count, integer(1), field = "planned") > 0L)
+  rule <- length(t) > 0L && !any(abs(t) > 3.5) && sum(abs(t) > 2) <= 2 * sum(p)
   data.frame(
-    model     = table[["model"]][1L],
-    kind      = table[["kind"]][1L],
-    quantities = nrow(table),
-    max_abs_t = max(abs(table[["t"]])),
-    beyond_3.5 = sum(abs(table[["t"]]) > 3.5),
-    beyond_2  = sum(abs(table[["t"]]) > 2),
-    expected_beyond_2 = sum(table[["p_beyond_2"]]),
-    pass = !any(abs(table[["t"]]) > 3.5) && sum(abs(table[["t"]]) > 2) <= 2 * sum(table[["p_beyond_2"]]),
+    model     = model,
+    kind      = kind,
+    planned_on = arm_count("on", "planned"), completed_on = arm_count("on", "completed"),
+    failed_on = arm_count("on", "failed"), missing_on = arm_count("on", "missing"),
+    planned_off = arm_count("off", "planned"), completed_off = arm_count("off", "completed"),
+    failed_off = arm_count("off", "failed"), missing_off = arm_count("off", "missing"),
+    quantities = length(t),
+    max_abs_t = if (length(t) > 0L) max(abs(t)) else NA_real_,
+    beyond_3.5 = sum(abs(t) > 3.5),
+    beyond_2  = sum(abs(t) > 2),
+    expected_beyond_2 = sum(p),
+    pass = complete && rule,
+    decision = if (!complete) "incomplete" else if (rule) "pass" else "fail",
     stringsAsFactors = FALSE
   )
+}
+
+# The decisions of every model for one kind of rows ('primary', 'secondary').
+decide_all <- function(tables, models, kind, counts) {
+
+  do.call(rbind, lapply(seq_along(models), function(i) {
+    table <- tables[[i]]
+    if (!is.null(table)) table <- table[table[["kind"]] == kind, , drop = FALSE]
+    if (identical(kind, "secondary") && (is.null(table) || nrow(table) == 0L)) return(NULL)
+    decide(table, models[[i]], kind, counts)
+  }))
 }
 
 run_summary <- function(runs) {
@@ -400,6 +476,108 @@ run_summary <- function(runs) {
 }
 
 
+# Self-test ------------------------------------------------------------------------
+
+# Synthetic run records through the comparison code: one quantity, several
+# quantities with secondary rows, a rerun restricted to one quantity, a failed
+# run in an arm, a clean case and a shifted case. Stops on a wrong shape or
+# decision.
+selftest <- function() {
+
+  # Deterministic draws: run i of an arm is a normal grid moved by offset v[i]
+  # and scaled by 1 + v[i]; the 'off' arm uses the offsets in reverse order, so
+  # both arms have the same set of run values (Welch t = 0) unless shifted.
+  offsets <- stats::qnorm(stats::ppoints(10L)) / 5
+  make_run <- function(arm, seed, names, shift = 0, secondary = TRUE, error = NULL) {
+    job <- list(part = "selftest", model = "m", arm = arm, seed = seed)
+    if (!is.null(error)) return(list(job = job, error = error))
+    i      <- seed %% 1000L
+    offset <- if (arm == "on") offsets[i] else offsets[11L - i]
+    draws  <- vapply(seq_along(names), function(j) {
+      stats::qnorm(stats::ppoints(400L)) * (1 + offset) + offset + shift + j
+    }, numeric(400L))
+    draws  <- matrix(draws, ncol = length(names), dimnames = list(NULL, names))
+    run <- list(job = job, means = colMeans(draws))
+    if (secondary) {
+      run[["sds"]] <- apply(draws, 2L, stats::sd)
+      run[["thinned"]] <- draws[seq(1L, nrow(draws), by = 10L), , drop = FALSE]
+    }
+    run
+  }
+  make_runs <- function(names, shift = 0, secondary = TRUE, fail_off = FALSE) {
+    runs <- c(lapply(1:10, function(i) make_run("on", 1000L + i, names, shift, secondary)),
+              lapply(1:10, function(i) make_run("off", 2000L + i, names, 0, secondary)))
+    if (fail_off) runs[[20L]] <- make_run("off", 2010L, names, error = "synthetic failure")
+    runs
+  }
+  check <- function(ok, what) {
+    if (!isTRUE(ok)) stop("Self-test failed: ", what, call. = FALSE)
+    cat("ok:", what, "\n")
+  }
+  primary <- function(table) table[table[["kind"]] == "primary", , drop = FALSE]
+  count_rows <- function(table, kind) if (is.null(table)) 0L else sum(table[["kind"]] == kind)
+
+  # one quantity, primary and secondary
+  runs  <- make_runs("a")
+  table <- welch_table(runs, "m")
+  check(count_rows(table, "primary") == 1L && count_rows(table, "secondary") == 2L,
+        "one quantity gives one primary and two secondary rows")
+  check(decide(primary(table), "m", "primary", run_counts(runs))[["decision"]] == "pass",
+        "one quantity, no difference: pass")
+
+  # several quantities
+  runs  <- make_runs(c("a", "b", "c"))
+  table <- welch_table(runs, "m")
+  check(count_rows(table, "primary") == 3L && count_rows(table, "secondary") == 6L,
+        "three quantities give three primary and six secondary rows")
+  decision <- decide(primary(table), "m", "primary", run_counts(runs))
+  check(decision[["decision"]] == "pass" && decision[["completed_on"]] == 10L && decision[["completed_off"]] == 10L,
+        "clean case: pass with 10 of 10 runs per arm")
+
+  # a rerun restricted to one quantity of several
+  table <- welch_table(runs, "m", quantities = "b")
+  check(count_rows(table, "primary") == 1L && count_rows(table, "secondary") == 2L &&
+          all(table[["quantity"]] == "b"), "a rerun of one quantity keeps the matrix shape")
+  table <- welch_table(runs, "m", quantities = "absent")
+  check(count_rows(table, "primary") == 0L && count_rows(table, "secondary") == 0L,
+        "a rerun of no available quantity gives no rows")
+  check(decide(NULL, "m", "primary", run_counts(runs))[["decision"]] == "fail",
+        "no quantities is not a pass")
+
+  # runs without secondary records
+  runs  <- make_runs(c("a", "b"), secondary = FALSE)
+  table <- welch_table(runs, "m")
+  check(count_rows(table, "primary") == 2L && count_rows(table, "secondary") == 0L,
+        "runs without SDs and thinned draws give primary rows only")
+
+  # a failed run in the 'off' arm
+  runs  <- make_runs(c("a", "b"), fail_off = TRUE)
+  table <- welch_table(runs, "m")
+  decision <- decide(primary(table), "m", "primary", run_counts(runs))
+  check(decision[["decision"]] == "incomplete" && !decision[["pass"]] &&
+          decision[["failed_off"]] == 1L && decision[["completed_off"]] == 9L,
+        "one failed run: incomplete with the counts")
+  missing <- runs
+  missing[[20L]] <- list(job = missing[[20L]][["job"]], error = "missing run file", missing = TRUE)
+  decision <- decide(primary(table), "m", "primary", run_counts(missing))
+  check(decision[["decision"]] == "incomplete" && decision[["missing_off"]] == 1L,
+        "one missing run: incomplete with the counts")
+
+  # a shifted 'on' arm fails
+  runs  <- make_runs(c("a", "b"), shift = 1)
+  table <- welch_table(runs, "m")
+  check(decide(primary(table), "m", "primary", run_counts(runs))[["decision"]] == "fail",
+        "a shifted arm: fail")
+
+  cat("Self-test passed.\n")
+}
+
+if (identical(part, "selftest")) {
+  selftest()
+  quit(save = "no", status = 0L)
+}
+
+
 # Parts ----------------------------------------------------------------------------
 
 specs  <- model_specs()
@@ -416,7 +594,8 @@ if (part %in% c("compare", "rerun")) {
     kind    <- if (is.null(first[["kind"]])) rep("primary", nrow(first)) else first[["kind"]]
     failing <- first[abs(first[["t"]]) > 2 & kind == "primary", c("model", "quantity")]
     decisions <- utils::read.csv(file.path(out_dir, "compare-decisions.csv"), stringsAsFactors = FALSE)
-    models <- intersect(models, decisions[["model"]][!decisions[["pass"]]])
+    failed  <- if (is.null(decisions[["decision"]])) !decisions[["pass"]] else decisions[["decision"]] == "fail"
+    models <- intersect(models, decisions[["model"]][failed])
     cat("rerun models:", paste(models, collapse = ", "), "\n")
   }
   jobs <- list()
@@ -425,6 +604,7 @@ if (part %in% c("compare", "rerun")) {
   }
   run_jobs(jobs, specs, workers)
   runs <- read_runs(jobs)
+  counts <- run_counts(runs)
   summary <- run_summary(runs)
   utils::write.csv(summary, file.path(out_dir, paste0(part, "-runs.csv")), row.names = FALSE)
   cat("\nRuns with errors:", sum(nzchar(summary[["error"]])), "\n")
@@ -442,16 +622,16 @@ if (part %in% c("compare", "rerun")) {
   utils::write.csv(table, file.path(out_dir, paste0(part, ".csv")), row.names = FALSE)
   # a rerun is judged by the same rule on the first run's failing quantities
   # (|t| > 2 in a failing model) only; the secondary rows are reported apart
-  judged <- function(kind) {
-    do.call(rbind, lapply(Filter(Negate(is.null), tables), function(t) {
-      t <- t[t[["kind"]] == kind, , drop = FALSE]
-      if (nrow(t) > 0L) decide(t)
-    }))
-  }
-  decisions <- judged("primary")
+  decisions <- decide_all(tables, models, "primary", counts)
   utils::write.csv(decisions, file.path(out_dir, paste0(part, "-decisions.csv")), row.names = FALSE)
+  cat("\nRuns per model and arm (planned, completed, failed, missing):\n"); print(counts, row.names = FALSE)
   cat("\nDecision per model (primary: run means):\n"); print(decisions, row.names = FALSE)
-  secondary <- judged("secondary")
+  if (any(decisions[["decision"]] == "incomplete")) {
+    cat("INCOMPLETE: failed or missing runs in model(s)",
+        paste(decisions[["model"]][decisions[["decision"]] == "incomplete"], collapse = ", "),
+        "; the comparison is not a pass.\n")
+  }
+  secondary <- decide_all(tables, models, "secondary", counts)
   if (!is.null(secondary)) {
     utils::write.csv(secondary, file.path(out_dir, paste0(part, "-decisions-secondary.csv")), row.names = FALSE)
     cat("\nSecondary (run SDs and tail frequencies, same rule, not part of the decision):\n")
@@ -475,7 +655,9 @@ if (identical(part, "timing")) {
     }
   }
   run_jobs(jobs, specs, 1L)
-  runs <- Filter(function(run) is.null(run[["error"]]), read_runs(jobs))
+  all_runs <- read_runs(jobs)
+  counts   <- run_counts(all_runs)
+  runs     <- Filter(function(run) is.null(run[["error"]]), all_runs)
   timing <- do.call(rbind, lapply(runs, function(run) {
     roles  <- run[["roles"]]
     if (is.null(roles)) roles <- model_roles(run[["job"]][["model"]], specs)
@@ -509,12 +691,22 @@ if (identical(part, "timing")) {
   summary[["time_ratio"]] <- summary[["seconds_per_1000"]] / summary[["seconds_neither"]]
   summary[["speedup"]]    <- summary[["ess_per_second"]] / summary[["ess_per_second_neither"]]
   summary <- merge(summary, not_assessable, by = c("model", "arm"))
+  # every planned run of a model and arm, and whether the model's timing is
+  # complete (its ratios use the 'neither' arm)
+  summary <- merge(counts, summary, by = c("model", "arm"), all.x = TRUE)
+  incomplete_models <- unique(summary[["model"]][summary[["failed"]] > 0L | summary[["missing"]] > 0L])
+  summary[["status"]] <- ifelse(summary[["model"]] %in% incomplete_models, "incomplete", "complete")
   summary <- summary[order(summary[["model"]], match(summary[["arm"]], arms)),
-                     c("model", "arm", "seconds_per_1000", "assessable", "min_ess", "ess_per_second", "time_ratio",
+                     c("model", "arm", "planned", "completed", "failed", "missing", "status",
+                       "seconds_per_1000", "assessable", "min_ess", "ess_per_second", "time_ratio",
                        "speedup", "not_assessable")]
   utils::write.csv(summary, file.path(out_dir, "timing.csv"), row.names = FALSE)
   cat("\nTiming (means over seeds; ratios to 'neither'; minimum ESS over the assessable global parameters):\n")
   print(summary, row.names = FALSE, digits = 4)
+  if (length(incomplete_models) > 0L) {
+    cat("INCOMPLETE: failed or missing runs in model(s)", paste(incomplete_models, collapse = ", "),
+        "; their timing is incomplete.\n")
+  }
   cat("\nWorst-mixing assessable global quantity and the not-assessable ones per run:\n")
   print(timing[, c("model", "arm", "seed", "assessable", "min_ess_quantity", "min_ess", "jags_seconds",
                    "not_assessable")], row.names = FALSE)
