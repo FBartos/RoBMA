@@ -119,11 +119,11 @@ test_that("selection runtime settings accept exact axes and remain frozen for wo
   RoBMA.options(selection.sampler = "coarse_corrected",
     selection.cache_max_bytes = 65536,
     selection.coarse_grid = c(log_weight = 0, variance = .02, mean = .03),
-    selection.coarse_max_rules = 3)
+    selection.coarse_max_rules = 3, selection.coarse_min_acceptance = .8)
   expected <- list(cache_max_bytes = 65536, cache_budget_request = 65536,
     available_memory_bytes = NA_real_, sampler = "coarse_corrected",
     coarse_grid = c(mean = .03, variance = .02, log_weight = 0),
-    coarse_max_rules = 3L)
+    coarse_max_rules = 3L, coarse_min_acceptance = .8)
   expect_identical(.selection_runtime_settings(), expected)
   setup <- unserialize(serialize(.selection_runtime_setup(), NULL))
   expect_identical(attr(setup, "selection_runtime"), expected)

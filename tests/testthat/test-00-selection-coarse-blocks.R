@@ -431,11 +431,13 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
   skip_if_not_installed("metafor")
 
   coarse   <- "RoBMA::CoarseCorrectedSlice"
-  previous <- RoBMA::RoBMA.options()[c("selection.sampler", "sampler.blocks", "sampler.gates")]
+  previous <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_min_acceptance",
+                                       "sampler.blocks", "sampler.gates")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
   # without the BayesTools sampler declarations, so that the global nodes show
-  # the corrected sampler; the defaults are checked at the end
-  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected",
+  # the corrected sampler; the defaults are checked at the end. The counters
+  # below count the corrected kernel, so the fallback is off.
+  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_min_acceptance = 0,
                        sampler.blocks = FALSE, sampler.gates = FALSE)
 
   for (case in c("cluster", "factor")) {
@@ -522,8 +524,9 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
     } else {
       loadNamespace("RoBMA", lib.loc = dirname(namespace_path))
     }
-    # the corrected sampler on every eligible node, as without declarations
-    RoBMA::RoBMA.options(selection.sampler = "coarse_corrected",
+    # the corrected sampler on every eligible node, as without declarations,
+    # with its kernel throughout (fallback off)
+    RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_min_acceptance = 0,
                          sampler.blocks = FALSE, sampler.gates = FALSE)
     RoBMA::selection_sampler_info(clear = TRUE)
     # Five studies of the assink2016 data: four rank-one clusters and one

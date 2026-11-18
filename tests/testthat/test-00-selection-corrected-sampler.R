@@ -8,16 +8,18 @@
     requireNamespace("coda", quietly = TRUE),
     requireNamespace("BayesTools", quietly = TRUE))
   option_names <- c("selection.sampler", "selection.coarse_grid",
-                    "selection.cache_max_bytes", "selection.coarse_max_rules")
+                    "selection.cache_max_bytes", "selection.coarse_max_rules",
+                    "selection.coarse_min_acceptance")
   old_options <- RoBMA::RoBMA.options()
   stopifnot(all(option_names %in% names(old_options)))
   on.exit(do.call(RoBMA::RoBMA.options, old_options[option_names]), add = TRUE)
   grid <- c(mean = .35, variance = .10, log_weight = .25)
+  # the corrected kernel throughout: its counters and exactness are tested
   configure <- function(value, capacity) {
 
     RoBMA::RoBMA.options(selection.sampler = "coarse_corrected",
       selection.coarse_grid = value, selection.cache_max_bytes = capacity,
-      selection.coarse_max_rules = 3L)
+      selection.coarse_max_rules = 3L, selection.coarse_min_acceptance = 0)
     invisible(NULL)
   }
 

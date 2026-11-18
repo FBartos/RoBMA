@@ -18,11 +18,15 @@ context("Sampler declarations in fitted models")
 }
 
 # A small fit with the declarations on or off (both options), restoring them.
-.declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L) {
+# The fits compare the declarations with the samplers JAGS assigns, so the
+# corrected selection sampler is off unless `sampler` says otherwise.
+.declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L,
+                             sampler = "default") {
 
-  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates")]
+  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "selection.sampler")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
-  RoBMA::RoBMA.options(sampler.blocks = declarations, sampler.gates = declarations)
+  RoBMA::RoBMA.options(sampler.blocks = declarations, sampler.gates = declarations,
+                       selection.sampler = sampler)
   args <- utils::modifyList(list(
     measure = "SMD", chains = chains, adapt = 50L, burnin = 50L, sample = sample, seed = 1L,
     parallel = FALSE, silent = TRUE,
@@ -109,6 +113,29 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     gates <- attr(on[["fit"]], "sampler_declarations", exact = TRUE)[["gates"]]
     expect_true(all(gates[["prior"]] == "bias"), info = name)
     expect_true(all(grepl("^equals\\(bias_indicator, [0-9]+\\)$", gates[["active"]])), info = name)
+  }
+
+  # with the corrected selection sampler (the default) an ensemble declares no
+  # allocation block and the corrected sampler updates the allocation parameters;
+  # a single model keeps its block
+  for (name in c("RoBMA.mv", "bselmodel.mv")) {
+    model <- models[[name]]
+    fit   <- .declaration_fit(model[["constructor"]], model[["args"]], declarations = TRUE,
+                              sampler = "coarse_corrected")
+    expect_null(fit[["fit"]][["errors"]], info = name)
+    blocks   <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+    samplers <- fit[["fit"]][["samplers"]]
+    # the scalar allocation SD (the Dirichlet weights are a vector node)
+    allocation_sd <- grepl("ALLOCx_heterogeneity__allocation_sd", samplers[["Node"]], fixed = TRUE)
+    expect_identical(sum(allocation_sd), 1L, info = name)
+    if (name == "RoBMA.mv") {
+      expect_identical(NROW(blocks), 0L)
+      expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"))
+      expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedSlice")
+    } else {
+      expect_identical(unique(blocks[["prior"]]), model[["blocks"]])
+      expect_identical(samplers[["Sampler"]][allocation_sd], "BayesTools::FactorSlice")
+    }
   }
 })
 

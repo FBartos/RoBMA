@@ -225,17 +225,34 @@ test_that("model-averaged fits gate their bias branches and block only allocatio
     gates = TRUE, blocks = NULL, label = "RoBMA cluster")
 
   # multilevel allocation: the allocation SD and the split weights; the
-  # inclusion probability and the mixture of the effect are not members
-  for (variances in c("vi", "V")) {
-    object <- if (variances == "vi") {
-      RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, data = dat, measure = "SMD",
-               only_priors = TRUE)
-    } else {
-      RoBMA.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
-               only_priors = TRUE)
+  # inclusion probability and the mixture of the effect are not members. The
+  # block is declared only with the corrected selection sampler off; under the
+  # default "coarse_corrected" the allocation parameters are left to it.
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  for (sampler in c("default", "coarse_corrected")) {
+    RoBMA.options(selection.sampler = sampler)
+    for (variances in c("vi", "V")) {
+      object <- if (variances == "vi") {
+        RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                 only_priors = TRUE)
+      } else {
+        RoBMA.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                 only_priors = TRUE)
+      }
+      .expect_declarations(object, gates = TRUE,
+                           blocks = if (sampler == "default") list(c(allocation_sd, split_w)) else NULL,
+                           label = paste("RoBMA.mv", variances, sampler))
     }
-    .expect_declarations(object, gates = TRUE, blocks = list(c(allocation_sd, split_w)),
-                         label = paste("RoBMA.mv", variances))
+  }
+  # single selection models keep their block under both settings
+  selection <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                            only_priors = TRUE)
+  for (sampler in c("default", "coarse_corrected")) {
+    RoBMA.options(selection.sampler = sampler)
+    .expect_declarations(selection, gates = FALSE,
+                         blocks = list(c("mu_intercept", allocation_sd, allocation_w, "omega")),
+                         label = paste("bselmodel.mv", sampler))
   }
 
   # without heterogeneity, and with the scale formula in place of the
@@ -334,6 +351,24 @@ test_that("unit-level latent parameters are never block members", {
   prior_list[["eta"]] <- latent
   expect_identical(.sampler_block_members(prior_list), list(c("mu", "tau", "eta")))
   expect_null(.sampler_block_members(prior_list[c("tau", "theta", "gamma")]))
+  # a single model's block does not depend on the ensemble switch
+  expect_identical(.sampler_block_members(prior_list, ensemble_block = FALSE), list(c("mu", "tau", "eta")))
+})
+
+
+test_that("an ensemble's allocation block follows the ensemble switch of the block function", {
+
+  setup  <- .declaration_data()
+  object <- RoBMA.mv(yi = yi, V = setup[["V"]], random = ~ 1 | study / esid, data = setup[["data"]],
+                     measure = "SMD", only_priors = TRUE)
+  prior_list <- .declaration_prior_list(object)
+  expect_identical(.sampler_block_members(prior_list), list(c(allocation_sd, split_w)))
+  expect_identical(.sampler_block_members(prior_list, ensemble_block = TRUE), list(c(allocation_sd, split_w)))
+  expect_null(.sampler_block_members(prior_list, ensemble_block = FALSE))
+  # the closure carries the switch read when the declarations are built
+  expect_null(.sampler_block_function(character(), ensemble_block = FALSE)(prior_list))
+  expect_identical(.sampler_block_function(character(), ensemble_block = TRUE)(prior_list),
+                   list(c(allocation_sd, split_w)))
 })
 
 
@@ -348,7 +383,8 @@ test_that("the options switch the declarations off", {
                     only_priors = TRUE)
   selection <- bselmodel(yi = yi, vi = vi, data = dat, measure = "SMD", only_priors = TRUE)
 
-  RoBMA.options(sampler.gates = FALSE)
+  # the ensemble's allocation block exists with the corrected selection sampler off
+  RoBMA.options(sampler.gates = FALSE, selection.sampler = "default")
   .expect_declarations(robma, gates = FALSE, blocks = list(c(allocation_sd, split_w)),
                        label = "gates off")
   RoBMA.options(sampler.gates = TRUE, sampler.blocks = FALSE)
@@ -378,6 +414,8 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   .fit(object)
   expect_false(forwarded[["sampler_gates"]])
   expect_true(is.function(forwarded[["sampler_blocks"]]))
+  # a selection fit collects the corrected sampler's record from every process
+  expect_true(is.function(forwarded[["runtime_report"]]))
 
   RoBMA.options(sampler.gates = FALSE, sampler.blocks = FALSE)
   .fit(object)
@@ -385,10 +423,18 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   expect_false(forwarded[["sampler_gates"]])
   expect_null(forwarded[["sampler_blocks"]])
 
-  # an extension replays the stored model and passes no declaration
+  # an extension replays the stored model and passes no declaration; it passes
+  # the report explicitly (fits saved before the record store none)
   object[["fit"]] <- list("extension probe")
   .fit(object, extend = TRUE)
   expect_false(any(c("sampler_gates", "sampler_blocks") %in% names(forwarded)))
+  expect_true(is.function(forwarded[["runtime_report"]]))
+
+  # other fits pass no report
+  ordinary <- brma(yi = yi, vi = vi, data = setup[["data"]], measure = "SMD", only_priors = TRUE)
+  .fit(ordinary)
+  expect_true("runtime_report" %in% names(forwarded))
+  expect_null(forwarded[["runtime_report"]])
 })
 
 

@@ -10,10 +10,11 @@
 # normalizer of the Gauss-Hermite rule the sampler's surrogate uses, both in
 # base R.
 
-# crude schedules whose rule 3 has three nodes (per axis)
-.coarse_exactness_setup <- function(kind) {
+# crude schedules whose rule 3 has three nodes (per axis); `omega` is the weight
+# of the bin below zero (a smaller weight is a stronger selection)
+.coarse_exactness_setup <- function(kind, omega = .05) {
 
-  omega <- c(1, .05)
+  omega <- c(1, omega)
   if (kind == "cluster") {
     # equicorrelated, rho = .8
     loading     <- matrix(sqrt(.8), 4L, 1L)
@@ -112,17 +113,23 @@
 # `definitions` (priors and deterministic nodes the arguments refer to), the
 # syntax of the residual SD and loading arguments, the constants of the kernel
 # mode and vector rule, and the data. The corrected sampler is switched on while
-# the model compiles and the options are restored. Returns the compiled model and
-# the samplers it was assigned.
+# the model compiles, with its fallback at `min_acceptance` (0, the corrected
+# kernel throughout, unless a test sets it), and the options are restored; the
+# per-fit counters start from zero. Returns the compiled model and the samplers
+# it was assigned.
 .coarse_hand_model <- function(kind, rows, rank, rules, data, definitions,
                                residual_sd = paste0("residual_sd[1:", rows, "]"),
                                loading = if (rank == 1L) paste0("loading[1:", rows, "]") else
                                  paste0("loading[1:", rows, ", 1:", rank, "]"),
-                               mode = 1, vector_rule = 0, seed = 74891L, inits = list()) {
+                               mode = 1, vector_rule = 0, seed = 74891L, inits = list(),
+                               min_acceptance = 0) {
 
-  old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules")]
+  old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules",
+                                  "selection.coarse_min_acceptance")]
   on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
-  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = 3L)
+  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = 3L,
+                       selection.coarse_min_acceptance = min_acceptance)
+  RoBMA:::.selection_sampler_report_read()
   design <- BayesTools::selection_qmc_design(2L * rank, 512L, 8L, 9049L)
   base <- list(y = rep(0, rows), sei = rep(1, rows), omega = c(1, .05),
     obs_bin = rep(1, rows), z_lower = c(0, -1e300), z_upper = c(1e300, 0),
@@ -144,25 +151,33 @@
 }
 
 
-# Adapts, burns in and draws `draws` values of `monitor`; returns them (a matrix for
-# several monitored nodes) with the sampler counters of the draws.
-.coarse_hand_chain <- function(hand, monitor, draws) {
+# Adapts for `adapt` iterations (in batches of 100), ends the adaptation (each
+# corrected sampler decides its kernel there), burns in 500 iterations and draws
+# `draws` values of `monitor`; returns them (a matrix for several monitored
+# nodes) with the process counters of the draws and the per-fit report of the
+# model (burn-in and draws).
+.coarse_hand_chain <- function(hand, monitor, draws, adapt = 500L) {
 
   model <- hand$model
-  for (batch in seq_len(5L)) ready <- rjags::adapt(model, 100L, end.adaptation = FALSE)
-  stopifnot(isTRUE(ready), isTRUE(rjags::adapt(model, 0L, end.adaptation = TRUE)))
+  ready <- FALSE
+  for (batch in seq_len(adapt %/% 100L)) ready <- rjags::adapt(model, 100L, end.adaptation = FALSE)
+  if (adapt %% 100L > 0L) ready <- rjags::adapt(model, adapt %% 100L, end.adaptation = FALSE)
+  ended <- rjags::adapt(model, 0L, end.adaptation = TRUE)
+  # JAGS reports a short adaptation (50 iterations or fewer) as incomplete
+  stopifnot(adapt < 100L || (isTRUE(ready) && isTRUE(ended)))
   for (batch in seq_len(5L)) stats::update(model, n.iter = 100L, progress.bar = "none")
   RoBMA::selection_sampler_info(clear = TRUE)
   values <- as.matrix(rjags::coda.samples(model, monitor, n.iter = draws,
     thin = 1L, progress.bar = "none"))
   list(draws = if (length(monitor) == 1L) as.numeric(values) else values,
-       samplers = hand$samplers, counters = RoBMA::selection_sampler_info())
+       samplers = hand$samplers, counters = RoBMA::selection_sampler_info(),
+       report = RoBMA:::.selection_sampler_report_read())
 }
 
 
 # A short corrected chain of mu on the rjags model of the block, with the
 # schedule of the setup. Returns the draws and the sampler counters of them.
-.coarse_exactness_chain <- function(setup, draws, seed = 74891L) {
+.coarse_exactness_chain <- function(setup, draws, seed = 74891L, min_acceptance = 0, adapt = 500L) {
 
   rows <- setup$rows
   rank <- setup$rank
@@ -170,8 +185,8 @@
   if (rank == 1L) data$loading <- as.numeric(setup$loading)
   hand <- .coarse_hand_model(setup$kind, rows, rank, setup$rules, data,
     definitions = paste0("  mu ~ dt(0, 1, 4)\n  for (j in 1:", rows, ") { means[j] <- mu }"),
-    seed = seed, inits = list(mu = -.25))
-  .coarse_hand_chain(hand, "mu", draws)
+    seed = seed, inits = list(mu = -.25), min_acceptance = min_acceptance)
+  .coarse_hand_chain(hand, "mu", draws, adapt = adapt)
 }
 
 
@@ -275,4 +290,108 @@
     2 * relative_error / (1 - relative_error) * c(sqrt(second), second)
   list(mean = mean, variance = second - mean^2, mean_error = moment_error[1L],
        variance_error = moment_error[2L] + 2 * abs(mean) * moment_error[1L] + moment_error[1L]^2)
+}
+
+
+# A dense multivariate block (dselnorm_mnorm_step) of `rows` equicorrelated rows
+# (correlation rho, unit variances and SEs) with y = 0 observed on the rows,
+# whose shared location mu ~ t(4) has the exact posterior
+#   p(mu | y) ~ t4(mu) exp(-I mu^2 / 2) / A(mu),   I = rows / (1 + (rows - 1) rho),
+#   A(mu) = E_z prod_i (omega + (1 - omega) Phi((mu + sqrt(rho) z) / sqrt(1 - rho))).
+# The corrected sampler's surrogate divides by A at its anchor instead: the
+# location rounded to the grid of `mean` steps (times the largest SE, one) and
+# the weight rounded on the log scale; the unit diagonal stays, since its grid
+# starts at the squared SE, one. The anchor normalizer is integrated with the
+# first rules of the fitted schedule under the kernel's integration criterion,
+# whose relative error is far below the Monte Carlo error of the tests.
+.coarse_dense_setup <- function(rows = 3L, rho = .4, omega = .2,
+                                grid = c(mean = 1, variance = 1, log_weight = 1)) {
+
+  list(rows = rows, rho = rho, omega = omega, grid = grid,
+       information = rows / (1 + (rows - 1) * rho),
+       rules = .coarse_rules(c(7L, 15L, 31L, 63L, 127L, 255L, 511L, 1023L)))
+}
+
+
+# log A(mu) for the weight omega by QUADPACK; `tracker` collects the largest
+# relative error estimate.
+.coarse_dense_log_normalizer <- function(setup, mu, omega, tracker) {
+
+  result <- stats::integrate(function(z) {
+    stats::dnorm(z) * (omega + (1 - omega) *
+      stats::pnorm((mu + sqrt(setup$rho) * z) / sqrt(1 - setup$rho)))^setup$rows
+  }, -Inf, Inf, rel.tol = 1e-11, abs.tol = 1e-14, subdivisions = 200L)
+  stopifnot(identical(result$message, "OK"), result$value > 0)
+  tracker$relative_error <- max(tracker$relative_error, result$abs.error / result$value)
+  log(result$value)
+}
+
+
+# Rounding half away from zero (std::round of the native anchor).
+.coarse_dense_round <- function(x) sign(x) * floor(abs(x) + .5)
+
+
+# Mean and variance of the exact posterior of mu, or of the posterior of the
+# surrogate alone (constant normalizer within each cell of the mean grid), with
+# the error allowances of .coarse_moment_summary.
+.coarse_dense_moments <- function(setup, surrogate, tracker, lower = -14, upper = 8) {
+
+  prior_and_numerator <- function(mu) stats::dt(mu, df = 4, log = TRUE) - setup$information * mu^2 / 2
+  if (!surrogate) {
+    cache <- new.env()
+    log_density <- function(mu) {
+      key <- sprintf("%.17g", mu)
+      if (is.null(cache[[key]])) {
+        cache[[key]] <- .coarse_dense_log_normalizer(setup, mu, setup$omega, tracker)
+      }
+      prior_and_numerator(mu) - cache[[key]]
+    }
+    return(.coarse_moments_1d(log_density, lower, upper, tracker, rel.tol = 1e-8, abs.tol = 1e-12))
+  }
+  step   <- setup$grid[["mean"]]
+  weight <- exp(.coarse_dense_round(log(setup$omega) / setup$grid[["log_weight"]]) *
+                setup$grid[["log_weight"]])
+  cells  <- seq(.coarse_dense_round(lower / step), .coarse_dense_round(upper / step))
+  reference <- prior_and_numerator(0) - .coarse_dense_log_normalizer(setup, 0, weight, tracker)
+  parts <- lapply(cells, function(cell) {
+    log_normalizer <- .coarse_dense_log_normalizer(setup, cell * step, weight, tracker)
+    .coarse_raw_moments(function(mu) prior_and_numerator(mu) - log_normalizer,
+                        max(lower, (cell - .5) * step), min(upper, (cell + .5) * step), reference)
+  })
+  values <- Reduce(`+`, lapply(parts, `[[`, "values"))
+  errors <- Reduce(`+`, lapply(parts, `[[`, "errors"))
+  .coarse_moment_summary(values, errors, tracker$relative_error)
+}
+
+
+# The rjags model of the dense block with the corrected sampler and the grid of
+# the setup, compiled at the threshold `min_acceptance`; the options are restored
+# and the per-fit counters start from zero.
+.coarse_dense_hand_model <- function(setup, min_acceptance = 0, seed = 74891L) {
+
+  old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_grid",
+                                  "selection.coarse_max_rules", "selection.coarse_min_acceptance")]
+  on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
+  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_grid = setup$grid,
+                       selection.coarse_max_rules = 3L, selection.coarse_min_acceptance = min_acceptance)
+  rows <- setup$rows
+  covariance <- matrix(setup$rho, rows, rows)
+  diag(covariance) <- 1
+  design <- BayesTools::selection_qmc_design(6L, 512L, 8L, 9049L)
+  data <- list(y = rep(0, rows), covariance = covariance[lower.tri(covariance, diag = TRUE)],
+    sei = rep(1, rows), omega = c(1, setup$omega), obs_bin = rep(1, rows),
+    z_lower = c(0, -1e300), z_upper = c(1e300, 0), qmc = as.numeric(design), nqmc = length(design),
+    nodes = setup$rules$nodes, log_weights = setup$rules$log_weights, orders = setup$rules$orders,
+    nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
+  syntax <- paste0("model {\n  mu ~ dt(0, 1, 4)\n  for (j in 1:", rows, ") { means[j] <- mu }\n",
+    "  y[1:", rows, "] ~ dselnorm_mnorm_step(means[1:", rows, "], covariance[1:", rows * (rows + 1L) / 2L,
+    "], sei[1:", rows, "], omega[1:2], z_lower[1:2], z_upper[1:2], obs_bin[1:", rows, "], 1, 1, 1, ",
+    "qmc[1:nqmc], 512, 8, 0.005, 0, nodes[1:nq], log_weights[1:nq], orders[1:nr])\n}")
+  RoBMA:::.selection_sampler_report_read()
+  connection <- textConnection(syntax)
+  on.exit(close(connection), add = TRUE)
+  model <- rjags::jags.model(connection, data = data,
+    inits = list(mu = -.25, .RNG.name = "base::Mersenne-Twister", .RNG.seed = seed),
+    n.chains = 1L, n.adapt = 0L, quiet = TRUE)
+  list(model = model, samplers = names(rjags::list.samplers(model)))
 }
