@@ -25,7 +25,10 @@
 # Welch statistics of the run means of every non-degenerate quantity: pass when
 # no |t| > 3.5 and the count of |t| > 2 is at most twice its expectation under
 # the Welch t distribution; a failing model is rerun once ('--part=rerun') with
-# fresh seeds, judged on its failing quantities only. Every planned run is
+# fresh seeds, judged on its failing quantities only. The count treats the
+# quantities as independent, though some are one (complementary weights and
+# their prior parameters, strongly correlated run means), so a single deviation
+# can count several times. Every planned run is
 # counted (planned, completed, failed, missing); a failed or missing run, an arm
 # with fewer than two completed runs or no comparable quantity makes the model
 # 'incomplete', never a pass. Models (dat.assink2016 unless named, V from
