@@ -67,9 +67,8 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 # Blocks: NULL unless a selection likelihood is present; otherwise a function
 # of the combined prior list (formula priors under their final names and with
 # their random-effect attributes), which BayesTools::JAGS_fit() calls once.
-# Model-averaged fits declare their allocation block only when the corrected
-# selection sampler is off ('selection.sampler = "default"'); otherwise the
-# allocation parameters are left to it.
+# Model-averaged fits declare their allocation block unless the corrected
+# selection sampler can take the allocation parameters (.sampler_ensemble_block()).
 .sampler_blocks_declared <- function(data, priors) {
 
   if (!isTRUE(RoBMA.get_option("sampler.blocks")) ||
@@ -81,10 +80,34 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     .data_scale_component_specs(data), function(spec) spec[["parameter"]], character(1)
   )
 
-  return(.sampler_block_function(
-    scale_parameters,
-    ensemble_block = identical(RoBMA.get_option("selection.sampler"), "default")
-  ))
+  return(.sampler_block_function(scale_parameters, ensemble_block = .sampler_ensemble_block(data)))
+}
+
+
+# Whether a model-averaged fit declares its allocation block: yes unless the
+# corrected selection sampler is on ('selection.sampler = "coarse_corrected"')
+# and can take the allocation parameters, which needs a dependent selection
+# block (dense, rank-one or factor; singletons never engage it) and, unless one
+# of them is dense, a selection branch with the product rule (cluster and
+# factor blocks under best-weight rules only have the exact density as their
+# surrogate, so every corrected sampler would fall back).
+.sampler_ensemble_block <- function(data) {
+
+  if (!identical(RoBMA.get_option("selection.sampler"), "coarse_corrected") ||
+      !.is_data_joint_selection(data)) {
+    return(TRUE)
+  }
+  methods <- .data_selection_execution_plan(data)[["block_methods"]]
+  if (!any(methods %in% c("dense", "rank_one", "factor"))) {
+    return(TRUE)
+  }
+  model    <- .data_selection_model(data)
+  branches <- model[["branches"]][model[["active_branches"]]]
+  best     <- length(branches) > 0L && all(vapply(branches, function(branch) {
+    identical(branch[["weight_rule"]], "best")
+  }, logical(1L)))
+
+  return(best && !any(methods == "dense"))
 }
 
 

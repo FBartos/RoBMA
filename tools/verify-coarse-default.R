@@ -54,9 +54,10 @@
 # the build of --other-library, one R process each: the sampler assignment and
 # the draws of a univariate selection model, a .mv selection model, a .mv
 # ensemble and a model without selection must be equal; and, in this build, a
-# univariate selection model, a univariate ensemble and a model without
-# selection (no coarse-capable selection child) must be equal under both values
-# of selection.sampler.
+# univariate selection model, a univariate ensemble, a model without selection
+# and a .mv ensemble on sampling variances (no coarse-capable selection child;
+# the ensemble keeps its allocation block) must be equal under both values of
+# selection.sampler.
 #
 # --part=selftest runs the drivers on synthetic run files in a temporary
 # directory (no fits) and stops on a wrong decision, shape or count, or on any
@@ -731,7 +732,9 @@ model_specs_cross <- function() {
     RoBMA.mv     = list(constructor = "RoBMA.mv", args = list(yi = quote(yi), V = V_full, data = assink,
                                                                measure = "SMD", random = ~ 1 | study / esid)),
     brma.mv      = list(constructor = "brma.mv", args = list(yi = quote(yi), V = V_full, data = assink,
-                                                              measure = "SMD", random = ~ 1 | study / esid))
+                                                              measure = "SMD", random = ~ 1 | study / esid)),
+    RoBMA.mv_vi  = list(constructor = "RoBMA.mv", args = list(yi = quote(yi), V = quote(vi), data = assink,
+                                                               measure = "SMD", random = ~ 1 | study / esid))
   )
 }
 
@@ -804,8 +807,10 @@ identity_driver <- function(dir = out_dir, execute = run_process) {
     jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "other", seed = 7001L, fit = fit,
                                       options = list(), pair = "builds")
   }
-  # this build alone: no coarse-capable selection child, both option values
-  for (model in c("bselmodel", "RoBMA", "brma.mv")) {
+  # this build alone: no coarse-capable selection child (RoBMA.mv on sampling
+  # variances has single-estimate blocks only, so it also keeps its allocation
+  # block), both option values
+  for (model in c("bselmodel", "RoBMA", "brma.mv", "RoBMA.mv_vi")) {
     for (sampler in c("default", "coarse_corrected")) {
       jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "this", seed = 7001L, fit = fit,
                                         options = list(selection.sampler = sampler), pair = "options",
@@ -975,9 +980,9 @@ selftest <- function() {
     list(rows = utils::read.csv(file.path(dir, "identity.csv"), stringsAsFactors = FALSE), output = output)
   }
   z <- identity_case("identity_same", function(job) FALSE)
-  check(nrow(z$rows) == 7L && all(z$rows$status == "complete") && all(z$rows$identical_draws) &&
-          sum(z$rows$pair == "builds") == 4L && sum(z$rows$pair == "options") == 3L,
-        "identity: 4 build pairs and 3 option pairs, all identical")
+  check(nrow(z$rows) == 8L && all(z$rows$status == "complete") && all(z$rows$identical_draws) &&
+          sum(z$rows$pair == "builds") == 4L && sum(z$rows$pair == "options") == 4L,
+        "identity: 4 build pairs and 4 option pairs, all identical")
   z <- identity_case("identity_differs", function(job) job$model == "RoBMA.mv" && job$arm == "other")
   check(sum(!z$rows$identical_draws) == 1L && any(grepl("FINDING", z$output)),
         "identity: a differing pair is reported as a finding")

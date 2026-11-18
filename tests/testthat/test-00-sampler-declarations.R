@@ -226,22 +226,38 @@ test_that("model-averaged fits gate their bias branches and block only allocatio
 
   # multilevel allocation: the allocation SD and the split weights; the
   # inclusion probability and the mixture of the effect are not members. The
-  # block is declared only with the corrected selection sampler off; under the
-  # default "coarse_corrected" the allocation parameters are left to it.
+  # block is left out only where the corrected selection sampler (the default)
+  # can take the allocation parameters: with a dependent selection block and a
+  # product-rule branch. On sampling variances alone every selection block is a
+  # single estimate, and best-weight branches on rank-one or factor blocks give
+  # no coarse rule, so the block stays there under both settings.
   old_options <- RoBMA.options()
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  best   <- selection_model(weight_rule = "best", group = "study")
+  # a constant within-study correlation: rank-one blocks only (no dense block)
+  V_rank_one <- metafor::vcalc(vi, cluster = study, obs = esid, rho = .6, data = dat)
+  models <- list(
+    vi   = RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                    only_priors = TRUE),
+    V    = RoBMA.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                    only_priors = TRUE),
+    best = RoBMA.mv(yi = yi, V = V_rank_one, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                    prior_bias = list(
+                      BayesTools::prior_weightfunction("one-sided", steps = .025, model = best),
+                      BayesTools::prior_weightfunction("one-sided", steps = c(.025, .05), model = best)),
+                    only_priors = TRUE)
+  )
+  expect_true(all(.data_selection_execution_plan(models[["vi"]][["data"]])[["block_methods"]] == "singleton"))
+  expect_true(any(.data_selection_execution_plan(models[["V"]][["data"]])[["block_methods"]] != "singleton"))
+  best_methods <- .data_selection_execution_plan(models[["best"]][["data"]])[["block_methods"]]
+  expect_true(any(best_methods %in% c("rank_one", "factor")))
+  expect_false(any(best_methods == "dense"))
   for (sampler in c("default", "coarse_corrected")) {
     RoBMA.options(selection.sampler = sampler)
-    for (variances in c("vi", "V")) {
-      object <- if (variances == "vi") {
-        RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, data = dat, measure = "SMD",
-                 only_priors = TRUE)
-      } else {
-        RoBMA.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
-                 only_priors = TRUE)
-      }
-      .expect_declarations(object, gates = TRUE,
-                           blocks = if (sampler == "default") list(c(allocation_sd, split_w)) else NULL,
+    for (variances in names(models)) {
+      declared <- sampler == "default" || variances != "V"
+      .expect_declarations(models[[variances]], gates = TRUE,
+                           blocks = if (declared) list(c(allocation_sd, split_w)) else NULL,
                            label = paste("RoBMA.mv", variances, sampler))
     }
   }
