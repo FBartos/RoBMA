@@ -441,6 +441,7 @@ certification_cases <- function() {
         .required_tests("test-00-selection-coarse-fallback.R", c(
           "stress fixtures fall back at the default threshold and are exact with and without the fallback",
           "a sampler decides its kernel once, at the end of adaptation, by the first rule that holds",
+          "the worst-sampler rate is the rate of one sampler over its whole run",
           "serial and parallel fits record their corrected samplers, and update() adds once",
           "the JASP path, alternating fits and leftover counts keep each fit's record its own",
           "a failed extension keeps the input record and a fit saved before the record counts from its extension",

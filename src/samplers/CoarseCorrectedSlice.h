@@ -26,9 +26,10 @@ struct CoarseCorrectedSliceStats {
 // The per-fit counters, read and cleared by the runtime report of each fit:
 // sampler objects constructed (node x chain, per model build), the fallbacks
 // decided at adaptOff() by reason, the proposals and accepted corrections made
-// after adaptOff() by samplers that stayed corrected, and the lowest cumulative
-// post-adaptation acceptance rate of one sampler at a multiple of 256 of its
-// proposals (has_min_rate false when no sampler reached 256).
+// after adaptOff() by samplers that stayed corrected, and the lowest acceptance
+// rate of one such sampler over its proposals since the last clearing read (live
+// samplers and those destroyed since; only samplers with at least 256 such
+// proposals count, has_min_rate false when none does).
 struct CoarseCorrectedSliceReport {
   std::uint64_t samplers;
   std::uint64_t fallback_few_proposals;

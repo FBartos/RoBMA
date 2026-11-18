@@ -117,11 +117,13 @@ correction accepted them (unchanged values included), counting burn-in,
 retained and extension draws and the closing draws the sampler makes after
 recording the chain end; \code{acceptance_rate}, their ratio
 (\code{NA} without proposals); \code{min_sampler_rate}, the lowest
-cumulative post-adaptation acceptance rate of a single sampler, taken every
-256 of its proposals (\code{NA} when no sampler reached 256 proposals); and
-\code{complete}, \code{FALSE} when part of the chain was drawn without a
-record (an extension of a fit saved before the record existed, or a process
-whose report failed), in which case the counts cover the recorded part only.
+post-adaptation acceptance rate of a single sampler over one sampling run
+(one backend run of the fit, an automatic extension or an \code{update()}),
+among the samplers with at least 256 proposals in that run (\code{NA} when
+none has); and \code{complete}, \code{FALSE} when part of the chain was drawn
+without a record (an extension of a fit saved before the record existed, a
+process whose report failed, or a fit without any report), in which case the
+counts cover the recorded part only.
 Adaptation updates and updates of samplers that fell back are not counted.
 
 Warning. A fit or an extension whose record has at least 1,000 counted

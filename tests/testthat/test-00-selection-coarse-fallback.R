@@ -494,6 +494,61 @@ test_that("a sampler decides its kernel once, at the end of adaptation, by the f
 })
 
 
+test_that("the worst-sampler rate is the rate of one sampler over its whole run", {
+
+  skip_if_not_certification("These hand-written models (about 3 s) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  setup <- .coarse_exactness_setup("cluster", omega = .01)
+  build <- function(definitions = "  mu ~ dt(0, 1, 4)\n  for (j in 1:4) { means[j] <- mu }",
+                    data = list(residual_sd = setup$residual_sd), inits = list(mu = -.25), ...) {
+    .coarse_hand_model("cluster", 4L, 1L, setup$rules,
+      data = c(list(loading = as.numeric(setup$loading), omega = setup$omega), data),
+      definitions = definitions, inits = inits, ...)
+  }
+
+  # one sampler (a strongly selected block, whose early proposals are no better
+  # than its later ones): its rate over burn-in and draws, never a lower one
+  report <- .coarse_hand_chain(build(), "mu", 2000L)$report
+  expect_identical(report[["samplers"]], 1)
+  expect_identical(report[["sampling_proposed"]], 500 + 2000)
+  expect_identical(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
+  expect_lt(report[["min_sampler_rate"]], 1)
+  # two reads in a row: the second has nothing
+  expect_identical(.selection_sampler_report_read(), .fallback_report_value(rate = NA_real_))
+
+  # a sampler destroyed before the read still counts with its rate
+  hand <- build()
+  rjags::adapt(hand$model, 500L, end.adaptation = TRUE)
+  stats::update(hand$model, n.iter = 1000L, progress.bar = "none")
+  rm(hand)
+  invisible(gc())
+  report <- .selection_sampler_report_read()
+  expect_identical(report[["sampling_proposed"]], 1000)
+  expect_identical(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
+
+  # fewer than 256 proposals in the run: no rate
+  hand <- build()
+  rjags::adapt(hand$model, 500L, end.adaptation = TRUE)
+  stats::update(hand$model, n.iter = 255L, progress.bar = "none")
+  report <- .selection_sampler_report_read()
+  expect_identical(report[["sampling_proposed"]], 255)
+  expect_identical(report[["min_sampler_rate"]], NA_real_)
+  # the next run of the same sampler is its own window
+  stats::update(hand$model, n.iter = 300L, progress.bar = "none")
+  report <- .selection_sampler_report_read()
+  expect_identical(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
+
+  # two samplers (the location and the residual SD): the lower of their rates,
+  # at most the pooled rate
+  report <- .coarse_hand_chain(build(
+    definitions = "  mu ~ dt(0, 1, 4)\n  sdr ~ dunif(0.3, 1.5)\n  for (j in 1:4) { means[j] <- mu\n    residual_sd[j] <- sdr }",
+    data = list(), inits = list(mu = -.25, sdr = .5)), c("mu", "sdr"), 2000L)$report
+  expect_identical(report[["samplers"]], 2)
+  expect_lte(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
+  expect_gt(report[["min_sampler_rate"]], 0)
+})
+
+
 # ---------------------------------------------------------------------------- #
 # Fits (certification case 'numerical-kernels').
 # ---------------------------------------------------------------------------- #
@@ -556,8 +611,9 @@ test_that("serial and parallel fits record their corrected samplers, and update(
   skip_if_not_installed("metafor")
   coarse <- "RoBMA::CoarseCorrectedSlice"
 
-  serial   <- .fallback_fit(parallel = FALSE, chains = 3L)
-  parallel <- .fallback_fit(parallel = TRUE, chains = 3L)
+  # 300 draws: each sampler makes more than 256 proposals, so it has a rate
+  serial   <- .fallback_fit(parallel = FALSE, chains = 3L, sample = 300L)
+  parallel <- .fallback_fit(parallel = TRUE, chains = 3L, sample = 300L)
   fits     <- list(serial = serial, parallel = parallel)
   for (label in names(fits)) {
     fit    <- fits[[label]]
@@ -574,7 +630,11 @@ test_that("serial and parallel fits record their corrected samplers, and update(
     # one sampler object per corrected node and chain
     expect_identical(record[["samplers"]], 3 * sum(fit[["fit"]][["samplers"]][["Sampler"]] == coarse), info = label)
     expect_gt(record[["samplers"]], 0)
-    .fallback_expect_identity(record, 50 + 100 + 2, label)
+    .fallback_expect_identity(record, 50 + 300 + 2, label)
+    # the worst-sampler rate is the lowest of the processes' rates
+    process_rates <- vapply(values[[1L]], `[[`, numeric(1L), "min_sampler_rate")
+    expect_false(anyNA(process_rates), info = label)
+    expect_identical(record[["min_sampler_rate"]], min(process_rates), info = label)
     expect_identical(selection_sampler_info(fit = fit), as.data.frame(record, stringsAsFactors = FALSE))
   }
   expect_identical(.fallback_record(serial)[["samplers"]], .fallback_record(parallel)[["samplers"]])

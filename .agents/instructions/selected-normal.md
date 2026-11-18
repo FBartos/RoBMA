@@ -484,8 +484,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   only, so no switch happens after adaptation. Per-fit counters
   (`RoBMA_selnorm_sampler_report`, read and cleared) count objects, fallbacks
   by reason, post-adaptation proposals and acceptances of samplers still
-  corrected (burn-in and runjags' closing draws included) and the lowest
-  cumulative rate of one sampler at multiples of 256 proposals; the three
+  corrected (burn-in and runjags' closing draws included) and the lowest rate
+  of one sampler over its proposals since the last clearing read (a registry
+  of live samplers under a mutex; a sampler destroyed earlier leaves its rate
+  in a retired minimum; samplers with fewer than 256 such proposals do not
+  count); the three
   process-wide counters of `selection_sampler_info()` are unchanged. `.fit()`
   passes a report callback (`BayesTools::JAGS_fit(runtime_report = )`, also on
   extensions) for selection fits, sums the retained runs over processes, adds

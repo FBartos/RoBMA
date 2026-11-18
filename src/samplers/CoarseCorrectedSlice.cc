@@ -17,6 +17,7 @@
 #include <atomic>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -29,29 +30,26 @@ std::atomic<std::uint64_t> coarse_proposed(0);
 std::atomic<std::uint64_t> coarse_accepted(0);
 std::atomic<std::uint64_t> coarse_correction_rejected(0);
 
-// Per-fit counters (CoarseCorrectedSliceReport). The minimum rate starts at a
-// value above every rate, meaning that no sampler has reached a checkpoint.
-const double no_min_rate = 2.0;
+// Per-fit counters (CoarseCorrectedSliceReport).
 std::atomic<std::uint64_t> report_samplers(0);
 std::atomic<std::uint64_t> report_fallback_few_proposals(0);
 std::atomic<std::uint64_t> report_fallback_surrogate_exact(0);
 std::atomic<std::uint64_t> report_fallback_low_acceptance(0);
 std::atomic<std::uint64_t> report_sampling_proposed(0);
 std::atomic<std::uint64_t> report_sampling_accepted(0);
-std::atomic<double> report_min_sampler_rate(no_min_rate);
 
 // Fallback rules decided at adaptOff(): fewer adaptive proposals than this
-// cannot be judged; the worst-sampler rate is checked every this many
-// post-adaptation proposals of one sampler.
+// cannot be judged. The worst-sampler rate counts samplers with at least
+// min_rate_proposals proposals since the last clearing read of the report.
 const std::uint64_t min_adaptive_proposals = 50;
-const std::uint64_t rate_checkpoint = 256;
+const std::uint64_t min_rate_proposals = 256;
 
-void lower_min_sampler_rate(double rate)
+// The rate of one sampler's window and whether it counts for the worst rate.
+bool window_rate(std::uint64_t proposed, std::uint64_t accepted, double *rate)
 {
-  double current = report_min_sampler_rate.load(std::memory_order_relaxed);
-  while (rate < current &&
-         !report_min_sampler_rate.compare_exchange_weak(current, rate, std::memory_order_relaxed)) {
-  }
+  if (proposed < min_rate_proposals) return false;
+  *rate = static_cast<double>(accepted) / static_cast<double>(proposed);
+  return true;
 }
 
 // How a stochastic child of the sampled node enters the surrogate density: a
@@ -221,6 +219,26 @@ struct SelectedChild {
   }
 };
 
+class CoarseCorrectedSlice;
+
+// The live corrected samplers of this process, and the lowest window rate of
+// those destroyed since the last clearing read of the report. Registration,
+// destruction and the report's read take the mutex; window counters change only
+// inside updates, which JAGS runs on the thread that also reads the report
+// between runs.
+struct SamplerRegistry {
+  std::mutex mutex;
+  std::vector<CoarseCorrectedSlice *> live;
+  bool has_retired = false;
+  double retired_min_rate = 0.0;
+};
+
+SamplerRegistry &sampler_registry()
+{
+  static SamplerRegistry registry;
+  return registry;
+}
+
 class CoarseCorrectedSlice : public Slicer {
   SingletonGraphView const *_graph;
   const unsigned int _chain;
@@ -243,9 +261,10 @@ class CoarseCorrectedSlice : public Slicer {
   std::uint64_t _adaptive_proposed;
   std::uint64_t _adaptive_accepted;
   mutable bool _surrogate_not_exact;
-  // Proposals and accepted corrections since adaptOff() in corrected mode.
-  std::uint64_t _sampling_proposed;
-  std::uint64_t _sampling_accepted;
+  // Proposals and accepted corrections after adaptOff() in corrected mode since
+  // the last clearing read of the report (the window of one run).
+  std::uint64_t _window_proposed;
+  std::uint64_t _window_accepted;
 
   // One completed proposal of the corrected update.
   void countOutcome(bool accepted)
@@ -255,15 +274,11 @@ class CoarseCorrectedSlice : public Slicer {
       if (accepted) ++_adaptive_accepted;
       return;
     }
-    ++_sampling_proposed;
+    ++_window_proposed;
     report_sampling_proposed.fetch_add(1, std::memory_order_relaxed);
     if (accepted) {
-      ++_sampling_accepted;
+      ++_window_accepted;
       report_sampling_accepted.fetch_add(1, std::memory_order_relaxed);
-    }
-    if (_sampling_proposed % rate_checkpoint == 0) {
-      lower_min_sampler_rate(static_cast<double>(_sampling_accepted) /
-                             static_cast<double>(_sampling_proposed));
     }
   }
 
@@ -283,7 +298,7 @@ public:
     : Slicer(1.0, 10), _graph(graph), _chain(chain), _settings(settings),
       _min_acceptance(min_acceptance), _surrogate_valid(false), _surrogate_value(0.0),
       _adapting(true), _exact(false), _adaptive_proposed(0), _adaptive_accepted(0),
-      _surrogate_not_exact(false), _sampling_proposed(0), _sampling_accepted(0)
+      _surrogate_not_exact(false), _window_proposed(0), _window_accepted(0)
   {
     for (StochasticNode *child : graph->stochasticChildren()) {
       const ChildKind kind = child_kind(child, settings);
@@ -292,7 +307,41 @@ public:
     }
     if (_selected.empty()) throw std::logic_error("Corrected slice has no selection child.");
     graph->checkFinite(chain);
+    SamplerRegistry &registry = sampler_registry();
+    const std::lock_guard<std::mutex> lock(registry.mutex);
+    registry.live.push_back(this);
     report_samplers.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  // A sampler destroyed before the report is read still counts for the worst
+  // rate of its run.
+  ~CoarseCorrectedSlice()
+  {
+    SamplerRegistry &registry = sampler_registry();
+    const std::lock_guard<std::mutex> lock(registry.mutex);
+    std::vector<CoarseCorrectedSlice *> &live = registry.live;
+    for (std::size_t i = 0; i < live.size(); ++i) {
+      if (live[i] == this) {
+        live[i] = live.back();
+        live.pop_back();
+        break;
+      }
+    }
+    double rate;
+    if (window_rate(_window_proposed, _window_accepted, &rate) &&
+        (!registry.has_retired || rate < registry.retired_min_rate)) {
+      registry.retired_min_rate = rate;
+      registry.has_retired = true;
+    }
+  }
+
+  // Window counters of the report (read with the registry mutex held).
+  std::uint64_t windowProposed() const { return _window_proposed; }
+  std::uint64_t windowAccepted() const { return _window_accepted; }
+  void clearWindow()
+  {
+    _window_proposed = 0;
+    _window_accepted = 0;
   }
 
   double value() const
@@ -567,11 +616,26 @@ CoarseCorrectedSliceReport coarse_corrected_slice_report(bool clear)
   report.fallback_low_acceptance = take(report_fallback_low_acceptance);
   report.sampling_proposed = take(report_sampling_proposed);
   report.sampling_accepted = take(report_sampling_accepted);
-  const double min_rate = clear ?
-    report_min_sampler_rate.exchange(no_min_rate, std::memory_order_relaxed) :
-    report_min_sampler_rate.load(std::memory_order_relaxed);
-  report.has_min_rate = min_rate < no_min_rate;
-  report.min_sampler_rate = report.has_min_rate ? min_rate : 0.0;
+  // The lowest rate of one sampler over its window: the destroyed samplers'
+  // minimum and the live samplers with enough proposals (fallen-back samplers
+  // have none).
+  SamplerRegistry &registry = sampler_registry();
+  const std::lock_guard<std::mutex> lock(registry.mutex);
+  report.has_min_rate = registry.has_retired;
+  report.min_sampler_rate = registry.has_retired ? registry.retired_min_rate : 0.0;
+  for (CoarseCorrectedSlice *sampler : registry.live) {
+    double rate;
+    if (window_rate(sampler->windowProposed(), sampler->windowAccepted(), &rate) &&
+        (!report.has_min_rate || rate < report.min_sampler_rate)) {
+      report.min_sampler_rate = rate;
+      report.has_min_rate = true;
+    }
+    if (clear) sampler->clearWindow();
+  }
+  if (clear) {
+    registry.has_retired = false;
+    registry.retired_min_rate = 0.0;
+  }
   return report;
 }
 
