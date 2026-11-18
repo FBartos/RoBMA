@@ -233,10 +233,13 @@ struct SamplerRegistry {
   double retired_min_rate = 0.0;
 };
 
+// Allocated once and never destroyed: samplers of models that R frees late
+// (finalizers at unload or exit) unregister after static destructors may have
+// run, so the registry must outlive every sampler.
 SamplerRegistry &sampler_registry()
 {
-  static SamplerRegistry registry;
-  return registry;
+  static SamplerRegistry *registry = new SamplerRegistry();
+  return *registry;
 }
 
 class CoarseCorrectedSlice : public Slicer {
