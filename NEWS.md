@@ -2,6 +2,7 @@
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
+- selection models with dependent estimates use the coarse-corrected selection sampler by default, which falls back to the exact slice sampler and warns on low acceptance; each fit records its acceptance (`selection_sampler_info(fit = )`, option `selection.coarse_min_acceptance`; `RoBMA.options(selection.sampler = "default")` restores the previous samplers)
 
 ### Fixes
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions

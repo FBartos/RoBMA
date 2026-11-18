@@ -434,8 +434,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   or randomized fallback, which on such a platform also takes any product that
   reaches the subnormal range at any factor, also when later weights above one
   would bring it back.
-- Corrected sampler: `selection.sampler = "coarse_corrected"`
-  (`src/samplers/CoarseCorrectedSlice.cc`) makes one slice transition per
+- Corrected sampler: `selection.sampler = "coarse_corrected"`, the default
+  (`src/samplers/CoarseCorrectedSlice.cc`), makes one slice transition per
   eligible scalar update on a surrogate density and accepts it with the ratio
   of the exact full conditional to the surrogate, so any surrogate that is a
   deterministic function of the graph state leaves the exact target invariant;
@@ -456,9 +456,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   terms. The vector rule and the kernel mode are dynamic parents of these
   children, because a mixture composes both from the bias indicator (a rule
   that is product in every state is still a node); a state with a best-weight
-  rule has the exact density as its surrogate, so a model average with only
-  best-weight branches engages without any gain and is better run with the
-  default sampler. The classes' dynamic (kernel
+  rule has the exact density as its surrogate (a model average with only
+  best-weight branches falls back by rule (c) below). The classes' dynamic (kernel
   mode, vector rule, mean, residual SD, loadings, weights) and control
   validators split `checkParameterValue` for the sampler's fixed-control
   certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`
@@ -467,6 +466,37 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   against QUADPACK references. The factory skips any node with a `dbt_block` or
   `dbt_gate` marker child, so declared nodes keep the BayesTools samplers below
   whatever the factory order.
+- Fallback and record: each sampler object (node x chain, per model build)
+  keeps its own adaptation flag (JAGS has no accessor), counts its adaptive
+  proposals and accepted corrections, and records whether any adaptive
+  surrogate used a normalizer that is not the exact one (the trailing
+  `surrogate_not_exact` flag of the three `surrogateLogDensity`: a cluster or
+  factor child's coarse rung, never its `exact_fallback` or NORMAL kernel; a
+  dense child always, its normalizer being the anchor integral or the unit
+  normalizer). At its first `adaptOff()` (a second call changes nothing) and
+  with `selection.coarse_min_acceptance > 0` (default 0.90, frozen with the
+  runtime settings; settings without it, from 4.1.1 fits, mean 0) it switches
+  for good to the exact kernel, an ordinary slice update of the full
+  conditional through the same `logDensity()`, when (a) it made fewer than 50
+  adaptive proposals, (c) no adaptive surrogate was not exact, or (b) its
+  adaptive acceptance is below the threshold, the first that holds being the
+  recorded reason. Both kernels are exact and the choice uses adaptation draws
+  only, so no switch happens after adaptation. Per-fit counters
+  (`RoBMA_selnorm_sampler_report`, read and cleared) count objects, fallbacks
+  by reason, post-adaptation proposals and acceptances of samplers still
+  corrected (burn-in and runjags' closing draws included) and the lowest
+  cumulative rate of one sampler at multiples of 256 proposals; the three
+  process-wide counters of `selection_sampler_info()` are unchanged. `.fit()`
+  passes a report callback (`BayesTools::JAGS_fit(runtime_report = )`, also on
+  extensions) for selection fits, sums the retained runs over processes, adds
+  the input fit's record once and stores `attr(fit, "selection_sampler")`
+  (`complete = FALSE` for an extension of a fit without a record); the counters
+  are discarded at the `start` phase in `.selection_runtime_configure()`, never
+  in the stored setup closure. A record with 1,000 or more counted proposals
+  and a pooled or worst-sampler rate below the threshold warns
+  (`RoBMA_selection_sampler_low_acceptance`, family
+  `RoBMA_selection_sampler_warning`) and keeps one message in
+  `attr(fit, "warnings")`.
 - BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
   `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
   marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`
@@ -481,10 +511,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   weights) except the unit-level latents `theta`, `gamma`, `sampling_z`, `pi`,
   `phi`; an ensemble blocks the allocation SD and weights only. Mixtures,
   spike-and-slab, ordered, point and discrete priors, inclusion priors and other
-  random-effect priors are never declared. So `selection.sampler = "default"`
-  is no longer stock JAGS sampling everywhere, and under `"coarse_corrected"`
-  block members and gated nodes stay with the BayesTools samplers unless
-  `sampler.blocks` / `sampler.gates` are `FALSE`.
+  random-effect priors are never declared. An ensemble declares its block
+  only under `selection.sampler = "default"`; under the default
+  `"coarse_corrected"` its allocation nodes are left to the corrected sampler.
+  So `selection.sampler = "default"` is no longer stock JAGS sampling
+  everywhere, and under `"coarse_corrected"` block members and gated nodes stay
+  with the BayesTools samplers unless `sampler.blocks` / `sampler.gates` are
+  `FALSE`.
 
 Known limits: blocks routed to the Smolyak grid (chains of rank three or more
 and other supports the certificate rejects) keep the per-transition rule, so
