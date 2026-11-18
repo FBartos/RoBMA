@@ -24,11 +24,21 @@
 }
 
 
-# A fitting error raised by a BayesTools sampler keeps its message and gains a
-# hint: the option that returns the declared parameters to the stock JAGS
-# samplers, and a request to report the model (the density could not be
-# computed, or a declaration is wrong).
+# A fitting error raised by a BayesTools sampler or by RoBMA's corrected
+# selection sampler keeps its message and gains a hint: the option that returns
+# the parameters to the stock JAGS samplers, and a request to report the model
+# (the density could not be computed, or a declaration is wrong).
 .sampler_error_hint <- function(message) {
+
+  if (grepl("Corrected slice", message, fixed = TRUE) ||
+      grepl("Surrogate slice transition failed", message, fixed = TRUE)) {
+    return(paste0(
+      message, "
+The error was raised by the corrected selection sampler that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(selection.sampler = \"default\")' to sample these parameters ",
+      "with the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
 
   option <- if (grepl("Factor slice sampler:", message, fixed = TRUE)) {
     "sampler.blocks"
@@ -57,6 +67,9 @@
 # Blocks: NULL unless a selection likelihood is present; otherwise a function
 # of the combined prior list (formula priors under their final names and with
 # their random-effect attributes), which BayesTools::JAGS_fit() calls once.
+# Model-averaged fits declare their allocation block only when the corrected
+# selection sampler is off ('selection.sampler = "default"'); otherwise the
+# allocation parameters are left to it.
 .sampler_blocks_declared <- function(data, priors) {
 
   if (!isTRUE(RoBMA.get_option("sampler.blocks")) ||
@@ -68,20 +81,26 @@
     .data_scale_component_specs(data), function(spec) spec[["parameter"]], character(1)
   )
 
-  return(.sampler_block_function(scale_parameters))
+  return(.sampler_block_function(
+    scale_parameters,
+    ensemble_block = identical(RoBMA.get_option("selection.sampler"), "default")
+  ))
 }
 
 
-# A closure over the names of the scale formulas only (it keeps no data).
-.sampler_block_function <- function(scale_parameters) {
+# A closure over the names of the scale formulas and the ensemble switch only
+# (it keeps no data).
+.sampler_block_function <- function(scale_parameters, ensemble_block) {
 
   force(scale_parameters)
-  return(function(prior_list) .sampler_block_members(prior_list, scale_parameters))
+  force(ensemble_block)
+  return(function(prior_list) .sampler_block_members(prior_list, scale_parameters, ensemble_block))
 }
 
 
-# The block of a combined prior list: list(<prior names>) or NULL.
-.sampler_block_members <- function(prior_list, scale_parameters = character()) {
+# The block of a combined prior list: list(<prior names>) or NULL. With
+# 'ensemble_block = FALSE' a model-averaged fit declares no block.
+.sampler_block_members <- function(prior_list, scale_parameters = character(), ensemble_block = TRUE) {
 
   if (!.sampler_heterogeneity_estimated(prior_list, scale_parameters)) {
     return(NULL)
@@ -93,6 +112,9 @@
   members      <- setdiff(names(prior_list)[eligible], unit_latents)
 
   if (.sampler_is_ensemble(prior_list)) {
+    if (!ensemble_block) {
+      return(NULL)
+    }
     # Model-averaged fits: the plain allocation SD and the Dirichlet allocation
     # weights of a random-effect variance allocation only.
     members <- members[vapply(prior_list[members], function(prior) {

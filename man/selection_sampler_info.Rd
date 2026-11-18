@@ -4,28 +4,36 @@
 \alias{selection_sampler_info}
 \title{Inspect corrected selection-sampler counters}
 \usage{
-selection_sampler_info(clear = FALSE)
+selection_sampler_info(clear = FALSE, fit = NULL)
 }
 \arguments{
-\item{clear}{reset counters before reporting them.}
+\item{clear}{reset the process counters before reporting them. Cannot be
+combined with \code{fit}.}
+
+\item{fit}{a fitted selection model (for example from \code{bselmodel.mv()}
+or \code{RoBMA.mv()}) whose record to report, or \code{NULL} for the
+process counters.}
 }
 \value{
-A data frame with proposal, acceptance and correction-rejection
-counts, and an acceptance rate (\code{NA} before any proposals).
+Without \code{fit}, a data frame with proposal, acceptance and
+correction-rejection counts, and an acceptance rate (\code{NA} before any
+proposals). With \code{fit}, a one-row data frame with the record described
+in details; a fit without a record (not a selection model, or fitted before
+the record existed) gives \code{NA} counts and \code{complete = FALSE}.
 }
 \description{
-Counts completed coarse slice proposals and their full-target
-acceptance decisions in the current R process.
+Reports the work of the corrected selection sampler: the record
+of a fitted model, or the counters of the current R process.
 }
 \details{
-Enable the alternative for future fits with
-\code{RoBMA.options(selection.sampler = "coarse_corrected")}.
-The default \code{"default"} does not use it; parameters that the options
-\code{sampler.blocks} and \code{sampler.gates} declare to the factor slice
-and gated samplers of the BayesTools JAGS module (see
-\code{\link{RoBMA.options}}) keep those samplers under either setting, so
-set the two options to \code{FALSE} for the corrected sampler to update
-them as well.
+The corrected sampler is the default,
+\code{RoBMA.options(selection.sampler = "coarse_corrected")}; set
+\code{selection.sampler = "default"} before fitting to use the samplers JAGS
+assigns instead. Parameters that the options \code{sampler.blocks} and
+\code{sampler.gates} declare to the factor slice and gated samplers of the
+BayesTools JAGS module (see \code{\link{RoBMA.options}}) keep those samplers
+under either setting, so set the two options to \code{FALSE} for the
+corrected sampler to update them as well.
 Every proposal is corrected against the full original likelihood and prior.
 Only the selection normalizer used to construct proposals is coarsened.
 A reversible slice transition for that surrogate is followed by a
@@ -65,27 +73,71 @@ kernel mode fixed at the normal kernel, or, for a factor block, a rule beyond
 the node budget at the declared rank (rank two to six at the default
 setting). In model-averaged fits the weight rule and the kernel mode are
 nodes of the bias indicator, so their blocks take part, with the exact
-density in the states of the indicator that have a best-weight rule. A model
-average whose selection branches all use the best-weight rule takes part
-without any state that can gain: its surrogate is the exact density everywhere
-and every update pays two extra exact evaluations, so run such fits with the
-default sampler. Blocks fixed at a best-weight rule, blocks of higher rank and
-blocks with a fixed normal kernel keep the ordinary sampler.
+density in the states of the indicator that have a best-weight rule. Blocks
+fixed at a best-weight rule, blocks of higher rank and blocks with a fixed
+normal kernel keep the ordinary sampler.
 
 A scalar update is eligible when at least one stochastic child of the updated
 node is a dense multivariate block or a coarse-capable cluster or factor
 block; its other children enter the surrogate through their exact densities.
 Discrete, vector-valued and unrelated updates, and updates whose selection
-children are all without a coarse rule, retain ordinary JAGS samplers, so the
-option can be set without effect: check that the counters grow. Whatever the
-surrogate, the corrected chain targets the exact full conditional; a coarser
-rule changes the acceptance rate and the cost, not the posterior.
+children are all without a coarse rule, retain ordinary JAGS samplers.
+Whatever the surrogate, the corrected chain targets the exact full
+conditional; a coarser rule changes the acceptance rate and the cost, not
+the posterior.
 
-Already compiled samplers retain their grid and coarse rule-budget settings.
-Coarse settings can affect sampling efficiency even when correction
-acceptance is high. Compare effective samples per second for parameters of
-interest, not only iteration times or this acceptance rate.
-Counters combine all corrected samplers in this process, including warmup;
-clear them between phases for a sampling-only comparison. They do not report
-separate parallel workers. Inspect them between sampling calls.
+Fallback. Each corrected sampler (one per parameter and chain) chooses its
+kernel once, at the end of adaptation, from its adaptation updates: with
+\code{selection.coarse_min_acceptance} above 0 (default \code{0.90}) it
+updates its parameter with the exact slice sampler for the rest of the fit
+when it made fewer than 50 proposals during adaptation, when no surrogate it
+evaluated during adaptation differed from the exact density (a dense block's
+surrogate always differs; a cluster or factor block's does not where its
+rule is unavailable, as in a model average whose selection branches all use
+the best-weight rule), or when its acceptance rate during adaptation is
+below the threshold; the first of these that holds is the recorded reason.
+Both kernels leave the posterior unchanged and the choice is not revisited,
+so the chain after adaptation is a single exact kernel. A threshold of
+\code{0} disables the fallback and the warning. Every model build (a fit,
+and each parallel worker's or extension's rebuild of the model) adapts and
+decides again.
+
+Record. A fitted selection model keeps the record of its corrected samplers,
+collected from every process that ran chains and summed over the fit and
+its extensions (\code{update()}): \code{sampler} and \code{min_acceptance},
+the settings the model was fitted with (\code{0} for fits made before the
+threshold existed); \code{samplers}, the corrected sampler objects
+constructed, one per parameter and chain and counted again for every model
+build; \code{fallback_samplers}, those that switched to the exact slice
+sampler, split by reason into \code{fallback_few_proposals},
+\code{fallback_surrogate_exact} and \code{fallback_low_acceptance};
+\code{sampling_proposed} and \code{sampling_accepted}, the proposals made
+after adaptation by samplers that stayed corrected and the proposals whose
+correction accepted them (unchanged values included), counting burn-in,
+retained and extension draws and the closing draws the sampler makes after
+recording the chain end; \code{acceptance_rate}, their ratio
+(\code{NA} without proposals); \code{min_sampler_rate}, the lowest
+cumulative post-adaptation acceptance rate of a single sampler, taken every
+256 of its proposals (\code{NA} when no sampler reached 256 proposals); and
+\code{complete}, \code{FALSE} when part of the chain was drawn without a
+record (an extension of a fit saved before the record existed, or a process
+whose report failed), in which case the counts cover the recorded part only.
+Adaptation updates and updates of samplers that fell back are not counted.
+
+Warning. A fit or an extension whose record has at least 1,000 counted
+proposals and whose acceptance rate, or \code{min_sampler_rate}, is below
+\code{min_acceptance} warns with the condition classes
+\code{RoBMA_selection_sampler_low_acceptance} and
+\code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.
+The message is kept with the fit's warnings, replaced at every extension.
+
+Process counters. Without \code{fit}, the function reports the counters of
+all corrected samplers in this process, including adaptation; clear them
+between phases for a sampling-only comparison. They do not report separate
+parallel workers. Inspect them between sampling calls.
+
+Already compiled samplers retain their grid, coarse rule-budget and
+threshold settings. Coarse settings can affect sampling efficiency even when
+correction acceptance is high. Compare effective samples per second for
+parameters of interest, not only iteration times or this acceptance rate.
 }

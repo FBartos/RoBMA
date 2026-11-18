@@ -214,6 +214,7 @@ NULL
   required_symbols <- c(
     "RoBMA_selnorm_cache_control",
     "RoBMA_selnorm_sampler_control",
+    "RoBMA_selnorm_sampler_report",
     "RoBMA_selnorm_kernel_loglik_matrix",
     "RoBMA_glmm_binom_marginal_loglik",
     "RoBMA_glmm_pois_marginal_loglik"
