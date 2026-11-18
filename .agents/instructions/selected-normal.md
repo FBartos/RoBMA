@@ -481,7 +481,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   adaptive proposals, (c) no adaptive surrogate was not exact, or (b) its
   adaptive acceptance is below the threshold, the first that holds being the
   recorded reason. Both kernels are exact and the choice uses adaptation draws
-  only, so no switch happens after adaptation. Per-fit counters
+  only, so no switch happens after adaptation. Adaptation ends where runjags
+  ends it explicitly (`rjags::adapt(end.adaptation = TRUE)`, every package fit)
+  or where JAGS ends it on setting a monitor (`coda.samples()`); rjags'
+  `update()` alone does not, so a hand model updated without either keeps its
+  samplers adapting (and counting as adaptive). Per-fit counters
   (`RoBMA_selnorm_sampler_report`, read and cleared) count objects, fallbacks
   by reason, post-adaptation proposals and acceptances of samplers still
   corrected (burn-in and runjags' closing draws included) and the lowest rate
