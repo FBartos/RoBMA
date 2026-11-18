@@ -1,7 +1,7 @@
 ## development version
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
-- selection models with heterogeneity and model-averaged fits with publication-bias mixtures sample faster with the gated and factor slice samplers of BayesTools, which change the draws but not the posterior (options `sampler.gates` and `sampler.blocks`)
+- selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
 
 ### Fixes
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
