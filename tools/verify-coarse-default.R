@@ -679,7 +679,7 @@ run_process <- function(job, dir = out_dir) {
     }
   }, add = TRUE)
   log_file <- sub("\\.job\\.rds$", ".log", job_file)
-  status <- system2(shQuote(file.path(R.home("bin"), "Rscript")),
+  status <- system2(file.path(R.home("bin"), "Rscript"),
                     c("--vanilla", shQuote(script_path), "--part=job", paste0("--job=", shQuote(job_file)),
                       paste0("--out=", shQuote(dir))), stdout = log_file, stderr = log_file)
   cat(sprintf("%s %s %s seed %d: exit %d\n", job[["part"]], job[["model"]], job[["arm"]], job[["seed"]], status))
