@@ -41,9 +41,13 @@
 # blocks route to the factor rules); 'best_ensemble' (RoBMA.mv whose bias
 # branches all use the best-weight rule, six studies); 'meta_regression'
 # (bselmodel.mv, full V, ~ deltype); dat.knapp2017 and dat.berkey1998
-# (bselmodel.mv). The efficiency table compares the arms; its rows
-# for the model-averaged models compare the allocation block of the 'default'
-# arm with the corrected sampler of the 'coarse' arm.
+# (bselmodel.mv). A run stopped by the selection-normalizer diagnostic is
+# replaced by the next unused seed of its arm (after the planned seeds), at most
+# three per model and arm; replaced runs are listed and written to
+# '<part>-replaced.csv'. The efficiency table compares the arms; for the
+# model-averaged models the 'default' arm declares the allocation block and the
+# 'coarse' arm declares it too unless the corrected sampler takes the
+# allocation nodes (the block methods and samplers of each run show which).
 #
 # cost: Assink et al. bselmodel.mv (full V) with sampler.blocks = FALSE and the
 # corrected sampler; arm 'this' is this build with the fallback off
@@ -584,6 +588,40 @@ run_summary <- function(runs) {
 
 # Drivers ----------------------------------------------------------------------------
 
+# The replacement rule: a run stopped by the selection-normalizer diagnostic is
+# replaced by the next unused seed of its arm (base + seeds + 1, + 2, ...), at
+# most three replacements per model and arm. Returns the jobs with the
+# replacements in place of the stopped runs and the table of replaced runs.
+normalizer_diagnostic <- "Selection normalizer was rejected by diagnostics"
+
+replace_stopped_runs <- function(jobs, base, seeds, specs, workers, dir, execute, limit = 3L) {
+
+  replaced <- data.frame(model = character(), arm = character(), stopped_seed = integer(),
+                         replacement_seed = integer(), stringsAsFactors = FALSE)
+  repeat {
+    runs    <- read_runs(jobs, dir)
+    stopped <- which(vapply(runs, function(run) {
+      !isTRUE(run[["missing"]]) && !is.null(run[["error"]]) &&
+        grepl(normalizer_diagnostic, run[["error"]], fixed = TRUE)
+    }, logical(1)))
+    new_jobs <- list()
+    for (k in stopped) {
+      job  <- jobs[[k]]
+      used <- sum(replaced[["model"]] == job[["model"]] & replaced[["arm"]] == job[["arm"]])
+      if (used >= limit) next
+      replacement <- job
+      replacement[["seed"]] <- base[[job[["arm"]]]] + seeds + used + 1L
+      replaced[nrow(replaced) + 1L, ] <- list(job[["model"]], job[["arm"]], job[["seed"]], replacement[["seed"]])
+      jobs[[k]] <- replacement
+      new_jobs[[length(new_jobs) + 1L]] <- replacement
+    }
+    if (length(new_jobs) == 0L) break
+    execute(new_jobs, specs, workers)
+  }
+
+  return(list(jobs = jobs, replaced = replaced))
+}
+
 # The wider testing (--part=wider or --part=rerun): runs the missing jobs with
 # 'execute', reads every planned run from 'dir', and writes the run table, the
 # Welch table, the decisions and the efficiency table there.
@@ -606,6 +644,14 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
     jobs[[length(jobs) + 1L]] <- list(part = part, model = model, arm = arm, seed = base[[arm]] + i)
   }
   execute(jobs, specs, workers)
+  replacement <- replace_stopped_runs(jobs, base, seeds, specs, workers, dir, execute)
+  jobs        <- replacement[["jobs"]]
+  replaced    <- replacement[["replaced"]]
+  utils::write.csv(replaced, file.path(dir, paste0(part, "-replaced.csv")), row.names = FALSE)
+  if (nrow(replaced) > 0L) {
+    cat("\nRuns stopped by the selection-normalizer diagnostic and their replacements:\n")
+    print(replaced, row.names = FALSE)
+  }
   runs    <- read_runs(jobs, dir)
   counts  <- run_counts(runs)
   summary <- run_summary(runs)
@@ -650,8 +696,8 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
     print(efficiency, row.names = FALSE, digits = 4)
     ensembles <- intersect(c("RoBMA.mv", "RoBMA.mv_vi", "best_ensemble"), efficiency[["model"]])
     if (length(ensembles) > 0L) {
-      cat("\nAllocation block (model-averaged models: 'default' declares the block, 'coarse' leaves the",
-          "allocation nodes to the corrected sampler):\n")
+      cat("\nAllocation block (model-averaged models: 'default' declares the block; 'coarse' declares it",
+          "unless the corrected sampler takes the allocation nodes):\n")
       print(efficiency[efficiency[["model"]] %in% ensembles,
                        c("model", "arm", "jags_seconds", "ess_per_second", "indicator_ess_per_second",
                          "time_ratio", "speedup", "indicator_speedup")], row.names = FALSE, digits = 4)
@@ -870,8 +916,7 @@ selftest <- function() {
     samplers = samplers, fallback_samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
     fallback_low_acceptance = 1, sampling_proposed = 1000, sampling_accepted = 990, acceptance_rate = .99,
     min_sampler_rate = .98, complete = TRUE, stringsAsFactors = FALSE)
-  wider_run <- function(job, names, shift = 0, constant = FALSE) {
-    i      <- job[["seed"]] %% 1000L
+  wider_run <- function(job, names, shift = 0, constant = FALSE, i = job[["seed"]] %% 1000L) {
     offset <- if (job[["arm"]] == "coarse") offsets[i] else offsets[11L - i]
     means  <- vapply(seq_along(names), function(j) if (constant) j else offset + j + shift[[min(j, length(shift))]],
                      numeric(1L))
@@ -895,12 +940,14 @@ selftest <- function() {
       if (!is.null(run)) saveRDS(run, run_file(job, dir))
     }
   }
-  wider_case <- function(label, make, part = "wider", dir = file.path(root, label)) {
+  wider_case <- function(label, make, part = "wider", dir = file.path(root, label), execute = no_fits) {
     write_runs(dir, part, make)
-    output <- utils::capture.output(wider_driver(part, "m", 10L, 1L, list(m = list()), dir = dir, execute = no_fits))
+    output <- utils::capture.output(wider_driver(part, "m", 10L, 1L, list(m = list()), dir = dir,
+                                                 execute = function(jobs, ...) execute(jobs, dir)))
     efficiency <- file.path(dir, paste0(part, "-efficiency.csv"))
     list(decisions = utils::read.csv(file.path(dir, paste0(part, "-decisions.csv")), stringsAsFactors = FALSE),
          table = utils::read.csv(file.path(dir, paste0(part, ".csv")), stringsAsFactors = FALSE),
+         replaced = utils::read.csv(file.path(dir, paste0(part, "-replaced.csv")), stringsAsFactors = FALSE),
          efficiency = if (file.exists(efficiency)) utils::read.csv(efficiency, stringsAsFactors = FALSE) else NULL,
          output = output)
   }
@@ -922,7 +969,34 @@ selftest <- function() {
     if (job$arm == "default" && i == 10L) failed_run(job) else wider_run(job, c("a", "b"))
   })
   check(x$decisions$decision == "incomplete" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 9, 1, 0)) &&
-          any(grepl("INCOMPLETE", x$output)), "one failed run: incomplete, default 10 planned / 9 completed / 1 failed")
+          any(grepl("INCOMPLETE", x$output)) && nrow(x$replaced) == 0L,
+        "one failed run: incomplete, default 10 planned / 9 completed / 1 failed, not replaced")
+
+  # a run stopped by the selection-normalizer diagnostic is replaced by the next
+  # unused seed of its arm (2011 after the planned 2001-2010)
+  stopped_run <- function(job) {
+    list(job = job, wall = 1, error = paste0("RUNTIME ERROR:\n", normalizer_diagnostic, ": relative MCSE 0.12"))
+  }
+  # like run_jobs(): runs only the jobs without a saved run
+  write_jobs <- function(make) function(jobs, dir) {
+    for (job in jobs) if (!file.exists(run_file(job, dir))) saveRDS(make(job), run_file(job, dir))
+  }
+  x <- wider_case("replaced", function(job, i) {
+    if (job$arm == "default" && i == 9L) stopped_run(job) else wider_run(job, c("a", "b"))
+  }, execute = write_jobs(function(job) wider_run(job, c("a", "b"), i = 9L)))
+  check(x$decisions$decision == "pass" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 10, 0, 0)) &&
+          nrow(x$replaced) == 1L && x$replaced$arm == "default" && x$replaced$stopped_seed == 2009L &&
+          x$replaced$replacement_seed == 2011L && any(grepl("replacements", x$output)),
+        "a run stopped by the normalizer diagnostic: replaced by seed 2011, listed, complete")
+
+  # at most three replacements per model and arm; the fourth stopped run stays
+  x <- wider_case("replaced_cap", function(job, i) {
+    if (job$arm == "default" && i >= 7L) stopped_run(job) else wider_run(job, c("a", "b"))
+  }, execute = write_jobs(stopped_run))
+  check(x$decisions$decision == "incomplete" && nrow(x$replaced) == 3L &&
+          identical(x$replaced$replacement_seed, 2011:2013) &&
+          counts_are(x$decisions, c(10, 10, 0, 0), c(10, 6, 4, 0)),
+        "replacements capped at three per arm: the stopped runs remain, incomplete")
 
   x <- wider_case("one_missing", function(job, i) {
     if (job$arm == "default" && i == 10L) NULL else wider_run(job, c("a", "b"))
