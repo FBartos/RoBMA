@@ -40,7 +40,7 @@
 
   return(paste0(
     message, "\nThe error was raised by a sampler of the BayesTools JAGS module that RoBMA uses by default. ",
-    "Refit with 'RoBMA.options(", option, " = FALSE)' to sample these parameters with the ordinary JAGS ",
+    "Fit the model again after 'RoBMA.options(", option, " = FALSE)' to sample these parameters with the ordinary JAGS ",
     "samplers, and please report the model to the RoBMA developers."
   ))
 }
