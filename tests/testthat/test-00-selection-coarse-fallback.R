@@ -29,6 +29,9 @@ source(testthat::test_path("common-functions.R"))
 
 .fallback_settings <- list(sampler = "coarse_corrected", coarse_min_acceptance = .9)
 
+.fallback_count_names_record <- c("samplers", "fallback_samplers", "fallback_few_proposals",
+  "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted")
+
 
 test_that("the corrected sampler is the default and its threshold is a number between 0 and 1", {
 
@@ -146,24 +149,38 @@ test_that("the record sums the runs of every process and adds the input record o
                    c(samplers = 12, fallback_samplers = 6, sampling_proposed = 900, sampling_accepted = 868))
   expect_identical(extended[["min_sampler_rate"]], .8)
   expect_true(extended[["complete"]])
-  expect_identical(.selection_sampler_record(NULL, .fallback_settings, previous = record, extension = TRUE), record)
+  expect_identical(.selection_sampler_record(NULL, .fallback_settings, previous = record, extension = TRUE,
+                                             new_draws = FALSE), record)
 
   # the worst-sampler rate is NA when no sampler of any run has enough proposals
   none <- .selection_sampler_record(list(list(.fallback_report_value(2, 0, 0, 0, 100, 100))), .fallback_settings)
   expect_identical(none[["min_sampler_rate"]], NA_real_)
   expect_true(none[["complete"]])
 
-  # a fresh fit without any report counted nothing; an extension without a
-  # retained run (a failed extension) adds nothing and keeps the input's state
+  # completeness: FALSE whenever draws exist that no report covers
+  # fresh fit with reports: complete
+  expect_true(record[["complete"]])
   for (empty in list(NULL, list())) {
+    # fresh fit without any report
     fresh <- .selection_sampler_record(empty, .fallback_settings)
     expect_identical(fresh[["acceptance_rate"]], NA_real_)
     expect_false(fresh[["complete"]])
-    expect_identical(.selection_sampler_record(empty, .fallback_settings, previous = record, extension = TRUE),
-                     record)
-    expect_false(.selection_sampler_record(empty, .fallback_settings, extension = TRUE,
+    # extension with new draws and no report (its runs lost every report)
+    lost <- .selection_sampler_record(empty, .fallback_settings, previous = record, extension = TRUE,
+                                      new_draws = TRUE)
+    expect_false(lost[["complete"]])
+    expect_identical(lost[c(.fallback_count_names_record)], record[c(.fallback_count_names_record)])
+    # failed extension (its input, no new draws): the input's record and state
+    expect_identical(.selection_sampler_record(empty, .fallback_settings, previous = record, extension = TRUE,
+                                               new_draws = FALSE), record)
+    expect_false(.selection_sampler_record(empty, .fallback_settings, extension = TRUE, new_draws = FALSE,
                                            previous = utils::modifyList(record, list(complete = FALSE)))[["complete"]])
   }
+  # extension with new draws and reports: the input's state
+  expect_true(.selection_sampler_record(values[1L], .fallback_settings, previous = record,
+                                        extension = TRUE)[["complete"]])
+  expect_false(.selection_sampler_record(values[1L], .fallback_settings, extension = TRUE,
+                                         previous = utils::modifyList(record, list(complete = FALSE)))[["complete"]])
 
   # part of the chain without a count: an extension of a fit without a record,
   # a process whose report failed, or an input that was incomplete
@@ -728,6 +745,22 @@ test_that("a failed extension keeps the input record and a fit saved before the 
     }, .package = "BayesTools")
     failed <- .fallback_quiet(stats::update(fit, sample_extend = 50L))
     expect_identical(.fallback_record(failed), .fallback_record(fit))
+  })
+
+  # an extension that drew new samples but lost every report: incomplete, with
+  # the input's counts
+  extend <- BayesTools::JAGS_extend
+  local({
+    testthat::local_mocked_bindings(JAGS_extend = function(fit, ...) {
+      extended <- extend(fit, ...)
+      attr(extended, "runtime_report_values") <- NULL
+      extended
+    }, .package = "BayesTools")
+    unreported <- .fallback_quiet(stats::update(fit, sample_extend = 50L))
+    expect_gt(.fit_draw_count(unreported[["fit"]]), .fit_draw_count(fit[["fit"]]))
+    record <- .fallback_record(unreported)
+    expect_false(record[["complete"]])
+    expect_identical(record[.fallback_count_names], .fallback_record(fit)[.fallback_count_names])
   })
 
   # A fit saved by RoBMA 4.1.1: its setup closure (the body of 4.1.1) carries

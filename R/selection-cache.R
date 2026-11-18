@@ -253,8 +253,8 @@ remove_selection_cache <- function(object) {
 #' among the samplers with at least 256 proposals in that run (\code{NA} when
 #' none has); and \code{complete}, \code{FALSE} when part of the chain was drawn
 #' without a record (an extension of a fit saved before the record existed, a
-#' process whose report failed, or a fit without any report), in which case the
-#' counts cover the recorded part only.
+#' process whose report failed, or draws added without any report), in which
+#' case the counts cover the recorded part only.
 #' Adaptation updates and updates of samplers that fell back are not counted.
 #'
 #' Warning. A fit or an extension whose record has at least 1,000 counted
@@ -307,17 +307,20 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
 
 # The record of a selection fit from the runtime report values of this call
 # (a list of retained runs, each a list with one element per process) and,
-# for an extension, the record of the input fit.
-.selection_sampler_record <- function(values, settings, previous = NULL, extension = FALSE) {
+# for an extension, the record of the input fit. 'new_draws' says whether this
+# call added draws to the fit (a fresh fit always does; a failed extension
+# returns its input and adds none).
+.selection_sampler_record <- function(values, settings, previous = NULL, extension = FALSE,
+                                      new_draws = TRUE) {
 
   reasons <- c("fallback_few_proposals", "fallback_surrogate_exact", "fallback_low_acceptance")
   counts  <- stats::setNames(numeric(length(.selection_sampler_count_names)),
                              .selection_sampler_count_names)
   rates   <- numeric()
-  # A process whose report is missing leaves part of the chain uncounted, and a
-  # fit without any report counted nothing; an extension without a retained run
-  # (a failed extension returns its input) drew nothing new.
-  complete <- extension || length(values) > 0L
+  # Draws that no report covers make the record incomplete: new draws without
+  # any report, or a process whose report is missing. A call without new draws
+  # (a failed extension) changes nothing.
+  complete <- !new_draws || length(values) > 0L
   for (run in values) {
     for (process in run) {
       if (is.null(process)) {

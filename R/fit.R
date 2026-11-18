@@ -836,7 +836,8 @@
         values    = attr(fit, "runtime_report_values", exact = TRUE),
         settings  = attr(fit, "selection_runtime", exact = TRUE),
         previous  = previous,
-        extension = extension
+        extension = extension,
+        new_draws = !extension || .fit_draw_count(fit) > .fit_draw_count(object[["fit"]])
       )
       attr(fit, "warnings") <- .selection_sampler_warn(fit)
     }
@@ -864,6 +865,18 @@
   fit$has_posterior <- has_posterior
 
   return(fit)
+}
+
+
+# The number of retained draws of a fitted JAGS object, summed over chains.
+.fit_draw_count <- function(fit) {
+
+  chains <- fit[["mcmc"]]
+  if (is.null(chains)) {
+    return(0L)
+  }
+
+  return(sum(vapply(chains, NROW, integer(1L))))
 }
 
 

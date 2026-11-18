@@ -122,8 +122,8 @@ post-adaptation acceptance rate of a single sampler over one sampling run
 among the samplers with at least 256 proposals in that run (\code{NA} when
 none has); and \code{complete}, \code{FALSE} when part of the chain was drawn
 without a record (an extension of a fit saved before the record existed, a
-process whose report failed, or a fit without any report), in which case the
-counts cover the recorded part only.
+process whose report failed, or draws added without any report), in which
+case the counts cover the recorded part only.
 Adaptation updates and updates of samplers that fell back are not counted.
 
 Warning. A fit or an extension whose record has at least 1,000 counted
