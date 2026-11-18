@@ -13,9 +13,12 @@
 #   Rscript tools/verify-sampler-declarations.R --part=selftest
 #
 # Every planned run is counted per model and arm (planned, completed, failed,
-# missing); a comparison or timing with a failed or missing run is reported as
-# 'incomplete', not as a pass. --part=selftest checks the comparison code on
-# synthetic run records (no fits) and stops on a wrong shape or decision.
+# missing); a comparison or timing with a failed or missing run, an arm with
+# fewer than two completed runs (comparison) or none (timing), or no comparable
+# or assessable quantity is reported as 'incomplete', never as a pass, and the
+# script still writes its tables. --part=selftest runs the complete comparison
+# and timing drivers on synthetic run files in a temporary directory (no fits)
+# and stops on a wrong decision, shape or count, or on any error.
 #
 # Models (dat.assink2016, V from metafor::vcalc() as in the assink2016
 # scenario): 'bselmodel' (univariate, heterogeneity), 'bselmodel.mv' (full V,
@@ -139,7 +142,8 @@ run_job <- function(job, specs, arm_options) {
       invokeRestart("muffleWarning")
     }), error = function(e) e)
   wall <- as.numeric(difftime(Sys.time(), started, units = "secs"))
-  result <- list(job = job, wall = wall, warnings = unique(warnings))
+  result <- list(job = job, wall = wall, warnings = unique(warnings), jags_seconds = NA_real_,
+                 iterations = NA_real_)
   if (inherits(fit, "error") || is.null(fit[["fit"]][["mcmc"]])) {
     result[["error"]] <- if (inherits(fit, "error")) conditionMessage(fit) else
       paste(c("no posterior draws", fit[["fit"]][["errors"]]), collapse = ": ")
@@ -214,9 +218,9 @@ coordinate_roles <- function(fit) {
 }
 
 # The roles of a model from one short fit (they do not depend on the draws).
-model_roles <- function(model, specs) {
+model_roles <- function(model, specs, dir = out_dir) {
 
-  file <- file.path(out_dir, paste0("roles-", model, ".rds"))
+  file <- file.path(dir, paste0("roles-", model, ".rds"))
   if (file.exists(file)) return(readRDS(file))
   spec <- specs[[model]]
   RoBMA::RoBMA.options(sampler.gates = FALSE, sampler.blocks = FALSE)
@@ -245,9 +249,9 @@ global_parameters <- function(names, roles = NULL) {
   return(names[keep])
 }
 
-run_file <- function(job) {
+run_file <- function(job, dir = out_dir) {
 
-  file.path(out_dir, "runs", sprintf("%s-%s-%s-%03d.rds", job[["part"]], job[["model"]], job[["arm"]], job[["seed"]]))
+  file.path(dir, "runs", sprintf("%s-%s-%s-%03d.rds", job[["part"]], job[["model"]], job[["arm"]], job[["seed"]]))
 }
 
 run_jobs <- function(jobs, specs, n_workers) {
@@ -302,13 +306,24 @@ run_jobs <- function(jobs, specs, n_workers) {
   }
 }
 
+# The fields every run record has; a failed or missing run has NA timings.
+complete_run <- function(run) {
+
+  defaults <- list(wall = NA_real_, jags_seconds = NA_real_, iterations = NA_real_, warnings = character())
+  for (field in names(defaults)) {
+    if (is.null(run[[field]])) run[[field]] <- defaults[[field]]
+  }
+
+  return(run)
+}
+
 # The saved runs of the jobs; a job without a saved run is marked missing.
-read_runs <- function(jobs) {
+read_runs <- function(jobs, dir = out_dir) {
 
   lapply(jobs, function(job) {
-    file <- run_file(job)
-    if (!file.exists(file)) return(list(job = job, error = "missing run file", missing = TRUE))
-    readRDS(file)
+    file <- run_file(job, dir)
+    if (!file.exists(file)) return(complete_run(list(job = job, error = "missing run file", missing = TRUE)))
+    complete_run(readRDS(file))
   })
 }
 
@@ -366,8 +381,9 @@ welch_table <- function(runs, model, quantities = NULL) {
   })
   table <- welch_rows(means, arms, model, "mean", "primary")
 
-  # secondary: run SDs and tail frequencies, when the runs recorded them
-  if (length(runs) > 0L &&
+  # secondary: run SDs and tail frequencies, when the runs recorded them and
+  # each arm has at least two completed runs
+  if (sum(arms == "on") >= 2L && sum(arms == "off") >= 2L &&
       all(vapply(runs, function(run) !is.null(run[["sds"]]) && !is.null(run[["thinned"]]), logical(1)))) {
     names_sd <- Reduce(intersect, lapply(runs, function(run) names(run[["sds"]])))
     if (!is.null(quantities)) names_sd <- intersect(names_sd, quantities)
@@ -387,12 +403,23 @@ welch_table <- function(runs, model, quantities = NULL) {
   return(table)
 }
 
-# Welch statistics of the per-run values of each column (runs in rows).
+# Welch statistics of the per-run values of each column (runs in rows). With
+# fewer than two completed runs in an arm there is no statistic: the rows carry
+# NA statistics (the decision is then 'incomplete').
 welch_rows <- function(values, arms, model, statistic, kind) {
 
+  row <- function(name, on, off, se, t, df) {
+    data.frame(model = model, kind = kind, statistic = statistic, quantity = name,
+               mean_on = if (length(on) > 0L) mean(on) else NA_real_,
+               mean_off = if (length(off) > 0L) mean(off) else NA_real_,
+               se = se, t = t, df = df,
+               p_beyond_2 = if (is.na(df)) NA_real_ else 2 * stats::pt(-2, df), stringsAsFactors = FALSE)
+  }
+  testable <- sum(arms == "on") >= 2L && sum(arms == "off") >= 2L
   rows <- lapply(colnames(values), function(name) {
     on  <- values[arms == "on", name]
     off <- values[arms == "off", name]
+    if (!testable) return(row(name, on, off, NA_real_, NA_real_, NA_real_))
     if (anyNA(c(on, off))) return(NULL)
     # degenerate: the same value in every run of both arms
     if (stats::var(c(on, off)) == 0) return(NULL)
@@ -406,17 +433,15 @@ welch_rows <- function(values, arms, model, statistic, kind) {
       df <- length(on) + length(off) - 2
       t  <- Inf
     }
-    data.frame(model = model, kind = kind, statistic = statistic, quantity = name,
-               mean_on = mean(on), mean_off = mean(off),
-               se = sqrt(se2), t = t, df = df,
-               p_beyond_2 = 2 * stats::pt(-2, df), stringsAsFactors = FALSE)
+    row(name, on, off, sqrt(se2), t, df)
   })
 
   do.call(rbind, rows)
 }
 
 # The decision of one model and kind: 'incomplete' when any planned run of the
-# model failed or is missing, otherwise 'pass' or 'fail' by the D4 rule.
+# model failed or is missing, an arm has fewer than two completed runs, or no
+# quantity could be compared; otherwise 'pass' or 'fail' by the D4 rule.
 decide <- function(table, model, kind, counts) {
 
   counts <- counts[counts[["model"]] == model, , drop = FALSE]
@@ -427,8 +452,9 @@ decide <- function(table, model, kind, counts) {
   t <- if (is.null(table)) numeric() else table[["t"]]
   p <- if (is.null(table)) numeric() else table[["p_beyond_2"]]
   complete <- sum(counts[["failed"]]) == 0L && sum(counts[["missing"]]) == 0L &&
-    all(vapply(c("on", "off"), arm_count, integer(1), field = "planned") > 0L)
-  rule <- length(t) > 0L && !any(abs(t) > 3.5) && sum(abs(t) > 2) <= 2 * sum(p)
+    all(vapply(c("on", "off"), arm_count, integer(1), field = "completed") >= 2L) &&
+    length(t) > 0L && !anyNA(t)
+  rule <- complete && !any(abs(t) > 3.5) && sum(abs(t) > 2) <= 2 * sum(p)
   data.frame(
     model     = model,
     kind      = kind,
@@ -437,11 +463,11 @@ decide <- function(table, model, kind, counts) {
     planned_off = arm_count("off", "planned"), completed_off = arm_count("off", "completed"),
     failed_off = arm_count("off", "failed"), missing_off = arm_count("off", "missing"),
     quantities = length(t),
-    max_abs_t = if (length(t) > 0L) max(abs(t)) else NA_real_,
-    beyond_3.5 = sum(abs(t) > 3.5),
-    beyond_2  = sum(abs(t) > 2),
-    expected_beyond_2 = sum(p),
-    pass = complete && rule,
+    max_abs_t = if (any(!is.na(t))) max(abs(t), na.rm = TRUE) else NA_real_,
+    beyond_3.5 = sum(abs(t) > 3.5, na.rm = TRUE),
+    beyond_2  = sum(abs(t) > 2, na.rm = TRUE),
+    expected_beyond_2 = sum(p, na.rm = TRUE),
+    pass = rule,
     decision = if (!complete) "incomplete" else if (rule) "pass" else "fail",
     stringsAsFactors = FALSE
   )
@@ -461,10 +487,11 @@ decide_all <- function(tables, models, kind, counts) {
 run_summary <- function(runs) {
 
   do.call(rbind, lapply(runs, function(run) {
+    run <- complete_run(run)
     data.frame(
       model = run[["job"]][["model"]], arm = run[["job"]][["arm"]], seed = run[["job"]][["seed"]],
-      wall = round(run[["wall"]], 1),
-      jags_seconds = if (is.null(run[["jags_seconds"]])) NA_real_ else round(run[["jags_seconds"]], 1),
+      wall = round(as.numeric(run[["wall"]]), 1),
+      jags_seconds = round(as.numeric(run[["jags_seconds"]]), 1),
       gates = if (is.null(run[["declared"]])) NA_integer_ else run[["declared"]][["gates"]],
       blocks = if (is.null(run[["declared"]])) NA_integer_ else run[["declared"]][["blocks"]],
       samplers = if (is.null(run[["samplers"]])) "" else paste(names(run[["samplers"]]), run[["samplers"]], sep = ":", collapse = " "),
@@ -476,99 +503,342 @@ run_summary <- function(runs) {
 }
 
 
+# Drivers ----------------------------------------------------------------------------
+
+# The comparison (--part=compare or --part=rerun): runs the missing jobs with
+# 'execute', reads every planned run from 'dir', and writes the run table, the
+# Welch table and the decisions there.
+compare_driver <- function(part, models, seeds, workers, specs, dir = out_dir, execute = run_jobs) {
+
+  # seeds: arm 'on' 1000 + i, arm 'off' 2000 + i; the rerun uses fresh seeds
+  # (5000 + i, 6000 + i)
+  base <- if (identical(part, "rerun")) c(on = 5000L, off = 6000L) else c(on = 1000L, off = 2000L)
+  if (identical(part, "rerun")) {
+    first <- utils::read.csv(file.path(dir, "compare.csv"), stringsAsFactors = FALSE)
+    kind    <- if (is.null(first[["kind"]])) rep("primary", nrow(first)) else first[["kind"]]
+    failing <- first[(abs(first[["t"]]) > 2) %in% TRUE & kind == "primary", c("model", "quantity")]
+    decisions <- utils::read.csv(file.path(dir, "compare-decisions.csv"), stringsAsFactors = FALSE)
+    failed  <- if (is.null(decisions[["decision"]])) !decisions[["pass"]] else decisions[["decision"]] == "fail"
+    models <- intersect(models, decisions[["model"]][failed %in% TRUE])
+    cat("rerun models:", paste(models, collapse = ", "), "\n")
+  }
+  jobs <- list()
+  for (model in models) for (arm in c("on", "off")) for (i in seq_len(seeds)) {
+    jobs[[length(jobs) + 1L]] <- list(part = part, model = model, arm = arm, seed = base[[arm]] + i)
+  }
+  execute(jobs, specs, workers)
+  runs <- read_runs(jobs, dir)
+  counts <- run_counts(runs)
+  summary <- run_summary(runs)
+  utils::write.csv(summary, file.path(dir, paste0(part, "-runs.csv")), row.names = FALSE)
+  cat("\nRuns with errors:", sum(nzchar(summary[["error"]])), "\n")
+  if (any(nzchar(summary[["error"]]))) print(summary[nzchar(summary[["error"]]), c("model", "arm", "seed", "error")])
+  if (any(!is.na(summary[["wall"]]))) {
+    cat("\nRun times (wall s, median per model and arm):\n")
+    print(stats::aggregate(wall ~ model + arm, summary, stats::median))
+  }
+  cat("\nSamplers per arm (first run):\n")
+  print(unique(summary[, c("model", "arm", "gates", "blocks", "samplers")]), row.names = FALSE)
+
+  tables <- lapply(models, function(model) {
+    quantities <- if (identical(part, "rerun")) failing[["quantity"]][failing[["model"]] == model] else NULL
+    welch_table(runs, model, quantities)
+  })
+  table <- do.call(rbind, tables)
+  if (is.null(table)) {
+    table <- data.frame(model = character(), kind = character(), statistic = character(), quantity = character(),
+                        mean_on = numeric(), mean_off = numeric(), se = numeric(), t = numeric(), df = numeric(),
+                        p_beyond_2 = numeric(), stringsAsFactors = FALSE)
+  }
+  utils::write.csv(table, file.path(dir, paste0(part, ".csv")), row.names = FALSE)
+  # a rerun is judged by the same rule on the first run's failing quantities
+  # (|t| > 2 in a failing model) only; the secondary rows are reported apart
+  decisions <- decide_all(tables, models, "primary", counts)
+  utils::write.csv(decisions, file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
+  cat("\nRuns per model and arm (planned, completed, failed, missing):\n"); print(counts, row.names = FALSE)
+  cat("\nDecision per model (primary: run means):\n"); print(decisions, row.names = FALSE)
+  incomplete <- decisions[["model"]][decisions[["decision"]] == "incomplete"]
+  if (length(incomplete) > 0L) {
+    cat("INCOMPLETE: failed or missing runs, fewer than two completed runs in an arm, or no comparable quantity",
+        "in model(s)", paste(incomplete, collapse = ", "), "; the comparison is not a pass.\n")
+  }
+  secondary <- decide_all(tables, models, "secondary", counts)
+  if (!is.null(secondary)) {
+    utils::write.csv(secondary, file.path(dir, paste0(part, "-decisions-secondary.csv")), row.names = FALSE)
+    cat("\nSecondary (run SDs and tail frequencies, same rule, not part of the decision):\n")
+    print(secondary, row.names = FALSE)
+  } else {
+    cat("\nSecondary rows unavailable: the runs did not record SDs and thinned draws, or an arm has fewer than two completed runs.\n")
+  }
+  cat("\nQuantities with |t| > 2:\n")
+  print(table[(abs(table[["t"]]) > 2) %in% TRUE, , drop = FALSE], row.names = FALSE)
+
+  invisible(decisions)
+}
+
+# One row per completed timing run; a run without an assessable quantity has
+# NA effective sample sizes.
+timing_rows <- function(runs, specs, dir = out_dir) {
+
+  rows <- lapply(runs, function(run) {
+    roles  <- run[["roles"]]
+    if (is.null(roles)) roles <- model_roles(run[["job"]][["model"]], specs, dir)
+    global <- global_parameters(names(run[["ess"]]), roles)
+    ess    <- run[["ess"]][global]
+    assessable <- is.finite(ess) & ess > 0
+    data.frame(model = run[["job"]][["model"]], arm = run[["job"]][["arm"]], seed = run[["job"]][["seed"]],
+               jags_seconds = as.numeric(run[["jags_seconds"]]),
+               seconds_per_1000 = 1000 * as.numeric(run[["jags_seconds"]]) / as.numeric(run[["iterations"]]),
+               assessable = sum(assessable),
+               min_ess = if (any(assessable)) min(ess[assessable]) else NA_real_,
+               min_ess_quantity = if (any(assessable)) names(ess)[assessable][which.min(ess[assessable])] else NA_character_,
+               ess_per_second = if (any(assessable)) min(ess[assessable]) / as.numeric(run[["jags_seconds"]]) else NA_real_,
+               not_assessable = paste(names(ess)[!assessable], collapse = " "),
+               stringsAsFactors = FALSE)
+  })
+  if (length(rows) == 0L) {
+    return(data.frame(model = character(), arm = character(), seed = integer(), jags_seconds = numeric(),
+                      seconds_per_1000 = numeric(), assessable = integer(), min_ess = numeric(),
+                      min_ess_quantity = character(), ess_per_second = numeric(), not_assessable = character(),
+                      stringsAsFactors = FALSE))
+  }
+
+  return(do.call(rbind, rows))
+}
+
+# The timing summary: one row per planned model and arm with the run counts,
+# means over the completed runs and ratios to 'neither'. A model is
+# 'incomplete' when a run failed or is missing, an arm has no completed run,
+# or a run has no assessable quantity.
+timing_summary <- function(timing, counts, arms) {
+
+  metrics <- c("seconds_per_1000", "assessable", "min_ess", "ess_per_second")
+  summary <- do.call(rbind, lapply(seq_len(nrow(counts)), function(i) {
+    x <- timing[timing[["model"]] == counts[["model"]][i] & timing[["arm"]] == counts[["arm"]][i], , drop = FALSE]
+    values <- vapply(metrics, function(metric) if (nrow(x) > 0L) mean(x[[metric]]) else NA_real_, numeric(1))
+    names  <- unlist(strsplit(x[["not_assessable"]], " ", fixed = TRUE))
+    tally  <- table(names)
+    cbind(counts[i, , drop = FALSE], as.data.frame(as.list(values)),
+          not_assessable = if (length(tally) == 0L) "none" else
+            paste0(names(tally), " (", as.integer(tally), "/", nrow(x), ")", collapse = ", "),
+          no_assessable_run = any(x[["assessable"]] == 0L),
+          stringsAsFactors = FALSE)
+  }))
+  if (is.null(summary) || nrow(summary) == 0L) {
+    return(data.frame(model = character(), arm = character(), planned = integer(), completed = integer(),
+                      failed = integer(), missing = integer(), status = character(),
+                      seconds_per_1000 = numeric(), assessable = numeric(), min_ess = numeric(),
+                      ess_per_second = numeric(), time_ratio = numeric(), speedup = numeric(),
+                      not_assessable = character(), stringsAsFactors = FALSE))
+  }
+  neither <- summary[summary[["arm"]] == "neither", c("model", "seconds_per_1000", "ess_per_second"), drop = FALSE]
+  names(neither)[2:3] <- c("seconds_neither", "ess_per_second_neither")
+  summary <- merge(summary, neither, by = "model", all.x = TRUE)
+  summary[["time_ratio"]] <- summary[["seconds_per_1000"]] / summary[["seconds_neither"]]
+  summary[["speedup"]]    <- summary[["ess_per_second"]] / summary[["ess_per_second_neither"]]
+  incomplete <- unique(summary[["model"]][summary[["failed"]] > 0L | summary[["missing"]] > 0L |
+                                            summary[["completed"]] == 0L | summary[["no_assessable_run"]] %in% TRUE])
+  summary[["status"]] <- ifelse(summary[["model"]] %in% incomplete, "incomplete", "complete")
+  summary <- summary[order(summary[["model"]], match(summary[["arm"]], arms)),
+                     c("model", "arm", "planned", "completed", "failed", "missing", "status",
+                       "seconds_per_1000", "assessable", "min_ess", "ess_per_second", "time_ratio",
+                       "speedup", "not_assessable")]
+  rownames(summary) <- NULL
+
+  return(summary)
+}
+
+# The timing comparison (--part=timing): runs the missing jobs with 'execute'
+# (serially), reads every planned run from 'dir', and writes the per-run and
+# summary tables there.
+timing_driver <- function(models, seeds, specs, dir = out_dir, execute = run_jobs) {
+
+  arms <- c("gates", "blocks", "both", "neither")
+  jobs <- list()
+  for (i in seq_len(seeds)) {
+    # rotate the arm order by seed so that no arm always runs first
+    order <- arms[(seq_along(arms) + i - 2L) %% length(arms) + 1L]
+    for (model in models) for (arm in order) {
+      jobs[[length(jobs) + 1L]] <- list(part = "timing", model = model, arm = arm, seed = 3000L + i)
+    }
+  }
+  execute(jobs, specs, 1L)
+  all_runs <- read_runs(jobs, dir)
+  counts   <- run_counts(all_runs)
+  runs     <- Filter(function(run) is.null(run[["error"]]), all_runs)
+  timing   <- timing_rows(runs, specs, dir)
+  utils::write.csv(timing, file.path(dir, "timing-runs.csv"), row.names = FALSE)
+  summary  <- timing_summary(timing, counts, arms)
+  utils::write.csv(summary, file.path(dir, "timing.csv"), row.names = FALSE)
+  cat("\nTiming (means over seeds; ratios to 'neither'; minimum ESS over the assessable global parameters):\n")
+  print(summary, row.names = FALSE, digits = 4)
+  incomplete <- unique(summary[["model"]][summary[["status"]] == "incomplete"])
+  if (length(incomplete) > 0L) {
+    cat("INCOMPLETE: failed or missing runs, an arm without a completed run, or a run without an assessable",
+        "quantity in model(s)", paste(incomplete, collapse = ", "), "; their timing is incomplete.\n")
+  }
+  cat("\nWorst-mixing assessable global quantity and the not-assessable ones per run:\n")
+  print(timing[, c("model", "arm", "seed", "assessable", "min_ess_quantity", "min_ess", "jags_seconds",
+                   "not_assessable")], row.names = FALSE)
+
+  invisible(summary)
+}
+
+
 # Self-test ------------------------------------------------------------------------
 
-# Synthetic run records through the comparison code: one quantity, several
-# quantities with secondary rows, a rerun restricted to one quantity, a failed
-# run in an arm, a clean case and a shifted case. Stops on a wrong shape or
-# decision.
+# Synthetic run files in a temporary directory through the complete drivers
+# (compare_driver(), timing_driver()); every case reads back the written
+# decision or timing file and checks the decision and the run counts. Stops on
+# a wrong decision, shape or count, or on any error.
 selftest <- function() {
 
+  root <- tempfile("verify-selftest-")
+  no_fits <- function(...) invisible(NULL)
   # Deterministic draws: run i of an arm is a normal grid moved by offset v[i]
   # and scaled by 1 + v[i]; the 'off' arm uses the offsets in reverse order, so
   # both arms have the same set of run values (Welch t = 0) unless shifted.
   offsets <- stats::qnorm(stats::ppoints(10L)) / 5
-  make_run <- function(arm, seed, names, shift = 0, secondary = TRUE, error = NULL) {
-    job <- list(part = "selftest", model = "m", arm = arm, seed = seed)
-    if (!is.null(error)) return(list(job = job, error = error))
-    i      <- seed %% 1000L
-    offset <- if (arm == "on") offsets[i] else offsets[11L - i]
+  compare_run <- function(job, names, shift = 0, constant = FALSE) {
+    i      <- job[["seed"]] %% 1000L
+    offset <- if (job[["arm"]] == "on") offsets[i] else offsets[11L - i]
     draws  <- vapply(seq_along(names), function(j) {
-      stats::qnorm(stats::ppoints(400L)) * (1 + offset) + offset + shift + j
+      if (constant) rep(j, 400L) else
+        stats::qnorm(stats::ppoints(400L)) * (1 + offset) + offset + shift[[min(j, length(shift))]] + j
     }, numeric(400L))
     draws  <- matrix(draws, ncol = length(names), dimnames = list(NULL, names))
-    run <- list(job = job, means = colMeans(draws))
-    if (secondary) {
-      run[["sds"]] <- apply(draws, 2L, stats::sd)
-      run[["thinned"]] <- draws[seq(1L, nrow(draws), by = 10L), , drop = FALSE]
-    }
-    run
+    list(job = job, wall = 1, jags_seconds = 1, iterations = 100,
+         means = colMeans(draws), sds = apply(draws, 2L, stats::sd),
+         thinned = draws[seq(1L, nrow(draws), by = 10L), , drop = FALSE])
   }
-  make_runs <- function(names, shift = 0, secondary = TRUE, fail_off = FALSE) {
-    runs <- c(lapply(1:10, function(i) make_run("on", 1000L + i, names, shift, secondary)),
-              lapply(1:10, function(i) make_run("off", 2000L + i, names, 0, secondary)))
-    if (fail_off) runs[[20L]] <- make_run("off", 2010L, names, error = "synthetic failure")
-    runs
+  timing_run <- function(job, ess = 100) {
+    list(job = job, wall = 1, jags_seconds = 2, iterations = 1000,
+         ess = c(a = ess, b = 2 * ess), roles = c(a = "sampled", b = "sampled"))
+  }
+  failed_run <- function(job) list(job = job, wall = 1, error = "synthetic fit failure")
+  # write the run files of one case; 'make' returns a run record or NULL (missing file)
+  write_runs <- function(dir, part, arms, seeds, make) {
+    dir.create(file.path(dir, "runs"), recursive = TRUE, showWarnings = FALSE)
+    for (arm in arms) for (i in seq_len(seeds)) {
+      seed <- switch(part, compare = c(on = 1000L, off = 2000L)[[arm]] + i,
+                     rerun = c(on = 5000L, off = 6000L)[[arm]] + i, timing = 3000L + i)
+      job  <- list(part = part, model = "m", arm = arm, seed = seed)
+      run  <- make(job, i)
+      if (!is.null(run)) saveRDS(run, run_file(job, dir))
+    }
   }
   check <- function(ok, what) {
     if (!isTRUE(ok)) stop("Self-test failed: ", what, call. = FALSE)
     cat("ok:", what, "\n")
   }
-  primary <- function(table) table[table[["kind"]] == "primary", , drop = FALSE]
-  count_rows <- function(table, kind) if (is.null(table)) 0L else sum(table[["kind"]] == kind)
+  compare_case <- function(label, make, part = "compare", dir = file.path(root, label)) {
+    write_runs(dir, part, c("on", "off"), 10L, make)
+    output <- utils::capture.output(compare_driver(part, "m", 10L, 1L, list(m = list()), dir = dir, execute = no_fits))
+    list(decisions = utils::read.csv(file.path(dir, paste0(part, "-decisions.csv")), stringsAsFactors = FALSE),
+         table = utils::read.csv(file.path(dir, paste0(part, ".csv")), stringsAsFactors = FALSE),
+         output = output, dir = dir)
+  }
+  timing_case <- function(label, make) {
+    dir <- file.path(root, label)
+    write_runs(dir, "timing", c("gates", "blocks", "both", "neither"), 3L, make)
+    output <- utils::capture.output(timing_driver("m", 3L, list(m = list()), dir = dir, execute = no_fits))
+    list(summary = utils::read.csv(file.path(dir, "timing.csv"), stringsAsFactors = FALSE), output = output)
+  }
+  counts_are <- function(d, on, off) {
+    all(unlist(d[1L, c("planned_on", "completed_on", "failed_on", "missing_on")]) == on) &&
+      all(unlist(d[1L, c("planned_off", "completed_off", "failed_off", "missing_off")]) == off)
+  }
 
-  # one quantity, primary and secondary
-  runs  <- make_runs("a")
-  table <- welch_table(runs, "m")
-  check(count_rows(table, "primary") == 1L && count_rows(table, "secondary") == 2L,
-        "one quantity gives one primary and two secondary rows")
-  check(decide(primary(table), "m", "primary", run_counts(runs))[["decision"]] == "pass",
-        "one quantity, no difference: pass")
+  # complete: three quantities, no difference
+  x <- compare_case("complete", function(job, i) compare_run(job, c("a", "b", "c")))
+  check(x$decisions$decision == "pass" && x$decisions$quantities == 3L &&
+          counts_are(x$decisions, c(10, 10, 0, 0), c(10, 10, 0, 0)) &&
+          sum(x$table$kind == "primary") == 3L && sum(x$table$kind == "secondary") == 6L,
+        "complete: pass, 3 quantities, 10 of 10 runs per arm, 3 primary and 6 secondary rows")
 
-  # several quantities
-  runs  <- make_runs(c("a", "b", "c"))
-  table <- welch_table(runs, "m")
-  check(count_rows(table, "primary") == 3L && count_rows(table, "secondary") == 6L,
-        "three quantities give three primary and six secondary rows")
-  decision <- decide(primary(table), "m", "primary", run_counts(runs))
-  check(decision[["decision"]] == "pass" && decision[["completed_on"]] == 10L && decision[["completed_off"]] == 10L,
-        "clean case: pass with 10 of 10 runs per arm")
+  # one failed run
+  x <- compare_case("one_failed", function(job, i) {
+    if (job$arm == "off" && i == 10L) failed_run(job) else compare_run(job, c("a", "b"))
+  })
+  check(x$decisions$decision == "incomplete" && !x$decisions$pass &&
+          counts_are(x$decisions, c(10, 10, 0, 0), c(10, 9, 1, 0)) && any(grepl("INCOMPLETE", x$output)),
+        "one failed run: incomplete, off 10 planned / 9 completed / 1 failed")
 
-  # a rerun restricted to one quantity of several
-  table <- welch_table(runs, "m", quantities = "b")
-  check(count_rows(table, "primary") == 1L && count_rows(table, "secondary") == 2L &&
-          all(table[["quantity"]] == "b"), "a rerun of one quantity keeps the matrix shape")
-  table <- welch_table(runs, "m", quantities = "absent")
-  check(count_rows(table, "primary") == 0L && count_rows(table, "secondary") == 0L,
-        "a rerun of no available quantity gives no rows")
-  check(decide(NULL, "m", "primary", run_counts(runs))[["decision"]] == "fail",
-        "no quantities is not a pass")
+  # one missing run file
+  x <- compare_case("one_missing", function(job, i) {
+    if (job$arm == "off" && i == 10L) NULL else compare_run(job, c("a", "b"))
+  })
+  check(x$decisions$decision == "incomplete" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 9, 0, 1)),
+        "one missing run file: incomplete, off 10 planned / 9 completed / 1 missing")
 
-  # runs without secondary records
-  runs  <- make_runs(c("a", "b"), secondary = FALSE)
-  table <- welch_table(runs, "m")
-  check(count_rows(table, "primary") == 2L && count_rows(table, "secondary") == 0L,
-        "runs without SDs and thinned draws give primary rows only")
+  # one successful run in an arm
+  x <- compare_case("one_success", function(job, i) {
+    if (job$arm == "off" && i > 1L) failed_run(job) else compare_run(job, c("a", "b"))
+  })
+  check(x$decisions$decision == "incomplete" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 1, 9, 0)) &&
+          nrow(x$table) == 2L && all(is.na(x$table$t)),
+        "one successful run in an arm: incomplete, rows with NA statistics")
 
-  # a failed run in the 'off' arm
-  runs  <- make_runs(c("a", "b"), fail_off = TRUE)
-  table <- welch_table(runs, "m")
-  decision <- decide(primary(table), "m", "primary", run_counts(runs))
-  check(decision[["decision"]] == "incomplete" && !decision[["pass"]] &&
-          decision[["failed_off"]] == 1L && decision[["completed_off"]] == 9L,
-        "one failed run: incomplete with the counts")
-  missing <- runs
-  missing[[20L]] <- list(job = missing[[20L]][["job"]], error = "missing run file", missing = TRUE)
-  decision <- decide(primary(table), "m", "primary", run_counts(missing))
-  check(decision[["decision"]] == "incomplete" && decision[["missing_off"]] == 1L,
-        "one missing run: incomplete with the counts")
+  # no successful run in an arm
+  x <- compare_case("no_success", function(job, i) {
+    if (job$arm == "off") failed_run(job) else compare_run(job, c("a", "b"))
+  })
+  check(x$decisions$decision == "incomplete" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 0, 10, 0)) &&
+          all(is.na(x$table$t)),
+        "no successful run in an arm: incomplete, rows with NA statistics")
 
-  # a shifted 'on' arm fails
-  runs  <- make_runs(c("a", "b"), shift = 1)
-  table <- welch_table(runs, "m")
-  check(decide(primary(table), "m", "primary", run_counts(runs))[["decision"]] == "fail",
-        "a shifted arm: fail")
+  # no assessable (comparable) quantity: constant in every run
+  x <- compare_case("no_quantity", function(job, i) compare_run(job, c("a", "b"), constant = TRUE))
+  check(x$decisions$decision == "incomplete" && x$decisions$quantities == 0L && nrow(x$table) == 0L &&
+          counts_are(x$decisions, c(10, 10, 0, 0), c(10, 10, 0, 0)),
+        "no comparable quantity: incomplete with complete run counts")
 
+  # a single quantity
+  x <- compare_case("single", function(job, i) compare_run(job, "a"))
+  check(x$decisions$decision == "pass" && x$decisions$quantities == 1L &&
+          sum(x$table$kind == "primary") == 1L && sum(x$table$kind == "secondary") == 2L,
+        "a single quantity: pass, 1 primary and 2 secondary rows")
+
+  # a single-quantity rerun: the first comparison fails on 'b' only
+  dir <- file.path(root, "rerun")
+  x <- compare_case("rerun", function(job, i) {
+    compare_run(job, c("a", "b", "c"), shift = if (job$arm == "on") c(0, 1, 0) else 0)
+  }, dir = dir)
+  check(x$decisions$decision == "fail" &&
+          identical(x$table$quantity[x$table$kind == "primary" & abs(x$table$t) > 2], "b"),
+        "a shifted quantity: fail on that quantity only")
+  x <- compare_case("rerun", function(job, i) compare_run(job, c("a", "b", "c")), part = "rerun", dir = dir)
+  check(x$decisions$decision == "pass" && x$decisions$quantities == 1L &&
+          all(x$table$quantity == "b") && sum(x$table$kind == "secondary") == 2L &&
+          counts_are(x$decisions, c(10, 10, 0, 0), c(10, 10, 0, 0)),
+        "a single-quantity rerun: pass on 'b' alone")
+
+  # timing: complete
+  y <- timing_case("timing_complete", function(job, i) timing_run(job))
+  check(nrow(y$summary) == 4L && all(y$summary$status == "complete") && all(y$summary$completed == 3L) &&
+          all(abs(y$summary$speedup - 1) < 1e-12), "timing complete: 4 arms, 3 of 3 runs, complete")
+
+  # timing: every run failed
+  y <- timing_case("timing_all_failed", function(job, i) failed_run(job))
+  check(nrow(y$summary) == 4L && all(y$summary$status == "incomplete") && all(y$summary$failed == 3L) &&
+          all(y$summary$completed == 0L) && all(is.na(y$summary$ess_per_second)) &&
+          any(grepl("INCOMPLETE", y$output)),
+        "every timing run failed: incomplete, 3 failed per arm, NA metrics")
+
+  # timing: no assessable quantity in any run
+  y <- timing_case("timing_no_assessable", function(job, i) timing_run(job, ess = 0))
+  check(nrow(y$summary) == 4L && all(y$summary$status == "incomplete") && all(y$summary$completed == 3L) &&
+          all(is.na(y$summary$min_ess)) && all(y$summary$assessable == 0),
+        "no assessable timing quantity: incomplete, NA effective sample sizes")
+
+  # timing: the 'neither' arm failed, so the ratios are unavailable
+  y <- timing_case("timing_neither_failed", function(job, i) {
+    if (job$arm == "neither") failed_run(job) else timing_run(job)
+  })
+  check(nrow(y$summary) == 4L && all(y$summary$status == "incomplete") && all(is.na(y$summary$speedup)),
+        "failed 'neither' arm: incomplete, no ratios")
+
+  unlink(root, recursive = TRUE)
   cat("Self-test passed.\n")
 }
 
@@ -584,130 +854,6 @@ specs  <- model_specs()
 models <- grep(models_re, names(specs), value = TRUE)
 cat("part:", part, " models:", paste(models, collapse = ", "), " seeds:", seeds, " workers:", workers, "\n")
 
-if (part %in% c("compare", "rerun")) {
+if (part %in% c("compare", "rerun")) compare_driver(part, models, seeds, workers, specs)
 
-  # seeds: arm 'on' 1000 + i, arm 'off' 2000 + i; the rerun uses fresh seeds
-  # (5000 + i, 6000 + i)
-  base <- if (identical(part, "rerun")) c(on = 5000L, off = 6000L) else c(on = 1000L, off = 2000L)
-  if (identical(part, "rerun")) {
-    first <- utils::read.csv(file.path(out_dir, "compare.csv"), stringsAsFactors = FALSE)
-    kind    <- if (is.null(first[["kind"]])) rep("primary", nrow(first)) else first[["kind"]]
-    failing <- first[abs(first[["t"]]) > 2 & kind == "primary", c("model", "quantity")]
-    decisions <- utils::read.csv(file.path(out_dir, "compare-decisions.csv"), stringsAsFactors = FALSE)
-    failed  <- if (is.null(decisions[["decision"]])) !decisions[["pass"]] else decisions[["decision"]] == "fail"
-    models <- intersect(models, decisions[["model"]][failed])
-    cat("rerun models:", paste(models, collapse = ", "), "\n")
-  }
-  jobs <- list()
-  for (model in models) for (arm in c("on", "off")) for (i in seq_len(seeds)) {
-    jobs[[length(jobs) + 1L]] <- list(part = part, model = model, arm = arm, seed = base[[arm]] + i)
-  }
-  run_jobs(jobs, specs, workers)
-  runs <- read_runs(jobs)
-  counts <- run_counts(runs)
-  summary <- run_summary(runs)
-  utils::write.csv(summary, file.path(out_dir, paste0(part, "-runs.csv")), row.names = FALSE)
-  cat("\nRuns with errors:", sum(nzchar(summary[["error"]])), "\n")
-  if (any(nzchar(summary[["error"]]))) print(summary[nzchar(summary[["error"]]), c("model", "arm", "seed", "error")])
-  cat("\nRun times (wall s, median per model and arm):\n")
-  print(stats::aggregate(wall ~ model + arm, summary, stats::median))
-  cat("\nSamplers per arm (first run):\n")
-  print(unique(summary[, c("model", "arm", "gates", "blocks", "samplers")]), row.names = FALSE)
-
-  tables <- lapply(models, function(model) {
-    quantities <- if (identical(part, "rerun")) failing[["quantity"]][failing[["model"]] == model] else NULL
-    welch_table(runs, model, quantities)
-  })
-  table <- do.call(rbind, tables)
-  utils::write.csv(table, file.path(out_dir, paste0(part, ".csv")), row.names = FALSE)
-  # a rerun is judged by the same rule on the first run's failing quantities
-  # (|t| > 2 in a failing model) only; the secondary rows are reported apart
-  decisions <- decide_all(tables, models, "primary", counts)
-  utils::write.csv(decisions, file.path(out_dir, paste0(part, "-decisions.csv")), row.names = FALSE)
-  cat("\nRuns per model and arm (planned, completed, failed, missing):\n"); print(counts, row.names = FALSE)
-  cat("\nDecision per model (primary: run means):\n"); print(decisions, row.names = FALSE)
-  if (any(decisions[["decision"]] == "incomplete")) {
-    cat("INCOMPLETE: failed or missing runs in model(s)",
-        paste(decisions[["model"]][decisions[["decision"]] == "incomplete"], collapse = ", "),
-        "; the comparison is not a pass.\n")
-  }
-  secondary <- decide_all(tables, models, "secondary", counts)
-  if (!is.null(secondary)) {
-    utils::write.csv(secondary, file.path(out_dir, paste0(part, "-decisions-secondary.csv")), row.names = FALSE)
-    cat("\nSecondary (run SDs and tail frequencies, same rule, not part of the decision):\n")
-    print(secondary, row.names = FALSE)
-  } else {
-    cat("\nSecondary rows unavailable: the runs did not record SDs and thinned draws.\n")
-  }
-  cat("\nQuantities with |t| > 2:\n")
-  print(table[abs(table[["t"]]) > 2, ], row.names = FALSE)
-}
-
-if (identical(part, "timing")) {
-
-  arms <- c("gates", "blocks", "both", "neither")
-  jobs <- list()
-  for (i in seq_len(seeds)) {
-    # rotate the arm order by seed so that no arm always runs first
-    order <- arms[(seq_along(arms) + i - 2L) %% length(arms) + 1L]
-    for (model in models) for (arm in order) {
-      jobs[[length(jobs) + 1L]] <- list(part = part, model = model, arm = arm, seed = 3000L + i)
-    }
-  }
-  run_jobs(jobs, specs, 1L)
-  all_runs <- read_runs(jobs)
-  counts   <- run_counts(all_runs)
-  runs     <- Filter(function(run) is.null(run[["error"]]), all_runs)
-  timing <- do.call(rbind, lapply(runs, function(run) {
-    roles  <- run[["roles"]]
-    if (is.null(roles)) roles <- model_roles(run[["job"]][["model"]], specs)
-    global <- global_parameters(names(run[["ess"]]), roles)
-    ess    <- run[["ess"]][global]
-    assessable <- is.finite(ess) & ess > 0
-    data.frame(model = run[["job"]][["model"]], arm = run[["job"]][["arm"]], seed = run[["job"]][["seed"]],
-               jags_seconds = run[["jags_seconds"]],
-               seconds_per_1000 = 1000 * run[["jags_seconds"]] / run[["iterations"]],
-               assessable = sum(assessable),
-               min_ess = min(ess[assessable]), min_ess_quantity = names(ess)[assessable][which.min(ess[assessable])],
-               ess_per_second = min(ess[assessable]) / run[["jags_seconds"]],
-               not_assessable = paste(names(ess)[!assessable], collapse = " "),
-               stringsAsFactors = FALSE)
-  }))
-  utils::write.csv(timing, file.path(out_dir, "timing-runs.csv"), row.names = FALSE)
-  # the free parameters without an effective sample size, with the share of the
-  # model's runs in that arm where it happened
-  not_assessable <- do.call(rbind, lapply(split(timing, list(timing[["model"]], timing[["arm"]]), drop = TRUE), function(x) {
-    names <- unlist(strsplit(x[["not_assessable"]], " ", fixed = TRUE))
-    counts <- table(names)
-    data.frame(model = x[["model"]][1L], arm = x[["arm"]][1L],
-               not_assessable = if (length(counts) == 0L) "none" else
-                 paste0(names(counts), " (", as.integer(counts), "/", nrow(x), ")", collapse = ", "),
-               stringsAsFactors = FALSE)
-  }))
-  summary <- stats::aggregate(cbind(seconds_per_1000, assessable, min_ess, ess_per_second) ~ model + arm, timing, mean)
-  neither <- summary[summary[["arm"]] == "neither", c("model", "seconds_per_1000", "ess_per_second")]
-  names(neither)[2:3] <- c("seconds_neither", "ess_per_second_neither")
-  summary <- merge(summary, neither, by = "model")
-  summary[["time_ratio"]] <- summary[["seconds_per_1000"]] / summary[["seconds_neither"]]
-  summary[["speedup"]]    <- summary[["ess_per_second"]] / summary[["ess_per_second_neither"]]
-  summary <- merge(summary, not_assessable, by = c("model", "arm"))
-  # every planned run of a model and arm, and whether the model's timing is
-  # complete (its ratios use the 'neither' arm)
-  summary <- merge(counts, summary, by = c("model", "arm"), all.x = TRUE)
-  incomplete_models <- unique(summary[["model"]][summary[["failed"]] > 0L | summary[["missing"]] > 0L])
-  summary[["status"]] <- ifelse(summary[["model"]] %in% incomplete_models, "incomplete", "complete")
-  summary <- summary[order(summary[["model"]], match(summary[["arm"]], arms)),
-                     c("model", "arm", "planned", "completed", "failed", "missing", "status",
-                       "seconds_per_1000", "assessable", "min_ess", "ess_per_second", "time_ratio",
-                       "speedup", "not_assessable")]
-  utils::write.csv(summary, file.path(out_dir, "timing.csv"), row.names = FALSE)
-  cat("\nTiming (means over seeds; ratios to 'neither'; minimum ESS over the assessable global parameters):\n")
-  print(summary, row.names = FALSE, digits = 4)
-  if (length(incomplete_models) > 0L) {
-    cat("INCOMPLETE: failed or missing runs in model(s)", paste(incomplete_models, collapse = ", "),
-        "; their timing is incomplete.\n")
-  }
-  cat("\nWorst-mixing assessable global quantity and the not-assessable ones per run:\n")
-  print(timing[, c("model", "arm", "seed", "assessable", "min_ess_quantity", "min_ess", "jags_seconds",
-                   "not_assessable")], row.names = FALSE)
-}
+if (identical(part, "timing")) timing_driver(models, seeds, specs)
