@@ -21,7 +21,8 @@ class DSELNORMMVSTEP : public VectorDist
                     std::vector<double const *> const &parameters,
                     std::vector<unsigned int> const &lengths,
                     double const *lower, double const *upper,
-                    SelNormCoarseSettings const &settings) const;
+                    SelNormCoarseSettings const &settings,
+                    bool *surrogate_not_exact = nullptr) const;
   void randomSample(double *x, unsigned int length,
                     std::vector<double const *> const &parameters,
                     std::vector<unsigned int> const &lengths,

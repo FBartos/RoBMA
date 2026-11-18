@@ -511,9 +511,12 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
       LOGICAL(enabled)[0] == NA_LOGICAL)) {
     Rf_error("'enabled' must be NULL or one non-missing logical value.");
   }
+  // Settings: three grid steps, a rule count and, optionally, the fallback
+  // threshold. Settings frozen without a threshold (four values) mean 0: the
+  // fallback is disabled.
   if (settings != R_NilValue) {
-    if (TYPEOF(settings) != REALSXP || XLENGTH(settings) != 4) {
-      Rf_error("'settings' must contain three grid steps and a rule count.");
+    if (TYPEOF(settings) != REALSXP || (XLENGTH(settings) != 4 && XLENGTH(settings) != 5)) {
+      Rf_error("'settings' must contain three grid steps, a rule count and an optional acceptance threshold.");
     }
     const double *values = REAL(settings);
     for (int i = 0; i < 3; ++i) {
@@ -524,6 +527,9 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
     if (!std::isfinite(values[3]) || values[3] < 3 || values[3] != std::floor(values[3]) ||
         values[3] > std::numeric_limits<unsigned int>::max()) {
       Rf_error("The coarse rule count must be a supported integer of at least three.");
+    }
+    if (XLENGTH(settings) == 5 && !(values[4] >= 0 && values[4] <= 1)) {
+      Rf_error("The coarse acceptance threshold must be a number between 0 and 1.");
     }
   }
   jags::RoBMA::CoarseCorrectedSliceConfig config;
@@ -538,9 +544,10 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
       config.settings.diagonal_step = REAL(settings)[1];
       config.settings.log_weight_step = REAL(settings)[2];
       config.settings.max_rules = static_cast<unsigned int>(REAL(settings)[3]);
+      config.min_acceptance = XLENGTH(settings) == 5 ? REAL(settings)[4] : 0.0;
     }
     if (enabled != R_NilValue || settings != R_NilValue) {
-      factory->configure(config.enabled, config.settings);
+      factory->configure(config.enabled, config.settings, config.min_acceptance);
     }
     if (LOGICAL(clear)[0]) jags::RoBMA::coarse_corrected_slice_stats(true);
     stats = jags::RoBMA::coarse_corrected_slice_stats();
@@ -556,6 +563,37 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal(static_cast<double>(stats.accepted)));
   SET_VECTOR_ELT(out, 3, Rf_ScalarReal(static_cast<double>(stats.correction_rejected)));
   for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// The per-fit counters of the corrected sampler in this process, read and then,
+// when 'clear' is TRUE, cleared (the runtime report of each fit).
+extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  const jags::RoBMA::CoarseCorrectedSliceReport report =
+    jags::RoBMA::coarse_corrected_slice_report(LOGICAL(clear)[0] != 0);
+  const char *names[] = {"samplers", "fallback_few_proposals", "fallback_surrogate_exact",
+    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "min_sampler_rate"};
+  const double values[] = {static_cast<double>(report.samplers),
+    static_cast<double>(report.fallback_few_proposals),
+    static_cast<double>(report.fallback_surrogate_exact),
+    static_cast<double>(report.fallback_low_acceptance),
+    static_cast<double>(report.sampling_proposed),
+    static_cast<double>(report.sampling_accepted),
+    report.has_min_rate ? report.min_sampler_rate : NA_REAL};
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 7));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 7));
+  for (int i = 0; i < 7; ++i) {
+    SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
+    SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  }
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
   return out;

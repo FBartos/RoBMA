@@ -192,7 +192,7 @@ double DSELNORMMVSTEP::surrogateLogDensity(
     std::vector<double const *> const &par,
     std::vector<unsigned int> const &len,
     double const *lower, double const *upper,
-    SelNormCoarseSettings const &settings) const
+    SelNormCoarseSettings const &settings, bool *surrogate_not_exact) const
 {
   const int k = static_cast<int>(length);
   const int n_bins = static_cast<int>(len[3]);
@@ -206,10 +206,16 @@ double DSELNORMMVSTEP::surrogateLogDensity(
   integration.orders = par[17];
   integration.rule_count = len[17];
   integration.tolerance = *par[13];
-  return cpp_selnorm_mnorm_step_surrogate_lpdf(x, par[0], par[1], k, par[2], par[3],
-    n_bins, z_lower.data(), z_upper.data(), obs_bin.data(), static_cast<int>(*par[7]),
-    static_cast<int>(*par[8]) == 1, static_cast<int>(*par[9]), static_cast<int>(*par[14]),
-    integration, settings);
+  const double log_density = cpp_selnorm_mnorm_step_surrogate_lpdf(x, par[0], par[1], k,
+    par[2], par[3], n_bins, z_lower.data(), z_upper.data(), obs_bin.data(),
+    static_cast<int>(*par[7]), static_cast<int>(*par[8]) == 1, static_cast<int>(*par[9]),
+    static_cast<int>(*par[14]), integration, settings);
+  // The dense normalizer is the coarse anchor integral or the prescribed unit
+  // normalizer, never the exact one, so every finite value is not exact.
+  if (surrogate_not_exact != nullptr && std::isfinite(log_density)) {
+    *surrogate_not_exact = true;
+  }
+  return log_density;
 }
 
 void DSELNORMMVSTEP::randomSample(
