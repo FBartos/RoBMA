@@ -487,6 +487,12 @@ test_that("a sampler decides its kernel once, at the end of adaptation, by the f
                    .fallback_switched("fallback_surrogate_exact"))
   expect_identical(.fallback_decision(.9, 500L, mode = "md", definitions = paste0(indicator, "\n  md <- 0 * ind"))$report,
                    .fallback_switched("fallback_surrogate_exact"))
+  # a dense block under the normal kernel in every state: its anchor normalizer
+  # is the exact one, so it falls back by the same rule
+  dense <- .coarse_dense_hand_model(.coarse_dense_setup(), min_acceptance = .9, mode = "md",
+                                    definitions = paste0(indicator, "\n  md <- 0 * ind"), inits = list(ind = 1))
+  expect_identical(dense$samplers[dense$samplers != "base::Finite"], "RoBMA::CoarseCorrectedSlice")
+  expect_identical(.coarse_hand_chain(dense, "mu", 200L)$report, .fallback_switched("fallback_surrogate_exact"))
 
   # the order of the rules: (a) before (c) and before (b); (c) and (b) cannot
   # both hold, since a surrogate equal to the exact density accepts every proposal

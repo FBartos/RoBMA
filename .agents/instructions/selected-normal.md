@@ -471,10 +471,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   proposals and accepted corrections, and records whether any adaptive
   surrogate used a normalizer that is not the exact one (the trailing
   `surrogate_not_exact` flag of the three `surrogateLogDensity`: a cluster or
-  factor child's coarse rung, never its `exact_fallback` or NORMAL kernel; a
-  dense child always, its normalizer being the anchor integral or the unit
-  normalizer). At its first `adaptOff()` (a second call changes nothing) and
-  with `selection.coarse_min_acceptance > 0` (default 0.90, frozen with the
+  factor child's coarse rung, never its `exact_fallback`; a dense child's
+  anchor integral or unit normalizer; no child under the NORMAL kernel, whose
+  anchor normalizer is the exact one). At its first `adaptOff()` (a second
+  call changes nothing) and with `selection.coarse_min_acceptance > 0`
+  (default 0.90, frozen with the
   runtime settings; settings without it, from 4.1.1 fits, mean 0) it switches
   for good to the exact kernel, an ordinary slice update of the full
   conditional through the same `logDensity()`, when (a) it made fewer than 50

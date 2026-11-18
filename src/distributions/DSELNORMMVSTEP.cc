@@ -211,8 +211,11 @@ double DSELNORMMVSTEP::surrogateLogDensity(
     static_cast<int>(*par[7]), static_cast<int>(*par[8]) == 1, static_cast<int>(*par[9]),
     static_cast<int>(*par[14]), integration, settings);
   // The dense normalizer is the coarse anchor integral or the prescribed unit
-  // normalizer, never the exact one, so every finite value is not exact.
-  if (surrogate_not_exact != nullptr && std::isfinite(log_density)) {
+  // normalizer: not the exact one, except under the NORMAL kernel, whose anchor
+  // normalizer is the exact one, zero (as for the cluster and factor blocks).
+  const int kernel_mode = static_cast<int>(*par[9]);
+  if (surrogate_not_exact != nullptr && kernel_mode != SELKERNEL_NORMAL &&
+      std::isfinite(log_density)) {
     *surrogate_not_exact = true;
   }
   return log_density;

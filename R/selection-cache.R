@@ -222,11 +222,12 @@ remove_selection_cache <- function(object) {
 #' \code{selection.coarse_min_acceptance} above 0 (default \code{0.90}) it
 #' updates its parameter with the exact slice sampler for the rest of the fit
 #' when it made fewer than 50 proposals during adaptation, when no surrogate it
-#' evaluated during adaptation differed from the exact density (a dense block's
-#' surrogate always differs; a cluster or factor block's does not where its
-#' rule is unavailable, as in a model average whose selection branches all use
-#' the best-weight rule), or when its acceptance rate during adaptation is
-#' below the threshold; the first of these that holds is the recorded reason.
+#' evaluated during adaptation differed from the exact density (no block's
+#' surrogate differs under the normal kernel, and a cluster or factor block's
+#' does not where its rule is unavailable, as in a model average whose
+#' selection branches all use the best-weight rule), or when its acceptance
+#' rate during adaptation is below the threshold; the first of these that
+#' holds is the recorded reason.
 #' Both kernels leave the posterior unchanged and the choice is not revisited,
 #' so the chain after adaptation is a single exact kernel. A threshold of
 #' \code{0} disables the fallback and the warning. Every model build (a fit,

@@ -366,8 +366,11 @@
 
 # The rjags model of the dense block with the corrected sampler and the grid of
 # the setup, compiled at the threshold `min_acceptance`; the options are restored
-# and the per-fit counters start from zero.
-.coarse_dense_hand_model <- function(setup, min_acceptance = 0, seed = 74891L) {
+# and the per-fit counters start from zero. `mode` is the kernel-mode argument
+# (a constant, or a node that `definitions` define), `inits` further initial
+# values.
+.coarse_dense_hand_model <- function(setup, min_acceptance = 0, seed = 74891L, mode = 1,
+                                     definitions = "", inits = list()) {
 
   old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_grid",
                                   "selection.coarse_max_rules", "selection.coarse_min_acceptance")]
@@ -384,14 +387,15 @@
     nodes = setup$rules$nodes, log_weights = setup$rules$log_weights, orders = setup$rules$orders,
     nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
   syntax <- paste0("model {\n  mu ~ dt(0, 1, 4)\n  for (j in 1:", rows, ") { means[j] <- mu }\n",
+    definitions, "\n",
     "  y[1:", rows, "] ~ dselnorm_mnorm_step(means[1:", rows, "], covariance[1:", rows * (rows + 1L) / 2L,
-    "], sei[1:", rows, "], omega[1:2], z_lower[1:2], z_upper[1:2], obs_bin[1:", rows, "], 1, 1, 1, ",
+    "], sei[1:", rows, "], omega[1:2], z_lower[1:2], z_upper[1:2], obs_bin[1:", rows, "], 1, 1, ", mode, ", ",
     "qmc[1:nqmc], 512, 8, 0.005, 0, nodes[1:nq], log_weights[1:nq], orders[1:nr])\n}")
   RoBMA:::.selection_sampler_report_read()
   connection <- textConnection(syntax)
   on.exit(close(connection), add = TRUE)
   model <- rjags::jags.model(connection, data = data,
-    inits = list(mu = -.25, .RNG.name = "base::Mersenne-Twister", .RNG.seed = seed),
+    inits = c(list(mu = -.25), inits, list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = seed)),
     n.chains = 1L, n.adapt = 0L, quiet = TRUE)
   list(model = model, samplers = names(rjags::list.samplers(model)))
 }
