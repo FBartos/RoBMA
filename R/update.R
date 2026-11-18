@@ -10,6 +10,11 @@
 #'   \code{\link[stats]{update}}.
 #' @param ... unsupported additional arguments.
 #' @param sample_extend integer. Number of additional samples per chain.
+#' @param adapt integer. Number of adaptation iterations run when JAGS rebuilds
+#'   the sampler for this extension. Defaults to \code{NULL}, which uses the
+#'   \code{adapt} of the initial fit. A supplied value applies to this
+#'   extension only and does not replace the initial setting that later
+#'   extensions without \code{adapt} use. Requires \code{sample_extend}.
 #' @param slab optional character vector of study labels. Updating labels does
 #'   not refit or extend the model.
 #' @param autofit_control list of autofit control settings. Values are merged
@@ -28,11 +33,13 @@
 #' @return The updated \code{brma} object.
 #'
 #' @details
-#' Extending a fit preserves the fitted model and adds posterior samples. No
-#' additional burn-in is requested. Rebuilding the compiled JAGS model, for
-#' example after loading a saved fit, for parallel workers, or under runjags'
-#' repeatable-method settings, can rerun adaptation before collecting those
-#' samples. Retained selection caches store normalizer calculations, not JAGS
+#' Extending a fit preserves the fitted model and its posterior samples and
+#' adds new samples. No additional burn-in is requested. The extension
+#' rebuilds the compiled JAGS model from the stored chain states, which resets
+#' the sampler tuning, so JAGS adapts again for \code{adapt} iterations (the
+#' initial fit's setting unless supplied) before collecting those samples.
+#' Warnings that adaptation was incomplete are kept with the fit's warnings.
+#' Retained selection caches store normalizer calculations, not JAGS
 #' model pointers or sampler tuning. Prior, data, and model-structure updates are intentionally not
 #' supported by this method. For \code{brma.mv()} objects, the stored \code{V},
 #' \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
@@ -65,7 +72,7 @@
 #' @export
 update.brma <- function(
     object, formula. = NULL, ...,
-    sample_extend = NULL, slab = NULL,
+    sample_extend = NULL, adapt = NULL, slab = NULL,
     autofit_control = NULL, convergence_checks = NULL,
     recompute = c("all", "drop"),
     parallel = NULL, cores = NULL, silent = NULL,
@@ -99,14 +106,19 @@ update.brma <- function(
     )
   }
 
+  if (!is.null(adapt) && is.null(sample_extend)) {
+    stop("The 'adapt' argument applies only to an extension; supply 'sample_extend'.", call. = FALSE)
+  }
+
   if (!is.null(slab)) {
     object <- .update_brma_slab(object = object, slab = slab)
   }
 
-  object[["fit_control"]] <- .update_fit_control(
+  # Validates an 'adapt' override as at fitting time.
+  fit_control <- .update_fit_control(
     old_fit_control = object[["fit_control"]],
     chains          = NULL,
-    adapt           = NULL,
+    adapt           = adapt,
     burnin          = NULL,
     sample          = NULL,
     thin            = NULL,
@@ -116,6 +128,11 @@ update.brma <- function(
     silent          = silent,
     seed            = NULL
   )
+  # The override applies to this extension only; the object keeps the
+  # adaptation of the initial fit for later extensions.
+  extension_adapt <- fit_control[["adapt"]]
+  fit_control[["adapt"]] <- object[["fit_control"]][["adapt"]]
+  object[["fit_control"]] <- fit_control
   object[["autofit_control"]] <- .update_autofit_control(
     old_autofit_control = object[["autofit_control"]],
     autofit_control     = .update_brma_autofit_input(
@@ -132,7 +149,7 @@ update.brma <- function(
   cached       <- .collect_brma_fit_cache(object)
 
   if (fit_extended) {
-    object <- .extend_brma_fit_once(object)
+    object <- .extend_brma_fit_once(object, adapt = extension_adapt)
     object[["summary"]]      <- .object_summary(object)
     object[["coefficients"]] <- .object_coefficients(object)
     object <- .refresh_selection_sensitivity_diagnostics(object)
@@ -187,7 +204,7 @@ update.brma <- function(
 
 
 # Extend exactly one sample_extend chunk, even when stored max_extend is larger.
-.extend_brma_fit_once <- function(object) {
+.extend_brma_fit_once <- function(object, adapt) {
 
   if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0L) {
     stop("'object' does not contain a fitted model to extend.", call. = FALSE)
@@ -201,7 +218,7 @@ update.brma <- function(
   )
 
   object[["autofit_control"]] <- extend_autofit_control
-  object[["fit"]]             <- .fit(object, extend = TRUE)
+  object[["fit"]]             <- .fit(object, extend = TRUE, adapt = adapt)
   object[["autofit_control"]] <- stored_autofit_control
   .stop_fit_errors(object[["fit"]])
 
