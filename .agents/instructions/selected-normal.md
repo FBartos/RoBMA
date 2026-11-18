@@ -491,7 +491,7 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   corrected (burn-in and runjags' closing draws included) and the lowest rate
   of one sampler over its proposals since the last clearing read (a registry
   of live samplers under a mutex; a sampler destroyed earlier leaves its rate
-  in a retired minimum; samplers with fewer than 256 such proposals do not
+  in a retired minimum; samplers with fewer than 1,000 such proposals do not
   count); the three
   process-wide counters of `selection_sampler_info()` are unchanged. `.fit()`
   passes a report callback (`BayesTools::JAGS_fit(runtime_report = )`, also on

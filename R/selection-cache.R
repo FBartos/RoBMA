@@ -248,9 +248,9 @@ remove_selection_cache <- function(object) {
 #' retained and extension draws and the closing draws the sampler makes after
 #' recording the chain end; \code{acceptance_rate}, their ratio
 #' (\code{NA} without proposals); \code{min_sampler_rate}, the lowest
-#' post-adaptation acceptance rate of a single sampler over one sampling run
-#' (one backend run of the fit, an automatic extension or an \code{update()}),
-#' among the samplers with at least 256 proposals in that run (\code{NA} when
+#' acceptance rate of one sampler over one backend run (of the fit, of an
+#' automatic extension or of an \code{update()}), among samplers with at least
+#' 1,000 proposals in that run (\code{NA} when
 #' none has); and \code{complete}, \code{FALSE} when part of the chain was drawn
 #' without a record (an extension of a fit saved before the record existed, a
 #' process whose report failed, or draws added without any report), in which

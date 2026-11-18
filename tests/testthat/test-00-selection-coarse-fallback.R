@@ -543,15 +543,15 @@ test_that("the worst-sampler rate is the rate of one sampler over its whole run"
   expect_identical(report[["sampling_proposed"]], 1000)
   expect_identical(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
 
-  # fewer than 256 proposals in the run: no rate
+  # fewer than 1,000 proposals in the run: no rate
   hand <- build()
   rjags::adapt(hand$model, 500L, end.adaptation = TRUE)
-  stats::update(hand$model, n.iter = 255L, progress.bar = "none")
+  stats::update(hand$model, n.iter = 999L, progress.bar = "none")
   report <- .selection_sampler_report_read()
-  expect_identical(report[["sampling_proposed"]], 255)
+  expect_identical(report[["sampling_proposed"]], 999)
   expect_identical(report[["min_sampler_rate"]], NA_real_)
   # the next run of the same sampler is its own window
-  stats::update(hand$model, n.iter = 300L, progress.bar = "none")
+  stats::update(hand$model, n.iter = 1000L, progress.bar = "none")
   report <- .selection_sampler_report_read()
   expect_identical(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
 
@@ -628,9 +628,9 @@ test_that("serial and parallel fits record their corrected samplers, and update(
   skip_if_not_installed("metafor")
   coarse <- "RoBMA::CoarseCorrectedSlice"
 
-  # 300 draws: each sampler makes more than 256 proposals, so it has a rate
-  serial   <- .fallback_fit(parallel = FALSE, chains = 3L, sample = 300L)
-  parallel <- .fallback_fit(parallel = TRUE, chains = 3L, sample = 300L)
+  # 1,000 draws: each sampler makes at least 1,000 proposals, so it has a rate
+  serial   <- .fallback_fit(parallel = FALSE, chains = 3L, sample = 1000L)
+  parallel <- .fallback_fit(parallel = TRUE, chains = 3L, sample = 1000L)
   fits     <- list(serial = serial, parallel = parallel)
   for (label in names(fits)) {
     fit    <- fits[[label]]
@@ -647,7 +647,7 @@ test_that("serial and parallel fits record their corrected samplers, and update(
     # one sampler object per corrected node and chain
     expect_identical(record[["samplers"]], 3 * sum(fit[["fit"]][["samplers"]][["Sampler"]] == coarse), info = label)
     expect_gt(record[["samplers"]], 0)
-    .fallback_expect_identity(record, 50 + 300 + 2, label)
+    .fallback_expect_identity(record, 50 + 1000 + 2, label)
     # the worst-sampler rate is the lowest of the processes' rates
     process_rates <- vapply(values[[1L]], `[[`, numeric(1L), "min_sampler_rate")
     expect_false(anyNA(process_rates), info = label)

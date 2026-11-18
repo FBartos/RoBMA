@@ -28,7 +28,7 @@ struct CoarseCorrectedSliceStats {
 // decided at adaptOff() by reason, the proposals and accepted corrections made
 // after adaptOff() by samplers that stayed corrected, and the lowest acceptance
 // rate of one such sampler over its proposals since the last clearing read (live
-// samplers and those destroyed since; only samplers with at least 256 such
+// samplers and those destroyed since; only samplers with at least 1,000 such
 // proposals count, has_min_rate false when none does).
 struct CoarseCorrectedSliceReport {
   std::uint64_t samplers;

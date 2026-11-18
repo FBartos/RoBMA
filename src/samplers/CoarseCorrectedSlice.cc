@@ -42,7 +42,7 @@ std::atomic<std::uint64_t> report_sampling_accepted(0);
 // cannot be judged. The worst-sampler rate counts samplers with at least
 // min_rate_proposals proposals since the last clearing read of the report.
 const std::uint64_t min_adaptive_proposals = 50;
-const std::uint64_t min_rate_proposals = 256;
+const std::uint64_t min_rate_proposals = 1000;
 
 // The rate of one sampler's window and whether it counts for the worst rate.
 bool window_rate(std::uint64_t proposed, std::uint64_t accepted, double *rate)
