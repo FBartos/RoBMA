@@ -1,5 +1,6 @@
 ## development version
 ### Features
+- moderator and scale regressions accept ridge, lasso, and horseshoe priors through `prior_regularized()`
 - `update()` gains `adapt` to set the adaptation of one extension
 
 ### Changes

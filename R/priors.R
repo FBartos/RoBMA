@@ -55,6 +55,27 @@ prior_none <- BayesTools::prior_none
 #' @export
 prior_factor <- BayesTools::prior_factor
 
+#' @title Regularized Regression Priors
+#'
+#' @description Set ridge, lasso, or horseshoe priors for moderator or scale
+#' regression coefficients. A named group in `prior_mods` or `prior_scale`
+#' can share one shrinkage scale across its terms. The intercept retains its
+#' own prior.
+#'
+#' @inheritParams BayesTools::prior_regularized
+#' @inherit BayesTools::prior_regularized return
+#'
+#' @examples
+#' global <- prior("cauchy", list(0, 0.2), list(0, Inf))
+#' moderator_priors <- list(
+#'   shrinkage = prior_regularized("horseshoe", terms = c("age", "dose"),
+#'                                scale = global, slab_scale = 2, slab_df = 4)
+#' )
+#'
+#' @seealso [prior_specification()], [BayesTools::prior_regularized()]
+#' @export
+prior_regularized <- BayesTools::prior_regularized
+
 #' @title Ordered Factor Prior
 #'
 #' @description Create priors on ordered factor effects by separating a scalar

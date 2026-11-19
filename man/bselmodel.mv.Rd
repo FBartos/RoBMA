@@ -144,7 +144,12 @@ complete \code{\link{prior_random}} object; see
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used. This argument can be
+priors. A named \code{\link[BayesTools:prior_regularized]{BayesTools::prior_regularized()}} group, such as
+\code{list(shrinkage = prior_regularized("horseshoe", scale = global))}, shares
+a positive prior \code{global} on the shrinkage scale across otherwise
+unassigned slopes. Use \code{terms} to select slopes or give separate groups to
+learn separate scales. Factor coefficients use treatment or independent
+contrasts. If omitted or \code{NULL}, default priors are used. This argument can be
 specified only when \code{mods} is specified. A formula without an intercept
 (\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
 the list is accepted only as a point prior at zero; any other \code{intercept}
@@ -158,7 +163,8 @@ complete prior in one place.}
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
 priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{scale} is specified.
+specified only when \code{scale} is specified. Named \code{\link[BayesTools:prior_regularized]{BayesTools::prior_regularized()}}
+groups apply to the log-scale slopes in the same way as in \code{prior_mods}.
 A named \code{intercept} entry supplies the complete positive SD prior used by
 \code{log(intercept)}. Global heterogeneity declarations remain meaningful when
 they supply another random root or its model-inclusion weights; declarations

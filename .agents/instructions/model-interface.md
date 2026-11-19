@@ -49,6 +49,12 @@ and named null priors, NULL/FALSE term omissions, omitted alternatives,
 continuous defaults, and intercept policy retain their existing semantics.
 The formula compiler owns all dimensions, levels, and bound design metadata.
 
+Regularization groups in moderator or scale prior lists are bound by
+BayesTools. Preserve its member priors when assembling per-term null and
+alternative mixtures and when rebuilding a design. A learned scale and a
+finite horseshoe slab are shared by the named group, including across
+mixture alternatives. Rescaling multiplies each member coefficient once.
+
 Ordered term containers pass through when they are the sole retained component.
 Their mixture/inclusion declaration belongs on total; combining a container with
 a separate term component refuses with the prior_ordered(total=...) and named

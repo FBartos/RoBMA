@@ -36,6 +36,11 @@
   }
 
   distribution <- prior[["distribution"]]
+  if (identical(distribution, "laplace") && !contrast %in% c("treatment", "independent")) {
+    stop("A Laplace prior for factor coefficients requires treatment or independent contrasts. ",
+         "Specify the factor's prior separately or set 'set_contrast_factor_predictors'.",
+         call. = FALSE)
+  }
   if (!contrast %in% c("treatment", "independent") &&
       !distribution %in% c("spike", "mnormal", "mcauchy", "mt")) {
     distribution <- paste0("m", distribution)
@@ -192,6 +197,12 @@
 
   ### check the user-specified priors
   user_default_prior <- NULL
+  if (!missing(prior_list) && (BayesTools::is.prior.regularized(prior_list) ||
+      !is.null(attr(prior_list, "regularized_spec", exact = TRUE)))) {
+    term_labels <- attr(stats::terms(attr(data[[parameter]], "formula")), "term.labels")
+    group_name <- utils::tail(make.unique(c(term_labels, "shrinkage"), sep = "_"), 1L)
+    prior_list <- stats::setNames(list(prior_list), group_name)
+  }
   if (!missing(prior_list) && BayesTools::is.prior(prior_list)) {
     .check_prior.term(prior_list)
     user_default_prior <- prior_list
@@ -205,6 +216,10 @@
         prior_list[[i]] <- .check_prior.formula_intercept(prior_list[[i]], parameter)
       } else {
         .check_prior.term(prior_list[[i]])
+      }
+      if (BayesTools::is.prior.regularized(prior_list[[i]]) ||
+          !is.null(attr(prior_list[[i]], "regularized_spec", exact = TRUE))) {
+        attr(prior_list[[i]], "regularized_contrast") <- attr(data, "set_contrast_factor_predictors")
       }
       prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
     }

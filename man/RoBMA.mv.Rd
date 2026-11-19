@@ -157,7 +157,9 @@ A named alternative \code{intercept} must be a single simple or point prior; it 
 the complete intercept prior and replaces the global effect mixture. Specify
 it in one place: null-list intercepts and explicit global effect declarations
 left without a consumer are refused. Ordinary term entries replace only their
-alternative component.}
+alternative component. A named \code{\link[BayesTools:prior_regularized]{BayesTools::prior_regularized()}} group shares its
+shrinkage scale across the selected moderator alternatives. The terms keep
+their individual null components and inclusion weights.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
@@ -166,7 +168,8 @@ is specified. A named alternative \code{intercept} must be a single positive
 simple or point prior; it is the complete SD prior used by \code{log(intercept)}.
 Global heterogeneity declarations remain meaningful when they supply another
 random root or its inclusion weights; declarations replaced without a
-consumer are refused. Null-list intercept declarations are unavailable.}
+consumer are refused. Null-list intercept declarations are unavailable.
+Use a named \code{\link[BayesTools:prior_regularized]{BayesTools::prior_regularized()}} group to shrink selected log-scale slopes.}
 
 \item{prior_bias}{prior distribution(s) for alternative publication-bias
 component(s), such as weight functions, PET, or PEESE.
