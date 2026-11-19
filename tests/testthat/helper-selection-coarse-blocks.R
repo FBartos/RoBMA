@@ -130,3 +130,20 @@
   orders <- block[["rules"]][["orders"]]
   orders[min(max_rules, length(orders))]
 }
+
+
+# RoBMA.mv() arguments of an ensemble on one study whose rank + 2 rows form one
+# factor selection block of the given rank (a sparse loading, three rows per
+# column).
+.coarse_factor_ensemble_args <- function(rank) {
+
+  rows    <- rank + 2L
+  loading <- matrix(0, rows, rank)
+  for (column in seq_len(rank)) {
+    loading[c(column, column %% rows + 1L, (column + 1L) %% rows + 1L), column] <- .05
+  }
+
+  list(yi = seq(-.1, .4, length.out = rows), V = RoBMA::known_v_factor(rep(.02, rows), loading),
+       random = ~ 1 | paper / esid, data = data.frame(paper = rep("a", rows), esid = seq_len(rows)),
+       measure = "GEN", prior_unit_information_sd = 1)
+}

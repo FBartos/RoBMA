@@ -566,7 +566,7 @@ test_that("certification case verification filters select their intended files",
       paste0("00-selection-kernel-", c("fit", "native", "plots", "step", "threads")),
       "00-selection-probability-numerics", "00-selection-factor-routing",
       "00-selection-estimate-cells", "00-selection-coarse-blocks",
-      "00-selection-coarse-exactness", "00-jags-build-requirements",
+      "00-selection-coarse-exactness", "00-selection-coarse-fallback", "00-jags-build-requirements",
       "00-selection-certificate-proposals", "00-selection-certificate-acceptance",
       "00-selection-node-memo", "00-sampler-declarations-fits", "02-distributions",
       "02-glmm-aghq"

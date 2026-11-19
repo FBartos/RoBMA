@@ -191,7 +191,7 @@ double DSELNORMCLUSTERSTEP::surrogateLogDensity(
     std::vector<double const *> const &par,
     std::vector<unsigned int> const &len,
     double const *lower, double const *upper,
-    SelNormCoarseSettings const &settings) const
+    SelNormCoarseSettings const &settings, bool *surrogate_not_exact) const
 {
   // Neither reads nor stores the node memo: a surrogate value is not the exact
   // density the memo holds for these inputs.
@@ -204,17 +204,24 @@ double DSELNORMCLUSTERSTEP::surrogateLogDensity(
     obs_bin[static_cast<std::size_t>(i)] = static_cast<int>(par[7][i]);
   }
   bool exact_fallback = false;
+  double log_normalizer = std::numeric_limits<double>::quiet_NaN();
+  const int kernel_mode = static_cast<int>(*par[10]);
   const double log_density = cpp_selnorm_cluster_step_surrogate_lpdf(
     x, par[0], par[1], par[2], k, par[3], par[4], n_bins,
     z_lower.data(), z_upper.data(), obs_bin.data(),
     static_cast<int>(*par[8]), static_cast<int>(*par[9]) == 1,
-    static_cast<int>(*par[10]), par[11], par[12], par[13],
+    kernel_mode, par[11], par[12], par[13],
     static_cast<int>(len[13]), static_cast<int>(*par[19]), settings,
-    &exact_fallback
+    &exact_fallback, &log_normalizer
   );
   // Without an available rule the surrogate is the exact density, memo and
   // diagnostics gate included; its exceptions propagate as the exact one's.
   if (exact_fallback) return logDensity(x, length, type, par, len, lower, upper);
+  // A coarse rule's normalizer (the NORMAL kernel's is the exact one, zero).
+  if (surrogate_not_exact != nullptr && kernel_mode != SELKERNEL_NORMAL &&
+      std::isfinite(log_normalizer)) {
+    *surrogate_not_exact = true;
+  }
   return log_density;
 }
 

@@ -150,17 +150,22 @@ remove_selection_cache <- function(object) {
 
 #' Inspect corrected selection-sampler counters
 #'
-#' @description Counts completed coarse slice proposals and their full-target
-#' acceptance decisions in the current R process.
-#' @param clear reset counters before reporting them.
-#' @details Enable the alternative for future fits with
-#' \code{RoBMA.options(selection.sampler = "coarse_corrected")}.
-#' The default \code{"default"} does not use it; parameters that the options
-#' \code{sampler.blocks} and \code{sampler.gates} declare to the factor slice
-#' and gated samplers of the BayesTools JAGS module (see
-#' \code{\link{RoBMA.options}}) keep those samplers under either setting, so
-#' set the two options to \code{FALSE} for the corrected sampler to update
-#' them as well.
+#' @description Reports the work of the corrected selection sampler: the record
+#' of a fitted model, or the counters of the current R process.
+#' @param clear reset the process counters before reporting them. Cannot be
+#' combined with \code{fit}.
+#' @param fit a fitted selection model (for example from \code{bselmodel.mv()}
+#' or \code{RoBMA.mv()}) whose record to report, or \code{NULL} for the
+#' process counters.
+#' @details The corrected sampler is the default,
+#' \code{RoBMA.options(selection.sampler = "slice.coarse")}; set
+#' \code{selection.sampler = "slice"} before fitting to use the other samplers
+#' instead, or \code{"jags.default"} for only the samplers JAGS assigns.
+#' Parameters that the options \code{sampler.blocks} and
+#' \code{sampler.gates} declare to the factor slice and gated samplers of the
+#' BayesTools JAGS module (see \code{\link{RoBMA.options}}) keep those samplers
+#' under \code{"slice.coarse"}, so set the two options to \code{FALSE} for the
+#' corrected sampler to update them as well.
 #' Every proposal is corrected against the full original likelihood and prior.
 #' Only the selection normalizer used to construct proposals is coarsened.
 #' A reversible slice transition for that surrogate is followed by a
@@ -200,35 +205,112 @@ remove_selection_cache <- function(object) {
 #' the node budget at the declared rank (rank two to six at the default
 #' setting). In model-averaged fits the weight rule and the kernel mode are
 #' nodes of the bias indicator, so their blocks take part, with the exact
-#' density in the states of the indicator that have a best-weight rule. A model
-#' average whose selection branches all use the best-weight rule takes part
-#' without any state that can gain: its surrogate is the exact density everywhere
-#' and every update pays two extra exact evaluations, so run such fits with the
-#' default sampler. Blocks fixed at a best-weight rule, blocks of higher rank and
-#' blocks with a fixed normal kernel keep the ordinary sampler.
+#' density in the states of the indicator that have a best-weight rule. Blocks
+#' fixed at a best-weight rule, blocks of higher rank and blocks with a fixed
+#' normal kernel keep the ordinary sampler.
 #'
 #' A scalar update is eligible when at least one stochastic child of the updated
 #' node is a dense multivariate block or a coarse-capable cluster or factor
 #' block; its other children enter the surrogate through their exact densities.
 #' Discrete, vector-valued and unrelated updates, and updates whose selection
-#' children are all without a coarse rule, retain ordinary JAGS samplers, so the
-#' option can be set without effect: check that the counters grow. Whatever the
-#' surrogate, the corrected chain targets the exact full conditional; a coarser
-#' rule changes the acceptance rate and the cost, not the posterior.
+#' children are all without a coarse rule, retain ordinary JAGS samplers.
+#' Whatever the surrogate, the corrected chain targets the exact full
+#' conditional; a coarser rule changes the acceptance rate and the cost, not
+#' the posterior.
 #'
-#' Already compiled samplers retain their grid and coarse rule-budget settings.
-#' Coarse settings can affect sampling efficiency even when correction
-#' acceptance is high. Compare effective samples per second for parameters of
-#' interest, not only iteration times or this acceptance rate.
-#' Counters combine all corrected samplers in this process, including warmup;
-#' clear them between phases for a sampling-only comparison. They do not report
-#' separate parallel workers. Inspect them between sampling calls.
-#' @return A data frame with proposal, acceptance and correction-rejection
-#' counts, and an acceptance rate (\code{NA} before any proposals).
+#' Fallback. Each corrected sampler (one per parameter and chain) chooses its
+#' kernel once, at the end of adaptation, from its adaptation updates: with
+#' \code{selection.coarse_min_acceptance} above 0 (default \code{0.90}) it
+#' updates its parameter with the exact slice sampler for the rest of the fit
+#' when it made fewer than 50 proposals during adaptation, when no surrogate it
+#' evaluated during adaptation differed from the exact density (no block's
+#' surrogate differs under the normal kernel, and a cluster or factor block's
+#' does not where its rule is unavailable, as in a model average whose
+#' selection branches all use the best-weight rule), or when its acceptance
+#' rate during adaptation is below the threshold; the first of these that
+#' holds is the recorded reason.
+#' Both kernels leave the posterior unchanged and the choice is not revisited,
+#' so the chain after adaptation is a single exact kernel. A threshold of
+#' \code{0} disables the fallback and both warnings. Every model build (a fit,
+#' and each parallel worker's or extension's rebuild of the model) adapts and
+#' decides again.
+#'
+#' Record. A fitted selection model keeps the record of its corrected samplers,
+#' collected from every process that ran chains and summed over the fit and
+#' its extensions (\code{update()}): \code{sampler} and \code{min_acceptance},
+#' the settings the model was fitted with (\code{sampler} shows the value the
+#' fit was made with, so fits of earlier versions show \code{"coarse_corrected"}
+#' or \code{"default"}; \code{min_acceptance} is \code{0} for fits made before
+#' the threshold existed); \code{allocation_block_withheld}, \code{TRUE} when
+#' the model was built as a model-averaged fit that leaves the joint block of
+#' its heterogeneity allocation to the corrected sampler, a block it would
+#' declare under \code{"slice"} (see \code{sampler.blocks} in
+#' \code{\link{RoBMA.options}}; \code{FALSE} for fits made before this element
+#' existed); \code{samplers}, the corrected sampler objects
+#' constructed, one per parameter and chain and counted again for every model
+#' build; \code{fallback_samplers}, those that switched to the exact slice
+#' sampler, split by reason into \code{fallback_few_proposals},
+#' \code{fallback_surrogate_exact} and \code{fallback_low_acceptance};
+#' \code{sampling_proposed} and \code{sampling_accepted}, the proposals made
+#' after adaptation by samplers that stayed corrected and the proposals whose
+#' correction accepted them (unchanged values included), counting burn-in,
+#' retained and extension draws and the closing draws the sampler makes after
+#' recording the chain end; \code{acceptance_rate}, their ratio
+#' (\code{NA} without proposals); \code{min_sampler_rate}, the lowest
+#' acceptance rate of one sampler over one backend run (of the fit, of an
+#' automatic extension or of an \code{update()}), among samplers with at least
+#' 1,000 proposals in that run (\code{NA} when none has). A fit made of several
+#' backend runs (automatic or \code{update()} extensions, or fits that sample in
+#' several runs, as JASP does) takes this minimum over more and shorter runs;
+#' while a sampler still makes at least 1,000 proposals in a run, such a fit
+#' reaches the warning more readily than one long run of the same model, and
+#' with fewer proposals per run it has no worst-sampler rate. The
+#' last element is \code{complete}, \code{FALSE} when part of the chain was drawn
+#' without a record (an extension of a fit saved before the record existed, a
+#' process whose report failed, or draws added without any report), in which
+#' case the counts cover the recorded part only.
+#' Adaptation updates and updates of samplers that fell back are not counted.
+#'
+#' Warning. A fit or an extension whose record has at least 1,000 counted
+#' proposals and whose acceptance rate, or \code{min_sampler_rate}, is below
+#' \code{min_acceptance} warns with the condition classes
+#' \code{RoBMA_selection_sampler_low_acceptance} and
+#' \code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.
+#' A fit or an extension whose record has \code{allocation_block_withheld} and
+#' at least one sampler that switched to the exact slice sampler warns with the
+#' condition classes \code{RoBMA_selection_sampler_fallback} and
+#' \code{RoBMA_selection_sampler_warning}: the allocation SD and weights may then
+#' be updated one at a time and mix more slowly, while sampling stays exact.
+#' Both warnings can occur for one fit. Each message is kept with the fit's
+#' warnings, replaced at every extension.
+#'
+#' Process counters. Without \code{fit}, the function reports the counters of
+#' all corrected samplers in this process, including adaptation; clear them
+#' between phases for a sampling-only comparison. They do not report separate
+#' parallel workers. Inspect them between sampling calls.
+#'
+#' Already compiled samplers retain their grid, coarse rule-budget and
+#' threshold settings. Coarse settings can affect sampling efficiency even when
+#' correction acceptance is high. Compare effective samples per second for
+#' parameters of interest, not only iteration times or this acceptance rate.
+#' @return Without \code{fit}, a data frame with proposal, acceptance and
+#' correction-rejection counts, and an acceptance rate (\code{NA} before any
+#' proposals). With \code{fit}, a one-row data frame with the record described
+#' in details; a fit without a record (not a selection model, or fitted before
+#' the record existed) gives \code{NA} counts and \code{complete = FALSE}.
 #' @export
-selection_sampler_info <- function(clear = FALSE) {
+selection_sampler_info <- function(clear = FALSE, fit = NULL) {
 
   BayesTools::check_bool(clear, "clear", allow_NA = FALSE)
+  if (!is.null(fit)) {
+    if (clear) {
+      stop("'clear' cannot be used with 'fit': a fit's record is not cleared.", call. = FALSE)
+    }
+    if (!inherits(fit, "brma")) {
+      stop("'fit' must be a fitted 'brma' object or NULL.", call. = FALSE)
+    }
+    return(.selection_sampler_record_frame(fit))
+  }
   if (!.selection_runtime_available()) {
     stop("Selection sampler information is unavailable because the native RoBMA routines are not loaded.",
          call. = FALSE)
@@ -237,6 +319,171 @@ selection_sampler_info <- function(clear = FALSE) {
   return(data.frame(component = "coarse_corrected", proposed = info[["proposed"]],
     accepted = info[["accepted"]], correction_rejected = info[["correction_rejected"]],
     acceptance_rate = if (info[["proposed"]] > 0) info[["accepted"]] / info[["proposed"]] else NA_real_))
+}
+
+# The counts of the per-fit record, in the order of the record.
+.selection_sampler_count_names <- c("samplers", "fallback_samplers", "fallback_few_proposals",
+  "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted")
+
+# The record of a selection fit from the runtime report values of this call
+# (a list of retained runs, each a list with one element per process) and,
+# for an extension, the record of the input fit. 'new_draws' says whether this
+# call added draws to the fit (a fresh fit always does; a failed extension
+# returns its input and adds none). 'allocation_block_withheld' is decided by
+# the declarations of a fresh fit; an extension carries the input record's
+# value (FALSE for records made before it existed).
+.selection_sampler_record <- function(values, settings, previous = NULL, extension = FALSE,
+                                      new_draws = TRUE, allocation_block_withheld = FALSE) {
+
+  reasons <- c("fallback_few_proposals", "fallback_surrogate_exact", "fallback_low_acceptance")
+  counts  <- stats::setNames(numeric(length(.selection_sampler_count_names)),
+                             .selection_sampler_count_names)
+  rates   <- numeric()
+  # Draws that no report covers make the record incomplete: new draws without
+  # any report, or a process whose report is missing. A call without new draws
+  # (a failed extension) changes nothing.
+  complete <- !new_draws || length(values) > 0L
+  for (run in values) {
+    for (process in run) {
+      if (is.null(process)) {
+        complete <- FALSE
+        next
+      }
+      process[["fallback_samplers"]] <- sum(unlist(process[reasons]))
+      for (name in .selection_sampler_count_names) {
+        counts[[name]] <- counts[[name]] + process[[name]]
+      }
+      rates <- c(rates, process[["min_sampler_rate"]])
+    }
+  }
+  if (extension) {
+    allocation_block_withheld <- isTRUE(previous[["allocation_block_withheld"]])
+    if (is.null(previous)) {
+      complete <- FALSE
+    } else {
+      counts   <- counts + unlist(previous[.selection_sampler_count_names])
+      rates    <- c(rates, previous[["min_sampler_rate"]])
+      complete <- complete && isTRUE(previous[["complete"]])
+    }
+  }
+  rates <- rates[!is.na(rates)]
+
+  return(c(
+    list(sampler = settings[["sampler"]],
+         min_acceptance = .selection_runtime_min_acceptance(settings),
+         allocation_block_withheld = isTRUE(allocation_block_withheld)),
+    as.list(counts),
+    list(acceptance_rate  = if (counts[["sampling_proposed"]] > 0)
+           counts[["sampling_accepted"]] / counts[["sampling_proposed"]] else NA_real_,
+         min_sampler_rate = if (length(rates)) min(rates) else NA_real_,
+         complete         = complete)
+  ))
+}
+
+.selection_sampler_record_frame <- function(object) {
+
+  record <- attr(object[["fit"]], "selection_sampler", exact = TRUE)
+  if (is.null(record)) {
+    settings <- attr(object[["fit"]], "selection_runtime", exact = TRUE)
+    record <- c(
+      list(sampler = if (is.null(settings[["sampler"]])) NA_character_ else settings[["sampler"]],
+           min_acceptance = if (is.null(settings)) NA_real_ else .selection_runtime_min_acceptance(settings)),
+      as.list(stats::setNames(rep(NA_real_, length(.selection_sampler_count_names)),
+                              .selection_sampler_count_names)),
+      list(acceptance_rate = NA_real_, min_sampler_rate = NA_real_, complete = FALSE)
+    )
+  }
+  if (is.null(record[["allocation_block_withheld"]])) {
+    # records made before the flag existed: not withheld
+    record <- c(record[c("sampler", "min_acceptance")], list(allocation_block_withheld = FALSE),
+                record[setdiff(names(record), c("sampler", "min_acceptance"))])
+  }
+  return(as.data.frame(record, stringsAsFactors = FALSE))
+}
+
+# The beginning of the low-acceptance message, which identifies it among the
+# fit's stored warnings.
+.selection_sampler_warning_prefix <- "The corrected selection sampler accepted "
+
+# The beginning of the fallback message of a model-averaged fit that withheld
+# its allocation block, which identifies it among the fit's stored warnings.
+.selection_sampler_fallback_pattern <- paste0(
+  "^[0-9]+ of [0-9]+ corrected selection samplers switched to the exact slice sampler ",
+  "at the end of adaptation \\(")
+
+# The fallback message: the counts, with only the reasons that occurred.
+.selection_sampler_fallback_message <- function(record) {
+
+  count   <- function(x) format(x, scientific = FALSE, trim = TRUE)
+  reasons <- c(fallback_low_acceptance  = "for low acceptance",
+               fallback_few_proposals   = "for too few adaptive proposals",
+               fallback_surrogate_exact = "whose surrogate was exact")
+  reasons <- reasons[vapply(names(reasons), function(name) isTRUE(record[[name]] > 0), logical(1L))]
+
+  return(paste0(
+    count(record[["fallback_samplers"]]), " of ", count(record[["samplers"]]),
+    " corrected selection samplers switched to the exact slice sampler at the end of adaptation (",
+    paste(vapply(names(reasons), function(name) paste(count(record[[name]]), reasons[[name]]), character(1L)),
+          collapse = ", "),
+    "). This model-averaged fit does not declare the joint block of its heterogeneity allocation under ",
+    "'selection.sampler = \"slice.coarse\"', so the allocation SD and weights may now be updated one at a time ",
+    "and mix more slowly. Sampling is exact. Set 'RoBMA.options(selection.sampler = \"slice\")' before fitting ",
+    "to keep the block; an existing fit keeps the settings it was fitted with."
+  ))
+}
+
+# Judge a fit's cumulative record: with at least 1,000 counted proposals, a
+# pooled or worst-sampler acceptance rate below the threshold warns once; a
+# model-averaged fit that withheld its allocation block and whose corrected
+# samplers fell back warns once as well. Each message replaces an earlier one
+# of its warning among the fit's warnings, which extensions carry forward.
+# Returns the fit's warnings.
+.selection_sampler_warn <- function(fit) {
+
+  record   <- attr(fit, "selection_sampler", exact = TRUE)
+  warnings <- as.character(attr(fit, "warnings", exact = TRUE))
+  warnings <- warnings[!startsWith(warnings, .selection_sampler_warning_prefix) &
+                         !grepl(.selection_sampler_fallback_pattern, warnings)]
+  threshold <- record[["min_acceptance"]]
+  low <- threshold > 0 && record[["sampling_proposed"]] >= 1000 && (
+    record[["acceptance_rate"]] < threshold ||
+      (!is.na(record[["min_sampler_rate"]]) && record[["min_sampler_rate"]] < threshold))
+  if (low) {
+    message <- paste0(
+      .selection_sampler_warning_prefix,
+      format(100 * record[["acceptance_rate"]], digits = 3), "% of its proposals after adaptation",
+      if (!is.na(record[["min_sampler_rate"]])) paste0(
+        " (lowest rate of a single sampler ", format(100 * record[["min_sampler_rate"]], digits = 3), "%)"),
+      ", below 'selection.coarse_min_acceptance' = ", threshold, "; ",
+      record[["fallback_samplers"]], " of ", record[["samplers"]],
+      " samplers switched to the exact slice sampler at the end of adaptation. ",
+      "Sampling is exact but inefficient. Set 'RoBMA.options(selection.sampler = \"slice\")' ",
+      "before fitting to avoid the corrected sampler; an existing fit keeps the settings it was fitted with."
+    )
+    warning(structure(
+      list(message = message, call = NULL,
+           acceptance_rate = record[["acceptance_rate"]],
+           min_sampler_rate = record[["min_sampler_rate"]],
+           threshold = threshold),
+      class = c("RoBMA_selection_sampler_low_acceptance", "RoBMA_selection_sampler_warning",
+                "simpleWarning", "warning", "condition")
+    ))
+    warnings <- c(warnings, message)
+  }
+  if (isTRUE(record[["allocation_block_withheld"]]) && isTRUE(record[["fallback_samplers"]] > 0)) {
+    message <- .selection_sampler_fallback_message(record)
+    warning(structure(
+      list(message = message, call = NULL,
+           fallback_samplers = record[["fallback_samplers"]], samplers = record[["samplers"]]),
+      class = c("RoBMA_selection_sampler_fallback", "RoBMA_selection_sampler_warning",
+                "simpleWarning", "warning", "condition")
+    ))
+    warnings <- c(warnings, message)
+  }
+  if (length(warnings) == 0L) {
+    return(NULL)
+  }
+  return(warnings)
 }
 
 .selection_cache_configure <- function(capacity_bytes) {
@@ -248,7 +495,8 @@ selection_sampler_info <- function(clear = FALSE) {
 .selection_runtime_available <- function() {
 
   all(vapply(c("RoBMA_selnorm_cache_control",
-    "RoBMA_selnorm_sampler_control"), is.loaded, logical(1L), PACKAGE = "RoBMA"))
+    "RoBMA_selnorm_sampler_control", "RoBMA_selnorm_sampler_report"),
+    is.loaded, logical(1L), PACKAGE = "RoBMA"))
 }
 
 .selection_runtime_ensure <- function() {
@@ -283,7 +531,16 @@ selection_sampler_info <- function(clear = FALSE) {
     cache_budget_request = requested, available_memory_bytes = as.numeric(available),
     sampler = options[["selection.sampler"]],
     coarse_grid = options[["selection.coarse_grid"]],
-    coarse_max_rules = options[["selection.coarse_max_rules"]])
+    coarse_max_rules = options[["selection.coarse_max_rules"]],
+    coarse_min_acceptance = options[["selection.coarse_min_acceptance"]])
+}
+
+# The fallback threshold of frozen settings; settings frozen before it existed
+# (fits of RoBMA 4.1.1) mean 0, the corrected sampler without fallback.
+.selection_runtime_min_acceptance <- function(settings) {
+
+  threshold <- settings[["coarse_min_acceptance"]]
+  if (is.null(threshold)) 0 else threshold
 }
 
 .selection_runtime_configure <- function(settings, context = NULL) {
@@ -302,10 +559,37 @@ selection_sampler_info <- function(clear = FALSE) {
   }
   .selection_cache_configure(capacity)
   grid <- settings[["coarse_grid"]][c("mean", "variance", "log_weight")]
-  .Call("RoBMA_selnorm_sampler_control", settings[["sampler"]] == "coarse_corrected",
-        as.numeric(c(grid, settings[["coarse_max_rules"]])), FALSE, PACKAGE = "RoBMA")
+  .Call("RoBMA_selnorm_sampler_control", .selection_sampler_corrected(settings[["sampler"]]),
+        as.numeric(c(grid, settings[["coarse_max_rules"]],
+                     .selection_runtime_min_acceptance(settings))),
+        FALSE, PACKAGE = "RoBMA")
+  # A fit starts its sampler record from zero: counts that earlier fits in this
+  # process left behind are discarded (the report of each run clears its own).
+  if (!is.null(context) && context[["phase"]] == "start") {
+    .selection_sampler_report_read()
+  }
   RoBMA.private[["selection_runtime_initialized"]] <- TRUE
   invisible(NULL)
+}
+
+# The per-fit counters of the corrected sampler in this process, read and
+# cleared in one native call.
+.selection_sampler_report_read <- function() {
+
+  .Call("RoBMA_selnorm_sampler_report", TRUE, PACKAGE = "RoBMA")
+}
+
+# The runtime report of selection fits (BayesTools::JAGS_fit(runtime_report)):
+# called after every backend run in each process that ran chains, it returns
+# that process's counters of the run. It only reads native counters; it does
+# not configure the cache or the sampler factory.
+.selection_sampler_report_callback <- function() {
+
+  callback <- function(context) {
+    utils::getFromNamespace(".selection_sampler_report_read", "RoBMA")()
+  }
+  environment(callback) <- baseenv()
+  return(callback)
 }
 
 .selection_runtime_setup <- function() {

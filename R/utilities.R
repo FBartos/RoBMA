@@ -21,11 +21,12 @@
 #'   \item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes formerly used for weighted normal cluster-unit log-likelihoods (default \code{15}). Normal cluster-unit log-likelihoods, weighted or not, are now integrated in closed form, so the option is still accepted but no longer affects them; selected-normal likelihoods use their own quadrature schedules and integration controls.}
 #'   \item{\code{selection.cache_max_bytes}}{one shared storage budget for exact and coarse selection-normalizer caches across all chains in a fit. The default \code{"auto"} uses the smaller of 4 GiB and one quarter of currently available system RAM, resolved before fitting. Supply a nonnegative whole number of bytes to set an explicit total; \code{0} disables caching. Storage grows as needed. Chains receive equal shares, pooled within each worker process; sequential chains share the total.}
 #'   \item{\code{selection.cache_retain}}{whether to save selection-normalizer cache entries with the fitted object after fitting or extending (default \code{FALSE}). Retained entries survive \code{saveRDS()} and are restored when extending a compatible fit. See \code{\link{remove_selection_cache}} for memory costs and removal.}
-#'   \item{\code{selection.sampler}}{\code{"default"} uses the samplers JAGS assigns, together with the gated and factor slice samplers of the BayesTools JAGS module where \code{sampler.gates} and \code{sampler.blocks} declare them. \code{"coarse_corrected"} uses coarse slice proposals with a full-target Metropolis correction for eligible scalar updates involving multivariate, cluster or factor step selection blocks (see \code{\link{selection_sampler_info}} for the blocks that take part); parameters declared by \code{sampler.blocks} or \code{sampler.gates} keep the BayesTools samplers, so set those options to \code{FALSE} for the corrected sampler to update them. The posterior target is unchanged. Settings are captured when each model is compiled.}
+#'   \item{\code{selection.sampler}}{the samplers of selection and model-averaged fits, in three tiers. \code{"slice.coarse"} (the default) adds the corrected selection sampler: coarse slice proposals with a full-target Metropolis correction for eligible scalar updates involving multivariate, cluster or factor step selection blocks (see \code{\link{selection_sampler_info}} for the blocks that take part, the fallback to the exact slice sampler and the per-fit record); parameters that \code{sampler.gates} or \code{sampler.blocks} declare keep the BayesTools samplers, so set those options to \code{FALSE} for the corrected sampler to update them. \code{"slice"} uses the samplers JAGS assigns together with the gated and factor slice samplers of the BayesTools JAGS module where \code{sampler.gates} and \code{sampler.blocks} declare them. \code{"jags.default"} uses only the samplers JAGS assigns, in every model and whatever \code{sampler.gates} and \code{sampler.blocks} say (as \code{"default"} did in RoBMA 4.1.1). Under \code{"slice.coarse"}, model-averaged fits (\code{RoBMA.mv()}) leave the block of their heterogeneity allocation undeclared when the corrected sampler engages selection blocks (dense, rank-one, or factor blocks whose coarse rule the node budget affords at their rank; not single estimates) and a selection branch has the product weight rule or a block is dense; the corrected sampler then updates the allocation parameters. The posterior target is unchanged. Settings are captured when each model is compiled, and \code{update()} keeps those of the fit. The deprecated values \code{"coarse_corrected"} (now \code{"slice.coarse"}) and \code{"default"} (now \code{"jags.default"}) are accepted with a warning of class \code{RoBMA_deprecated_option_value} (family \code{RoBMA_deprecated}).}
+#'   \item{\code{selection.coarse_min_acceptance}}{acceptance threshold of the corrected sampler (default \code{0.90}, a number between \code{0} and \code{1}). Each corrected sampler whose acceptance rate during adaptation is below it, that made fewer than 50 proposals during adaptation, or whose surrogate never differed from the exact density during adaptation updates its parameter with the exact slice sampler for the rest of the fit, and a fit with at least 1,000 counted proposals whose post-adaptation acceptance rate, or that of its worst sampler, is below it warns. A model-averaged fit that leaves its allocation block to the corrected sampler also warns when any of its corrected samplers falls back (see \code{\link{selection_sampler_info}}). \code{0} disables the fallback and both warnings. Captured when each model is compiled, like the other sampler settings.}
 #'   \item{\code{selection.coarse_grid}}{named nonnegative grid steps \code{c(mean = .05, variance = .05, log_weight = .01)} of the dense multivariate step blocks; cluster and factor blocks evaluate their coarse rule at the actual parameters and ignore the grid. Mean spacing is its step times the largest original sampling SE in the block; covariance-diagonal spacing is its step times that SE squared. Each diagonal is rounded upward on a grid whose origin is its own squared original sampling SE, retaining all off-diagonal entries. Positive weights are rounded on the natural-log scale; zero weights remain zero. A zero step retains that coordinate exactly but does not disable the coarse rule budget or fallback. These settings affect proposals, not the corrected target.}
 #'   \item{\code{selection.coarse_max_rules}}{coarse quadrature rule budget (default \code{3}, minimum \code{3}). Dense multivariate blocks try at most this many rules from the beginning of the fitted quadrature schedule for a coarse anchor; unsupported or unsuccessful coarse integration uses the prescribed unit normalizer, without QMC fallback. Cluster and factor blocks use the one rule of this number in their own schedule (the last rule of a shorter schedule) at the actual parameters, and the exact density where that rule is unavailable. The full-target evaluator retains its ordinary numerical controls and diagnostics.}
-#'   \item{\code{sampler.gates}}{whether the parameters of the publication-bias branches of model-averaged fits (\code{RoBMA()}, \code{RoBMA.mv()}) are updated by the gated slice sampler of the BayesTools JAGS module (default \code{TRUE}): while the bias indicator does not select a branch, its parameters are drawn directly from their prior instead of by slice sampling.}
-#'   \item{\code{sampler.blocks}}{whether the global parameters of selection models with estimated heterogeneity are updated jointly by the factor slice sampler of the BayesTools JAGS module (default \code{TRUE}), which slice-samples along the principal directions of their posterior covariance learned during adaptation. Single models (\code{bselmodel()}, \code{bselmodel.mv()}) update the effect, moderator, heterogeneity and selection-weight parameters together. Never block members: direct random-effect SDs and correlations (\code{prior_random()} other than the allocation SD and weights), vector (mean-difference and orthonormal) factor terms, the unit-level latent parameters and random-effect coordinates, and every mixture, spike-and-slab, ordered and point prior. Model-averaged fits (\code{RoBMA.mv()}) update the allocation SD and weights of the heterogeneity allocation together. Neither option changes the model or its posterior distribution, only the draws; settings are captured when each model is fitted, and \code{update()} keeps those of the fit.}
+#'   \item{\code{sampler.gates}}{whether the parameters of the publication-bias branches of model-averaged fits (\code{RoBMA()}, \code{RoBMA.mv()}) are updated by the gated slice sampler of the BayesTools JAGS module (default \code{TRUE}): while the bias indicator does not select a branch, its parameters are drawn directly from their prior instead of by slice sampling. \code{selection.sampler = "jags.default"} turns the gated sampler off.}
+#'   \item{\code{sampler.blocks}}{whether the global parameters of selection models with estimated heterogeneity are updated jointly by the factor slice sampler of the BayesTools JAGS module (default \code{TRUE}), which slice-samples along the principal directions of their posterior covariance learned during adaptation. Single models (\code{bselmodel()}, \code{bselmodel.mv()}) update the effect, moderator, heterogeneity and selection-weight parameters together. Never block members: direct random-effect SDs and correlations (\code{prior_random()} other than the allocation SD and weights), vector (mean-difference and orthonormal) factor terms, the unit-level latent parameters and random-effect coordinates, and every mixture, spike-and-slab, ordered and point prior. Model-averaged fits (\code{RoBMA.mv()}) update the allocation SD and weights of the heterogeneity allocation together. \code{selection.sampler = "jags.default"} turns the factor slice sampler off. Neither option changes the model or its posterior distribution, only the draws; settings are captured when each model is fitted, and \code{update()} keeps those of the fit.}
 #'   \item{\code{default_UISD.effect}}{default scaling of the unit information standard deviation for the effect size parameter (default \code{0.5})}
 #'   \item{\code{default_UISD.heterogeneity}}{default scaling of the unit information standard deviation for the heterogeneity parameter (default \code{0.25})}
 #'   \item{\code{default_UISD.mods}}{default scaling of the unit information standard deviation for the moderators (default \code{0.25})}
@@ -42,6 +43,7 @@
 #' \code{max_cores} must be integer-like and at least 1;
 #' \code{cluster_likelihood.n_gamma} must be integer-like and at least 3.
 #' \code{native_threads} accepts \code{NA} or a positive integer.
+#' \code{selection.coarse_min_acceptance} must be a number between 0 and 1.
 #' Scale and alpha defaults must be finite positive numbers.
 #'
 #' @return `RoBMA.options()` invisibly returns a named list with all current
@@ -70,13 +72,24 @@ RoBMA.options    <- function(...) {
     stop("Option names must be unique.", call. = FALSE)
   }
 
+  # deprecation warnings wait until every option of the call is valid
+  deprecations <- list()
   for (i in seq_along(opts)) {
 
     if (!names(opts)[i] %in% option_names) {
       stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""), call. = FALSE)
     }
 
-    opts[[i]] <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
+    opts[[i]] <- withCallingHandlers(
+      .RoBMA_validate_option(names(opts)[i], opts[[i]]),
+      RoBMA_deprecated = function(w) {
+        deprecations[[length(deprecations) + 1L]] <<- w
+        invokeRestart("muffleWarning")
+      }
+    )
+  }
+  for (deprecation in deprecations) {
+    warning(deprecation)
   }
 
   if (length(opts) > 0L && any(startsWith(names(opts), "selection.")) &&
@@ -291,6 +304,15 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   return(as.numeric(value))
 }
 
+.RoBMA_check_option_unit <- function(value, name) {
+
+  value <- .RoBMA_check_option_real(value, name, lower = 0)
+  if (value > 1) {
+    stop(paste0("Option '", name, "' must be <= 1."), call. = FALSE)
+  }
+  return(value)
+}
+
 .RoBMA_check_option_bytes <- function(value, name) {
 
   value <- .RoBMA_check_option_real(value, name, lower = 0)
@@ -307,13 +329,44 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   return(.RoBMA_check_option_bytes(value, name))
 }
 
+# The values of 'selection.sampler', in tiers: the corrected selection sampler
+# with the BayesTools samplers, the BayesTools samplers alone, and only the
+# samplers JAGS assigns. The released values are deprecated aliases.
+.selection_sampler_values <- c("slice.coarse", "slice", "jags.default")
+
+.selection_sampler_deprecated <- c(
+  coarse_corrected = "'selection.sampler = \"coarse_corrected\"' is deprecated; use \"slice.coarse\".",
+  default          = paste0(
+    "'selection.sampler = \"default\"' is deprecated and now means \"jags.default\" (only the samplers JAGS ",
+    "assigns, as in RoBMA 4.1.1); use \"jags.default\", or \"slice\" to keep the gated and factor slice samplers.")
+)
+
 .RoBMA_check_option_sampler <- function(value, name) {
 
   if (!is.character(value) || length(value) != 1L || is.na(value) ||
-      !value %in% c("default", "coarse_corrected")) {
-    stop(paste0("Option '", name, "' must be 'default' or 'coarse_corrected'."), call. = FALSE)
+      !value %in% c(.selection_sampler_values, names(.selection_sampler_deprecated))) {
+    stop(paste0("Option '", name, "' must be 'slice.coarse', 'slice' or 'jags.default'."), call. = FALSE)
+  }
+  # the bare value: a name or other attribute must not change how it is read
+  value <- as.vector(value, mode = "character")
+  if (value %in% names(.selection_sampler_deprecated)) {
+    warning(structure(
+      list(message = .selection_sampler_deprecated[[value]], call = NULL),
+      class = c("RoBMA_deprecated_option_value", "RoBMA_deprecated", "deprecatedWarning",
+                "warning", "condition")
+    ))
+    value <- c(coarse_corrected = "slice.coarse", default = "jags.default")[[value]]
   }
   return(value)
+}
+
+# Whether a 'selection.sampler' value, current or frozen in a fit, turns the
+# corrected selection sampler on. Frozen settings keep the value they were
+# fitted with: "coarse_corrected" (corrected) and "default" (not corrected) of
+# earlier versions are read as they were meant then, without a warning.
+.selection_sampler_corrected <- function(sampler) {
+
+  return(isTRUE(sampler %in% c("slice.coarse", "coarse_corrected")))
 }
 
 
@@ -384,8 +437,12 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
     validate = .RoBMA_check_option_bool
   ),
   "selection.sampler" = list(
-    default  = "default",
+    default  = "slice.coarse",
     validate = .RoBMA_check_option_sampler
+  ),
+  "selection.coarse_min_acceptance" = list(
+    default  = 0.90,
+    validate = .RoBMA_check_option_unit
   ),
   "selection.coarse_grid" = list(
     default  = c(mean = .05, variance = .05, log_weight = .01),

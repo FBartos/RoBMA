@@ -403,7 +403,8 @@ certification_cases <- function() {
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics|",
         "selection-factor-routing|selection-estimate-cells|",
-        "selection-coarse-blocks|selection-coarse-exactness|jags-build-requirements|",
+        "selection-coarse-blocks|selection-coarse-exactness|selection-coarse-fallback|",
+        "jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
         "selection-node-memo|sampler-declarations-fits)|",
         "02-(distributions|glmm-aghq)"
@@ -429,13 +430,23 @@ certification_cases <- function() {
           "declared nodes get the BayesTools samplers and the others keep theirs",
           "guarded priors keep the stock samplers",
           "declarations hold through parallel chains, autofit and update()",
-          "a serial update() of a selection model adapts its factor slice block"
+          "a serial update() of a selection model adapts its factor slice block",
+          "an ensemble declares its allocation block exactly when no corrected sampler takes it"
         )),
         .required_tests("test-00-selection-coarse-exactness.R", c(
           "the corrected chain on a rank-one cluster block targets the exact posterior",
           "the corrected chain on a rank-two factor block targets the exact posterior",
           "the corrected chain is exact when a loading column of a factor block is sampled",
           "the corrected chain is exact when the weight rule is a mixture of product and best"
+        )),
+        .required_tests("test-00-selection-coarse-fallback.R", c(
+          "stress fixtures fall back at the default threshold and are exact with and without the fallback",
+          "a sampler decides its kernel once, at the end of adaptation, by the first rule that holds",
+          "the worst-sampler rate is the rate of one sampler over its whole run",
+          "serial and parallel fits record their corrected samplers, and update() adds once",
+          "the JASP path, alternating fits and leftover counts keep each fit's record its own",
+          "a failed extension keeps the input record and a fit saved before the record counts from its extension",
+          "a fit with a low acceptance warns and keeps one message through update()"
         )),
         .required_tests("test-02-glmm-aghq.R", c(
           "a fitted point-baserate GLMM supports log-likelihood criteria",
