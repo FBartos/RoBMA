@@ -18,11 +18,15 @@ context("Sampler declarations in fitted models")
 }
 
 # A small fit with the declarations on or off (both options), restoring them.
-.declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L) {
+# The fits compare the declarations with the samplers JAGS assigns, so the
+# corrected selection sampler is off unless `sampler` says otherwise.
+.declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L,
+                             sampler = "slice") {
 
-  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates")]
+  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "selection.sampler")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
-  RoBMA::RoBMA.options(sampler.blocks = declarations, sampler.gates = declarations)
+  RoBMA::RoBMA.options(sampler.blocks = declarations, sampler.gates = declarations,
+                       selection.sampler = sampler)
   args <- utils::modifyList(list(
     measure = "SMD", chains = chains, adapt = 50L, burnin = 50L, sample = sample, seed = 1L,
     parallel = FALSE, silent = TRUE,
@@ -110,6 +114,59 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     expect_true(all(gates[["prior"]] == "bias"), info = name)
     expect_true(all(grepl("^equals\\(bias_indicator, [0-9]+\\)$", gates[["active"]])), info = name)
   }
+
+  # with the corrected selection sampler (the default) an ensemble declares no
+  # allocation block and the corrected sampler updates the allocation parameters;
+  # a single model keeps its block
+  for (name in c("RoBMA.mv", "bselmodel.mv")) {
+    model <- models[[name]]
+    fit   <- .declaration_fit(model[["constructor"]], model[["args"]], declarations = TRUE,
+                              sampler = "slice.coarse")
+    expect_null(fit[["fit"]][["errors"]], info = name)
+    blocks   <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+    samplers <- fit[["fit"]][["samplers"]]
+    # the scalar allocation SD (the Dirichlet weights are a vector node)
+    allocation_sd <- grepl("ALLOCx_heterogeneity__allocation_sd", samplers[["Node"]], fixed = TRUE)
+    expect_identical(sum(allocation_sd), 1L, info = name)
+    if (name == "RoBMA.mv") {
+      expect_identical(NROW(blocks), 0L)
+      expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"))
+      expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedSlice")
+    } else {
+      expect_identical(unique(blocks[["prior"]]), model[["blocks"]])
+      expect_identical(samplers[["Sampler"]][allocation_sd], "BayesTools::FactorSlice")
+    }
+  }
+})
+
+
+test_that("\"jags.default\" keeps only the samplers JAGS assigns", {
+
+  skip_on_cran()
+  skip_if_not_certification("These fits (about 13 s) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  # a model-averaged fit with a full V: gates, the allocation block and the
+  # corrected sampler under the other values
+  setup <- .declaration_fits_data()
+  args  <- list(yi = quote(yi), V = setup[["V"]], random = ~ 1 | study / esid, data = setup[["data"]])
+  jags  <- .declaration_fit(RoBMA::RoBMA.mv, args, declarations = TRUE, sampler = "jags.default")
+  slice <- .declaration_fit(RoBMA::RoBMA.mv, args, declarations = FALSE, sampler = "slice")
+  expect_null(jags[["fit"]][["errors"]])
+  expect_null(slice[["fit"]][["errors"]])
+
+  samplers <- jags[["fit"]][["samplers"]]
+  expect_gt(nrow(samplers), 0L)
+  expect_false(any(startsWith(samplers[["Sampler"]], "BayesTools::") | startsWith(samplers[["Sampler"]], "RoBMA::")))
+  expect_null(attr(jags[["fit"]], "sampler_declarations", exact = TRUE))
+  expect_identical(.declaration_markers(jags), 0L)
+  expect_identical(RoBMA::selection_sampler_info(fit = jags)[c("sampler", "samplers", "sampling_proposed")],
+                   data.frame(sampler = "jags.default", samplers = 0, sampling_proposed = 0, stringsAsFactors = FALSE))
+  # the same samplers and draws as "slice" with both options off
+  expect_identical(samplers, slice[["fit"]][["samplers"]])
+  expect_identical(jags[["fit"]][["mcmc"]], slice[["fit"]][["mcmc"]])
 })
 
 
@@ -234,4 +291,57 @@ test_that("a serial update() of a selection model adapts its factor slice block"
   }
   ratio <- ess(2001:4000) / ess(1:2000)
   expect_true(all(ratio > .5), info = paste(names(ratio), round(ratio, 2), collapse = ", "))
+})
+
+
+# A brief fit of the factor-block ensemble of .coarse_factor_ensemble_args()
+# with the corrected selection sampler at the rule budget 'max_rules'.
+.declaration_factor_ensemble <- function(rank, max_rules) {
+
+  previous <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules")]
+  on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
+  RoBMA::RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = max_rules)
+  suppressWarnings(do.call(RoBMA::RoBMA.mv, c(.coarse_factor_ensemble_args(rank), list(
+    chains = 1L, adapt = 50L, burnin = 50L, sample = 100L, seed = 1L, parallel = FALSE, silent = TRUE,
+    convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)))))
+}
+
+
+test_that("an ensemble declares its allocation block exactly when no corrected sampler takes it", {
+
+  skip_on_cran()
+  skip_if_not_certification("These fits (about 30 s) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+
+  # the coarse rule of a rank-three block: order 7 (rule 3) is affordable, order
+  # 95 (rule 11, the last) is not (95^3 nodes exceed the budget); the exact
+  # boundary at higher ranks is checked on the declarations alone (fits of
+  # rank six and seven take minutes)
+  cases <- list(
+    list(rank = 3L, max_rules = 3L, engaged = TRUE),
+    list(rank = 3L, max_rules = 11L, engaged = FALSE)
+  )
+  for (case in cases) {
+    label <- paste0("rank ", case$rank, ", max_rules ", case$max_rules)
+    fit   <- .declaration_factor_ensemble(case$rank, case$max_rules)
+    plan  <- RoBMA:::.data_selection_execution_plan(fit[["data"]])
+    expect_identical(plan[["block_methods"]], "factor", info = label)
+    expect_identical(plan[["factor_ranks"]], case$rank, info = label)
+    expect_null(fit[["fit"]][["errors"]], info = label)
+    samplers <- fit[["fit"]][["samplers"]]
+    blocks   <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+    corrected <- any(samplers[["Sampler"]] == "RoBMA::CoarseCorrectedSlice")
+    allocation_sd <- grepl("ALLOCx_heterogeneity__allocation_sd", samplers[["Node"]], fixed = TRUE)
+    expect_identical(corrected, case$engaged, info = label)
+    # the block is declared exactly when the corrected sampler engages nothing
+    expect_identical(NROW(blocks) > 0L, !case$engaged, info = label)
+    expect_identical(samplers[["Sampler"]][allocation_sd],
+                     if (case$engaged) "RoBMA::CoarseCorrectedSlice" else "BayesTools::FactorSlice", info = label)
+    # the record flags the withheld block, and a fallback there warns
+    record <- attr(fit[["fit"]], "selection_sampler", exact = TRUE)
+    expect_identical(record[["allocation_block_withheld"]], case$engaged, info = label)
+    fallback_warned <- any(grepl(RoBMA:::.selection_sampler_fallback_pattern,
+                                 attr(fit[["fit"]], "warnings", exact = TRUE)))
+    expect_identical(fallback_warned, case$engaged && record[["fallback_samplers"]] > 0, info = label)
+  }
 })

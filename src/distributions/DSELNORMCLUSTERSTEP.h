@@ -21,11 +21,14 @@ class DSELNORMCLUSTERSTEP : public VectorDist
   // log normalizer of one rule of the block's own schedule (rule number
   // settings.max_rules, or the last) at the actual parameters, and the exact
   // density where that rule is unavailable. Not memoized (see logDensity).
+  // surrogate_not_exact, when given, is set to true (never cleared) when the
+  // value returned was computed with a normalizer that is not the exact one.
   double surrogateLogDensity(double const *x, unsigned int length, PDFType type,
                     std::vector<double const *> const &parameters,
                     std::vector<unsigned int> const &lengths,
                     double const *lower, double const *upper,
-                    SelNormCoarseSettings const &settings) const;
+                    SelNormCoarseSettings const &settings,
+                    bool *surrogate_not_exact = nullptr) const;
   void randomSample(double *x, unsigned int length,
                     std::vector<double const *> const &parameters,
                     std::vector<unsigned int> const &lengths,

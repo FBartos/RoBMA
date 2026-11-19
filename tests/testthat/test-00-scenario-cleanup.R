@@ -150,7 +150,7 @@ test_that("actual Assink coarse-fit bodies restore the previous sampler on every
   # Evaluate the real scenario expression, with only expensive work replaced.
   # No constructor arguments are forced and no model is fitted.
   for (body in bodies) {
-    for (previous in c("default", "coarse_corrected")) {
+    for (previous in c("slice", "slice.coarse")) {
       for (stage in c("success", "fit_error", "marglik_error", "loo_interrupt")) {
         state <- new.env(parent = emptyenv())
         state$sampler <- previous
@@ -183,7 +183,7 @@ test_that("actual Assink coarse-fit bodies restore the previous sampler on every
         }
         evaluate <- eval(call("function", pairlist(), body), env)
         result <- tryCatch(evaluate(), error = identity, interrupt = identity)
-        expect_identical(state$observed, "coarse_corrected")
+        expect_identical(state$observed, "slice.coarse")
         expect_identical(state$sampler, previous)
         if (stage == "success") {
           expect_identical(result, list(marker = "fit"))

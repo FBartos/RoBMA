@@ -748,8 +748,15 @@
   # Keep priors available for the fit-error result, including extension errors.
   fit_priors <- .create_fit_priors(data = data, priors = priors)
 
+  # Selection fits count the corrected sampler's work per fit, in every process
+  # that runs chains; an extension passes the report explicitly, since fits
+  # saved before the record existed store no report callback.
+  selection_fit  <- .is_priors_weightfunction(priors)
+  extension      <- extend && length(object[["fit"]]) > 0L
+  sampler_report <- if (selection_fit) .selection_sampler_report_callback() else NULL
+
   ### fit the model
-  if (!extend || length(object[["fit"]]) == 0L) {
+  if (!extension) {
 
     fit_data         <- .create_fit_data(data = data, priors = priors)
     fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
@@ -779,7 +786,8 @@
       seed                  = fit_control[["seed"]],
       required_packages     = c("RoBMA", "BayesTools"),
       runtime_setup         = .selection_runtime_setup(),
-      runtime_cache         = if (.is_priors_weightfunction(priors)) .selection_cache_runtime() else NULL,
+      runtime_cache         = if (selection_fit) .selection_cache_runtime() else NULL,
+      runtime_report        = sampler_report,
       worker_output         = worker_output,
       is_JASP               = object[["is_JASP"]],
       is_JASP_prefix        = object[["is_JASP_prefix"]],
@@ -796,7 +804,8 @@
       cores              = fit_control[["cores"]],
       silent             = fit_control[["silent"]],
       worker_output      = worker_output,
-      runtime_cache      = if (.is_priors_weightfunction(priors)) .selection_cache_runtime(object[["fit"]]) else NULL,
+      runtime_cache      = if (selection_fit) .selection_cache_runtime(object[["fit"]]) else NULL,
+      runtime_report     = sampler_report,
       adapt              = if (is.null(adapt)) fit_control[["adapt"]] else adapt
     )
 
@@ -822,6 +831,20 @@
     attr(fit, "selection_runtime") <- attr(
       attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE
     )
+    if (selection_fit) {
+      # The record of this call's runs plus, for an extension, the record of the
+      # input fit (a failed extension returns the input without its record).
+      previous <- if (extension) attr(object[["fit"]], "selection_sampler", exact = TRUE) else NULL
+      attr(fit, "selection_sampler") <- .selection_sampler_record(
+        values    = attr(fit, "runtime_report_values", exact = TRUE),
+        settings  = attr(fit, "selection_runtime", exact = TRUE),
+        previous  = previous,
+        extension = extension,
+        new_draws = !extension || .fit_draw_count(fit) > .fit_draw_count(object[["fit"]]),
+        allocation_block_withheld = !extension && .sampler_allocation_block_withheld(declarations)
+      )
+      attr(fit, "warnings") <- .selection_sampler_warn(fit)
+    }
     has_posterior <- TRUE
     # BayesTools classifies parameters by the fit's coordinate roles.
     check_fit     <- BayesTools::JAGS_check_convergence(
@@ -846,6 +869,18 @@
   fit$has_posterior <- has_posterior
 
   return(fit)
+}
+
+
+# The number of retained draws of a fitted JAGS object, summed over chains.
+.fit_draw_count <- function(fit) {
+
+  chains <- fit[["mcmc"]]
+  if (is.null(chains)) {
+    return(0L)
+  }
+
+  return(sum(vapply(chains, NROW, integer(1L))))
 }
 
 

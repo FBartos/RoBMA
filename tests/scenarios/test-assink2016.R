@@ -1031,7 +1031,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     (function() {
       previous_sampler <- RoBMA.options()[["selection.sampler"]]
       on.exit(RoBMA.options(selection.sampler = previous_sampler), add = TRUE)
-      RoBMA.options(selection.sampler = "coarse_corrected")
+      RoBMA.options(selection.sampler = "slice.coarse")
       tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
       tmp <- add_marglik(tmp)
       tmp <- add_loo(tmp)
@@ -1044,7 +1044,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     (function() {
       previous_sampler <- RoBMA.options()[["selection.sampler"]]
       on.exit(RoBMA.options(selection.sampler = previous_sampler), add = TRUE)
-      RoBMA.options(selection.sampler = "coarse_corrected")
+      RoBMA.options(selection.sampler = "slice.coarse")
       tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1,
                           selection = selection_model(estimate_random_effects = "condition"))
       tmp <- add_marglik(tmp)
