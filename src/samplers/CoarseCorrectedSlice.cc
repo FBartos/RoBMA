@@ -347,25 +347,25 @@ public:
     _window_accepted = 0;
   }
 
-  double value() const
+  double value() const override
   {
     return _graph->node()->value(_chain)[0];
   }
 
-  void setValue(double value)
+  void setValue(double value) override
   {
     _surrogate_valid = false;
     _graph->setValue(&value, 1, _chain);
   }
 
-  void getLimits(double *lower, double *upper) const
+  void getLimits(double *lower, double *upper) const override
   {
     _graph->node()->support(lower, upper, 1, _chain);
   }
 
   // The density the inherited slice transition follows: the surrogate in
   // corrected mode, the full conditional in exact mode.
-  double logDensity() const
+  double logDensity() const override
   {
     if (_exact) return exactLogDensity();
     if (_surrogate_valid) return _surrogate_value;
@@ -412,7 +412,7 @@ public:
     }
   }
 
-  void update(RNG *rng)
+  void update(RNG *rng) override
   {
     _surrogate_valid = false;
     const double old_value = value();
