@@ -28,7 +28,7 @@ test_that("constructors stop on fitting errors before creating summaries", {
 
   summary_called <- FALSE
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       return(list(
         errors        = "Original constructor fitting diagnostic.",
@@ -73,7 +73,7 @@ test_that("constructors stop on fitting errors before creating summaries", {
 test_that("all public fitting constructors preserve original fitting errors", {
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       return(list(
         errors        = "Original package-wide fitting diagnostic.",

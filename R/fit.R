@@ -720,7 +720,9 @@
   return(model_syntax)
 }
 
-.fit <- function(object, extend = FALSE) {
+# 'adapt' is the adaptation of an extension (extend = TRUE); NULL uses the
+# setting of the initial fit.
+.fit <- function(object, extend = FALSE, adapt = NULL) {
 
   fit_control        <- object[["fit_control"]]
   autofit_control    <- object[["autofit_control"]]
@@ -794,7 +796,8 @@
       cores              = fit_control[["cores"]],
       silent             = fit_control[["silent"]],
       worker_output      = worker_output,
-      runtime_cache      = if (.is_priors_weightfunction(priors)) .selection_cache_runtime(object[["fit"]]) else NULL
+      runtime_cache      = if (.is_priors_weightfunction(priors)) .selection_cache_runtime(object[["fit"]]) else NULL,
+      adapt              = if (is.null(adapt)) fit_control[["adapt"]] else adapt
     )
 
   }
