@@ -10,6 +10,7 @@
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
 - selection models with many estimates on one random effect are no longer refused or slow on Apple silicon
+- the likelihood of clustered estimates is the same on builds that fuse multiply-adds (such as GCC on Ubuntu 26.04) as elsewhere
 
 ## version 4.1.1
 ### Breaking changes

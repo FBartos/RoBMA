@@ -5916,11 +5916,12 @@ int cpp_selnorm_rank_one_rounding_probe()
 // representable range is -Inf.
 //
 // Every product that enters a sum or a difference is rounded to double first
-// (rounded_product), as in the R twin .log_lik_cluster_norm_stable(). A residual
-// along the loadings cancels because a_i c rounds onto residual_i; a compiler
-// that contracts a * b + c into a fused multiply-add (GCC on aarch64 and on
-// x86-64 at -march=x86-64-v3) keeps the rounding error of the product instead,
-// which an sd far below the residual then magnifies.
+// (rounded_product), as in the R twin .log_lik_cluster_norm_stable(), so every
+// build evaluates the same double operations. A residual exactly along the
+// loadings cancels because a_i c rounds onto residual_i; a compiler that
+// contracts a * b + c into a fused multiply-add (GCC on aarch64 and on x86-64
+// at -march=x86-64-v3) keeps the rounding error of the product instead, which
+// an sd far below the residual then magnifies.
 static inline double rounded_product(double left, double right)
 {
   const volatile double value = left * right;
