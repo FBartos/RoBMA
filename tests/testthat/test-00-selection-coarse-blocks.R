@@ -431,9 +431,12 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
   skip_if_not_installed("metafor")
 
   coarse   <- "RoBMA::CoarseCorrectedSlice"
-  previous <- RoBMA::RoBMA.options()[c("selection.sampler")]
+  previous <- RoBMA::RoBMA.options()[c("selection.sampler", "sampler.blocks", "sampler.gates")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
-  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected")
+  # without the BayesTools sampler declarations, so that the global nodes show
+  # the corrected sampler; the defaults are checked at the end
+  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected",
+                       sampler.blocks = FALSE, sampler.gates = FALSE)
 
   for (case in c("cluster", "factor")) {
     RoBMA::selection_sampler_info(clear = TRUE)
@@ -474,6 +477,25 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
   expect_true(any(c("rank_one", "factor") %in% best[["methods"]]))
   expect_true(all(best[["samplers"]][["Sampler"]] == "base::RealSlicer"))
   expect_identical(RoBMA::selection_sampler_info()[["proposed"]], 0)
+
+  # with the default declarations the global nodes (effect, allocation SD and
+  # weights, weight function) form the factor slice block, which the corrected
+  # factory leaves alone; the random-effect coordinates of the rank-one blocks
+  # stay corrected and the singleton's keeps the stock sampler
+  RoBMA::RoBMA.options(sampler.blocks = TRUE, sampler.gates = TRUE)
+  RoBMA::selection_sampler_info(clear = TRUE)
+  declared <- .coarse_blocks_tiny_fit("cluster")
+  samplers <- declared[["samplers"]]
+  blocks   <- attr(declared[["fit"]][["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+  is_z     <- grepl("_Zx[", samplers[["Node"]], fixed = TRUE)
+  expect_identical(unique(blocks[["prior"]]), c("mu_intercept",
+    "mu__xRE_ALLOCx_heterogeneity__allocation_sd", "mu__xRE_ALLOCx_heterogeneity__weight", "omega"))
+  expect_identical(nrow(blocks), 5L)
+  expect_true(all(samplers[["Sampler"]][!is_z] == "BayesTools::FactorSlice"))
+  expect_identical(sum(samplers[["Sampler"]] == "BayesTools::FactorSlice"), nrow(blocks))
+  expect_identical(sum(samplers[["Sampler"]][is_z] == coarse), sum(declared[["methods"]] == "rank_one"))
+  expect_true(all(samplers[["Sampler"]][is_z & samplers[["Sampler"]] != coarse] == "base::RealSlicer"))
+  expect_gt(RoBMA::selection_sampler_info()[["proposed"]], 0)
 })
 
 
@@ -500,7 +522,9 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
     } else {
       loadNamespace("RoBMA", lib.loc = dirname(namespace_path))
     }
-    RoBMA::RoBMA.options(selection.sampler = "coarse_corrected")
+    # the corrected sampler on every eligible node, as without declarations
+    RoBMA::RoBMA.options(selection.sampler = "coarse_corrected",
+                         sampler.blocks = FALSE, sampler.gates = FALSE)
     RoBMA::selection_sampler_info(clear = TRUE)
     # Five studies of the assink2016 data: four rank-one clusters and one
     # two-factor block, so both selection nodes are evaluated.
@@ -616,4 +640,39 @@ test_that("blocks without a coarse rule leave their nodes the stock sampler", {
   }
   expect_identical(factor_assigned(6L), coarse)
   expect_identical(factor_assigned(7L), stock)
+})
+
+
+# BayesTools::JAGS_fit() declares nodes to the samplers of the BayesTools JAGS
+# module by marker children ('dbt_block', 'dbt_gate'); the corrected factory
+# leaves such nodes to them, whatever the order in which the factories run.
+test_that("nodes with a BayesTools sampler declaration keep out of the corrected sampler", {
+
+  skip_if_not_installed("rjags")
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  coarse   <- "RoBMA::CoarseCorrectedSlice"
+  location <- "  mu ~ dt(0, 1, 4)\n  nu ~ dt(0, 1, 4)\n  for (j in 1:4) { means[j] <- mu + nu }"
+  assigned <- function(markers = character()) {
+
+    marker_names <- sprintf("marker_%d", seq_along(markers))
+    hand <- .coarse_hand_model("cluster", 4L, 1L, .coarse_rules(c(7, 15, 31, 63, 127)),
+      data = c(list(residual_sd = rep(.5, 4), loading = rep(.7, 4)),
+               stats::setNames(as.list(rep(0, length(markers))), marker_names)),
+      definitions = paste(c(location, sprintf("  %s ~ %s", marker_names, markers)), collapse = "\n"),
+      inits = list(mu = .1, nu = -.1))
+    samplers <- rjags::list.samplers(hand$model)
+    unlist(lapply(seq_along(samplers), function(i) {
+      stats::setNames(rep(names(samplers)[i], length(samplers[[i]])), samplers[[i]])
+    }))[c("mu", "nu")]
+  }
+  # without a declaration both nodes of the cluster block are corrected
+  expect_identical(unname(assigned()), c(coarse, coarse))
+  # a block of both nodes goes to the factor slice sampler
+  expect_identical(unname(assigned(c("dbt_block(mu, 1)", "dbt_block(nu, 1)"))),
+                   rep("BayesTools::FactorSlice", 2L))
+  # a block of one is declined by BayesTools: its node keeps the stock sampler,
+  # the undeclared node stays corrected
+  expect_identical(unname(assigned("dbt_block(mu, 1)")), c("base::RealSlicer", coarse))
+  # a gated node goes to the gated sampler
+  expect_identical(unname(assigned("dbt_gate(nu, 1)")), c(coarse, "BayesTools::GatedSlice"))
 })

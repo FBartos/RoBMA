@@ -142,6 +142,10 @@ test_that("fresh and empty-fit attempts still build their inputs and retain erro
     expect_identical(attr(result, "prior_list"), marker_priors)
     expect_false("add_parameters" %in% names(forwarded))
     expect_identical(forwarded[["seed"]], object[["fit_control"]][["seed"]])
+    # a normal-likelihood model without a bias mixture declares nothing
+    expect_false(forwarded[["sampler_gates"]])
+    expect_true("sampler_blocks" %in% names(forwarded))
+    expect_null(forwarded[["sampler_blocks"]])
   }
 })
 

@@ -4,6 +4,7 @@
 
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
+- selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
 
 ### Fixes
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations

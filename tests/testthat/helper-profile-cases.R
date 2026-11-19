@@ -405,7 +405,7 @@ certification_cases <- function() {
         "selection-factor-routing|selection-estimate-cells|",
         "selection-coarse-blocks|selection-coarse-exactness|jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
-        "selection-node-memo)|",
+        "selection-node-memo|sampler-declarations-fits)|",
         "02-(distributions|glmm-aghq)"
       ),
       required_tests = rbind(
@@ -424,6 +424,12 @@ certification_cases <- function() {
         .required_tests("test-00-selection-coarse-blocks.R", c(
           "cluster and factor blocks give their nodes the corrected sampler",
           "a corrected chain draws identically with the node memo on and off"
+        )),
+        .required_tests("test-00-sampler-declarations-fits.R", c(
+          "declared nodes get the BayesTools samplers and the others keep theirs",
+          "guarded priors keep the stock samplers",
+          "declarations hold through parallel chains, autofit and update()",
+          "a serial update() of a selection model adapts its factor slice block"
         )),
         .required_tests("test-00-selection-coarse-exactness.R", c(
           "the corrected chain on a rank-one cluster block targets the exact posterior",

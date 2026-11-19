@@ -1,4 +1,4 @@
-FIT_CACHE_SCHEMA_VERSION <- 8L
+FIT_CACHE_SCHEMA_VERSION <- 9L
 FIT_CACHE_METADATA_FIELDS <- c(
   "schema_version",
   "name",
@@ -1203,6 +1203,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/random-inclusion.R",
     "R/random-marginal-vcov.R",
     "R/rng.R",
+    "R/sampler-declarations.R",
     "R/selection-cache.R",
     "R/selection-likelihood.R",
     "R/selection-mapping.R",

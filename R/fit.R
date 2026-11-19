@@ -754,6 +754,7 @@
     fit_data         <- .create_fit_data(data = data, priors = priors)
     fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
     model_syntax     <- .create_model_syntax(data = data, priors = priors)
+    declarations     <- .fit_sampler_declarations(data = data, priors = priors, fit_priors = fit_priors)
 
     fit <- BayesTools::JAGS_fit(
       model_syntax          = model_syntax,
@@ -781,7 +782,9 @@
       runtime_cache         = if (.is_priors_weightfunction(priors)) .selection_cache_runtime() else NULL,
       worker_output         = worker_output,
       is_JASP               = object[["is_JASP"]],
-      is_JASP_prefix        = object[["is_JASP_prefix"]]
+      is_JASP_prefix        = object[["is_JASP_prefix"]],
+      sampler_gates         = declarations[["sampler_gates"]],
+      sampler_blocks        = declarations[["sampler_blocks"]]
     )
 
   } else {
@@ -806,7 +809,7 @@
     if(grepl("Unknown function", fit$message))
       stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.", call. = FALSE)
 
-    fit_error_message       <- fit$message
+    fit_error_message       <- .sampler_error_hint(fit$message)
     fit                     <- list()
     attr(fit, "prior_list") <- fit_priors
 

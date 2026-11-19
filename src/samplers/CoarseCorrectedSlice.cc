@@ -9,6 +9,7 @@
 #include <sampler/MutableSampler.h>
 #include <sampler/Sampler.h>
 #include <graph/StochasticNode.h>
+#include <distribution/Distribution.h>
 #include <module/ModuleError.h>
 #include <rng/RNG.h>
 
@@ -17,6 +18,7 @@
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace jags {
@@ -311,6 +313,18 @@ bool hasSelectionChild(SingletonGraphView const &graph, SelNormCoarseSettings co
   return false;
 }
 
+// A node with a BayesTools sampler declaration (a 'dbt_block' or 'dbt_gate'
+// marker child, written by BayesTools::JAGS_fit()) is left to the samplers of
+// the BayesTools module, whatever the order in which the factories run.
+bool hasSamplerDeclaration(StochasticNode *node)
+{
+  for (StochasticNode const *child : *node->stochasticChildren()) {
+    std::string const &name = child->distribution()->name();
+    if (name == "dbt_block" || name == "dbt_gate") return true;
+  }
+  return false;
+}
+
 }
 
 CoarseCorrectedSliceFactory::CoarseCorrectedSliceFactory(SelNormCoarseSettings const &settings)
@@ -348,7 +362,7 @@ std::vector<Sampler *> CoarseCorrectedSliceFactory::makeSamplers(
     for (StochasticNode *node : nodes) {
       // Multivariate, discrete, and structural nodes retain their stock sampler.
       if (node->length() != 1 || node->isDiscreteValued() || node->df() == 0 ||
-          isObserved(node)) continue;
+          isObserved(node) || hasSamplerDeclaration(node)) continue;
       std::unique_ptr<SingletonGraphView> view(new SingletonGraphView(node, graph));
       if (!hasSelectionChild(*view, config.settings)) continue;
       std::vector<std::unique_ptr<MutableSampleMethod> > owned_methods;
