@@ -498,7 +498,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   passes a report callback (`BayesTools::JAGS_fit(runtime_report = )`, also on
   extensions) for selection fits, sums the retained runs over processes, adds
   the input fit's record once and stores `attr(fit, "selection_sampler")`
-  (`complete = FALSE` for an extension of a fit without a record); the counters
+  (`complete = FALSE` when part of the chain was drawn without a record: an
+  extension of a fit saved before the record existed, a process whose report
+  failed, or draws added without any report); the counters
   are discarded at the `start` phase in `.selection_runtime_configure()`, never
   in the stored setup closure. A record with 1,000 or more counted proposals
   and a pooled or worst-sampler rate below the threshold warns
