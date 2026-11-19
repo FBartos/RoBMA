@@ -19,12 +19,6 @@ rm -rf src/distributions/.libs
 rm -rf src/selnorm/.deps
 rm -rf src/selnorm/.libs
 
-rm -f src/Makevars
-rm -f config.*
-rm -rf autom4te.cache
-rm -f config.log
-rm -f config.status
-
 rm -f src/RoBMA.o
 rm -f src/RoBMA.so
 rm -f src/RoBMA.dll

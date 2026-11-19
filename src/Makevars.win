@@ -1,100 +1,26 @@
 CXX_STD = CXX17
 
-######################################################################################################
-###  This file is based on file in the runjags package (version 2.0)
-###  The previous version of the file is Copyright (C) Matthew Denwood, licensed under GPL-2.
-###
-###  The previous file is based on that in the rjags package (version 3-10)
-###  Original file is Copyright (C) Martyn Plummer, licensed under GPL-2
-###
-###  Note:  JAGS_ROOT may point to the JAGS installation. Without it, the newest
-###  installed /c/progra~1/JAGS/JAGS-4.* is used.
-###
-###  RoBMA builds against the JAGS 4 module interface only; JAGS 5 is not supported.
-###  The optional JAGS_MAJOR_VERSION environmental variable (passed as JAGS_MAJOR_FORCED)
-###  must name JAGS 4.
-###
-######################################################################################################
-
-## RoBMA builds against the JAGS 4 module interface only. Without JAGS_ROOT the
-## newest installed JAGS-4.* root is used and installs of other major versions
-## are ignored; a JAGS_ROOT, JAGS_VERSION, or JAGS_MAJOR_VERSION naming another
-## major version, or headers declaring one, stop the build.
-JAGS_MIN_VERSION := 4.3.1
-JAGS_REQUIRED_MAJOR := 4
-JAGS_SUPPORTED_RANGE := JAGS 4.x (>= $(JAGS_MIN_VERSION), < 5.0.0)
-JAGS_VERSION_HINT := Install JAGS 4.3.x (JAGS 5 is not supported) or set JAGS_ROOT to a JAGS 4.x installation
-JAGS_INSTALL_ROOTS := $(sort $(wildcard /c/progra~1/JAGS/JAGS-*))
-
-ifeq ($(strip $(JAGS_ROOT)),)
-JAGS_ROOT := $(shell printf '%s\n' $(JAGS_INSTALL_ROOTS) | awk -v major="$(JAGS_REQUIRED_MAJOR)" 'NF { n = split($$0, p, "/"); name = p[n]; sub(/^JAGS-/, "", name); split(name, v, "."); if (v[1] != major) next; key = sprintf("%06d.%06d.%06d", v[1], v[2], v[3]); if (key > best) { best = key; root = $$0 } } END { print root }')
-ifeq ($(strip $(JAGS_ROOT)),)
-ifneq ($(strip $(JAGS_INSTALL_ROOTS)),)
-$(error RoBMA requires $(JAGS_SUPPORTED_RANGE), but only other JAGS versions were found: $(notdir $(JAGS_INSTALL_ROOTS)). $(JAGS_VERSION_HINT))
-endif
-$(error JAGS was not found. Install $(JAGS_SUPPORTED_RANGE) or set JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1)
-endif
-endif
-
-## Use the old ABI to match JAGS 4.x compilation on Windows:
-PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0 $(SHLIB_OPENMP_CXXFLAGS)
-
 ###############
-###  Flags
-###  The JAGS version is read from JAGS_VERSION or the JAGS-x.y.z name of JAGS_ROOT, the forced
-###  major version from JAGS_MAJOR_VERSION, and the declared major version from the JAGS headers
+###  JAGS flags
 ###############
-# A literal space for splitting version strings into words:
-empty :=
-space := $(empty) $(empty)
 
-ifeq ($(strip $(JAGS_VERSION)),)
-JAGS_VERSION := $(patsubst JAGS-%,%,$(filter JAGS-%,$(shell basename "$(JAGS_ROOT)")))
-endif
-ifneq ($(strip $(JAGS_VERSION)),)
-ifneq ($(firstword $(subst .,$(space),$(JAGS_VERSION))),$(JAGS_REQUIRED_MAJOR))
-$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); JAGS_VERSION/JAGS_ROOT reported $(JAGS_VERSION). $(JAGS_VERSION_HINT))
-endif
-JAGS_VERSION_SUPPORTED := $(shell awk -v version="$(JAGS_VERSION)" -v minimum="$(JAGS_MIN_VERSION)" 'BEGIN { split(version, v, "."); split(minimum, m, "."); for (i = 1; i <= 3; i++) { if (v[i] + 0 > m[i] + 0) { print "yes"; exit } if (v[i] + 0 < m[i] + 0) { print "no"; exit } } print "yes" }')
-ifeq ($(JAGS_VERSION_SUPPORTED),no)
-$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); JAGS_VERSION/JAGS_ROOT reported $(JAGS_VERSION). $(JAGS_VERSION_HINT))
-endif
-endif
-
-ifneq ($(strip $(JAGS_MAJOR_VERSION)),)
-ifneq ($(strip $(JAGS_MAJOR_VERSION)),$(JAGS_REQUIRED_MAJOR))
-$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); JAGS_MAJOR_VERSION is $(JAGS_MAJOR_VERSION). $(JAGS_VERSION_HINT))
-endif
-endif
-
-JAGS_HEADER_MAJOR := $(strip $(shell sed -n 's/^.define[[:space:]][[:space:]]*JAGS_MAJOR[[:space:]][[:space:]]*\([0-9][0-9]*\).*/\1/p' "$(JAGS_ROOT)/include/version.h" 2>/dev/null))
-ifneq ($(JAGS_HEADER_MAJOR),)
-ifneq ($(JAGS_HEADER_MAJOR),$(JAGS_REQUIRED_MAJOR))
-$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); the JAGS headers in "$(JAGS_ROOT)/include" declare JAGS_MAJOR $(JAGS_HEADER_MAJOR). $(JAGS_VERSION_HINT))
-endif
-endif
-
-ifeq ($(strip $(JAGS_VERSION)$(JAGS_MAJOR_VERSION)$(JAGS_HEADER_MAJOR)),)
-$(warning The version of JAGS could not be determined from $(JAGS_ROOT) - assuming JAGS $(JAGS_REQUIRED_MAJOR))
-endif
-
-# Set the CPPFLAGS accordingly
-# Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
-JAGS_MAJOR := $(JAGS_REQUIRED_MAJOR)
-JAGS_MAJOR_ASSUMED := $(JAGS_REQUIRED_MAJOR)
 LAPACK_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config LAPACK_LIBS)
 BLAS_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config BLAS_LIBS)
 FLIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config FLIBS)
-PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -DR_NO_REMAP
 
-PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CXXFLAGS)
+JAGS_LIBS := $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "rjags::pkg.compile.flags('LIBS')")
+JAGS_CXXFLAGS := $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "rjags::pkg.compile.flags('CXXFLAGS')")
+JAGS_CPPFLAGS := $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "rjags::pkg.compile.flags('CPPFLAGS')")
+
+PKG_LIBS = $(JAGS_LIBS) $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CXXFLAGS)
+PKG_CXXFLAGS = $(JAGS_CXXFLAGS) $(SHLIB_OPENMP_CXXFLAGS)
+PKG_CPPFLAGS = $(JAGS_CPPFLAGS) -DR_NO_REMAP
 
 
 ###############
 ### Objects to be compiled
 ### NB: the objects in distributions/jags are only necessary for JAGS <=3, and are excluded by the sources when compiling against JAGS >= 4
 ###############
-
 OBJECTS = glmm-aghq.o \
 		  distributions/DWN.o \
 		  distributions/DWB.o \
@@ -127,7 +53,6 @@ r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTE
 
 glmm-aghq.o: glmm-binomial-loglik.h
 glmm-aghq.o init.o: glmm-aghq.h
-testRoBMA.o: jagsversions.h
 
 R_GLMM_INC = r-glmm-common.cc.inc \
 			 r-glmm-marginal.cc.inc
@@ -178,9 +103,6 @@ r-selnorm.o selnorm/selnorm.o: selnorm/selnorm-tail.h selnorm/selnorm-tail-kerne
 selnorm/selnorm.o: selnorm/selnorm-cdf-table-data.h
 selnorm/selnorm-mv.o: selnorm/selnorm-mixture-compression.h selnorm/selnorm-rank-one.h
 selnorm/selnorm-mv.o r-selnorm.o $(filter distributions/DSELNORM%.o,$(OBJECTS)): selnorm/selnorm-qmc-z.h
-
-
-###############
 
 # R API calls and entry boundaries must be rebuilt together.
 r-glmm.o r-known-v.o r-regplot.o r-selnorm.o glmm-aghq.o: r-native-api.h r-native-boundary.h

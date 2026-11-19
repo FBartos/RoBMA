@@ -6,16 +6,16 @@
 #include <R.h>
 #include <Rmath.h>
 
-// Checks the JAGS version and sets necessary macros:
-#include "jagsversions.h"
+// Checks the JAGS version:
+#include <version.h>
 
 // Trivial function to check which version of JAGS the binary was compiled against:
 extern "C" {
 void getjagsversions(int *forced, int *assumed, int *detected, int *used) // All pointers as everything from R is a vector
 {
-	forced[0]   = (int) JAGS_MAJOR_FORCED;
-	assumed[0]  = (int) JAGS_MAJOR_ASSUMED;
+	forced[0]   = (int) 0;
+	assumed[0]  = (int) JAGS_MAJOR;
 	detected[0] = (int) JAGS_MAJOR;
-	used[0]     = (int) JAGS_MAJOR_USED;
+	used[0]     = (int) JAGS_MAJOR;
 }
 }
