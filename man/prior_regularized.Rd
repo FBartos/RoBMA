@@ -13,6 +13,35 @@ prior_regularized(
   contrast = NULL
 )
 }
+\arguments{
+\item{family}{One of \code{"ridge"}, \code{"lasso"}, and \code{"horseshoe"}.}
+
+\item{scale}{A positive number fixing the global scale, or a proper scalar
+continuous prior with positive support from which to learn it. The scale
+is in fitted coefficient units. For lasso it is the Laplace scale (the
+conditional standard deviation is \eqn{\sqrt{2}} times this scale).}
+
+\item{terms}{Optional character vector of fixed-effect term labels.
+Place a group under its own name in the formula prior list. Omitting
+\code{terms} selects the non-intercept terms without a prior of their own.
+Separate named groups have independent scales, even if they use the
+same scale prior. A multi-column term uses its fitted coefficient basis.}
+
+\item{slab_scale}{Positive scale of the Student-t slab for the regularized
+horseshoe. The default \code{NULL} selects the classical horseshoe.}
+
+\item{slab_df}{Positive degrees of freedom of the Student-t slab.}
+
+\item{contrast}{Optional \code{"treatment"} or \code{"independent"} factor coding
+for the group's factor terms. With \code{NULL}, \code{\link[BayesTools:JAGS_formula]{JAGS_formula()}} uses treatment
+coding and a calling model can supply its configured factor coding.}
+}
+\value{
+With numeric scale and omitted terms, ridge and lasso return
+ordinary scalar priors accepted by \code{\link[BayesTools:prior_spike_and_slab]{prior_spike_and_slab()}} and
+\code{\link[BayesTools:prior_mixture]{prior_mixture()}}. Otherwise the result declares a coefficient group for
+\code{\link[BayesTools:JAGS_formula]{JAGS_formula()}}. \code{is.prior.regularized()} identifies group declarations.
+}
 \description{
 Set ridge, lasso, or horseshoe priors for moderator or scale
 regression coefficients. A named group in \code{prior_mods} or \code{prior_scale}
