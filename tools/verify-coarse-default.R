@@ -738,6 +738,16 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
       utils::write.csv(empty_welch_table(), file.path(dir, paste0(part, ".csv")), row.names = FALSE)
       utils::write.csv(data.frame(model = character(), decision = character()),
                        file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
+      # no file of an earlier rerun in this directory may contradict that
+      utils::write.csv(data.frame(model = character(), arm = character(), seed = integer(),
+                                  replaced_by = integer(), wall = numeric(), jags_seconds = numeric(),
+                                  stopped_attempts = integer(), samplers = character(), build = character(),
+                                  error = character(), warnings = character()),
+                       file.path(dir, paste0(part, "-runs.csv")), row.names = FALSE)
+      utils::write.csv(data.frame(model = character(), arm = character(), stopped_seed = integer(),
+                                  replacement_seed = integer()),
+                       file.path(dir, paste0(part, "-replaced.csv")), row.names = FALSE)
+      unlink(file.path(dir, paste0(part, c("-efficiency.csv", "-efficiency-runs.csv"))))
       return(invisible(NULL))
     }
   }
@@ -1152,12 +1162,25 @@ selftest <- function() {
   # a rerun after a first stage that passed: nothing to rerun, empty tables
   dir <- file.path(root, "rerun_none")
   x <- wider_case("rerun_none", function(job, i) wider_run(job, c("a", "b")), dir = dir)
+  # the files of an earlier rerun with rows in the same directory
+  earlier <- list.files(file.path(root, "rerun_absent"), pattern = "^rerun", full.names = TRUE)
+  file.copy(earlier, dir, overwrite = TRUE)
+  utils::write.csv(data.frame(model = "m", arm = "default", stopped_seed = 6009L, replacement_seed = 6011L),
+                   file.path(dir, "rerun-replaced.csv"), row.names = FALSE)
+  stale <- file.path(dir, c("rerun-runs.csv", "rerun-replaced.csv", "rerun-efficiency.csv",
+                            "rerun-efficiency-runs.csv"))
+  check(all(file.exists(stale)) && all(vapply(stale, function(file) nrow(utils::read.csv(file)) > 0L, logical(1))),
+        "the files of an earlier rerun with rows are in place")
   output <- utils::capture.output(wider_driver("rerun", "m", 10L, 1L, list(m = list()), dir = dir,
                                                execute = no_fits))
   check(x$decisions$decision == "pass" && any(grepl("Nothing to rerun", output)) &&
           nrow(utils::read.csv(file.path(dir, "rerun.csv"))) == 0L &&
-          nrow(utils::read.csv(file.path(dir, "rerun-decisions.csv"))) == 0L,
-        "a rerun after an all-pass first stage: nothing to rerun, empty tables")
+          nrow(utils::read.csv(file.path(dir, "rerun-decisions.csv"))) == 0L &&
+          nrow(utils::read.csv(file.path(dir, "rerun-runs.csv"))) == 0L &&
+          "replaced_by" %in% names(utils::read.csv(file.path(dir, "rerun-runs.csv"))) &&
+          nrow(utils::read.csv(file.path(dir, "rerun-replaced.csv"))) == 0L &&
+          !any(file.exists(stale[3:4])),
+        "a rerun after an all-pass first stage: nothing to rerun, empty tables, no stale rerun files")
 
   x <- wider_case("one_failed", function(job, i) {
     if (job$arm == "default" && i == 10L) failed_run(job) else wider_run(job, c("a", "b"))
