@@ -234,9 +234,15 @@ test_that("a member whose bound the sampler's scale cannot resolve stops the fit
   expect_true(all(abs(chain$draws[, "p"]) < 6))
   # above -1e16 the neighbouring doubles of u move p by about 2: the block
   # sampler refuses the member when it is built
-  expect_error(.block_pair_model(markers = members, extra = "  p ~ dnorm(0, 1) T(-1e16, )", inits = list(p = .3)),
-               "Corrected slice (block): the support bounds of this node are too far from where its posterior",
-               fixed = TRUE)
+  message <- tryCatch({
+    .block_pair_model(markers = members, extra = "  p ~ dnorm(0, 1) T(-1e16, )", inits = list(p = .3))
+    NA_character_
+  }, error = function(error) conditionMessage(error))
+  expect_true(grepl("Corrected slice (block): the support bounds of this node are too far from where its posterior",
+                    message, fixed = TRUE))
+  expect_true(grepl("(found at the start of the fit)", message, fixed = TRUE))
+  # the hint undeclares the blocks (BayesTools' sampler stops the member under "slice" too)
+  expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", .sampler_error_hint(message), fixed = TRUE))
 })
 
 

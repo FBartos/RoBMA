@@ -30,6 +30,16 @@
 # (the density could not be computed, or a declaration is wrong).
 .sampler_error_hint <- function(message) {
 
+  # A block member whose bounds the samplers' scale cannot resolve stops either
+  # block sampler (BayesTools' under "slice" too): only undeclaring the blocks helps.
+  if (grepl("the support bounds of this node are too far", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      "the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+
   if (grepl("Corrected slice", message, fixed = TRUE) ||
       grepl("Surrogate slice transition failed", message, fixed = TRUE)) {
     return(paste0(

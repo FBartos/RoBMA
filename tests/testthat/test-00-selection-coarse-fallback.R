@@ -390,6 +390,24 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
     ))
   }
   expect_identical(.sampler_error_hint("Error in node mu\nSlicer stuck"), "Error in node mu\nSlicer stuck")
+
+  # a member the block samplers' scale cannot resolve: BayesTools' sampler would
+  # stop it under "slice" too, so the hint undeclares the blocks
+  for (message in c(paste0("Error in node p\nCorrected slice (block): the support bounds of this node are too far ",
+                           "from where its posterior concentrates for the sampler's scale (found at the start of the fit)"),
+                    paste0("Error in node p\nFactor slice sampler: the support bounds of this node are too far ",
+                           "from where its posterior concentrates for the sampler's scale (found during sampling); ",
+                           "declare the block without this node"))) {
+    hinted <- .sampler_error_hint(message)
+    expect_identical(hinted, paste0(
+      message, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      "the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+  # other errors of the block sampler keep the hint to the ordinary samplers
+  block_error <- "Error in node p\nCorrected slice (block): current value lies on a bound of its support"
+  expect_true(grepl("selection.sampler = \"slice\"", .sampler_error_hint(block_error), fixed = TRUE))
 })
 
 

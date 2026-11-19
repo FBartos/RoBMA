@@ -34,9 +34,6 @@ namespace {
 namespace kernel = ::BayesTools::factor_slice;
 
 const char *const block_sampler_name = "RoBMA::CoarseCorrectedBlock";
-// Updates between the resolvability checks after adaptation. PENDING: the
-// header's resolvability_interval replaces this value when BayesTools adds it.
-const unsigned int resolvability_interval = 500;
 const double negative_infinity = -std::numeric_limits<double>::infinity();
 
 // ---- the declarations of BayesTools::JAGS_fit() (src/samplers/
@@ -272,7 +269,7 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
   // distance from the anchoring bound, so with bounds far from where the
   // posterior concentrates the sampler would move on a grid coarser than the
   // posterior. Runs at construction, at every refresh of the axes, at the
-  // first adaptOff() and every resolvability_interval updates after it, in
+  // first adaptOff() and every kernel::resolvability_interval updates after it, in
   // both kernels; it draws no random numbers and restores the node values, so
   // it changes no draw. A member on a bound is left to update().
   void check_resolvable(char const *site)
@@ -302,7 +299,7 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
       if (!ok) {
         throwNodeError(nodes[i], std::string(
           "Corrected slice (block): the support bounds of this node are too far from where its posterior "
-          "concentrates for the sampler's scale (found at ") + site + ")");
+          "concentrates for the sampler's scale (found ") + site + ")");
       }
     }
   }
@@ -408,7 +405,7 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
       corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
     }
     countOutcome(accepted);
-    if (_adapting && _axes.adapt(u_start, u)) check_resolvable("a refresh of the axes during adaptation");
+    if (_adapting && _axes.adapt(u_start, u)) check_resolvable("at a refresh of the axes during adaptation");
   }
 
 public:
@@ -431,7 +428,7 @@ public:
     }
     if (_selected.empty()) throw std::logic_error("Corrected slice (block) has no selection child.");
     graph->checkFinite(chain);
-    check_resolvable("the start of the fit");
+    check_resolvable("at the start of the fit");
     register_corrected_sampler(this);
   }
 
@@ -467,8 +464,8 @@ public:
       _graph->setValue(entry, _chain);
       throw;
     }
-    if (!_adapting && ++_updates_after_adaptation % resolvability_interval == 0) {
-      check_resolvable("a periodic check after adaptation");
+    if (!_adapting && ++_updates_after_adaptation % kernel::resolvability_interval == 0) {
+      check_resolvable("during sampling");
     }
   }
 
@@ -490,7 +487,7 @@ public:
     if (!_adapting) return;
     _adapting = false;
     try {
-      check_resolvable("the end of adaptation");
+      check_resolvable("at the end of adaptation");
     }
     catch (...) {
       _deferred_error = std::current_exception();
