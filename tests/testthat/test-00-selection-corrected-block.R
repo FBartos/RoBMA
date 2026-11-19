@@ -221,6 +221,25 @@ test_that("a rejection restores the block-entry values and an exhausted interval
 })
 
 
+test_that("a member whose bound the sampler's scale cannot resolve stops the fit, a wide resolvable one does not", {
+
+  skip_if_not_installed("rjags")
+  members <- c("dbt_block(mu, 1)", "dbt_block(nu, 1)", "dbt_block(p, 1)")
+  # p ~ N(0, 1) above -1e6: u = log(p + 1e6), whose neighbouring doubles move p
+  # by about 2e-9, far below its posterior scale
+  wide <- .block_pair_model(markers = members, extra = "  p ~ dnorm(0, 1) T(-1e6, )", inits = list(p = .3))
+  expect_identical(.block_assigned(wide, c("mu", "nu", "p")), rep(.block_sampler, 3L))
+  chain <- .block_chain(wide, c("mu", "nu", "p"), 200L, adapt = 300L, burnin = 0L)
+  expect_gt(length(unique(chain$draws[, "p"])), 50L)
+  expect_true(all(abs(chain$draws[, "p"]) < 6))
+  # above -1e16 the neighbouring doubles of u move p by about 2: the block
+  # sampler refuses the member when it is built
+  expect_error(.block_pair_model(markers = members, extra = "  p ~ dnorm(0, 1) T(-1e16, )", inits = list(p = .3)),
+               "Corrected slice (block): the support bounds of this node are too far from where its posterior",
+               fixed = TRUE)
+})
+
+
 test_that("the record counts a block once per chain and model build, with the scalar samplers", {
 
   skip_if_not_installed("rjags")
