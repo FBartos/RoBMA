@@ -54,6 +54,10 @@ BayesTools. Preserve its member priors when assembling per-term null and
 alternative mixtures and when rebuilding a design. A learned scale and a
 finite horseshoe slab are shared by the named group, including across
 mixture alternatives. Rescaling multiplies each member coefficient once.
+Use the model's default factor contrast unless the user declares a group
+contrast. Mean-difference and orthonormal factors regularize centered
+contrast coordinates in the fitted basis at the declared scale. Factor
+terms keep one inclusion gate independently of their number of coefficients.
 
 Ordered term containers pass through when they are the sole retained component.
 Their mixture/inclusion declaration belongs on total; combining a container with

@@ -133,7 +133,9 @@ it in one place: null-list intercepts and explicit global effect declarations
 left without a consumer are refused. Ordinary term entries replace only their
 alternative component. A named \code{\link[=prior_regularized]{prior_regularized()}} group shares its
 shrinkage scale across the selected moderator alternatives. The terms keep
-their individual null components and inclusion weights.}
+their individual null components and inclusion weights. A factor term
+has one inclusion indicator for all of its coefficients, including with
+mean-difference or orthonormal contrasts.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify

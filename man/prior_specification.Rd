@@ -21,9 +21,11 @@ priors. A named \code{\link[=prior_regularized]{prior_regularized()}} group, suc
 \code{list(shrinkage = prior_regularized("horseshoe", scale = global))}, shares
 a positive prior \code{global} on the shrinkage scale across otherwise
 unassigned slopes. Use \code{terms} to select slopes or give separate groups to
-learn separate scales. Shared-scale groups on factors use treatment or
-independent contrasts. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{mods} is specified. A formula without an intercept
+learn separate scales. Treatment and independent contrasts shrink individual
+coefficients. Mean-difference and orthonormal contrasts shrink the centered
+factor contrasts jointly. A group uses \code{set_contrast_factor_predictors}
+unless its \code{contrast} is specified. Omitting \code{prior_mods} or setting it
+to \code{NULL} uses the default priors. This argument requires \code{mods}. A formula without an intercept
 (\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
 the list is accepted only as a point prior at zero; any other \code{intercept}
 prior stops with an error of class \code{RoBMA_prior_intercept_conflict} (also of

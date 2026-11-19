@@ -74,8 +74,9 @@ test_that("factor contrasts and scale multipliers survive regularization group a
     BMA(yi = y, sei = se, data = dat, mods = ~ f, measure = "SMD",
         prior_mods = group, rescale_priors = 2, only_priors = TRUE)
   }
-  expect_error(build(prior_regularized("horseshoe", scale = global)),
-               "requires treatment or independent contrasts", fixed = TRUE)
+  default <- build(prior_regularized("horseshoe", scale = global))$priors$mods$f
+  expect_true(BayesTools::is.prior.meandif(default[[1L]]))
+  expect_true(BayesTools::is.prior.meandif(default[[2L]]))
   alternative <- build(prior_regularized("horseshoe", scale = global,
                            slab_scale = 1, contrast = "treatment"))$priors$mods$f[[2L]]
   expect_true(BayesTools::is.prior.treatment(alternative))
@@ -86,4 +87,47 @@ test_that("factor contrasts and scale multipliers survive regularization group a
                                          contrast = "independent"))$priors$mods$f[[2L]]
   expect_true(BayesTools::is.prior.independent(alternative))
   expect_equal(alternative$parameters$scale, .5)
+})
+
+test_that("centered factor priors inherit or override the location and scale contrast", {
+  dat <- data.frame(y = c(.2, .1, -.1, .4, .2, -.3), se = .2,
+                    f = factor(rep(c("a", "b", "c"), 2L)), x = c(-1, 2, 0, 2, 1, 0))
+  global <- prior("uniform", list(.2, .6))
+  for (coding in c("meandif", "orthonormal")) {
+    other <- if (coding == "meandif") "orthonormal" else "meandif"
+    fit <- BMA(yi = y, sei = se, data = dat, mods = ~ f + x, scale = ~ f,
+               prior_mods = list(pool = prior_regularized("horseshoe", scale = global)),
+               prior_scale = list(f = prior_regularized("lasso", scale = .3, contrast = other)),
+               prior_heterogeneity = prior("point", list(.2)), prior_heterogeneity_null = NULL,
+               set_contrast_factor_predictors = coding, measure = "SMD", only_priors = TRUE)
+    for (part in c("mods", "scale")) {
+      components <- fit$priors[[part]]$f
+      expected <- if (part == "mods") coding else other
+      expect_identical(.prior_factor_contrast(components[[1L]]), expected)
+      expect_identical(.prior_factor_contrast(components[[2L]]), expected)
+      expect_identical(unname(attr(components, "components")), c("null", "alternative"))
+    }
+    expect_s3_class(fit$priors$mods$x[[2L]], "prior.regularized_term")
+    fixed <- brma(yi = y, sei = se, data = dat, mods = ~ f, measure = "SMD",
+                  prior_mods = list(f = prior_regularized("lasso", scale = .3)),
+                  set_contrast_factor_predictors = coding, only_priors = TRUE)
+    expect_identical(.prior_factor_contrast(fixed$priors$mods$f), coding)
+  }
+})
+
+test_that("a pooled interaction preserves the fitted bases of its two factors", {
+  dat <- expand.grid(f = factor(c("A", "B", "C")), h = factor(c("U", "V", "W")))
+  dat$y <- seq_len(nrow(dat)) / nrow(dat)
+  dat$se <- .2
+  fit <- BMA(yi = y, sei = se, mods = ~ f * h, data = dat, measure = "SMD",
+             prior_mods = list(f = prior_factor("mnormal", list(0, 1), contrast = "orthonormal"),
+                               h = prior_factor("normal", list(0, 1), contrast = "treatment"),
+                               pool = prior_regularized("lasso", terms = "f:h", scale = .4)),
+             only_priors = TRUE)
+  alternative <- fit$priors$mods[["f:h"]][[2L]]
+  expect_identical(attr(alternative, "factor_contrasts"),
+                   c(f = "contr.orthonormal", h = "contr.treatment"))
+  expect_equal(alternative$regularization$unit_index, c(1, 1, 2, 2))
+  expect_equal(alternative$regularization$unit_dimension, c(2, 2))
+  expect_length(fit$priors$mods[["f:h"]], 2L)
 })

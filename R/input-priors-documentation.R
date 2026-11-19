@@ -35,9 +35,11 @@
 #' `list(shrinkage = prior_regularized("horseshoe", scale = global))`, shares
 #' a positive prior `global` on the shrinkage scale across otherwise
 #' unassigned slopes. Use `terms` to select slopes or give separate groups to
-#' learn separate scales. Shared-scale groups on factors use treatment or
-#' independent contrasts. If omitted or `NULL`, default priors are used. This argument can be
-#' specified only when `mods` is specified. A formula without an intercept
+#' learn separate scales. Treatment and independent contrasts shrink individual
+#' coefficients. Mean-difference and orthonormal contrasts shrink the centered
+#' factor contrasts jointly. A group uses `set_contrast_factor_predictors`
+#' unless its `contrast` is specified. Omitting `prior_mods` or setting it
+#' to `NULL` uses the default priors. This argument requires `mods`. A formula without an intercept
 #' (`~ 0 + x`) fixes the location intercept at zero, so an `intercept` entry of
 #' the list is accepted only as a point prior at zero; any other `intercept`
 #' prior stops with an error of class `RoBMA_prior_intercept_conflict` (also of
@@ -694,7 +696,9 @@ NULL
 #' left without a consumer are refused. Ordinary term entries replace only their
 #' alternative component. A named [prior_regularized()] group shares its
 #' shrinkage scale across the selected moderator alternatives. The terms keep
-#' their individual null components and inclusion weights.
+#' their individual null components and inclusion weights. A factor term
+#' has one inclusion indicator for all of its coefficients, including with
+#' mean-difference or orthonormal contrasts.
 #' @param prior_scale prior distribution(s) for alternative scale-regression
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `scale`

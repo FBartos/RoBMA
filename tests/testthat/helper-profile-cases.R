@@ -737,7 +737,8 @@ certification_cases <- function() {
         .required_tests(
           "test-02-iwmde-regularized.R",
           c("fitted standardized ridge hypotheses and prior overlay use the shared scale",
-            "fitted horseshoe point tests at zero refuse before constructing a density grid")
+              "fitted horseshoe point tests at zero refuse before constructing a density grid",
+              "centered shrinkage factor hypotheses use the fitted contrasts and term gate")
         ),
         .iwmde_fast_required_tests(),
         .required_tests(

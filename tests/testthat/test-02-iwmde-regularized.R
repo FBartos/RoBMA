@@ -90,3 +90,56 @@ test_that("fitted horseshoe point tests at zero refuse before constructing a den
                  class = "BayesTools_infinite_ordinate")
   }
 })
+
+test_that("centered shrinkage factor hypotheses use the fitted contrasts and term gate", {
+  skip_if_not_certification("The fitted factor contrasts run in iwmde-qcmde.")
+  dat <- expand.grid(f = factor(c("A", "B", "C")), x = c(-1, 1), replicate = 1:3)
+  dat$yi <- c(-0.04, 0.08, -0.04)[dat$f] + 0.11 * dat$x + c(-.13, 0, .13)[dat$replicate]
+  global <- prior("uniform", list(0.15, 0.55))
+  for (coding in c("meandif", "orthonormal")) {
+    C <- if (coding == "meandif") BayesTools::contr.meandif(3) else BayesTools::contr.orthonormal(3)
+    for (averaged in c(FALSE, TRUE)) {
+      run <- if (averaged) BMA else brma
+      group <- if (averaged) prior_regularized("horseshoe", global, slab_scale = 1) else
+        prior_regularized("lasso", global, contrast = coding)
+      settings <- list(yi = dat$yi, sei = rep(.5, nrow(dat)), mods = ~ f + x, data = dat,
+                       measure = "SMD", prior_mods = list(pool = group),
+                       prior_effect = prior("normal", list(0, .4)),
+                       prior_heterogeneity = prior("point", list(.2)),
+                       set_contrast_factor_predictors = if (averaged) coding else "treatment",
+                       chains = 2, adapt = 300, burnin = 500, sample = 1500, parallel = FALSE,
+                       seed = 2249, silent = TRUE)
+      if (averaged) settings[c("prior_effect_null", "prior_heterogeneity_null")] <- list(NULL, NULL)
+      fit <- do.call(run, settings)
+      sampled <- as.matrix(coda::as.mcmc.list(fit$fit))
+      beta <- sampled[, c("mu_f[1]", "mu_f[2]")]
+      included <- rep(TRUE, nrow(sampled))
+      if (averaged) {
+        included <- sampled[, "mu_f_indicator"] == 2L
+        expect_true(any(included) && any(!included))
+        expect_true(all(beta[!included, , drop = FALSE] == 0))
+      }
+      delta <- drop(beta[included, , drop = FALSE] %*% (C[2L, ] - C[1L, ]))
+      posterior_probability <- mean(delta > 0)
+      # Symmetry gives prior odds 1. The empirical posterior odds use the
+      # two factor-level effects computed independently from the JAGS columns.
+      res <- hypothesis(fit, "f[B] > f[A]", component = "mods", conditional = averaged,
+                        columns = "all", seed = 1704)
+      row <- as.data.frame(res)
+      expect_equal(row$BF10, posterior_probability / (1 - posterior_probability),
+                   tolerance = 1e-5)
+      if (!averaged) {
+        # A projection of the two-dimensional radial lasso has ordinate
+        # 1/(pi*s*||C[B,]-C[A,]||) at zero given its global scale s.
+        point <- hypothesis(fit, "f[B] = f[A]", component = "mods", columns = "all",
+                            density_method = "qCMDE", seed = 1705)
+        expected_prior <- log(.55/.15) / (.55 - .15) / (pi * sqrt(sum((C[2L, ] - C[1L, ])^2)))
+        point_row <- as.data.frame(point)
+        expect_equal(point_row$prior, expected_prior, tolerance = 1e-5)
+        expect_true(is.finite(point_row$BF10))
+      }
+      expect_equal(nrow(posterior::as_draws_matrix(fit)), nrow(sampled))
+      expect_false(is.null(summary(fit)))
+    }
+  }
+})

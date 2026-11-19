@@ -18,8 +18,9 @@ prior_regularized(
 
 \item{scale}{A positive number fixing the global scale, or a proper scalar
 continuous prior with positive support from which to learn it. The scale
-is in fitted coefficient units. For lasso it is the Laplace scale (the
-conditional standard deviation is \eqn{\sqrt{2}} times this scale).}
+is in fitted coefficient units. For a single lasso coefficient it is
+the Laplace scale. For a centered factor it scales the Euclidean norm
+in the group-lasso density.}
 
 \item{terms}{Optional character vector of fixed-effect term labels.
 Place a group under its own name in the formula prior list. Omitting
@@ -32,9 +33,9 @@ horseshoe. The default \code{NULL} selects the classical horseshoe.}
 
 \item{slab_df}{Positive degrees of freedom of the Student-t slab.}
 
-\item{contrast}{Optional \code{"treatment"} or \code{"independent"} factor coding
-for the group's factor terms. With \code{NULL}, \code{\link[BayesTools:JAGS_formula]{JAGS_formula()}} uses treatment
-coding and a calling model can supply its configured factor coding.}
+\item{contrast}{Optional factor coding, one of \code{"treatment"}, \code{"independent"},
+\code{"meandif"} or \code{"orthonormal"}. With \code{NULL}, \code{\link[BayesTools:JAGS_formula]{JAGS_formula()}} uses treatment
+coding by default and a calling model can supply its factor coding.}
 }
 \value{
 With numeric scale and omitted terms, ridge and lasso return
@@ -46,13 +47,22 @@ ordinary scalar priors accepted by \code{\link[BayesTools:prior_spike_and_slab]{
 Set ridge, lasso, or horseshoe priors for moderator or scale
 regression coefficients. A named group in \code{prior_mods} or \code{prior_scale}
 can share one shrinkage scale across its terms. The intercept retains its
-own prior.
+own prior. For a centered factor, lasso shrinks the length of the fitted
+contrast vector and horseshoe assigns one local scale to that vector.
+Treatment and independent contrasts have coordinate-wise shrinkage. The
+scale is in fitted coefficient units, so the same scale can give different
+prior spreads for factor-level effects under different contrasts.
 }
 \examples{
 global <- prior("cauchy", list(0, 0.2), list(0, Inf))
 moderator_priors <- list(
   shrinkage = prior_regularized("horseshoe", terms = c("age", "dose"),
                                scale = global, slab_scale = 2, slab_df = 4)
+)
+# Jointly shrink the contrasts of a design factor in a meta-regression.
+design_priors <- list(
+  design_group = prior_regularized("lasso", terms = "design", scale = 0.3,
+                                   contrast = "meandif")
 )
 
 }
