@@ -429,14 +429,21 @@ welch_table <- function(runs, model, quantities = NULL) {
 
   runs <- Filter(function(run) run[["job"]][["model"]] == model && is.null(run[["error"]]), runs)
   arms <- vapply(runs, function(run) run[["job"]][["arm"]], character(1))
-  names_all <- unique(unlist(lapply(runs, function(run) names(run[["means"]]))))
-  if (!is.null(quantities)) names_all <- intersect(names_all, quantities)
+  # requested quantities (a rerun) are compared exactly, present in the runs or not
+  names_all <- if (is.null(quantities)) unique(unlist(lapply(runs, function(run) names(run[["means"]])))) else
+    unique(quantities)
   # quantity_means() names only the levels of an indicator that a run visited:
-  # a level absent from a run has frequency zero there; any other quantity
-  # missing from a completed run stays missing
+  # a level is zero in a run whose means name no such level but hold another
+  # level of the same indicator; a stored NA, an indicator the run lacks
+  # altogether and any other quantity missing from a completed run stay missing
   means <- run_matrix(runs, names_all, function(run, names) {
-    values <- run[["means"]][names]
-    values[is.na(values) & grepl("indicator", names, fixed = TRUE) & grepl("==", names, fixed = TRUE)] <- 0
+    stored    <- run[["means"]]
+    values    <- stored[names]
+    indicator <- sub("==.*$", "", names)
+    visited   <- sub("==.*$", "", names(stored)[grepl("==", names(stored), fixed = TRUE) & !is.na(stored)])
+    unvisited <- grepl("indicator", names, fixed = TRUE) & grepl("==", names, fixed = TRUE) &
+      !names %in% names(stored) & indicator %in% visited
+    values[unvisited] <- 0
     values
   })
   missing <- which(is.na(means), arr.ind = TRUE)
@@ -603,17 +610,25 @@ run_rows <- function(runs) {
 # hours and their coarse / default ratio.
 efficiency_table <- function(rows, totals = NULL) {
 
-  if (is.null(rows)) return(NULL)
   metrics <- c("jags_seconds", "samplers", "fallback_samplers", "fallback_few_proposals",
                "fallback_surrogate_exact", "fallback_low_acceptance", "acceptance_rate", "min_sampler_rate",
                "warnings", "low_acceptance_warning", "min_ess", "ess_per_second", "indicator_min_ess",
                "indicator_ess_per_second")
-  table <- stats::aggregate(rows[metrics], rows[c("model", "arm")], function(x) mean(as.numeric(x)))
-  restarts <- data.frame(stopped_attempts = rows[["stopped_attempts"]],
-                         runs_restarted = as.integer(rows[["stopped_attempts"]] > 0L))
-  table <- merge(table, stats::aggregate(restarts, rows[c("model", "arm")], sum), by = c("model", "arm"))
   if (is.null(totals)) {
     totals <- data.frame(model = character(), arm = character(), stopped_runs = integer(), wall_hours = numeric())
+  }
+  # one row per model and arm with any attempted run; NA means where none completed
+  table <- unique(rbind(if (!is.null(rows)) rows[c("model", "arm")], totals[c("model", "arm")]))
+  if (nrow(table) == 0L) return(NULL)
+  if (!is.null(rows)) {
+    restarts <- data.frame(stopped_attempts = rows[["stopped_attempts"]],
+                           runs_restarted = as.integer(rows[["stopped_attempts"]] > 0L))
+    table <- merge(table, stats::aggregate(rows[metrics], rows[c("model", "arm")], function(x) mean(as.numeric(x))),
+                   by = c("model", "arm"), all.x = TRUE)
+    table <- merge(table, stats::aggregate(restarts, rows[c("model", "arm")], sum), by = c("model", "arm"),
+                   all.x = TRUE)
+  } else {
+    for (name in c(metrics, "stopped_attempts", "runs_restarted")) table[[name]] <- NA_real_
   }
   table <- merge(table, totals, by = c("model", "arm"), all.x = TRUE)
   wall_default <- table[["wall_hours"]][match(paste(table[["model"]], "default"),
@@ -626,7 +641,8 @@ efficiency_table <- function(rows, totals = NULL) {
   table[["time_ratio"]] <- table[["jags_seconds"]] / table[["jags_seconds_default"]]
   table[["speedup"]] <- table[["ess_per_second"]] / table[["ess_per_second_default"]]
   table[["indicator_speedup"]] <- table[["indicator_ess_per_second"]] / table[["indicator_ess_per_second_default"]]
-  settings <- unique(rows[c("model", "blocks", "control")])
+  settings <- if (!is.null(rows)) unique(rows[c("model", "blocks", "control")]) else
+    data.frame(model = unique(table[["model"]]), blocks = NA_character_, control = NA_character_)
   settings <- settings[!duplicated(settings[["model"]]), , drop = FALSE]
   table <- merge(table, settings, by = "model", all.x = TRUE)
   table <- table[order(table[["model"]], table[["arm"]]), c("model", "arm", "blocks", "control", metrics,
@@ -638,12 +654,18 @@ efficiency_table <- function(rows, totals = NULL) {
   return(table)
 }
 
-run_summary <- function(runs) {
+# One row per run; 'replaced' (the table of replace_stopped_runs()) gives the
+# seed that took the place of a stopped run ('replaced_by', NA otherwise).
+run_summary <- function(runs, replaced = NULL) {
 
   do.call(rbind, lapply(runs, function(run) {
     run <- complete_run(run)
+    replaced_by <- if (is.null(replaced)) integer() else replaced[["replacement_seed"]][
+      replaced[["model"]] == run[["job"]][["model"]] & replaced[["arm"]] == run[["job"]][["arm"]] &
+        replaced[["stopped_seed"]] == run[["job"]][["seed"]]]
     data.frame(
       model = run[["job"]][["model"]], arm = run[["job"]][["arm"]], seed = run[["job"]][["seed"]],
+      replaced_by = if (length(replaced_by)) as.integer(replaced_by[[1L]]) else NA_integer_,
       wall = round(as.numeric(run[["wall"]]), 1), jags_seconds = round(as.numeric(run[["jags_seconds"]]), 1),
       stopped_attempts = if (isTRUE(run[["missing"]])) NA_integer_ else stopped_attempts(run),
       samplers = if (is.null(run[["samplers"]])) "" else
@@ -690,6 +712,12 @@ replace_stopped_runs <- function(jobs, base, seeds, specs, workers, dir, execute
   return(list(jobs = jobs, replaced = replaced))
 }
 
+empty_welch_table <- function() {
+
+  data.frame(model = character(), quantity = character(), mean_coarse = numeric(), mean_default = numeric(),
+             se = numeric(), t = numeric(), df = numeric(), p_beyond_2 = numeric(), stringsAsFactors = FALSE)
+}
+
 # The wider testing (--part=wider or --part=rerun): runs the missing jobs with
 # 'execute', reads every planned run from 'dir', and writes the run table, the
 # Welch table, the decisions and the efficiency table there.
@@ -705,6 +733,13 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
     decisions <- utils::read.csv(file.path(dir, "wider-decisions.csv"), stringsAsFactors = FALSE)
     models    <- intersect(models, decisions[["model"]][decisions[["decision"]] == "fail"])
     cat("rerun models:", paste(models, collapse = ", "), "\n")
+    if (length(models) == 0L) {
+      cat("Nothing to rerun: no model failed the first stage.\n")
+      utils::write.csv(empty_welch_table(), file.path(dir, paste0(part, ".csv")), row.names = FALSE)
+      utils::write.csv(data.frame(model = character(), decision = character()),
+                       file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
+      return(invisible(NULL))
+    }
   }
   # arms interleaved by seed
   jobs <- list()
@@ -723,7 +758,15 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   runs    <- read_runs(jobs, dir)
   counts  <- run_counts(runs)
   summary <- run_summary(runs)
-  utils::write.csv(summary, file.path(dir, paste0(part, "-runs.csv")), row.names = FALSE)
+  # the stopped runs that a replacement took the place of: listed and in the
+  # totals, not in the counts or the comparison
+  stopped_jobs <- lapply(seq_len(nrow(replaced)), function(i) {
+    list(part = part, model = replaced[["model"]][[i]], arm = replaced[["arm"]][[i]],
+         seed = replaced[["stopped_seed"]][[i]])
+  })
+  stopped_runs <- read_runs(stopped_jobs, dir)
+  utils::write.csv(run_summary(c(runs, stopped_runs), replaced), file.path(dir, paste0(part, "-runs.csv")),
+                   row.names = FALSE)
   cat("\nRuns with errors:", sum(nzchar(summary[["error"]])), "\n")
   if (any(nzchar(summary[["error"]]))) print(summary[nzchar(summary[["error"]]), c("model", "arm", "seed", "error")])
   builds <- unique(summary[["build"]][nzchar(summary[["build"]])])
@@ -738,16 +781,12 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   })
   tables  <- lapply(welch, `[[`, "table")
   missing <- do.call(rbind, lapply(welch, `[[`, "missing"))
-  if (nrow(missing) > 0L) {
+  if (!is.null(missing) && nrow(missing) > 0L) {
     cat("\nQuantities missing from a completed run (no statistic; the model is incomplete):\n")
     print(missing, row.names = FALSE)
   }
   table <- do.call(rbind, tables)
-  if (is.null(table)) {
-    table <- data.frame(model = character(), quantity = character(), mean_coarse = numeric(),
-                        mean_default = numeric(), se = numeric(), t = numeric(), df = numeric(),
-                        p_beyond_2 = numeric(), stringsAsFactors = FALSE)
-  }
+  if (is.null(table)) table <- empty_welch_table()
   utils::write.csv(table, file.path(dir, paste0(part, ".csv")), row.names = FALSE)
   decisions <- do.call(rbind, lapply(seq_along(models), function(i) decide(tables[[i]], models[[i]], counts)))
   utils::write.csv(decisions, file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
@@ -766,11 +805,7 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   if (!is.null(rows)) utils::write.csv(rows, file.path(dir, paste0(part, "-efficiency-runs.csv")), row.names = FALSE)
   # all runs of an arm for the totals: the planned and replacement runs and the
   # stopped runs that a replacement took the place of
-  stopped_jobs <- lapply(seq_len(nrow(replaced)), function(i) {
-    list(part = part, model = replaced[["model"]][[i]], arm = replaced[["arm"]][[i]],
-         seed = replaced[["stopped_seed"]][[i]])
-  })
-  efficiency <- efficiency_table(rows, arm_totals(c(runs, read_runs(stopped_jobs, dir))))
+  efficiency <- efficiency_table(rows, arm_totals(c(runs, stopped_runs)))
   if (!is.null(efficiency)) {
     utils::write.csv(efficiency, file.path(dir, paste0(part, "-efficiency.csv")), row.names = FALSE)
     cat("\nRecord, warnings and efficiency (means over completed runs; stopped_attempts and runs_restarted",
@@ -1087,6 +1122,43 @@ selftest <- function() {
           !any(grepl("missing from a completed run", x$output)),
         "an unvisited indicator level: frequency zero, the model stays complete")
 
+  # a stored NA level, or an indicator a run lacks altogether, stays missing
+  for (case in list(list(label = "stored_na_level", keep = NULL),
+                    list(label = "absent_indicator", keep = "a"))) {
+    x <- wider_case(case$label, function(job, i) {
+      run <- wider_run(job, c("a", "bias_indicator==1", "bias_indicator==2"))
+      if (job$arm == "default" && i == 4L) {
+        if (is.null(case$keep)) run$means["bias_indicator==2"] <- NA else run$means <- run$means[case$keep]
+      }
+      run
+    })
+    check(x$decisions$decision == "incomplete" && is.na(x$table$t[x$table$quantity == "bias_indicator==2"]) &&
+            any(grepl("bias_indicator==2 +default +2004", x$output)),
+          paste0(case$label, ": no statistic, incomplete, listed"))
+  }
+
+  # a requested rerun quantity that the reruns lack: no statistic, incomplete, listed
+  dir <- file.path(root, "rerun_absent")
+  x <- wider_case("rerun_absent", function(job, i) {
+    wider_run(job, c("a", "b", "c"), shift = if (job$arm == "coarse") c(1, 1, 0) else 0)
+  }, dir = dir)
+  check(x$decisions$decision == "fail" && setequal(x$table$quantity[abs(x$table$t) > 2], c("a", "b")),
+        "stage one fails on 'a' and 'b'")
+  x <- wider_case("rerun_absent", function(job, i) wider_run(job, "a"), part = "rerun", dir = dir)
+  check(x$decisions$decision == "incomplete" && setequal(x$table$quantity, c("a", "b")) &&
+          is.na(x$table$t[x$table$quantity == "b"]) && sum(grepl("m +b +(coarse|default) +[56]0", x$output)) == 20L,
+        "a rerun quantity absent from the reruns: incomplete, listed once per run")
+
+  # a rerun after a first stage that passed: nothing to rerun, empty tables
+  dir <- file.path(root, "rerun_none")
+  x <- wider_case("rerun_none", function(job, i) wider_run(job, c("a", "b")), dir = dir)
+  output <- utils::capture.output(wider_driver("rerun", "m", 10L, 1L, list(m = list()), dir = dir,
+                                               execute = no_fits))
+  check(x$decisions$decision == "pass" && any(grepl("Nothing to rerun", output)) &&
+          nrow(utils::read.csv(file.path(dir, "rerun.csv"))) == 0L &&
+          nrow(utils::read.csv(file.path(dir, "rerun-decisions.csv"))) == 0L,
+        "a rerun after an all-pass first stage: nothing to rerun, empty tables")
+
   x <- wider_case("one_failed", function(job, i) {
     if (job$arm == "default" && i == 10L) failed_run(job) else wider_run(job, c("a", "b"))
   })
@@ -1112,7 +1184,9 @@ selftest <- function() {
           x$efficiency$stopped_runs[x$efficiency$arm == "default"] == 1 &&
           x$efficiency$stopped_runs[x$efficiency$arm == "coarse"] == 0 &&
           abs(x$efficiency$wall_hours[x$efficiency$arm == "default"] - 11 / 3600) < 1e-12 &&
-          identical(x$runs$stopped_attempts[x$runs$seed == 2011L], 0L),
+          identical(x$runs$stopped_attempts[x$runs$seed == 2011L], 0L) &&
+          identical(x$runs$replaced_by[x$runs$arm == "default" & x$runs$seed == 2009L], 2011L) &&
+          all(is.na(x$runs$replaced_by[x$runs$seed != 2009L])),
         "a run stopped by the normalizer diagnostic: replaced by seed 2011, listed, complete; counted in the totals")
 
   # at most three replacements per model and arm; the fourth stopped run stays
@@ -1123,6 +1197,21 @@ selftest <- function() {
           identical(x$replaced$replacement_seed, 2011:2013) &&
           counts_are(x$decisions, c(10, 10, 0, 0), c(10, 6, 4, 0)),
         "replacements capped at three per arm: the stopped runs remain, incomplete")
+
+  # an arm whose runs and replacements all stopped keeps its efficiency row;
+  # the replaced seeds stay in the run listing
+  x <- wider_case("arm_stopped", function(job, i) {
+    if (job$arm == "default") stopped_run(job) else wider_run(job, c("a", "b"))
+  }, execute = write_jobs(stopped_run))
+  default <- x$efficiency[x$efficiency$arm == "default", ]
+  coarse  <- x$efficiency[x$efficiency$arm == "coarse", ]
+  check(x$decisions$decision == "incomplete" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 0, 10, 0)) &&
+          nrow(default) == 1L && is.na(default$jags_seconds) && default$stopped_runs == 13 &&
+          abs(default$wall_hours - 13 / 3600) < 1e-12 && is.finite(coarse$wall_ratio) &&
+          abs(coarse$wall_ratio - 10 / 13) < 1e-12 &&
+          identical(x$runs$replaced_by[x$runs$arm == "default" & x$runs$seed == 2001L], 2011L) &&
+          sum(x$runs$arm == "default") == 13L,
+        "an arm without completed runs: its row with wall hours, a finite wall ratio, replaced seeds listed")
 
   x <- wider_case("one_missing", function(job, i) {
     if (job$arm == "default" && i == 10L) NULL else wider_run(job, c("a", "b"))
