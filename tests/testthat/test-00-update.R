@@ -53,7 +53,7 @@ test_that("update.brma extends one sample chunk and recomputes stored caches", {
   calls <- list()
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       calls[["extend"]]          <<- extend
       calls[["sample_extend"]]   <<- object[["autofit_control"]][["sample_extend"]]
@@ -126,7 +126,7 @@ test_that("update.brma can drop stored caches after extension", {
   object[["marglik"]] <- "old-marglik"
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       object[["fit"]][["mock"]] <- "extended"
       return(object[["fit"]])
@@ -157,7 +157,7 @@ test_that("update.brma rejects adversarial extension inputs before fitting", {
   object <- mock_update_object()
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       stop(".fit should not be called", call. = FALSE)
     },
@@ -189,7 +189,7 @@ test_that("update.brma preserves extension fitting errors", {
   summary_called <- FALSE
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       return(list(
         errors        = "Original extension fitting diagnostic.",
@@ -220,7 +220,7 @@ test_that("update.brma recomputes all named cached units", {
   calls <- list()
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       return(object[["fit"]])
     },
@@ -267,7 +267,7 @@ test_that("update.brma rejects malformed multi-unit cache names", {
   object[["loo"]] <- list("old-loo-1", "old-loo-2")
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       return(object[["fit"]])
     },
@@ -295,7 +295,7 @@ test_that("update.brma does not recompute marginal likelihood for RoBMA objects"
   object[["marglik"]] <- "stale-marglik"
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, adapt = NULL) {
 
       return(object[["fit"]])
     },
@@ -318,4 +318,174 @@ test_that("update.brma does not recompute marginal likelihood for RoBMA objects"
 
   expect_null(updated[["marglik"]])
   expect_s3_class(updated, "RoBMA")
+})
+
+test_that("update.brma applies an 'adapt' override to its extension only", {
+
+  object <- mock_update_object()
+  object[["fit_control"]][["adapt"]] <- 5000
+  forwarded <- list()
+
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, adapt = NULL) {
+
+      forwarded[[length(forwarded) + 1L]] <<- adapt
+      return(object[["fit"]])
+    },
+    .object_summary = function(object) data.frame(Mean = 2, row.names = "mu"),
+    .object_coefficients = function(object) c(mu = 2),
+    .package = "RoBMA"
+  )
+
+  omitted  <- update(object, sample_extend = 10)
+  explicit <- update(object, sample_extend = 10, adapt = 5000)
+  override <- update(object, sample_extend = 10, adapt = 20000)
+  after    <- update(override, sample_extend = 10)
+
+  # an omitted value is the initial setting; an override is passed for its
+  # extension and leaves the stored initial setting unchanged
+  expect_identical(forwarded, list(5000, 5000, 20000, 5000))
+  expect_identical(omitted, explicit)
+  for (updated in list(omitted, override, after)) {
+    expect_identical(updated[["fit_control"]], object[["fit_control"]])
+  }
+})
+
+test_that("update.brma validates 'adapt' as the fitting functions do", {
+
+  object <- mock_update_object()
+
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, adapt = NULL) {
+
+      stop(".fit should not be called", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+
+  for (adapt in list(49, 0, 50.5, NA, Inf, "100", c(100, 200), numeric(0), .Machine$integer.max + 1)) {
+    fitting_error <- tryCatch(
+      brma.norm(yi = c(0.1, 0.2), sei = c(0.05, 0.06), measure = "GEN", adapt = adapt, only_data = TRUE),
+      error = conditionMessage
+    )
+    expect_true(is.character(fitting_error), info = deparse(adapt))
+    expect_identical(
+      tryCatch(update(object, sample_extend = 1, adapt = adapt), error = conditionMessage),
+      fitting_error,
+      info = deparse(adapt)
+    )
+  }
+  expect_error(
+    update(object, adapt = 1000),
+    "The 'adapt' argument applies only to an extension; supply 'sample_extend'.",
+    fixed = TRUE
+  )
+})
+
+# A tiny ordinary model fitted with a non-default adaptation, and the
+# arguments that reach runjags::extend.jags() while extending it.
+.adaptation_fit <- function(...) {
+
+  suppressWarnings(brma.norm(
+    yi = c(0.10, 0.25, 0.05, 0.32, 0.18), sei = c(0.08, 0.10, 0.07, 0.12, 0.09),
+    measure = "GEN", prior_unit_information_sd = 1, chains = 2, adapt = 300, burnin = 100, sample = 100,
+    seed = 11, silent = TRUE, ...
+  ))
+}
+
+.record_extend_jags <- function(env = parent.frame()) {
+
+  calls <- list()
+  original <- runjags::extend.jags
+  testthat::local_mocked_bindings(
+    extend.jags = function(runjags.object, ...) {
+      arguments <- list(...)
+      calls[[length(calls) + 1L]] <<- arguments[c("adapt", "burnin", "sample", "method")]
+      original(runjags.object, ...)
+    },
+    .package = "runjags",
+    .env = env
+  )
+  function() calls
+}
+
+.draws_by_chain <- function(object) {
+
+  lapply(coda::as.mcmc.list(object[["fit"]]), function(chain) {
+    matrix(as.numeric(chain), nrow = nrow(chain), dimnames = list(NULL, colnames(chain)))
+  })
+}
+
+test_that("extensions inherit the initial adaptation, preserve the draws, and add no burn-in", {
+
+  skip_if_not_installed("runjags")
+  fit   <- .adaptation_fit()
+  calls <- .record_extend_jags()
+
+  omitted  <- update(fit, sample_extend = 20)
+  explicit <- update(fit, sample_extend = 20, adapt = 300)
+  override <- update(fit, sample_extend = 20, adapt = 1000)
+  after    <- update(override, sample_extend = 20)
+
+  # the arguments that reached runjags
+  expect_identical(
+    lapply(calls(), `[[`, "adapt"),
+    list(300L, 300L, 1000L, 300L)
+  )
+  expect_identical(lapply(calls(), `[[`, "burnin"), rep(list(0), 4))
+  expect_identical(lapply(calls(), `[[`, "method"), rep(list("rjags"), 4))
+
+  # an explicit value equal to the initial one gives identical draws, an
+  # override other draws; no extension changes the stored setting
+  expect_identical(.draws_by_chain(omitted), .draws_by_chain(explicit))
+  expect_false(identical(.draws_by_chain(omitted), .draws_by_chain(override)))
+  expect_identical(fit[["fit_control"]][["adapt"]], 300)
+  for (updated in list(omitted, override, after)) {
+    expect_identical(updated[["fit_control"]], fit[["fit_control"]])
+  }
+  expect_identical(
+    attr(after[["fit"]], "adaptation"),
+    list(initial = 300L, extensions = data.frame(adapt = c(1000L, 300L), rebuilt = c(TRUE, TRUE)))
+  )
+
+  # every chain keeps its draws and gains sample_extend new ones
+  old_draws <- .draws_by_chain(fit)
+  for (updated in list(omitted, override)) {
+    new_draws <- .draws_by_chain(updated)
+    expect_identical(vapply(new_draws, nrow, integer(1)), vapply(old_draws, nrow, integer(1)) + 20L)
+    expect_identical(lapply(new_draws, function(draws) draws[seq_len(100), , drop = FALSE]), old_draws)
+  }
+  expect_identical(
+    lapply(.draws_by_chain(after), function(draws) draws[seq_len(120), , drop = FALSE]),
+    .draws_by_chain(override)
+  )
+
+  # a saved and reloaded fit extends as the original
+  saved <- tempfile(fileext = ".rds")
+  on.exit(unlink(saved), add = TRUE)
+  saveRDS(fit, saved)
+  expect_identical(.draws_by_chain(update(readRDS(saved), sample_extend = 20)), .draws_by_chain(omitted))
+  expect_identical(calls()[[5L]][["adapt"]], 300L)
+})
+
+test_that("automatic extensions of a fit use its adaptation", {
+
+  skip_if_not_installed("runjags")
+  calls <- .record_extend_jags()
+  fit <- .adaptation_fit(
+    autofit = TRUE,
+    autofit_control = set_autofit_control(min_ESS = 1e6, sample_extend = 10, max_extend = 2)
+  )
+
+  # runjags::run.jags() runs the initial fit through extend.jags() too
+  backend <- calls()
+  expect_equal(backend[[1L]][c("adapt", "burnin")], list(adapt = 300, burnin = 100))
+  expect_identical(lapply(backend[-1L], `[[`, "adapt"), list(300L, 300L))
+  expect_identical(lapply(backend[-1L], `[[`, "burnin"), list(0, 0))
+  # serial automatic extensions continue the sampler adapted by the initial run
+  expect_identical(
+    attr(fit[["fit"]], "adaptation"),
+    list(initial = 300L, extensions = data.frame(adapt = c(300L, 300L), rebuilt = c(FALSE, FALSE)))
+  )
+  expect_identical(vapply(.draws_by_chain(fit), nrow, integer(1)), c(120L, 120L))
 })

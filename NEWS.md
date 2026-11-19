@@ -1,4 +1,7 @@
 ## development version
+### Features
+- `update()` gains `adapt` to set the adaptation of one extension
+
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
@@ -7,6 +10,7 @@
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns, and so does a model-averaged fit without its allocation block whose corrected samplers fell back; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
+- extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
 - selection models with many estimates on one random effect are no longer refused or slow on Apple silicon
 
