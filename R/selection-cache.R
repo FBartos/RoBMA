@@ -241,7 +241,12 @@ remove_selection_cache <- function(object) {
 #' the settings the model was fitted with (\code{sampler} shows the value the
 #' fit was made with, so fits of earlier versions show \code{"coarse_corrected"}
 #' or \code{"default"}; \code{min_acceptance} is \code{0} for fits made before
-#' the threshold existed); \code{samplers}, the corrected sampler objects
+#' the threshold existed); \code{allocation_block_withheld}, \code{TRUE} when
+#' the model was built as a model-averaged fit that leaves the joint block of
+#' its heterogeneity allocation to the corrected sampler, a block it would
+#' declare under \code{"slice"} (see \code{sampler.blocks} in
+#' \code{\link{RoBMA.options}}; \code{FALSE} for fits made before this element
+#' existed); \code{samplers}, the corrected sampler objects
 #' constructed, one per parameter and chain and counted again for every model
 #' build; \code{fallback_samplers}, those that switched to the exact slice
 #' sampler, split by reason into \code{fallback_few_proposals},
@@ -271,7 +276,13 @@ remove_selection_cache <- function(object) {
 #' \code{min_acceptance} warns with the condition classes
 #' \code{RoBMA_selection_sampler_low_acceptance} and
 #' \code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.
-#' The message is kept with the fit's warnings, replaced at every extension.
+#' A fit or an extension whose record has \code{allocation_block_withheld} and
+#' at least one sampler that switched to the exact slice sampler warns with the
+#' condition classes \code{RoBMA_selection_sampler_fallback} and
+#' \code{RoBMA_selection_sampler_warning}: the allocation SD and weights may then
+#' be updated one at a time and mix more slowly, while sampling stays exact.
+#' Both warnings can occur for one fit. Each message is kept with the fit's
+#' warnings, replaced at every extension.
 #'
 #' Process counters. Without \code{fit}, the function reports the counters of
 #' all corrected samplers in this process, including adaptation; clear them
@@ -318,9 +329,11 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
 # (a list of retained runs, each a list with one element per process) and,
 # for an extension, the record of the input fit. 'new_draws' says whether this
 # call added draws to the fit (a fresh fit always does; a failed extension
-# returns its input and adds none).
+# returns its input and adds none). 'allocation_block_withheld' is decided by
+# the declarations of a fresh fit; an extension carries the input record's
+# value (FALSE for records made before it existed).
 .selection_sampler_record <- function(values, settings, previous = NULL, extension = FALSE,
-                                      new_draws = TRUE) {
+                                      new_draws = TRUE, allocation_block_withheld = FALSE) {
 
   reasons <- c("fallback_few_proposals", "fallback_surrogate_exact", "fallback_low_acceptance")
   counts  <- stats::setNames(numeric(length(.selection_sampler_count_names)),
@@ -344,6 +357,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
     }
   }
   if (extension) {
+    allocation_block_withheld <- isTRUE(previous[["allocation_block_withheld"]])
     if (is.null(previous)) {
       complete <- FALSE
     } else {
@@ -356,7 +370,8 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
 
   return(c(
     list(sampler = settings[["sampler"]],
-         min_acceptance = .selection_runtime_min_acceptance(settings)),
+         min_acceptance = .selection_runtime_min_acceptance(settings),
+         allocation_block_withheld = isTRUE(allocation_block_withheld)),
     as.list(counts),
     list(acceptance_rate  = if (counts[["sampling_proposed"]] > 0)
            counts[["sampling_accepted"]] / counts[["sampling_proposed"]] else NA_real_,
@@ -378,6 +393,11 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
       list(acceptance_rate = NA_real_, min_sampler_rate = NA_real_, complete = FALSE)
     )
   }
+  if (is.null(record[["allocation_block_withheld"]])) {
+    # records made before the flag existed: not withheld
+    record <- c(record[c("sampler", "min_acceptance")], list(allocation_block_withheld = FALSE),
+                record[setdiff(names(record), c("sampler", "min_acceptance"))])
+  }
   return(as.data.frame(record, stringsAsFactors = FALSE))
 }
 
@@ -385,15 +405,45 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
 # fit's stored warnings.
 .selection_sampler_warning_prefix <- "The corrected selection sampler accepted "
 
+# The beginning of the fallback message of a model-averaged fit that withheld
+# its allocation block, which identifies it among the fit's stored warnings.
+.selection_sampler_fallback_pattern <- paste0(
+  "^[0-9]+ of [0-9]+ corrected selection samplers switched to the exact slice sampler ",
+  "at the end of adaptation \\(")
+
+# The fallback message: the counts, with only the reasons that occurred.
+.selection_sampler_fallback_message <- function(record) {
+
+  count   <- function(x) format(x, scientific = FALSE, trim = TRUE)
+  reasons <- c(fallback_low_acceptance  = "for low acceptance",
+               fallback_few_proposals   = "for too few adaptive proposals",
+               fallback_surrogate_exact = "whose surrogate was exact")
+  reasons <- reasons[vapply(names(reasons), function(name) isTRUE(record[[name]] > 0), logical(1L))]
+
+  return(paste0(
+    count(record[["fallback_samplers"]]), " of ", count(record[["samplers"]]),
+    " corrected selection samplers switched to the exact slice sampler at the end of adaptation (",
+    paste(vapply(names(reasons), function(name) paste(count(record[[name]]), reasons[[name]]), character(1L)),
+          collapse = ", "),
+    "). This model-averaged fit does not declare the joint block of its heterogeneity allocation under ",
+    "'selection.sampler = \"slice.coarse\"', so the allocation SD and weights may now be updated one at a time ",
+    "and mix more slowly. Sampling is exact. Set 'RoBMA.options(selection.sampler = \"slice\")' before fitting ",
+    "to keep the block; an existing fit keeps the settings it was fitted with."
+  ))
+}
+
 # Judge a fit's cumulative record: with at least 1,000 counted proposals, a
-# pooled or worst-sampler acceptance rate below the threshold warns once and
-# replaces an earlier message of this warning among the fit's warnings, which
-# extensions carry forward. Returns the fit's warnings.
+# pooled or worst-sampler acceptance rate below the threshold warns once; a
+# model-averaged fit that withheld its allocation block and whose corrected
+# samplers fell back warns once as well. Each message replaces an earlier one
+# of its warning among the fit's warnings, which extensions carry forward.
+# Returns the fit's warnings.
 .selection_sampler_warn <- function(fit) {
 
   record   <- attr(fit, "selection_sampler", exact = TRUE)
   warnings <- as.character(attr(fit, "warnings", exact = TRUE))
-  warnings <- warnings[!startsWith(warnings, .selection_sampler_warning_prefix)]
+  warnings <- warnings[!startsWith(warnings, .selection_sampler_warning_prefix) &
+                         !grepl(.selection_sampler_fallback_pattern, warnings)]
   threshold <- record[["min_acceptance"]]
   low <- threshold > 0 && record[["sampling_proposed"]] >= 1000 && (
     record[["acceptance_rate"]] < threshold ||
@@ -416,6 +466,16 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
            min_sampler_rate = record[["min_sampler_rate"]],
            threshold = threshold),
       class = c("RoBMA_selection_sampler_low_acceptance", "RoBMA_selection_sampler_warning",
+                "simpleWarning", "warning", "condition")
+    ))
+    warnings <- c(warnings, message)
+  }
+  if (isTRUE(record[["allocation_block_withheld"]]) && isTRUE(record[["fallback_samplers"]] > 0)) {
+    message <- .selection_sampler_fallback_message(record)
+    warning(structure(
+      list(message = message, call = NULL,
+           fallback_samplers = record[["fallback_samplers"]], samplers = record[["samplers"]]),
+      class = c("RoBMA_selection_sampler_fallback", "RoBMA_selection_sampler_warning",
                 "simpleWarning", "warning", "condition")
     ))
     warnings <- c(warnings, message)

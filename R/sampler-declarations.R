@@ -134,12 +134,33 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 
 
 # A closure over the names of the scale formulas and the ensemble switch only
-# (it keeps no data).
+# (it keeps no data). When BayesTools::JAGS_fit() calls it, it also records
+# whether a model-averaged fit withholds the allocation block it would declare
+# with the switch on (read by .sampler_allocation_block_withheld()).
 .sampler_block_function <- function(scale_parameters, ensemble_block) {
 
   force(scale_parameters)
   force(ensemble_block)
-  return(function(prior_list) .sampler_block_members(prior_list, scale_parameters, ensemble_block))
+  allocation_block_withheld <- FALSE
+  return(function(prior_list) {
+    allocation_block_withheld <<- !ensemble_block && .sampler_is_ensemble(prior_list) &&
+      !is.null(.sampler_block_members(prior_list, scale_parameters, ensemble_block = TRUE))
+    .sampler_block_members(prior_list, scale_parameters, ensemble_block)
+  })
+}
+
+
+# Whether the declarations of a fresh fit withheld the allocation block of a
+# model-averaged fit for the corrected selection sampler: the block that
+# 'selection.sampler = "slice"' would declare. Known once JAGS_fit() has
+# called the block function; FALSE without one.
+.sampler_allocation_block_withheld <- function(declarations) {
+
+  blocks <- declarations[["sampler_blocks"]]
+  if (!is.function(blocks)) {
+    return(FALSE)
+  }
+  return(isTRUE(environment(blocks)[["allocation_block_withheld"]]))
 }
 
 

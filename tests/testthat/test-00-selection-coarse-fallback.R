@@ -15,7 +15,7 @@ source(testthat::test_path("common-functions.R"))
 .fallback_report_names <- c("samplers", "fallback_few_proposals", "fallback_surrogate_exact",
   "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "min_sampler_rate")
 
-.fallback_record_names <- c("sampler", "min_acceptance", "samplers", "fallback_samplers",
+.fallback_record_names <- c("sampler", "min_acceptance", "allocation_block_withheld", "samplers", "fallback_samplers",
   "fallback_few_proposals", "fallback_surrogate_exact", "fallback_low_acceptance",
   "sampling_proposed", "sampling_accepted", "acceptance_rate", "min_sampler_rate", "complete")
 
@@ -136,7 +136,8 @@ test_that("the record sums the runs of every process and adds the input record o
   )
   record <- .selection_sampler_record(values, .fallback_settings)
   expect_identical(record, list(
-    sampler = "slice.coarse", min_acceptance = .9, samplers = 6, fallback_samplers = 3,
+    sampler = "slice.coarse", min_acceptance = .9, allocation_block_withheld = FALSE, samplers = 6,
+    fallback_samplers = 3,
     fallback_few_proposals = 1, fallback_surrogate_exact = 1, fallback_low_acceptance = 1,
     sampling_proposed = 500, sampling_accepted = 479, acceptance_rate = 479 / 500,
     min_sampler_rate = .8, complete = TRUE
@@ -263,6 +264,83 @@ test_that("a low acceptance warns once with its classes and keeps one message wi
 })
 
 
+test_that("a model-averaged fit that withheld its allocation block warns when its samplers fell back", {
+
+  # the record keeps the flag of the fresh fit and extensions carry the input's
+  # value (FALSE for an input without the element or without a record)
+  values   <- list(list(.fallback_report_value(10, 1, 2, 3, 900, 890, .95)))
+  withheld <- .selection_sampler_record(values, .fallback_settings, allocation_block_withheld = TRUE)
+  expect_true(withheld[["allocation_block_withheld"]])
+  expect_false(.selection_sampler_record(values, .fallback_settings)[["allocation_block_withheld"]])
+  extended <- .selection_sampler_record(values, .fallback_settings, previous = withheld, extension = TRUE)
+  expect_true(extended[["allocation_block_withheld"]])
+  old_record <- withheld[setdiff(names(withheld), "allocation_block_withheld")]
+  expect_false(.selection_sampler_record(values, .fallback_settings, previous = old_record, extension = TRUE,
+                                         allocation_block_withheld = TRUE)[["allocation_block_withheld"]])
+  expect_false(.selection_sampler_record(values, .fallback_settings, previous = NULL, extension = TRUE,
+                                         allocation_block_withheld = TRUE)[["allocation_block_withheld"]])
+
+  # flag and fallbacks: one warning with the counts of every reason
+  message <- paste0(
+    "6 of 10 corrected selection samplers switched to the exact slice sampler at the end of adaptation ",
+    "(3 for low acceptance, 1 for too few adaptive proposals, 2 whose surrogate was exact). This ",
+    "model-averaged fit does not declare the joint block of its heterogeneity allocation under ",
+    "'selection.sampler = \"slice.coarse\"', so the allocation SD and weights may now be updated one at a ",
+    "time and mix more slowly. Sampling is exact. Set 'RoBMA.options(selection.sampler = \"slice\")' before ",
+    "fitting to keep the block; an existing fit keeps the settings it was fitted with."
+  )
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(withheld, "an earlier warning")))
+  expect_length(result$warnings, 1L)
+  condition <- result$warnings[[1L]]
+  expect_identical(class(condition), c("RoBMA_selection_sampler_fallback", "RoBMA_selection_sampler_warning",
+                                       "simpleWarning", "warning", "condition"))
+  expect_null(conditionCall(condition))
+  expect_identical(conditionMessage(condition), message)
+  expect_identical(result$value, c("an earlier warning", message))
+
+  # only the reasons that occurred are named
+  single <- .selection_sampler_record(list(list(.fallback_report_value(4, 0, 0, 1, 500, 500))),
+                                      .fallback_settings, allocation_block_withheld = TRUE)
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(single)))
+  expect_length(result$warnings, 1L)
+  expect_match(conditionMessage(result$warnings[[1L]]),
+               "^1 of 4 corrected selection samplers switched to the exact slice sampler at the end of adaptation \\(1 for low acceptance\\)\\. ")
+
+  # an extension replaces the stored message by the one of its cumulative record
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(extended,
+                                                                                    c("an earlier warning", message))))
+  expect_length(result$warnings, 1L)
+  expect_identical(result$value[1L], "an earlier warning")
+  expect_length(result$value, 2L)
+  expect_match(result$value[2L], paste0("12 of 20 corrected selection samplers switched to the exact slice sampler ",
+                                        "at the end of adaptation (6 for low acceptance, 2 for too few adaptive ",
+                                        "proposals, 4 whose surrogate was exact)."), fixed = TRUE)
+
+  # no warning, and no message kept: the flag without fallbacks, fallbacks
+  # without the flag, and a record without the element
+  quiet <- list(
+    .selection_sampler_record(list(list(.fallback_report_value(4, 0, 0, 0, 500, 500))), .fallback_settings,
+                              allocation_block_withheld = TRUE),
+    .selection_sampler_record(values, .fallback_settings),
+    old_record
+  )
+  for (record in quiet) {
+    result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(record, c("other", message))))
+    expect_length(result$warnings, 0L)
+    expect_identical(result$value, "other")
+  }
+
+  # both warnings for one fit: low acceptance first
+  both <- .selection_sampler_record(list(list(.fallback_report_value(4, 0, 0, 1, 1000, 850, .7))),
+                                    .fallback_settings, allocation_block_withheld = TRUE)
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(both)))
+  expect_length(result$warnings, 2L)
+  expect_s3_class(result$warnings[[1L]], "RoBMA_selection_sampler_low_acceptance")
+  expect_s3_class(result$warnings[[2L]], "RoBMA_selection_sampler_fallback")
+  expect_identical(result$value, vapply(result$warnings, conditionMessage, character(1L)))
+})
+
+
 test_that("selection_sampler_info() reports a fit's record, or the process counters without one", {
 
   record <- .selection_sampler_record(list(list(.fallback_report_value(2, 0, 0, 1, 1200, 1100, .9))),
@@ -279,8 +357,18 @@ test_that("selection_sampler_info() reports a fit's record, or the process count
   expect_identical(names(info), .fallback_record_names)
   expect_identical(info[["sampler"]], "default")
   expect_identical(info[["min_acceptance"]], 0)
-  expect_true(all(is.na(info[setdiff(.fallback_record_names, c("sampler", "min_acceptance", "complete"))])))
+  expect_true(all(is.na(info[setdiff(.fallback_record_names,
+                                     c("sampler", "min_acceptance", "allocation_block_withheld", "complete"))])))
+  expect_false(info[["allocation_block_withheld"]])
   expect_false(info[["complete"]])
+
+  # a record made before the flag existed shows it as FALSE, in its place
+  old_record <- record[setdiff(names(record), "allocation_block_withheld")]
+  old_fit    <- structure(list(fit = structure(list(), selection_sampler = old_record)), class = "brma")
+  info <- selection_sampler_info(fit = old_fit)
+  expect_identical(names(info), .fallback_record_names)
+  expect_false(info[["allocation_block_withheld"]])
+  expect_identical(info[names(old_record)], as.data.frame(old_record, stringsAsFactors = FALSE))
 
   expect_error(selection_sampler_info(clear = TRUE, fit = fitted),
                "'clear' cannot be used with 'fit': a fit's record is not cleared.", fixed = TRUE)

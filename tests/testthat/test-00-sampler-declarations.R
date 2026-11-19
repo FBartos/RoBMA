@@ -283,6 +283,73 @@ test_that("model-averaged fits gate their bias branches and block only allocatio
 })
 
 
+# The flag of the record, as .fit() reads it once JAGS_fit() has called the
+# block function on the combined prior list
+.withheld_of <- function(object) {
+
+  fit_priors   <- .create_fit_priors(data = object[["data"]], priors = object[["priors"]])
+  declarations <- .fit_sampler_declarations(
+    data = object[["data"]], priors = object[["priors"]], fit_priors = fit_priors
+  )
+  if (is.function(declarations[["sampler_blocks"]])) {
+    expect_false(.sampler_allocation_block_withheld(declarations))
+    declarations[["sampler_blocks"]](.declaration_prior_list(object))
+  }
+
+  return(.sampler_allocation_block_withheld(declarations))
+}
+
+
+test_that("the record flags model-averaged fits whose allocation block is withheld", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  setup <- .declaration_data()
+  dat   <- setup[["data"]]
+  V     <- setup[["V"]]
+  best  <- selection_model(weight_rule = "best", group = "study")
+  V_rank_one <- metafor::vcalc(vi, cluster = study, obs = esid, rho = .6, data = dat)
+  ensemble <- RoBMA.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                       only_priors = TRUE)
+  ensemble_vi <- RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                          only_priors = TRUE)
+  ensemble_best <- RoBMA.mv(yi = yi, V = V_rank_one, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                            prior_bias = list(
+                              BayesTools::prior_weightfunction("one-sided", steps = .025, model = best),
+                              BayesTools::prior_weightfunction("one-sided", steps = c(.025, .05), model = best)),
+                            only_priors = TRUE)
+  selection <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                            only_priors = TRUE)
+
+  RoBMA.options(selection.sampler = "slice.coarse", sampler.blocks = TRUE, sampler.gates = TRUE)
+  expect_true(.withheld_of(ensemble))
+  # blocks that keep their declaration: single estimates only, best-weight
+  # branches on rank-one blocks, and a single model (which never withholds)
+  expect_false(.withheld_of(ensemble_vi))
+  expect_false(.withheld_of(ensemble_best))
+  expect_false(.sampler_ensemble_block(selection[["data"]]))
+  expect_false(.withheld_of(selection))
+  # an affordable factor rule withholds the block, an unaffordable one keeps it
+  for (case in list(list(max_rules = 3L, withheld = TRUE), list(max_rules = 4L, withheld = FALSE))) {
+    RoBMA.options(selection.coarse_max_rules = case$max_rules)
+    factor <- do.call(RoBMA.mv, c(.coarse_factor_ensemble_args(6L), list(only_priors = TRUE)))
+    expect_identical(.withheld_of(factor), case$withheld, info = case$max_rules)
+  }
+  RoBMA.options(selection.coarse_max_rules = 3L)
+
+  # the other tiers and sampler.blocks = FALSE declare the block or none at all
+  for (sampler in c("slice", "jags.default")) {
+    RoBMA.options(selection.sampler = sampler)
+    expect_false(.withheld_of(ensemble), info = sampler)
+  }
+  RoBMA.options(selection.sampler = "slice.coarse", sampler.blocks = FALSE)
+  expect_false(.withheld_of(ensemble))
+
+  # a declaration list without a block function
+  expect_false(.sampler_allocation_block_withheld(list(sampler_gates = TRUE, sampler_blocks = NULL)))
+})
+
+
 test_that("guarded priors are never declared and inapplicable models declare no block", {
 
   setup <- .declaration_data()
@@ -511,6 +578,50 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   .fit(ordinary)
   expect_true("runtime_report" %in% names(forwarded))
   expect_null(forwarded[["runtime_report"]])
+})
+
+
+test_that(".fit() records the withheld allocation block and warns when a corrected sampler fell back", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  RoBMA.options(selection.sampler = "slice.coarse", sampler.blocks = TRUE)
+  setup  <- .declaration_data()
+  object <- RoBMA.mv(yi = yi, V = setup[["V"]], random = ~ 1 | study / esid, data = setup[["data"]],
+                     measure = "SMD", only_priors = TRUE)
+  prior_list <- .declaration_prior_list(object)
+  # one process's report: one of four corrected samplers fell back
+  report <- list(samplers = 4, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
+                 fallback_low_acceptance = 1, sampling_proposed = 500, sampling_accepted = 500,
+                 min_sampler_rate = NA_real_)
+  fake_fit <- function() structure(list(), runtime_report_values = list(list(report)))
+  testthat::local_mocked_bindings(
+    JAGS_fit = function(...) {
+      # JAGS_fit() calls the block function once on the combined prior list
+      list(...)[["sampler_blocks"]](prior_list)
+      fake_fit()
+    },
+    JAGS_extend = function(...) fake_fit(),
+    JAGS_check_convergence = function(...) TRUE,
+    .package = "BayesTools")
+
+  fitted <- NULL
+  expect_warning(fitted <- .fit(object), class = "RoBMA_selection_sampler_fallback")
+  expect_true(attr(fitted, "selection_sampler")[["allocation_block_withheld"]])
+  expect_match(fitted[["warnings"]], "^1 of 4 corrected selection samplers switched", all = FALSE)
+
+  # an extension carries the flag of the fit and replaces the stored message
+  object[["fit"]] <- fitted
+  extended <- NULL
+  expect_warning(extended <- .fit(object, extend = TRUE), class = "RoBMA_selection_sampler_fallback")
+  expect_true(attr(extended, "selection_sampler")[["allocation_block_withheld"]])
+  expect_identical(sum(grepl(.selection_sampler_fallback_pattern, extended[["warnings"]])), 1L)
+
+  # under "slice" the block is declared: no flag and no warning
+  RoBMA.options(selection.sampler = "slice")
+  object[["fit"]] <- NULL
+  expect_no_warning(fitted <- .fit(object))
+  expect_false(attr(fitted, "selection_sampler")[["allocation_block_withheld"]])
 })
 
 

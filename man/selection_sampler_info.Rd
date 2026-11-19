@@ -110,7 +110,12 @@ its extensions (\code{update()}): \code{sampler} and \code{min_acceptance},
 the settings the model was fitted with (\code{sampler} shows the value the
 fit was made with, so fits of earlier versions show \code{"coarse_corrected"}
 or \code{"default"}; \code{min_acceptance} is \code{0} for fits made before
-the threshold existed); \code{samplers}, the corrected sampler objects
+the threshold existed); \code{allocation_block_withheld}, \code{TRUE} when
+the model was built as a model-averaged fit that leaves the joint block of
+its heterogeneity allocation to the corrected sampler, a block it would
+declare under \code{"slice"} (see \code{sampler.blocks} in
+\code{\link{RoBMA.options}}; \code{FALSE} for fits made before this element
+existed); \code{samplers}, the corrected sampler objects
 constructed, one per parameter and chain and counted again for every model
 build; \code{fallback_samplers}, those that switched to the exact slice
 sampler, split by reason into \code{fallback_few_proposals},
@@ -140,7 +145,13 @@ proposals and whose acceptance rate, or \code{min_sampler_rate}, is below
 \code{min_acceptance} warns with the condition classes
 \code{RoBMA_selection_sampler_low_acceptance} and
 \code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.
-The message is kept with the fit's warnings, replaced at every extension.
+A fit or an extension whose record has \code{allocation_block_withheld} and
+at least one sampler that switched to the exact slice sampler warns with the
+condition classes \code{RoBMA_selection_sampler_fallback} and
+\code{RoBMA_selection_sampler_warning}: the allocation SD and weights may then
+be updated one at a time and mix more slowly, while sampling stays exact.
+Both warnings can occur for one fit. Each message is kept with the fit's
+warnings, replaced at every extension.
 
 Process counters. Without \code{fit}, the function reports the counters of
 all corrected samplers in this process, including adaptation; clear them

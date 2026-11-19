@@ -4,7 +4,7 @@
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
-- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low and a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
+- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns, and so does a model-averaged fit whose corrected samplers fell back; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions

@@ -337,5 +337,11 @@ test_that("an ensemble declares its allocation block exactly when no corrected s
     expect_identical(NROW(blocks) > 0L, !case$engaged, info = label)
     expect_identical(samplers[["Sampler"]][allocation_sd],
                      if (case$engaged) "RoBMA::CoarseCorrectedSlice" else "BayesTools::FactorSlice", info = label)
+    # the record flags the withheld block, and a fallback there warns
+    record <- attr(fit[["fit"]], "selection_sampler", exact = TRUE)
+    expect_identical(record[["allocation_block_withheld"]], case$engaged, info = label)
+    fallback_warned <- any(grepl(RoBMA:::.selection_sampler_fallback_pattern,
+                                 attr(fit[["fit"]], "warnings", exact = TRUE)))
+    expect_identical(fallback_warned, case$engaged && record[["fallback_samplers"]] > 0, info = label)
   }
 })

@@ -506,7 +506,14 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   and a pooled or worst-sampler rate below the threshold warns
   (`RoBMA_selection_sampler_low_acceptance`, family
   `RoBMA_selection_sampler_warning`) and keeps one message in
-  `attr(fit, "warnings")`.
+  `attr(fit, "warnings")`. The record's `allocation_block_withheld` is set by
+  the block function when `JAGS_fit()` calls it for a fresh fit (an ensemble
+  whose allocation block `.sampler_ensemble_block()` withheld, a block it would
+  declare under `"slice"`; `.sampler_allocation_block_withheld()`), carried by
+  extensions and `FALSE` in older records; with it, any fallback warns
+  (`RoBMA_selection_sampler_fallback`, same family), replaced like the
+  low-acceptance message, since the allocation SD and weights may then have
+  neither the block nor the corrected sampler.
 - BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
   `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
   marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`
