@@ -734,6 +734,11 @@ certification_cases <- function() {
             "qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
           )
         ),
+        .required_tests(
+          "test-02-iwmde-regularized.R",
+          c("fitted standardized ridge hypotheses and prior overlay use the shared scale",
+            "fitted horseshoe point tests at zero refuse before constructing a density grid")
+        ),
         .iwmde_fast_required_tests(),
         .required_tests(
           "test-03-loo.R",
