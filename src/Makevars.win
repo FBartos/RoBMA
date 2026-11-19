@@ -108,6 +108,7 @@ OBJECTS = glmm-aghq.o \
 		  distributions/DSELNORMFACTORSTEP.o \
 		  distributions/DSELNORMSAMPLINGCONDITIONED.o \
 		  samplers/CoarseCorrectedSlice.o \
+		  samplers/CoarseCorrectedBlock.o \
 		  samplers/CorrectedSampler.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
@@ -124,8 +125,9 @@ RoBMA.o: $(DISTRIBUTION_OBJECTS:.o=.h) selnorm/selnorm-mv.h
 
 samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
 samplers/CorrectedSampler.o: samplers/CorrectedSampler.h selnorm/selnorm-mv.h
-RoBMA.o: samplers/CoarseCorrectedSlice.h
-r-selnorm.o: samplers/CorrectedSampler.h selnorm/selnorm-mv.h
+samplers/CoarseCorrectedBlock.o: samplers/CoarseCorrectedBlock.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
+RoBMA.o: samplers/CoarseCorrectedSlice.h samplers/CoarseCorrectedBlock.h
+r-selnorm.o: samplers/CorrectedSampler.h samplers/CoarseCorrectedBlock.h selnorm/selnorm-mv.h
 r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h
 
 glmm-aghq.o: glmm-binomial-loglik.h

@@ -76,6 +76,7 @@ Suggests:
     pkgload,
     processx
 LinkingTo:
+    BayesTools,
     Matrix (>= 1.6-2),
     mvtnorm
 RdMacros: Rdpack

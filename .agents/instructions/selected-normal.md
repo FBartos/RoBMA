@@ -465,9 +465,25 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`
   pins the surrogate values, fallbacks and purity, and
   `test-00-selection-coarse-exactness.R` the exactness of the corrected chains
-  against QUADPACK references. The factory skips any node with a `dbt_block` or
-  `dbt_gate` marker child, so declared nodes keep the BayesTools samplers below
-  whatever the factory order.
+  against QUADPACK references. The scalar factory skips any node with a
+  `dbt_block` or `dbt_gate` marker child, whatever the factory order.
+- Corrected block sampler (`src/samplers/CoarseCorrectedBlock.cc`,
+  `RoBMA::CoarseCorrectedBlock`): its factory groups the declared block members
+  as BayesTools' factor slice factory does (markers read the same way) and
+  claims a group of two or more when the corrected sampler is on and the
+  group's multilevel view has a coarse-capable selection child; other groups
+  go to `BayesTools::FactorSlice`. RoBMA's module loads after BayesTools', so
+  its factories are asked first. One update: both densities at block entry,
+  a fair forward/backward order draw, one slice update of the surrogate per
+  direction (BayesTools' header `factor_slice_kernel.h`, `LinkingTo`), one
+  full evaluation and the long-double correction; rejection and exceptions
+  restore the block-entry values, an exhausted interval the direction-entry
+  values. The fallback rules are the scalar sampler's, judged on
+  acceptance^(1/d), the rate exponent the report's worst rate also uses; after
+  a fallback it runs BayesTools' fixed-order sweep of the full conditional,
+  call for call. Test hook `RoBMA_corrected_block_test` (fixed-order mutant,
+  evaluation trace); exactness fixtures in
+  `test-00-selection-corrected-block-exactness.R`.
 - Fallback and record: each sampler object (node x chain, per model build)
   keeps its own adaptation flag (JAGS has no accessor), counts its adaptive
   proposals and accepted corrections, and records whether any adaptive

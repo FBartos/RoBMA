@@ -27,6 +27,7 @@
 #include "selnorm/selnorm-parallel.h"
 #include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CorrectedSampler.h"
+#include "samplers/CoarseCorrectedBlock.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/selnorm-jags-bounds.h"
@@ -623,6 +624,44 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   }
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the corrected block sampler's fixed-order
+// mutant (for block samplers built from now on) and its evaluation trace. A
+// NULL argument keeps the setting. Returns the settings, the slice intervals
+// exhausted in corrected mode and the trace records since the last call
+// (both cleared): per evaluation kind (0 surrogate, 1 full), chain, d, the d
+// member values and the log density without the Jacobian.
+extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
+{
+  ROBMA_NATIVE_BEGIN(fixed_order, trace)
+  for (SEXP flag : {fixed_order, trace}) {
+    if (flag != R_NilValue && (TYPEOF(flag) != LGLSXP || XLENGTH(flag) != 1 ||
+        LOGICAL(flag)[0] == NA_LOGICAL)) {
+      Rf_error("The block sampler test flags must be NULL or one non-missing logical value.");
+    }
+  }
+  const bool new_fixed_order = fixed_order == R_NilValue ?
+    jags::RoBMA::corrected_block_test_fixed_order() : LOGICAL(fixed_order)[0] != 0;
+  const bool new_trace = trace == R_NilValue ?
+    jags::RoBMA::corrected_block_test_trace() : LOGICAL(trace)[0] != 0;
+  jags::RoBMA::corrected_block_test_set(new_fixed_order, new_trace);
+  const double exhausted = static_cast<double>(jags::RoBMA::corrected_block_test_take_exhausted());
+  const std::vector<double> records = jags::RoBMA::corrected_block_test_take_trace();
+  const char *names[] = {"fixed_order", "trace", "exhausted", "records"};
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(new_fixed_order));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(new_trace));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal(exhausted));
+  SEXP values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
+  for (std::size_t i = 0; i < records.size(); ++i) REAL(values)[i] = records[i];
+  SET_VECTOR_ELT(out, 3, values);
+  for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(3);
   return out;
   ROBMA_NATIVE_END
 }

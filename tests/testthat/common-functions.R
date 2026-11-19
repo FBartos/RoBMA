@@ -1264,6 +1264,8 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/r-selnorm-loglik.cc.inc",
     "src/r-selnorm-mv.cc.inc",
     "src/r-selnorm-sampling-conditioned.cc.inc",
+    "src/samplers/CoarseCorrectedBlock.cc",
+    "src/samplers/CoarseCorrectedBlock.h",
     "src/samplers/CoarseCorrectedSlice.cc",
     "src/samplers/CoarseCorrectedSlice.h",
     "src/samplers/CoarseSurrogate.h",
