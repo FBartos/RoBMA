@@ -133,8 +133,12 @@ a positive prior \code{global} on the shrinkage scale across otherwise
 unassigned slopes. Use \code{terms} to select slopes or give separate groups to
 learn separate scales. Treatment and independent contrasts shrink individual
 coefficients. Mean-difference and orthonormal contrasts shrink the centered
-factor contrasts jointly. A group uses \code{set_contrast_factor_predictors}
-unless its \code{contrast} is specified. Omitting \code{prior_mods} or setting it
+factor contrasts jointly. For a factor main effect, the group uses
+\code{set_contrast_factor_predictors} unless its \code{contrast} is specified.
+Interaction terms use their factors' fitted codings. If a group supplies
+only the interaction, its explicit contrast must match each constituent
+fitted with contrasts. Omit \code{contrast} to inherit a mixed design.
+Omitting \code{prior_mods} or setting it
 to \code{NULL} uses the default priors. This argument requires \code{mods}. A formula without an intercept
 (\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
 the list is accepted only as a point prior at zero; any other \code{intercept}

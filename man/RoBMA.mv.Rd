@@ -159,9 +159,13 @@ it in one place: null-list intercepts and explicit global effect declarations
 left without a consumer are refused. Ordinary term entries replace only their
 alternative component. A named \code{\link[=prior_regularized]{prior_regularized()}} group shares its
 shrinkage scale across the selected moderator alternatives. The terms keep
-their individual null components and inclusion weights. A factor term
-has one inclusion indicator for all of its coefficients, including with
-mean-difference or orthonormal contrasts.}
+their individual null components and inclusion weights. The default
+mean-difference coding regularizes the factor's centered contrasts jointly
+and uses one inclusion indicator for the entire term. Set the group's
+\code{contrast} to choose the coding of a factor main effect. Interactions use
+their factors' fitted codings. If the group supplies only the interaction,
+an explicit contrast must match each constituent fitted with contrasts.
+Omit \code{contrast} to inherit a mixed design.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify

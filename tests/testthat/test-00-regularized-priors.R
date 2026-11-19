@@ -130,4 +130,21 @@ test_that("a pooled interaction preserves the fitted bases of its two factors", 
   expect_equal(alternative$regularization$unit_index, c(1, 1, 2, 2))
   expect_equal(alternative$regularization$unit_dimension, c(2, 2))
   expect_length(fit$priors$mods[["f:h"]], 2L)
+  expect_identical(.prior_factor_contrast(fit$priors$mods[["f:h"]][[1L]]),
+                   .prior_factor_contrast(alternative))
+  expect_true(BayesTools::is.prior.orthonormal(alternative))
+
+  for (run in list(brma, BMA)) {
+    condition <- tryCatch(
+      run(yi = y, sei = se, mods = ~ f * h, data = dat, measure = "SMD",
+          prior_mods = list(pool = prior_regularized("lasso", terms = "f:h", scale = .4,
+                                                    contrast = "treatment")),
+          set_contrast_factor_predictors = "meandif", only_priors = TRUE),
+      error = identity)
+    expect_s3_class(condition, "BayesTools_formula_transform_unavailable")
+    expect_identical(condition$reason, "regularized_contrast_conflict")
+  }
+  expect_error(BMA(yi = y, sei = se, mods = ~ f, data = dat, measure = "SMD",
+                   prior_mods = prior("laplace", list(0, .4)), only_priors = TRUE),
+               'prior_regularized("lasso", scale = ...)', fixed = TRUE)
 })

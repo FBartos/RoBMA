@@ -52,6 +52,8 @@ contrast vector and horseshoe assigns one local scale to that vector.
 Treatment and independent contrasts have coordinate-wise shrinkage. The
 scale is in fitted coefficient units, so the same scale can give different
 prior spreads for factor-level effects under different contrasts.
+An interaction inherits its factors' fitted codings. To change the coding
+of a factor in the interaction, specify it on that factor's main effect.
 }
 \examples{
 global <- prior("cauchy", list(0, 0.2), list(0, Inf))

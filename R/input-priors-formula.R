@@ -37,8 +37,9 @@
 
   distribution <- prior[["distribution"]]
   if (identical(distribution, "laplace") && !contrast %in% c("treatment", "independent")) {
-    stop("A Laplace prior for factor coefficients requires treatment or independent contrasts. ",
-         "Specify the factor's prior separately or set 'set_contrast_factor_predictors'.",
+    stop("A scalar Laplace prior for factor coefficients requires treatment or independent contrasts. ",
+         "For a centered factor, use prior_regularized(\"lasso\", scale = ...). ",
+         "To shrink individual coefficients, set 'set_contrast_factor_predictors' to 'treatment' or 'independent'.",
          call. = FALSE)
   }
   if (!contrast %in% c("treatment", "independent") &&

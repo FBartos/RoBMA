@@ -54,8 +54,12 @@ BayesTools. Preserve its member priors when assembling per-term null and
 alternative mixtures and when rebuilding a design. A learned scale and a
 finite horseshoe slab are shared by the named group, including across
 mixture alternatives. Rescaling multiplies each member coefficient once.
-Use the model's default factor contrast unless the user declares a group
-contrast. Mean-difference and orthonormal factors regularize centered
+Factor main effects use the model's default contrast unless a group declares
+its own. Interactions retain their factors' fitted codings. An explicit
+contrast on a group supplying only an interaction must agree with each
+constituent that uses contrasts. Derive the
+factor null and displayed effects from the bound alternative's geometry.
+Mean-difference and orthonormal factors regularize centered
 contrast coordinates in the fitted basis at the declared scale. Factor
 terms keep one inclusion gate independently of their number of coefficients.
 

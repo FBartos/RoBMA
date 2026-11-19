@@ -37,8 +37,12 @@
 #' unassigned slopes. Use `terms` to select slopes or give separate groups to
 #' learn separate scales. Treatment and independent contrasts shrink individual
 #' coefficients. Mean-difference and orthonormal contrasts shrink the centered
-#' factor contrasts jointly. A group uses `set_contrast_factor_predictors`
-#' unless its `contrast` is specified. Omitting `prior_mods` or setting it
+#' factor contrasts jointly. For a factor main effect, the group uses
+#' `set_contrast_factor_predictors` unless its `contrast` is specified.
+#' Interaction terms use their factors' fitted codings. If a group supplies
+#' only the interaction, its explicit contrast must match each constituent
+#' fitted with contrasts. Omit `contrast` to inherit a mixed design.
+#' Omitting `prior_mods` or setting it
 #' to `NULL` uses the default priors. This argument requires `mods`. A formula without an intercept
 #' (`~ 0 + x`) fixes the location intercept at zero, so an `intercept` entry of
 #' the list is accepted only as a point prior at zero; any other `intercept`
@@ -696,9 +700,13 @@ NULL
 #' left without a consumer are refused. Ordinary term entries replace only their
 #' alternative component. A named [prior_regularized()] group shares its
 #' shrinkage scale across the selected moderator alternatives. The terms keep
-#' their individual null components and inclusion weights. A factor term
-#' has one inclusion indicator for all of its coefficients, including with
-#' mean-difference or orthonormal contrasts.
+#' their individual null components and inclusion weights. The default
+#' mean-difference coding regularizes the factor's centered contrasts jointly
+#' and uses one inclusion indicator for the entire term. Set the group's
+#' `contrast` to choose the coding of a factor main effect. Interactions use
+#' their factors' fitted codings. If the group supplies only the interaction,
+#' an explicit contrast must match each constituent fitted with contrasts.
+#' Omit `contrast` to inherit a mixed design.
 #' @param prior_scale prior distribution(s) for alternative scale-regression
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `scale`

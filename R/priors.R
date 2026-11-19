@@ -65,6 +65,8 @@ prior_factor <- BayesTools::prior_factor
 #' Treatment and independent contrasts have coordinate-wise shrinkage. The
 #' scale is in fitted coefficient units, so the same scale can give different
 #' prior spreads for factor-level effects under different contrasts.
+#' An interaction inherits its factors' fitted codings. To change the coding
+#' of a factor in the interaction, specify it on that factor's main effect.
 #'
 #' @inheritParams BayesTools::prior_regularized
 #' @inherit BayesTools::prior_regularized return

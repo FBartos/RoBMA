@@ -1,5 +1,39 @@
 source(testthat::test_path("common-functions.R"))
 
+test_that("mixed-contrast interaction summaries use the fitted cell design and one term gate", {
+  skip_if_not_certification("The fitted interaction summary runs in iwmde-qcmde.")
+  dat <- expand.grid(f = factor(c("A", "B", "C")), h = factor(c("U", "V", "W")), r = 1:2)
+  dat$yi <- .12 * as.integer(dat$f) - .05 * as.integer(dat$h) + .1 * sin(seq_len(nrow(dat)))
+  dat$se <- .3
+  fit <- BMA(yi = yi, sei = se, data = dat, mods = ~ f * h, measure = "SMD",
+             prior_mods = list(f = prior_factor("mnormal", list(0, .3), contrast = "orthonormal"),
+                               h = prior_factor("normal", list(0, .3), contrast = "treatment"),
+                               pool = prior_regularized("lasso", terms = "f:h", scale = .12)),
+             prior_effect_null = NULL, prior_heterogeneity = prior("point", list(.2)),
+             prior_heterogeneity_null = NULL, chains = 2, adapt = 300, burnin = 500,
+             sample = 1000, parallel = FALSE, seed = 141, silent = TRUE)
+  raw <- as.matrix(coda::as.mcmc.list(fit$fit))
+  columns <- paste0("mu_f__xXx__h[", 1:4, "]")
+  inclusion <- raw[, "mu_f__xXx__h_indicator"] == 2L
+  expect_true(any(inclusion) && any(!inclusion))
+  expect_true(all(raw[!inclusion, columns] == 0))
+  design <- kronecker(stats::contr.treatment(3), BayesTools::contr.orthonormal(3))
+  values <- raw[, columns] %*% t(design)
+  cells <- expand.grid(f = levels(dat$f), h = levels(dat$h))
+  info <- summary(fit, conditional = TRUE)
+  pattern <- "^f\\[(?:dif: )?([ABC])\\]:h\\[(?:dif: )?([UVW])\\]$"
+  for (conditional in c(FALSE, TRUE)) {
+    table <- as.data.frame(if (conditional) info$estimates_mods_conditional else info$estimates_mods)
+    rows <- grep(pattern, rownames(table), perl = TRUE)
+    keys <- sub(pattern, "\\1\\2", rownames(table)[rows], perl = TRUE)
+    independent <- paste0(cells$f, cells$h)
+    expect_true(all(independent[cells$h != "U"] %in% keys))
+    selected <- if (conditional) inclusion else rep(TRUE, nrow(raw))
+    means <- colMeans(values[selected, , drop = FALSE])
+    expect_equal(unname(table$Mean[rows]), unname(means[match(keys, independent)]), tolerance = 1e-11)
+  }
+})
+
 .regularized_regression_data <- function() {
   dat <- expand.grid(x = c(10, 14), z = c(80, 120), replicate = 1:4)
   dat$se <- 0.55
