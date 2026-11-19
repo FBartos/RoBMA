@@ -435,7 +435,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   reaches the subnormal range at any factor, also when later weights above one
   would bring it back.
 - Corrected sampler: `selection.sampler = "slice.coarse"`, the default
-  (`src/samplers/CoarseCorrectedSlice.cc`), makes one slice transition per
+  (`src/samplers/CoarseCorrectedSlice.cc`; the surrogate terms are in
+  `CoarseSurrogate.h`, the configuration, counters and registry that all
+  corrected samplers share in `CorrectedSampler.cc`), makes one slice transition per
   eligible scalar update on a surrogate density and accepts it with the ratio
   of the exact full conditional to the surrogate, so any surrogate that is a
   deterministic function of the graph state leaves the exact target invariant;

@@ -26,7 +26,7 @@
 #include "selnorm/zplot-context.h"
 #include "selnorm/selnorm-parallel.h"
 #include "selnorm/selnorm-qmc-z.h"
-#include "samplers/CoarseCorrectedSlice.h"
+#include "samplers/CorrectedSampler.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/selnorm-jags-bounds.h"
@@ -532,12 +532,11 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
       Rf_error("The coarse acceptance threshold must be a number between 0 and 1.");
     }
   }
-  jags::RoBMA::CoarseCorrectedSliceConfig config;
-  jags::RoBMA::CoarseCorrectedSliceStats stats;
+  jags::RoBMA::CorrectedSamplerConfig config;
+  jags::RoBMA::CorrectedSamplerStats stats;
   char error_message[512] = {};
   try {
-    auto *factory = jags::RoBMA::coarse_corrected_slice_factory();
-    config = factory->configuration();
+    config = jags::RoBMA::corrected_sampler_configuration();
     if (enabled != R_NilValue) config.enabled = LOGICAL(enabled)[0] != 0;
     if (settings != R_NilValue) {
       config.settings.mean_step = REAL(settings)[0];
@@ -547,10 +546,10 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
       config.min_acceptance = XLENGTH(settings) == 5 ? REAL(settings)[4] : 0.0;
     }
     if (enabled != R_NilValue || settings != R_NilValue) {
-      factory->configure(config.enabled, config.settings, config.min_acceptance);
+      jags::RoBMA::configure_corrected_samplers(config);
     }
-    if (LOGICAL(clear)[0]) jags::RoBMA::coarse_corrected_slice_stats(true);
-    stats = jags::RoBMA::coarse_corrected_slice_stats();
+    if (LOGICAL(clear)[0]) jags::RoBMA::corrected_sampler_stats(true);
+    stats = jags::RoBMA::corrected_sampler_stats();
   } catch (const std::exception &error) {
     std::strncpy(error_message, error.what(), sizeof(error_message) - 1);
   }
@@ -605,8 +604,8 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
     Rf_error("'clear' must be one non-missing logical value.");
   }
-  const jags::RoBMA::CoarseCorrectedSliceReport report =
-    jags::RoBMA::coarse_corrected_slice_report(LOGICAL(clear)[0] != 0);
+  const jags::RoBMA::CorrectedSamplerReport report =
+    jags::RoBMA::corrected_sampler_report(LOGICAL(clear)[0] != 0);
   const char *names[] = {"samplers", "fallback_few_proposals", "fallback_surrogate_exact",
     "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "min_sampler_rate"};
   const double values[] = {static_cast<double>(report.samplers),

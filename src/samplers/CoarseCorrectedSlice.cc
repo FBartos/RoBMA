@@ -1,8 +1,6 @@
 #include "CoarseCorrectedSlice.h"
-#include "../distributions/DSELNORMMVSTEP.h"
-#include "../distributions/DSELNORMCLUSTERSTEP.h"
-#include "../distributions/DSELNORMFACTORSTEP.h"
-#include "../selnorm/selnorm.h"
+#include "CoarseSurrogate.h"
+#include "CorrectedSampler.h"
 
 #include <sampler/Slicer.h>
 #include <sampler/SingletonGraphView.h>
@@ -17,7 +15,6 @@
 #include <atomic>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -26,223 +23,7 @@ namespace jags {
 namespace RoBMA {
 namespace {
 
-std::atomic<std::uint64_t> coarse_proposed(0);
-std::atomic<std::uint64_t> coarse_accepted(0);
-std::atomic<std::uint64_t> coarse_correction_rejected(0);
-
-// Per-fit counters (CoarseCorrectedSliceReport).
-std::atomic<std::uint64_t> report_samplers(0);
-std::atomic<std::uint64_t> report_fallback_few_proposals(0);
-std::atomic<std::uint64_t> report_fallback_surrogate_exact(0);
-std::atomic<std::uint64_t> report_fallback_low_acceptance(0);
-std::atomic<std::uint64_t> report_sampling_proposed(0);
-std::atomic<std::uint64_t> report_sampling_accepted(0);
-
-// Fallback rules decided at adaptOff(): fewer adaptive proposals than this
-// cannot be judged. The worst-sampler rate counts samplers with at least
-// min_rate_proposals proposals since the last clearing read of the report.
-const std::uint64_t min_adaptive_proposals = 50;
-const std::uint64_t min_rate_proposals = 1000;
-
-// The rate of one sampler's window and whether it counts for the worst rate.
-bool window_rate(std::uint64_t proposed, std::uint64_t accepted, double *rate)
-{
-  if (proposed < min_rate_proposals) return false;
-  *rate = static_cast<double>(accepted) / static_cast<double>(proposed);
-  return true;
-}
-
-// How a stochastic child of the sampled node enters the surrogate density: a
-// selection block with a surrogate evaluator (the dense multivariate block, or a
-// cluster or factor block with a coarse rung), or an exact term.
-enum class ChildKind { other, mv, cluster, factor };
-
-// Parameter positions of the cluster and factor distributions (they share a
-// layout up to the loading): kernel mode, vector rule, quadrature orders.
-const unsigned int cluster_factor_mode = 10;
-const unsigned int cluster_factor_orders = 13;
-const unsigned int cluster_factor_rule = 19;
-
-// A cluster or factor child is coarse-capable when its fixed controls allow a
-// coarse rule: a vector rule not fixed at a best-weight value, a kernel mode not
-// fixed at NORMAL, and, for a factor block, rule min(max_rules, rules) of its
-// schedule affordable at the uncompacted rank (a compacted block or a forest
-// only costs less). In model-averaged fits the vector rule is a node of the bias
-// indicator that is product in every state of a product-only model, so a
-// non-fixed rule counts as capable; in a state with a best-weight rule the
-// child's surrogate is its exact density. The decision reads fixed parents only,
-// so it is the same in every chain. Any other cluster or factor child stays an
-// exact term.
-ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings const &settings)
-{
-  Distribution const *distribution = child->distribution();
-  if (dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) return ChildKind::mv;
-  const bool cluster = dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution) != nullptr;
-  const bool factor = !cluster && dynamic_cast<DSELNORMFACTORSTEP const *>(distribution) != nullptr;
-  if (!cluster && !factor) return ChildKind::other;
-  std::vector<Node const *> const &parents = child->parents();
-  if (parents.size() < distribution->npar()) return ChildKind::other;
-  Node const *rule = parents[cluster_factor_rule];
-  if (rule->isFixed() && rule->value(0)[0] != SELVECTOR_PRODUCT) return ChildKind::other;
-  Node const *mode = parents[cluster_factor_mode];
-  if (mode->isFixed() && mode->value(0)[0] == SELKERNEL_NORMAL) return ChildKind::other;
-  Node const *orders = parents[cluster_factor_orders];
-  if (!orders->isFixed() || orders->length() < 1) return ChildKind::other;
-  if (factor) {
-    const unsigned int rank = parents[2]->length() / parents[0]->length();
-    const unsigned int rung = std::min(settings.max_rules, orders->length());
-    if (rung < 1 || !selnorm_factor_rule_affordable(
-          static_cast<int>(orders->value(0)[rung - 1]), static_cast<int>(rank))) {
-      return ChildKind::other;
-    }
-  }
-  return cluster ? ChildKind::cluster : ChildKind::factor;
-}
-
-struct SelectedChild {
-  StochasticNode *node;
-  ChildKind kind;
-  // The distribution of the child, of the class the kind names (checked once).
-  Distribution const *distribution;
-  std::vector<Node const *> parents;
-  std::vector<unsigned int> lengths;
-  mutable std::vector<double const *> parameters;
-  bool controls_fixed = true;
-  mutable bool controls_checked = false;
-  mutable bool controls_valid = false;
-
-  // The parents that may change during sampling: mean, covariance (residual SD
-  // and loadings), weights, kernel mode and, for cluster and factor children,
-  // the vector rule (a mixture of weight rules composes it from the bias
-  // indicator). Everything else is a control.
-  static bool dynamic_parent(ChildKind kind, unsigned int i)
-  {
-    if (kind == ChildKind::mv) return i == 0 || i == 1 || i == 3 || i == 9;
-    return i == 0 || i == 1 || i == 2 || i == 4 || i == cluster_factor_mode ||
-      i == cluster_factor_rule;
-  }
-
-  SelectedChild(StochasticNode *child, ChildKind kind_of_child)
-    : node(child), kind(kind_of_child), distribution(child->distribution())
-  {
-    const bool consistent =
-      (kind == ChildKind::mv && dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) ||
-      (kind == ChildKind::cluster && dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution) != nullptr) ||
-      (kind == ChildKind::factor && dynamic_cast<DSELNORMFACTORSTEP const *>(distribution) != nullptr);
-    if (!consistent) {
-      throw std::logic_error("Selection child has no surrogate evaluator.");
-    }
-    const unsigned int count = distribution->npar();
-    if (child->parents().size() < count) {
-      throw std::logic_error("Selection child is missing distribution parameters.");
-    }
-    // StochasticNode appends truncation bounds after its distribution parents.
-    parents.assign(child->parents().begin(), child->parents().begin() + count);
-    lengths.resize(count);
-    parameters.resize(count);
-    for (unsigned int i = 0; i < count; ++i) {
-      lengths[i] = parents[i]->length();
-      if (!dynamic_parent(kind, i) && !parents[i]->isFixed()) {
-        controls_fixed = false;
-      }
-    }
-  }
-
-  bool checkControl() const
-  {
-    switch (kind) {
-    case ChildKind::mv:
-      return static_cast<DSELNORMMVSTEP const *>(distribution)->checkControlParameterValue(parameters, lengths);
-    case ChildKind::cluster:
-      return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->checkControlParameterValue(parameters, lengths);
-    default:
-      return static_cast<DSELNORMFACTORSTEP const *>(distribution)->checkControlParameterValue(parameters, lengths);
-    }
-  }
-
-  bool checkDynamic() const
-  {
-    switch (kind) {
-    case ChildKind::mv:
-      return static_cast<DSELNORMMVSTEP const *>(distribution)->checkDynamicParameterValue(parameters, lengths);
-    case ChildKind::cluster:
-      return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->checkDynamicParameterValue(parameters, lengths);
-    default:
-      return static_cast<DSELNORMFACTORSTEP const *>(distribution)->checkDynamicParameterValue(parameters, lengths);
-    }
-  }
-
-  double surrogate(unsigned int chain, SelNormCoarseSettings const &settings,
-                   bool *not_exact) const
-  {
-    double const *x = node->value(chain);
-    double const *lower = node->lowerLimit(chain);
-    double const *upper = node->upperLimit(chain);
-    switch (kind) {
-    case ChildKind::mv:
-      return static_cast<DSELNORMMVSTEP const *>(distribution)->surrogateLogDensity(
-        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings,
-        not_exact);
-    case ChildKind::cluster:
-      return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->surrogateLogDensity(
-        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings,
-        not_exact);
-    default:
-      return static_cast<DSELNORMFACTORSTEP const *>(distribution)->surrogateLogDensity(
-        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings,
-        not_exact);
-    }
-  }
-
-  // not_exact is set when the surrogate used a normalizer that is not exact.
-  double logDensity(unsigned int chain, SelNormCoarseSettings const &settings,
-                    bool *not_exact) const
-  {
-    for (unsigned int i = 0; i < parents.size(); ++i) {
-      parameters[i] = parents[i]->value(chain);
-    }
-    bool valid;
-    if (controls_fixed) {
-      // The first surrogate call follows initialized-graph checkFinite().
-      // This certificate belongs to one SelectedChild in one chain's sampler.
-      if (!controls_checked) {
-        controls_valid = checkControl();
-        controls_checked = true;
-      }
-      valid = controls_valid && checkDynamic();
-    } else {
-      // Any nonfixed control retains the complete original node gate.
-      valid = node->checkParentValues(chain);
-    }
-    if (!valid) return -std::numeric_limits<double>::infinity();
-    return surrogate(chain, settings, not_exact);
-  }
-};
-
-class CoarseCorrectedSlice;
-
-// The live corrected samplers of this process, and the lowest window rate of
-// those destroyed since the last clearing read of the report. Registration,
-// destruction and the report's read take the mutex; window counters change only
-// inside updates, which JAGS runs on the thread that also reads the report
-// between runs.
-struct SamplerRegistry {
-  std::mutex mutex;
-  std::vector<CoarseCorrectedSlice *> live;
-  bool has_retired = false;
-  double retired_min_rate = 0.0;
-};
-
-// Allocated once and never destroyed: samplers of models that R frees late
-// (finalizers at unload or exit) unregister after static destructors may have
-// run, so the registry must outlive every sampler.
-SamplerRegistry &sampler_registry()
-{
-  static SamplerRegistry *registry = new SamplerRegistry();
-  return *registry;
-}
-
-class CoarseCorrectedSlice : public Slicer {
+class CoarseCorrectedSlice : public Slicer, public CorrectedSamplerWindow {
   SingletonGraphView const *_graph;
   const unsigned int _chain;
   const SelNormCoarseSettings _settings;
@@ -278,10 +59,10 @@ class CoarseCorrectedSlice : public Slicer {
       return;
     }
     ++_window_proposed;
-    report_sampling_proposed.fetch_add(1, std::memory_order_relaxed);
+    corrected_sampler_counters.report_sampling_proposed.fetch_add(1, std::memory_order_relaxed);
     if (accepted) {
       ++_window_accepted;
-      report_sampling_accepted.fetch_add(1, std::memory_order_relaxed);
+      corrected_sampler_counters.report_sampling_accepted.fetch_add(1, std::memory_order_relaxed);
     }
   }
 
@@ -310,42 +91,26 @@ public:
     }
     if (_selected.empty()) throw std::logic_error("Corrected slice has no selection child.");
     graph->checkFinite(chain);
-    SamplerRegistry &registry = sampler_registry();
-    const std::lock_guard<std::mutex> lock(registry.mutex);
-    registry.live.push_back(this);
-    report_samplers.fetch_add(1, std::memory_order_relaxed);
+    register_corrected_sampler(this);
   }
 
   // A sampler destroyed before the report is read still counts for the worst
   // rate of its run.
-  ~CoarseCorrectedSlice()
+  ~CoarseCorrectedSlice() override
   {
-    SamplerRegistry &registry = sampler_registry();
-    const std::lock_guard<std::mutex> lock(registry.mutex);
-    std::vector<CoarseCorrectedSlice *> &live = registry.live;
-    for (std::size_t i = 0; i < live.size(); ++i) {
-      if (live[i] == this) {
-        live[i] = live.back();
-        live.pop_back();
-        break;
-      }
-    }
-    double rate;
-    if (window_rate(_window_proposed, _window_accepted, &rate) &&
-        (!registry.has_retired || rate < registry.retired_min_rate)) {
-      registry.retired_min_rate = rate;
-      registry.has_retired = true;
-    }
+    unregister_corrected_sampler(this);
   }
 
   // Window counters of the report (read with the registry mutex held).
-  std::uint64_t windowProposed() const { return _window_proposed; }
-  std::uint64_t windowAccepted() const { return _window_accepted; }
-  void clearWindow()
+  std::uint64_t windowProposed() const override { return _window_proposed; }
+  std::uint64_t windowAccepted() const override { return _window_accepted; }
+  void clearWindow() override
   {
     _window_proposed = 0;
     _window_accepted = 0;
   }
+  // A scalar sampler's acceptance rate is judged as it is.
+  double rateExponent() const override { return 1.0; }
 
   double value() const override
   {
@@ -397,13 +162,13 @@ public:
     _adapting = false;
     if (!(_min_acceptance > 0.0)) return;
     std::atomic<std::uint64_t> *reason = nullptr;
-    if (_adaptive_proposed < min_adaptive_proposals) {
-      reason = &report_fallback_few_proposals;
+    if (_adaptive_proposed < corrected_min_adaptive_proposals) {
+      reason = &corrected_sampler_counters.report_fallback_few_proposals;
     } else if (!_surrogate_not_exact) {
-      reason = &report_fallback_surrogate_exact;
+      reason = &corrected_sampler_counters.report_fallback_surrogate_exact;
     } else if (static_cast<double>(_adaptive_accepted) /
                static_cast<double>(_adaptive_proposed) < _min_acceptance) {
-      reason = &report_fallback_low_acceptance;
+      reason = &corrected_sampler_counters.report_fallback_low_acceptance;
     }
     if (reason != nullptr) {
       _exact = true;
@@ -447,14 +212,14 @@ public:
       if (!updateStep(rng)) {
         throwNodeError(_graph->node(), "Surrogate slice transition failed");
       }
-      coarse_proposed.fetch_add(1, std::memory_order_relaxed);
+      corrected_sampler_counters.coarse_proposed.fetch_add(1, std::memory_order_relaxed);
       const double full_new = _graph->logFullConditional(_chain);
       if (std::isnan(full_new) || full_new == std::numeric_limits<double>::infinity()) {
         throwNodeError(_graph->node(), "Corrected slice proposed a non-finite full density");
       }
       if (full_new == -std::numeric_limits<double>::infinity()) {
         setValue(old_value);
-        coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
+        corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
         countOutcome(false);
         return;
       }
@@ -471,11 +236,11 @@ public:
       if (log_ratio < 0 &&
           std::log(static_cast<long double>(rng->uniform())) > log_ratio) {
         setValue(old_value);
-        coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
+        corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
         countOutcome(false);
       }
       else {
-        coarse_accepted.fetch_add(1, std::memory_order_relaxed);
+        corrected_sampler_counters.coarse_accepted.fetch_add(1, std::memory_order_relaxed);
         countOutcome(true);
       }
     }
@@ -511,37 +276,11 @@ bool hasSamplerDeclaration(StochasticNode *node)
 
 }
 
-CoarseCorrectedSliceFactory::CoarseCorrectedSliceFactory(SelNormCoarseSettings const &settings)
-{
-  configure(false, settings);
-}
-
-void CoarseCorrectedSliceFactory::configure(bool enabled, SelNormCoarseSettings const &settings,
-                                            double min_acceptance)
-{
-  if (!(settings.mean_step >= 0) || !std::isfinite(settings.mean_step) ||
-      !(settings.diagonal_step >= 0) || !std::isfinite(settings.diagonal_step) ||
-      !(settings.log_weight_step >= 0) || !std::isfinite(settings.log_weight_step) ||
-      settings.max_rules < 3 || !(min_acceptance >= 0.0 && min_acceptance <= 1.0)) {
-    throw std::invalid_argument("Invalid corrected selection surrogate settings.");
-  }
-  const std::lock_guard<std::mutex> lock(_configuration_mutex);
-  _configuration.enabled = enabled;
-  _configuration.settings = settings;
-  _configuration.min_acceptance = min_acceptance;
-}
-
-CoarseCorrectedSliceConfig CoarseCorrectedSliceFactory::configuration() const
-{
-  const std::lock_guard<std::mutex> lock(_configuration_mutex);
-  return _configuration;
-}
-
 std::vector<Sampler *> CoarseCorrectedSliceFactory::makeSamplers(
     std::list<StochasticNode *> const &nodes, Graph const &graph) const
 {
   std::vector<Sampler *> samplers;
-  const CoarseCorrectedSliceConfig config = configuration();
+  const CorrectedSamplerConfig config = corrected_sampler_configuration();
   if (!config.enabled) return samplers;
   const std::string sampler_name("RoBMA::CoarseCorrectedSlice");
   try {
@@ -587,59 +326,6 @@ CoarseCorrectedSliceFactory *coarse_corrected_slice_factory()
 {
   static CoarseCorrectedSliceFactory factory;
   return &factory;
-}
-
-CoarseCorrectedSliceStats coarse_corrected_slice_stats(bool reset)
-{
-  if (reset) {
-    return {
-      coarse_proposed.exchange(0, std::memory_order_relaxed),
-      coarse_accepted.exchange(0, std::memory_order_relaxed),
-      coarse_correction_rejected.exchange(0, std::memory_order_relaxed)
-    };
-  }
-  return {
-    coarse_proposed.load(std::memory_order_relaxed),
-    coarse_accepted.load(std::memory_order_relaxed),
-    coarse_correction_rejected.load(std::memory_order_relaxed)
-  };
-}
-
-CoarseCorrectedSliceReport coarse_corrected_slice_report(bool clear)
-{
-  // Each counter is read, and cleared in the same operation when requested.
-  const auto take = [clear](std::atomic<std::uint64_t> &counter) {
-    return clear ? counter.exchange(0, std::memory_order_relaxed) :
-      counter.load(std::memory_order_relaxed);
-  };
-  CoarseCorrectedSliceReport report;
-  report.samplers = take(report_samplers);
-  report.fallback_few_proposals = take(report_fallback_few_proposals);
-  report.fallback_surrogate_exact = take(report_fallback_surrogate_exact);
-  report.fallback_low_acceptance = take(report_fallback_low_acceptance);
-  report.sampling_proposed = take(report_sampling_proposed);
-  report.sampling_accepted = take(report_sampling_accepted);
-  // The lowest rate of one sampler over its window: the destroyed samplers'
-  // minimum and the live samplers with enough proposals (fallen-back samplers
-  // have none).
-  SamplerRegistry &registry = sampler_registry();
-  const std::lock_guard<std::mutex> lock(registry.mutex);
-  report.has_min_rate = registry.has_retired;
-  report.min_sampler_rate = registry.has_retired ? registry.retired_min_rate : 0.0;
-  for (CoarseCorrectedSlice *sampler : registry.live) {
-    double rate;
-    if (window_rate(sampler->windowProposed(), sampler->windowAccepted(), &rate) &&
-        (!report.has_min_rate || rate < report.min_sampler_rate)) {
-      report.min_sampler_rate = rate;
-      report.has_min_rate = true;
-    }
-    if (clear) sampler->clearWindow();
-  }
-  if (clear) {
-    registry.has_retired = false;
-    registry.retired_min_rate = 0.0;
-  }
-  return report;
 }
 
 }
