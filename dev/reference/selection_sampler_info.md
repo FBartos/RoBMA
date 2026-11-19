@@ -1,34 +1,48 @@
 # Inspect corrected selection-sampler counters
 
-Counts completed coarse slice proposals and their full-target acceptance
-decisions in the current R process.
+Reports the work of the corrected selection sampler: the record of a
+fitted model, or the counters of the current R process.
 
 ## Usage
 
 ``` r
-selection_sampler_info(clear = FALSE)
+selection_sampler_info(clear = FALSE, fit = NULL)
 ```
 
 ## Arguments
 
 - clear:
 
-  reset counters before reporting them.
+  reset the process counters before reporting them. Cannot be combined
+  with `fit`.
+
+- fit:
+
+  a fitted selection model (for example from
+  [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.mv.md)
+  or
+  [`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
+  whose record to report, or `NULL` for the process counters.
 
 ## Value
 
-A data frame with proposal, acceptance and correction-rejection counts,
-and an acceptance rate (`NA` before any proposals).
+Without `fit`, a data frame with proposal, acceptance and
+correction-rejection counts, and an acceptance rate (`NA` before any
+proposals). With `fit`, a one-row data frame with the record described
+in details; a fit without a record (not a selection model, or fitted
+before the record existed) gives `NA` counts and `complete = FALSE`.
 
 ## Details
 
-Enable the alternative for future fits with
-`RoBMA.options(selection.sampler = "coarse_corrected")`. The default
-`"default"` does not use it; parameters that the options
-`sampler.blocks` and `sampler.gates` declare to the factor slice and
-gated samplers of the BayesTools JAGS module (see
+The corrected sampler is the default,
+`RoBMA.options(selection.sampler = "slice.coarse")`; set
+`selection.sampler = "slice"` before fitting to use the other samplers
+instead, or `"jags.default"` for only the samplers JAGS assigns.
+Parameters that the options `sampler.blocks` and `sampler.gates` declare
+to the factor slice and gated samplers of the BayesTools JAGS module
+(see
 [`RoBMA.options`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA_options.md))
-keep those samplers under either setting, so set the two options to
+keep those samplers under `"slice.coarse"`, so set the two options to
 `FALSE` for the corrected sampler to update them as well. Every proposal
 is corrected against the full original likelihood and prior. Only the
 selection normalizer used to construct proposals is coarsened. A
@@ -71,28 +85,95 @@ or, for a factor block, a rule beyond the node budget at the declared
 rank (rank two to six at the default setting). In model-averaged fits
 the weight rule and the kernel mode are nodes of the bias indicator, so
 their blocks take part, with the exact density in the states of the
-indicator that have a best-weight rule. A model average whose selection
-branches all use the best-weight rule takes part without any state that
-can gain: its surrogate is the exact density everywhere and every update
-pays two extra exact evaluations, so run such fits with the default
-sampler. Blocks fixed at a best-weight rule, blocks of higher rank and
-blocks with a fixed normal kernel keep the ordinary sampler.
+indicator that have a best-weight rule. Blocks fixed at a best-weight
+rule, blocks of higher rank and blocks with a fixed normal kernel keep
+the ordinary sampler.
 
 A scalar update is eligible when at least one stochastic child of the
 updated node is a dense multivariate block or a coarse-capable cluster
 or factor block; its other children enter the surrogate through their
 exact densities. Discrete, vector-valued and unrelated updates, and
 updates whose selection children are all without a coarse rule, retain
-ordinary JAGS samplers, so the option can be set without effect: check
-that the counters grow. Whatever the surrogate, the corrected chain
+ordinary JAGS samplers. Whatever the surrogate, the corrected chain
 targets the exact full conditional; a coarser rule changes the
 acceptance rate and the cost, not the posterior.
 
-Already compiled samplers retain their grid and coarse rule-budget
-settings. Coarse settings can affect sampling efficiency even when
-correction acceptance is high. Compare effective samples per second for
-parameters of interest, not only iteration times or this acceptance
-rate. Counters combine all corrected samplers in this process, including
-warmup; clear them between phases for a sampling-only comparison. They
-do not report separate parallel workers. Inspect them between sampling
-calls.
+Fallback. Each corrected sampler (one per parameter and chain) chooses
+its kernel once, at the end of adaptation, from its adaptation updates:
+with `selection.coarse_min_acceptance` above 0 (default `0.90`) it
+updates its parameter with the exact slice sampler for the rest of the
+fit when it made fewer than 50 proposals during adaptation, when no
+surrogate it evaluated during adaptation differed from the exact density
+(no block's surrogate differs under the normal kernel, and a cluster or
+factor block's does not where its rule is unavailable, as in a model
+average whose selection branches all use the best-weight rule), or when
+its acceptance rate during adaptation is below the threshold; the first
+of these that holds is the recorded reason. Both kernels leave the
+posterior unchanged and the choice is not revisited, so the chain after
+adaptation is a single exact kernel. A threshold of `0` disables the
+fallback and both warnings. Every model build (a fit, and each parallel
+worker's or extension's rebuild of the model) adapts and decides again.
+
+Record. A fitted selection model keeps the record of its corrected
+samplers, collected from every process that ran chains and summed over
+the fit and its extensions
+([`update()`](https://rdrr.io/r/stats/update.html)): `sampler` and
+`min_acceptance`, the settings the model was fitted with (`sampler`
+shows the value the fit was made with, so fits of earlier versions show
+`"coarse_corrected"` or `"default"`; `min_acceptance` is `0` for fits
+made before the threshold existed); `allocation_block_withheld`, `TRUE`
+when the model was built as a model-averaged fit that leaves the joint
+block of its heterogeneity allocation to the corrected sampler, a block
+it would declare under `"slice"` (see `sampler.blocks` in
+[`RoBMA.options`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA_options.md);
+`FALSE` for fits made before this element existed); `samplers`, the
+corrected sampler objects constructed, one per parameter and chain and
+counted again for every model build; `fallback_samplers`, those that
+switched to the exact slice sampler, split by reason into
+`fallback_few_proposals`, `fallback_surrogate_exact` and
+`fallback_low_acceptance`; `sampling_proposed` and `sampling_accepted`,
+the proposals made after adaptation by samplers that stayed corrected
+and the proposals whose correction accepted them (unchanged values
+included), counting burn-in, retained and extension draws and the
+closing draws the sampler makes after recording the chain end;
+`acceptance_rate`, their ratio (`NA` without proposals);
+`min_sampler_rate`, the lowest acceptance rate of one sampler over one
+backend run (of the fit, of an automatic extension or of an
+[`update()`](https://rdrr.io/r/stats/update.html)), among samplers with
+at least 1,000 proposals in that run (`NA` when none has). A fit made of
+several backend runs (automatic or
+[`update()`](https://rdrr.io/r/stats/update.html) extensions, or fits
+that sample in several runs, as JASP does) takes this minimum over more
+and shorter runs; while a sampler still makes at least 1,000 proposals
+in a run, such a fit reaches the warning more readily than one long run
+of the same model, and with fewer proposals per run it has no
+worst-sampler rate. The last element is `complete`, `FALSE` when part of
+the chain was drawn without a record (an extension of a fit saved before
+the record existed, a process whose report failed, or draws added
+without any report), in which case the counts cover the recorded part
+only. Adaptation updates and updates of samplers that fell back are not
+counted.
+
+Warning. A fit or an extension whose record has at least 1,000 counted
+proposals and whose acceptance rate, or `min_sampler_rate`, is below
+`min_acceptance` warns with the condition classes
+`RoBMA_selection_sampler_low_acceptance` and
+`RoBMA_selection_sampler_warning`: sampling is exact but inefficient. A
+fit or an extension whose record has `allocation_block_withheld` and at
+least one sampler that switched to the exact slice sampler warns with
+the condition classes `RoBMA_selection_sampler_fallback` and
+`RoBMA_selection_sampler_warning`: the allocation SD and weights may
+then be updated one at a time and mix more slowly, while sampling stays
+exact. Both warnings can occur for one fit. Each message is kept with
+the fit's warnings, replaced at every extension.
+
+Process counters. Without `fit`, the function reports the counters of
+all corrected samplers in this process, including adaptation; clear them
+between phases for a sampling-only comparison. They do not report
+separate parallel workers. Inspect them between sampling calls.
+
+Already compiled samplers retain their grid, coarse rule-budget and
+threshold settings. Coarse settings can affect sampling efficiency even
+when correction acceptance is high. Compare effective samples per second
+for parameters of interest, not only iteration times or this acceptance
+rate.

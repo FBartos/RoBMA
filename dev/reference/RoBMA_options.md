@@ -123,18 +123,50 @@ The available options are:
 
 - `selection.sampler`:
 
-  `"default"` uses the samplers JAGS assigns, together with the gated
-  and factor slice samplers of the BayesTools JAGS module where
-  `sampler.gates` and `sampler.blocks` declare them.
-  `"coarse_corrected"` uses coarse slice proposals with a full-target
-  Metropolis correction for eligible scalar updates involving
-  multivariate, cluster or factor step selection blocks (see
+  the samplers of selection and model-averaged fits, in three tiers.
+  `"slice.coarse"` (the default) adds the corrected selection sampler:
+  coarse slice proposals with a full-target Metropolis correction for
+  eligible scalar updates involving multivariate, cluster or factor step
+  selection blocks (see
   [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)
-  for the blocks that take part); parameters declared by
-  `sampler.blocks` or `sampler.gates` keep the BayesTools samplers, so
-  set those options to `FALSE` for the corrected sampler to update them.
-  The posterior target is unchanged. Settings are captured when each
-  model is compiled.
+  for the blocks that take part, the fallback to the exact slice sampler
+  and the per-fit record); parameters that `sampler.gates` or
+  `sampler.blocks` declare keep the BayesTools samplers, so set those
+  options to `FALSE` for the corrected sampler to update them. `"slice"`
+  uses the samplers JAGS assigns together with the gated and factor
+  slice samplers of the BayesTools JAGS module where `sampler.gates` and
+  `sampler.blocks` declare them. `"jags.default"` uses only the samplers
+  JAGS assigns, in every model and whatever `sampler.gates` and
+  `sampler.blocks` say (as `"default"` did in RoBMA 4.1.1). Under
+  `"slice.coarse"`, model-averaged fits
+  ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
+  leave the block of their heterogeneity allocation undeclared when the
+  corrected sampler engages selection blocks (dense, rank-one, or factor
+  blocks whose coarse rule the node budget affords at their rank; not
+  single estimates) and a selection branch has the product weight rule
+  or a block is dense; the corrected sampler then updates the allocation
+  parameters. The posterior target is unchanged. Settings are captured
+  when each model is compiled, and
+  [`update()`](https://rdrr.io/r/stats/update.html) keeps those of the
+  fit. The deprecated values `"coarse_corrected"` (now `"slice.coarse"`)
+  and `"default"` (now `"jags.default"`) are accepted with a warning of
+  class `RoBMA_deprecated_option_value` (family `RoBMA_deprecated`).
+
+- `selection.coarse_min_acceptance`:
+
+  acceptance threshold of the corrected sampler (default `0.90`, a
+  number between `0` and `1`). Each corrected sampler whose acceptance
+  rate during adaptation is below it, that made fewer than 50 proposals
+  during adaptation, or whose surrogate never differed from the exact
+  density during adaptation updates its parameter with the exact slice
+  sampler for the rest of the fit, and a fit with at least 1,000 counted
+  proposals whose post-adaptation acceptance rate, or that of its worst
+  sampler, is below it warns. A model-averaged fit that leaves its
+  allocation block to the corrected sampler also warns when any of its
+  corrected samplers falls back (see
+  [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)).
+  `0` disables the fallback and both warnings. Captured when each model
+  is compiled, like the other sampler settings.
 
 - `selection.coarse_grid`:
 
@@ -172,7 +204,8 @@ The available options are:
   are updated by the gated slice sampler of the BayesTools JAGS module
   (default `TRUE`): while the bias indicator does not select a branch,
   its parameters are drawn directly from their prior instead of by slice
-  sampling.
+  sampling. `selection.sampler = "jags.default"` turns the gated sampler
+  off.
 
 - `sampler.blocks`:
 
@@ -193,7 +226,8 @@ The available options are:
   and point prior. Model-averaged fits
   ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
   update the allocation SD and weights of the heterogeneity allocation
-  together. Neither option changes the model or its posterior
+  together. `selection.sampler = "jags.default"` turns the factor slice
+  sampler off. Neither option changes the model or its posterior
   distribution, only the draws; settings are captured when each model is
   fitted, and [`update()`](https://rdrr.io/r/stats/update.html) keeps
   those of the fit.
@@ -247,5 +281,6 @@ The available options are:
 Boolean options require scalar `TRUE` or `FALSE` values. `max_cores`
 must be integer-like and at least 1; `cluster_likelihood.n_gamma` must
 be integer-like and at least 3. `native_threads` accepts `NA` or a
-positive integer. Scale and alpha defaults must be finite positive
+positive integer. `selection.coarse_min_acceptance` must be a number
+between 0 and 1. Scale and alpha defaults must be finite positive
 numbers.
