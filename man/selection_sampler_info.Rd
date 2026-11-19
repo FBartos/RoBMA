@@ -107,8 +107,10 @@ decides again.
 Record. A fitted selection model keeps the record of its corrected samplers,
 collected from every process that ran chains and summed over the fit and
 its extensions (\code{update()}): \code{sampler} and \code{min_acceptance},
-the settings the model was fitted with (\code{0} for fits made before the
-threshold existed); \code{samplers}, the corrected sampler objects
+the settings the model was fitted with (\code{sampler} shows the value the
+fit was made with, so fits of earlier versions show \code{"coarse_corrected"}
+or \code{"default"}; \code{min_acceptance} is \code{0} for fits made before
+the threshold existed); \code{samplers}, the corrected sampler objects
 constructed, one per parameter and chain and counted again for every model
 build; \code{fallback_samplers}, those that switched to the exact slice
 sampler, split by reason into \code{fallback_few_proposals},

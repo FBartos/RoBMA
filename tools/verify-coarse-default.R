@@ -56,7 +56,8 @@
 # cost: Assink et al. bselmodel.mv (full V) with sampler.blocks = FALSE and the
 # corrected sampler; arm 'this' is this build with the fallback off
 # (selection.coarse_min_acceptance = 0), arm 'other' the build of
-# --other-library with the options it has; --seeds pairs, one R process per arm
+# --other-library with the options it has (selection.sampler in its released
+# spelling, "coarse_corrected"); --seeds pairs, one R process per arm
 # and seed, run in the order this, other, this, other. The draws of a pair must
 # be identical (any difference is reported) and the seconds per 1,000
 # iterations of the arms are compared.
@@ -846,6 +847,14 @@ arm_libraries <- function(arm) {
                                                  .libPaths()[-1L])
 }
 
+# The 'selection.sampler' value of an arm: this build takes the current values;
+# the build of --other-library, any build before they were introduced, rejects
+# them and takes the released spelling of the same samplers.
+arm_sampler <- function(arm, sampler) {
+
+  if (identical(arm, "this")) sampler else c(slice.coarse = "coarse_corrected", slice = "default")[[sampler]]
+}
+
 # Runs one job in a new R process with the arm's libraries (--part=job).
 run_process <- function(job, dir = out_dir) {
 
@@ -936,7 +945,7 @@ cost_driver <- function(seeds, dir = out_dir, execute = run_process) {
   jobs <- list()
   for (i in seq_len(seeds)) for (arm in c("this", "other")) {
     jobs[[length(jobs) + 1L]] <- list(part = "cost", model = "bselmodel.mv", arm = arm, seed = 4000L + i, fit = fit,
-      options = list(sampler.blocks = FALSE, selection.sampler = "slice.coarse",
+      options = list(sampler.blocks = FALSE, selection.sampler = arm_sampler(arm, "slice.coarse"),
                      selection.coarse_min_acceptance = 0))
   }
   for (job in jobs) if (!file.exists(cross_file(job, dir))) execute(job, dir)
@@ -1303,6 +1312,22 @@ selftest <- function() {
   z <- identity_case("identity_differs", function(job) job$model == "RoBMA.mv" && job$arm == "other")
   check(sum(!z$rows$identical_draws) == 1L && any(grepl("FINDING", z$output)),
         "identity: a differing pair is reported as a finding")
+
+  # the build of --other-library rejects the current values of selection.sampler
+  other_jobs <- list()
+  record_jobs <- function(job, dir) {
+    if (!identical(job[["arm"]], "this")) other_jobs[[length(other_jobs) + 1L]] <<- job
+    saveRDS(cross_run(job, draws), cross_file(job, dir))
+  }
+  for (label in c("values_cost", "values_identity")) {
+    dir.create(file.path(root, label, "runs"), recursive = TRUE, showWarnings = FALSE)
+  }
+  utils::capture.output(cost_driver(3L, dir = file.path(root, "values_cost"), execute = record_jobs))
+  utils::capture.output(identity_driver(dir = file.path(root, "values_identity"), execute = record_jobs))
+  other_values <- unlist(lapply(other_jobs, function(job) job[["options"]][["selection.sampler"]]))
+  check(length(other_jobs) == 7L && identical(other_values, rep("coarse_corrected", 3L)) &&
+          !any(other_values %in% c("slice.coarse", "slice", "jags.default")),
+        "cross-build: jobs of the other build get only released selection.sampler values")
 
   unlink(root, recursive = TRUE)
   cat("Self-test passed.\n")

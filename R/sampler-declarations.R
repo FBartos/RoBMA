@@ -61,7 +61,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 # whatever 'sampler.gates' and 'sampler.blocks' say.
 .sampler_module_samplers <- function() {
 
-  return(!identical(RoBMA.get_option("selection.sampler"), "jags.default"))
+  return(!isTRUE(RoBMA.get_option("selection.sampler") %in% "jags.default"))
 }
 
 

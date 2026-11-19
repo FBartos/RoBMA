@@ -72,13 +72,24 @@ RoBMA.options    <- function(...) {
     stop("Option names must be unique.", call. = FALSE)
   }
 
+  # deprecation warnings wait until every option of the call is valid
+  deprecations <- list()
   for (i in seq_along(opts)) {
 
     if (!names(opts)[i] %in% option_names) {
       stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""), call. = FALSE)
     }
 
-    opts[[i]] <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
+    opts[[i]] <- withCallingHandlers(
+      .RoBMA_validate_option(names(opts)[i], opts[[i]]),
+      RoBMA_deprecated = function(w) {
+        deprecations[[length(deprecations) + 1L]] <<- w
+        invokeRestart("muffleWarning")
+      }
+    )
+  }
+  for (deprecation in deprecations) {
+    warning(deprecation)
   }
 
   if (length(opts) > 0L && any(startsWith(names(opts), "selection.")) &&
@@ -336,6 +347,8 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
       !value %in% c(.selection_sampler_values, names(.selection_sampler_deprecated))) {
     stop(paste0("Option '", name, "' must be 'slice.coarse', 'slice' or 'jags.default'."), call. = FALSE)
   }
+  # the bare value: a name or other attribute must not change how it is read
+  value <- as.vector(value, mode = "character")
   if (value %in% names(.selection_sampler_deprecated)) {
     warning(structure(
       list(message = .selection_sampler_deprecated[[value]], call = NULL),

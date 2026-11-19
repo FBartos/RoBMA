@@ -245,6 +245,30 @@ test_that("selection.sampler takes three values and maps the deprecated ones wit
     expect_identical(.selection_runtime_settings()[["sampler"]], deprecated[[alias]][["value"]], info = alias)
   }
 
+  # a named value is stored and captured as the bare value
+  for (value in c("slice.coarse", "slice", "jags.default")) {
+    RoBMA.options(selection.sampler = setdiff(c("slice", "jags.default"), value)[[1L]])
+    result <- .sampler_option_warnings(RoBMA.options(selection.sampler = c(stock = value)))
+    expect_length(result$warnings, 0L)
+    expect_identical(result$value[["selection.sampler"]], value, info = value)
+    expect_identical(RoBMA.get_option("selection.sampler"), value, info = value)
+    expect_identical(.selection_runtime_settings()[["sampler"]], value, info = value)
+  }
+  result <- .sampler_option_warnings(RoBMA.options(selection.sampler = c(stock = "default")))
+  expect_length(result$warnings, 1L)
+  expect_identical(RoBMA.get_option("selection.sampler"), "jags.default")
+
+  # the deprecation warning waits for the other options of the call: a call
+  # that fails on a later option warns about nothing and stores nothing
+  RoBMA.options(selection.sampler = "slice")
+  before <- RoBMA.options()
+  result <- .sampler_option_warnings(tryCatch(RoBMA.options(selection.sampler = "default", max_cores = 0),
+                                              error = identity))
+  expect_s3_class(result$value, "error")
+  expect_identical(conditionMessage(result$value), "Option 'max_cores' must be an integer >= 1.")
+  expect_length(result$warnings, 0L)
+  expect_identical(RoBMA.options(), before)
+
   before <- RoBMA.options()
   for (value in list("coarse", "Slice", "jags", NA_character_, c("slice", "slice.coarse"), 1, TRUE, NULL)) {
     expect_error(do.call(RoBMA.options, list(selection.sampler = value)),

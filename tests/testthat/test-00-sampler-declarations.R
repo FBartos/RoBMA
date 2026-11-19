@@ -456,6 +456,16 @@ test_that("the options switch the declarations off", {
   .expect_declarations(robma, gates = FALSE, blocks = "none", label = "jags.default")
   .expect_declarations(selection, gates = FALSE, blocks = "none", label = "jags.default")
   .expect_declarations(pet_peese, gates = FALSE, blocks = "none", label = "jags.default PET-PEESE")
+
+  # a named value is stored unnamed and behaves as the unnamed one
+  RoBMA.options(selection.sampler = "slice")
+  RoBMA.options(selection.sampler = c(stock = "jags.default"))
+  expect_identical(RoBMA.get_option("selection.sampler"), "jags.default")
+  expect_true(RoBMA.get_option("sampler.gates"))
+  expect_true(RoBMA.get_option("sampler.blocks"))
+  .expect_declarations(robma, gates = FALSE, blocks = "none", label = "named jags.default")
+  .expect_declarations(selection, gates = FALSE, blocks = "none", label = "named jags.default")
+  .expect_declarations(pet_peese, gates = FALSE, blocks = "none", label = "named jags.default PET-PEESE")
 })
 
 
