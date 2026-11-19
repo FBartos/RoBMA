@@ -11,6 +11,8 @@
 #   Rscript tools/verify-coarse-default.R --part=cost --out=<dir> --other-library=<dir>
 #       [--seeds=3]
 #   Rscript tools/verify-coarse-default.R --part=identity --out=<dir> --other-library=<dir>
+#   Rscript tools/verify-coarse-default.R --part=efficiency --out=<dir> --other-library=<dir>
+#       [--workers=4] [--seeds=6] [--models=<regex>]
 #   Rscript tools/verify-coarse-default.R --part=selftest
 #
 # wider: arms 'coarse' (selection.sampler = "slice.coarse", the default
@@ -18,11 +20,13 @@
 # of 3 chains x 4,000 draws (package defaults otherwise, serial chains in every
 # fit), arms interleaved by seed, the runs spread over --workers worker
 # processes of this build. Per run: the mean of every monitored quantity
-# (categorical indicators as the frequency of each level), the corrected
-# sampler's record (selection_sampler_info(fit = )), the warnings, the JAGS
-# seconds and the effective draws per second of the global quantities and,
-# separately, of the model-inclusion indicators. Decision per model, on the
-# Welch statistics of the run means of every non-degenerate quantity: pass when
+# (categorical indicators as the frequency of each level) and its posterior SD
+# (quantity 'sd:<name>', not for indicators), the corrected sampler's record
+# (selection_sampler_info(fit = )), the slice intervals the corrected block
+# sampler exhausted, the warnings, the JAGS seconds and the effective draws per
+# second of the global quantities and, separately, of the model-inclusion
+# indicators. Decision per model, on the Welch statistics of the run means and
+# posterior SDs of every non-degenerate quantity: pass when
 # no |t| > 3.5 and the count of |t| > 2 is at most twice its expectation under
 # the Welch t distribution; a failing model is rerun once ('--part=rerun') with
 # fresh seeds, judged on its failing quantities only. The count treats the
@@ -34,7 +38,7 @@
 # 'incomplete', never a pass. Models (dat.assink2016 unless named, V from
 # metafor::vcalc()): bselmodel.mv and RoBMA.mv with the full V; RoBMA.mv on the
 # sampling variances only; 'dense', blocks of three Markov-correlated rows
-# (twelve studies) fitted in both arms with relative_tolerance = .1, 16
+# (twelve studies) fitted in both arms with relative_tolerance = 1, 16
 # scrambles and up to 32,768 points per scramble (under the default selection
 # control the dense normalizer is rejected by its QMC diagnostics in both arms);
 # 'rank_one' (constant correlation .6); 'factor' (the three studies whose full-V
@@ -48,10 +52,9 @@
 # (other than an indicator level the run never visited, frequency zero) has no
 # statistic and makes the model 'incomplete'; such cases are listed. The
 # efficiency table compares the arms, with the attempts BayesTools stopped and
-# restarted, the runs the diagnostic stopped and the wall hours; for the
-# model-averaged models the 'default' arm declares the allocation block and the
-# 'coarse' arm declares it too unless the corrected sampler takes the
-# allocation nodes (the block methods and samplers of each run show which).
+# restarted, the runs the diagnostic stopped and the wall hours; both arms
+# declare the blocks, which the corrected block sampler takes in the 'coarse'
+# arm where a selection block takes part (the samplers of each run show which).
 #
 # cost: Assink et al. bselmodel.mv (full V) with sampler.blocks = FALSE and the
 # corrected sampler; arm 'this' is this build with the fallback off
@@ -62,14 +65,30 @@
 # be identical (any difference is reported) and the seconds per 1,000
 # iterations of the arms are compared.
 #
-# identity: with selection.sampler = "slice" in this build and the defaults of
-# the build of --other-library, one R process each: the sampler assignment and
-# the draws of a univariate selection model, a .mv selection model, a .mv
-# ensemble and a model without selection must be equal; and, in this build, a
-# univariate selection model, a univariate ensemble, a model without selection
-# and a .mv ensemble on sampling variances (no coarse-capable selection child;
-# the ensemble keeps its allocation block) must be equal under both values of
-# selection.sampler.
+# identity: this build against the build of --other-library with identical
+# options, one R process each (2 chains x 500 draws): the sampler assignment and
+# the draws must be equal for bselmodel.mv and RoBMA.mv (full V) under
+# selection.sampler = "slice", "jags.default" and sampler.blocks = FALSE, and
+# under the default for models without a correctable block (a univariate
+# selection model and ensemble, a model without selection, a .mv ensemble on
+# sampling variances).
+#
+# efficiency: this build's default against the default of the build of
+# --other-library, --seeds seed pairs (the build order alternated by seed), one
+# R process per run, at most --workers processes at a time, 3 chains x 4,000
+# draws (package defaults otherwise, serial chains); for RoBMA.mv a third arm,
+# this build with sampler.blocks = FALSE ('this_noblocks'), whose sampler
+# assignment is checked against the other build's. Per run: the fitting
+# process's CPU seconds (model builds, adaptation and BayesTools' restarts
+# included), the effective sample size of the slowest global quantity and of
+# the slowest allocation parameter (the allocation SD and the derived
+# allocation weights; the raw Dirichlet parameters 'prior_par_eta_...' are not
+# identified and are left out in every arm), the claimed blocks, their
+# acceptance (the share of iterations in which every monitored member moved,
+# raw and per direction, ^(1/d)), fallbacks, retained corrected proposals and
+# exhausted slice intervals. Per model and comparison: the ratios of ESS per
+# CPU second of the seed pairs, their geometric mean and a t interval on the
+# log scale.
 #
 # --part=selftest runs the drivers on synthetic run files in a temporary
 # directory (no fits) and stops on a wrong decision, shape or count, or on any
@@ -83,15 +102,15 @@ opt  <- function(name, default = NULL) {
 }
 part      <- opt("part", "wider")
 out_dir   <- opt("out", if (part %in% c("selftest", "job")) tempfile("verify-coarse-") else NULL)
-workers   <- as.integer(opt("workers", "6"))
-seeds     <- as.integer(opt("seeds", if (identical(part, "cost")) "3" else "10"))
+workers   <- as.integer(opt("workers", if (identical(part, "efficiency")) "4" else "6"))
+seeds     <- as.integer(opt("seeds", switch(part, cost = "3", efficiency = "6", "10")))
 models_re <- opt("models", ".")
 other_lib <- opt("other-library")
 if (is.null(out_dir)) stop("Supply --out=<directory>.", call. = FALSE)
-if (!part %in% c("wider", "rerun", "cost", "identity", "selftest", "job")) {
-  stop("--part must be wider, rerun, cost, identity or selftest.", call. = FALSE)
+if (!part %in% c("wider", "rerun", "cost", "identity", "efficiency", "selftest", "job")) {
+  stop("--part must be wider, rerun, cost, identity, efficiency or selftest.", call. = FALSE)
 }
-if (part %in% c("cost", "identity") && is.null(other_lib)) {
+if (part %in% c("cost", "identity", "efficiency") && is.null(other_lib)) {
   stop("--part=", part, " needs --other-library=<library of the build to compare with>.", call. = FALSE)
 }
 dir.create(file.path(out_dir, "runs"), recursive = TRUE, showWarnings = FALSE)
@@ -157,13 +176,13 @@ model_specs <- function() {
   # three rows with Markov correlations (.8, .64, .8), which route to the dense
   # rules; the default selection control rejects their normalizer in both arms
   # (and relative_tolerance .05 with 16 scrambles still did, at a relative MCSE
-  # of .023-.028), so both arms fit them with a looser tolerance and a larger
+  # of .023-.028), so both arms fit them with relative_tolerance = 1 and a larger
   # QMC budget
   position <- stats::ave(assink[["esid"]], assink[["study"]], FUN = seq_along)
   count    <- stats::ave(assink[["esid"]], assink[["study"]], FUN = length)
   dense    <- assink[position <= 3L & count >= 3L, ]
   dense_control <- RoBMA::set_selection_likelihood_control(
-    relative_tolerance = .1, scrambles = 16L, max_points_per_scramble = 32768L)
+    relative_tolerance = 1, scrambles = 16L, max_points_per_scramble = 32768L)
   best  <- RoBMA::selection_model(weight_rule = "best", group = "study")
   best_studies <- assink[assink[["study"]] %in% c(1, 2, 4, 6, 7, 10), ]
   V_best <- metafor::vcalc(vi, cluster = study, obs = esid, rho = .6, data = best_studies)
@@ -216,6 +235,7 @@ run_job <- function(job, specs, arm_options, sample = 4000L) {
 
   spec <- specs[[job[["model"]]]]
   do.call(RoBMA::RoBMA.options, arm_options[[job[["arm"]]]])
+  exhausted_intervals()
   warnings <- character()
   classes  <- character()
   started  <- Sys.time()
@@ -231,7 +251,7 @@ run_job <- function(job, specs, arm_options, sample = 4000L) {
   wall <- as.numeric(difftime(Sys.time(), started, units = "secs"))
   control <- spec[["args"]][["selection_control"]]
   result <- list(job = job, build = build_info(), wall = wall, warnings = unique(warnings),
-                 warning_classes = unique(classes), jags_seconds = NA_real_,
+                 warning_classes = unique(classes), jags_seconds = NA_real_, exhausted = exhausted_intervals(),
                  control = if (is.null(control)) "default" else paste0(
                    "relative_tolerance ", control[["relative_tolerance"]], ", scrambles ", control[["scrambles"]],
                    ", points ", control[["points_per_scramble"]], "-", control[["max_points_per_scramble"]]))
@@ -248,6 +268,7 @@ run_job <- function(job, specs, arm_options, sample = 4000L) {
   result[["record"]]       <- RoBMA::selection_sampler_info(fit = fit)
   result[["blocks"]]       <- block_methods(fit)
   result[["means"]]        <- quantity_means(draws)
+  result[["sds"]]          <- quantity_sds(draws)
   result[["ess"]]          <- coda::effectiveSize(draws)
   result[["indicator_ess"]] <- indicator_ess(draws)
   result[["roles"]]        <- coordinate_roles(fit)
@@ -284,6 +305,27 @@ quantity_means <- function(draws) {
   }
 
   return(means)
+}
+
+# Posterior SDs of the monitored quantities other than indicators, named
+# 'sd:<quantity>'.
+quantity_sds <- function(draws) {
+
+  matrix <- as.matrix(draws)
+  names  <- colnames(matrix)[!grepl("indicator", colnames(matrix), fixed = TRUE)]
+  sds    <- vapply(names, function(name) stats::sd(matrix[, name]), numeric(1))
+
+  return(stats::setNames(sds, paste0("sd:", names)))
+}
+
+# The slice intervals the corrected block sampler of this process exhausted
+# since the last call (read and cleared through its test hook); NA for a build
+# without the hook.
+exhausted_intervals <- function() {
+
+  if (!is.loaded("RoBMA_corrected_block_test", PACKAGE = "RoBMA")) return(NA_real_)
+
+  return(.Call("RoBMA_corrected_block_test", NULL, NULL, PACKAGE = "RoBMA")[["exhausted"]])
 }
 
 # Effective draws of each level of each model-inclusion indicator (the series
@@ -348,8 +390,9 @@ run_jobs <- function(jobs, specs, n_workers) {
     suppressPackageStartupMessages(library(RoBMA))
     invisible(TRUE)
   }, .libPaths())
-  parallel::clusterExport(cluster, c("run_job", "quantity_means", "indicator_ess", "coordinate_roles",
-                                     "block_methods", "build_info", "arm_options", "specs"), envir = environment())
+  parallel::clusterExport(cluster, c("run_job", "quantity_means", "quantity_sds", "exhausted_intervals",
+                                     "indicator_ess", "coordinate_roles", "block_methods", "build_info",
+                                     "arm_options", "specs"), envir = environment())
   builds <- parallel::clusterCall(cluster, build_info)
   if (!all(vapply(builds, identical, logical(1), build_info()))) {
     stop("A worker loaded a different RoBMA or BayesTools build than this session.", call. = FALSE)
@@ -371,7 +414,7 @@ run_jobs <- function(jobs, specs, n_workers) {
 complete_run <- function(run) {
 
   defaults <- list(wall = NA_real_, jags_seconds = NA_real_, warnings = character(),
-                   warning_classes = character())
+                   warning_classes = character(), exhausted = NA_real_)
   for (field in names(defaults)) {
     if (is.null(run[[field]])) run[[field]] <- defaults[[field]]
   }
@@ -431,14 +474,15 @@ welch_table <- function(runs, model, quantities = NULL) {
   runs <- Filter(function(run) run[["job"]][["model"]] == model && is.null(run[["error"]]), runs)
   arms <- vapply(runs, function(run) run[["job"]][["arm"]], character(1))
   # requested quantities (a rerun) are compared exactly, present in the runs or not
-  names_all <- if (is.null(quantities)) unique(unlist(lapply(runs, function(run) names(run[["means"]])))) else
-    unique(quantities)
+  names_all <- if (is.null(quantities)) {
+    unique(unlist(lapply(runs, function(run) c(names(run[["means"]]), names(run[["sds"]])))))
+  } else unique(quantities)
   # quantity_means() names only the levels of an indicator that a run visited:
   # a level is zero in a run whose means name no such level but hold another
   # level of the same indicator; a stored NA, an indicator the run lacks
   # altogether and any other quantity missing from a completed run stay missing
   means <- run_matrix(runs, names_all, function(run, names) {
-    stored    <- run[["means"]]
+    stored    <- c(run[["means"]], run[["sds"]])
     values    <- stored[names]
     indicator <- sub("==.*$", "", names)
     visited   <- sub("==.*$", "", names(stored)[grepl("==", names(stored), fixed = TRUE) & !is.na(stored)])
@@ -493,6 +537,25 @@ welch_rows <- function(values, arms, model) {
   })
 
   do.call(rbind, rows)
+}
+
+# Per model, over the posterior-SD rows of a Welch table: the largest |t| and
+# the largest relative difference |coarse - default| / default of the arms'
+# mean SDs, with their quantities.
+sd_differences <- function(table) {
+
+  rows <- table[startsWith(table[["quantity"]], "sd:") & !is.na(table[["t"]]), , drop = FALSE]
+  if (nrow(rows) == 0L) return(NULL)
+  rows[["relative"]] <- abs(rows[["mean_coarse"]] - rows[["mean_default"]]) / abs(rows[["mean_default"]])
+  out <- lapply(split(rows, rows[["model"]]), function(part) {
+    i <- which.max(abs(part[["t"]]))
+    j <- which.max(part[["relative"]])
+    data.frame(model = part[["model"]][[1L]], quantities = nrow(part), max_abs_t = abs(part[["t"]][[i]]),
+               max_abs_t_quantity = part[["quantity"]][[i]], max_relative = part[["relative"]][[j]],
+               max_relative_quantity = part[["quantity"]][[j]], stringsAsFactors = FALSE)
+  })
+
+  return(do.call(rbind, out))
 }
 
 # The decision of one model: 'incomplete' when any planned run failed or is
@@ -590,6 +653,7 @@ run_rows <- function(runs) {
       low_acceptance_warning = "RoBMA_selection_sampler_low_acceptance" %in% run[["warning_classes"]],
       warnings = length(run[["warnings"]]),
       stopped_attempts = stopped_attempts(run),
+      exhausted = as.numeric(run[["exhausted"]]),
       wall = as.numeric(run[["wall"]]),
       min_ess = if (length(ess)) min(ess) else NA_real_,
       min_ess_quantity = if (length(ess)) names(ess)[which.min(ess)] else NA_character_,
@@ -613,7 +677,7 @@ efficiency_table <- function(rows, totals = NULL) {
 
   metrics <- c("jags_seconds", "samplers", "fallback_samplers", "fallback_few_proposals",
                "fallback_surrogate_exact", "fallback_low_acceptance", "acceptance_rate", "min_sampler_rate",
-               "warnings", "low_acceptance_warning", "min_ess", "ess_per_second", "indicator_min_ess",
+               "warnings", "low_acceptance_warning", "exhausted", "min_ess", "ess_per_second", "indicator_min_ess",
                "indicator_ess_per_second")
   if (is.null(totals)) {
     totals <- data.frame(model = character(), arm = character(), stopped_runs = integer(), wall_hours = numeric())
@@ -811,6 +875,12 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   }
   cat("\nQuantities with |t| > 2:\n")
   print(table[(abs(table[["t"]]) > 2) %in% TRUE, , drop = FALSE], row.names = FALSE)
+  sd_summary <- sd_differences(table)
+  if (!is.null(sd_summary)) {
+    utils::write.csv(sd_summary, file.path(dir, paste0(part, "-sd.csv")), row.names = FALSE)
+    cat("\nPosterior SDs per model (largest |t| and largest relative difference of the arms' mean SDs):\n")
+    print(sd_summary, row.names = FALSE, digits = 4)
+  }
 
   rows <- run_rows(runs)
   if (!is.null(rows)) utils::write.csv(rows, file.path(dir, paste0(part, "-efficiency-runs.csv")), row.names = FALSE)
@@ -843,8 +913,8 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
 # the first entry.
 arm_libraries <- function(arm) {
 
-  if (identical(arm, "this")) .libPaths() else c(normalizePath(other_lib, winslash = "/", mustWork = TRUE),
-                                                 .libPaths()[-1L])
+  if (arm %in% c("this", "this_noblocks")) .libPaths() else
+    c(normalizePath(other_lib, winslash = "/", mustWork = TRUE), .libPaths()[-1L])
 }
 
 # The 'selection.sampler' value of an arm: this build takes the current values;
@@ -884,12 +954,18 @@ fit_job <- function(job) {
   options <- job[["options"]]
   options <- options[names(options) %in% names(RoBMA::RoBMA.options())]
   if (length(options)) do.call(RoBMA::RoBMA.options, options)
-  spec <- model_specs_cross()[[job[["model"]]]]
+  spec <- if (identical(job[["specs"]], "wider")) model_specs()[[job[["model"]]]] else
+    model_specs_cross()[[job[["model"]]]]
+  exhausted_intervals()
   started <- Sys.time()
+  cpu     <- proc.time()
   fit <- tryCatch(suppressWarnings(do.call(getExportedValue("RoBMA", spec[["constructor"]]), c(spec[["args"]],
     job[["fit"]], list(seed = job[["seed"]], parallel = FALSE, silent = TRUE)))), error = function(e) e)
+  cpu <- proc.time() - cpu
   result <- list(job = job, build = build_info(), options_set = options,
-                 wall = as.numeric(difftime(Sys.time(), started, units = "secs")))
+                 wall = as.numeric(difftime(Sys.time(), started, units = "secs")),
+                 cpu = sum(cpu[c("user.self", "sys.self", "user.child", "sys.child")], na.rm = TRUE),
+                 exhausted = exhausted_intervals())
   if (inherits(fit, "error") || is.null(fit[["fit"]][["mcmc"]])) {
     result[["error"]] <- if (inherits(fit, "error")) conditionMessage(fit) else "no posterior draws"
     return(result)
@@ -897,8 +973,17 @@ fit_job <- function(job) {
   result[["draws"]]    <- as.matrix(fit[["fit"]][["mcmc"]])
   result[["samplers"]] <- fit[["fit"]][["samplers"]][, c("Node", "Sampler")]
   result[["jags_seconds"]] <- as.numeric(fit[["fit"]][["timetaken"]], units = "secs")
-  result[["iterations"]]   <- job[["fit"]][["chains"]] *
-    (job[["fit"]][["adapt"]] + job[["fit"]][["burnin"]] + job[["fit"]][["sample"]])
+  result[["iterations"]]   <- if (all(c("chains", "adapt", "burnin", "sample") %in% names(job[["fit"]])))
+    job[["fit"]][["chains"]] * (job[["fit"]][["adapt"]] + job[["fit"]][["burnin"]] + job[["fit"]][["sample"]]) else
+    NA_real_
+  if (identical(job[["part"]], "efficiency")) {
+    draws <- fit[["fit"]][["mcmc"]]
+    result[["ess"]]    <- coda::effectiveSize(draws)
+    result[["roles"]]  <- coordinate_roles(fit)
+    result[["record"]] <- RoBMA::selection_sampler_info(fit = fit)
+    result[["block"]]  <- block_acceptance(fit[["fit"]][["samplers"]], draws)
+    result[["draws"]]  <- NULL
+  }
 
   return(result)
 }
@@ -981,29 +1066,31 @@ cost_driver <- function(seeds, dir = out_dir, execute = run_process) {
   invisible(rows)
 }
 
-# The default identity (--part=identity).
+# The same-option identity (--part=identity): this build and the build of
+# --other-library with identical options.
+identity_cases <- function() {
+
+  stock <- list(slice = list(selection.sampler = "slice"), jags.default = list(selection.sampler = "jags.default"),
+                blocks_off = list(sampler.blocks = FALSE))
+  cases <- list()
+  for (model in c("bselmodel.mv", "RoBMA.mv")) for (label in names(stock)) {
+    cases[[length(cases) + 1L]] <- list(model = model, label = label, options = stock[[label]])
+  }
+  # the default, for models without a correctable block
+  for (model in c("bselmodel", "RoBMA", "brma.mv", "RoBMA.mv_vi")) {
+    cases[[length(cases) + 1L]] <- list(model = model, label = "default", options = list())
+  }
+
+  return(cases)
+}
+
 identity_driver <- function(dir = out_dir, execute = run_process) {
 
   fit  <- list(chains = 2L, adapt = 500L, burnin = 500L, sample = 500L)
   jobs <- list()
-  # the other build with its defaults against this build with selection.sampler = "slice"
-  for (model in c("bselmodel", "bselmodel.mv", "RoBMA.mv", "brma.mv")) {
-    jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "this", seed = 7001L, fit = fit,
-                                      options = list(selection.sampler = "slice"), pair = "builds")
-    jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "other", seed = 7001L, fit = fit,
-                                      options = list(), pair = "builds")
-  }
-  # this build alone: no coarse-capable selection child (RoBMA.mv on sampling
-  # variances has single-estimate blocks only, so it also keeps its allocation
-  # block), both option values
-  for (model in c("bselmodel", "RoBMA", "brma.mv", "RoBMA.mv_vi")) {
-    # run files keep the labels of the earlier values ("default", "coarse_corrected")
-    for (variant in c("default", "coarse_corrected")) {
-      sampler <- c(default = "slice", coarse_corrected = "slice.coarse")[[variant]]
-      jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "this", seed = 7001L, fit = fit,
-                                        options = list(selection.sampler = sampler), pair = "options",
-                                        variant = variant)
-    }
+  for (case in identity_cases()) for (arm in c("this", "other")) {
+    jobs[[length(jobs) + 1L]] <- list(part = "identity", model = case[["model"]], arm = arm, seed = 7001L,
+                                      fit = fit, options = case[["options"]], variant = case[["label"]])
   }
   for (job in jobs) if (!file.exists(cross_file(job, dir))) execute(job, dir)
   runs <- lapply(jobs, read_cross, dir = dir)
@@ -1011,19 +1098,17 @@ identity_driver <- function(dir = out_dir, execute = run_process) {
     a <- runs[[i]]
     b <- runs[[i + 1L]]
     ok <- is.null(a[["error"]]) && is.null(b[["error"]])
-    data.frame(model = a[["job"]][["model"]], pair = a[["job"]][["pair"]],
-               first = paste(a[["job"]][["arm"]], paste(names(a[["job"]][["options"]]),
-                                                       unlist(a[["job"]][["options"]]), sep = "=", collapse = " ")),
-               second = paste(b[["job"]][["arm"]], paste(names(b[["job"]][["options"]]),
-                                                        unlist(b[["job"]][["options"]]), sep = "=", collapse = " ")),
+    count <- function(sampler) if (ok) sum(a[["samplers"]][["Sampler"]] == sampler) else NA_integer_
+    data.frame(model = a[["job"]][["model"]], options = a[["job"]][["variant"]],
                status = if (ok) "complete" else "incomplete",
                identical_samplers = ok && identical(a[["samplers"]], b[["samplers"]]),
                identical_draws = ok && identical(a[["draws"]], b[["draws"]]),
-               corrected_samplers = if (ok) sum(a[["samplers"]][["Sampler"]] == "RoBMA::CoarseCorrectedSlice") else NA_integer_,
+               corrected_samplers = count("RoBMA::CoarseCorrectedSlice"),
+               block_samplers = count("RoBMA::CoarseCorrectedBlock"),
                stringsAsFactors = FALSE)
   }))
   utils::write.csv(rows, file.path(dir, "identity.csv"), row.names = FALSE)
-  cat("\nDefault identity:\n")
+  cat("\nSame-option identity (this build against the other build):\n")
   print(rows, row.names = FALSE)
   if (any(rows[["status"]] != "complete")) cat("INCOMPLETE: a run failed or is missing.\n")
   if (any(rows[["status"]] == "complete" & !(rows[["identical_samplers"]] & rows[["identical_draws"]]))) {
@@ -1031,6 +1116,204 @@ identity_driver <- function(dir = out_dir, execute = run_process) {
   }
 
   invisible(rows)
+}
+
+
+# Efficiency (--part=efficiency) -----------------------------------------------------
+
+# Allocation parameters: the allocation SD and the derived allocation weights
+# of a random-effect variance allocation; the raw Dirichlet parameters
+# ('prior_par_eta_...') are not identified and are left out.
+allocation_parameters <- function(names) {
+
+  names[grepl("_xRE_ALLOCx_", names, fixed = TRUE) & grepl("(allocation_sd|weight)", names) &
+          !grepl("^prior_par_", names)]
+}
+
+# The block samplers of a fit: per block sampler, its nodes (d) and the share of
+# retained iterations in which every monitored member changed (a rejected or
+# all-exhausted block update repeats all members; for the factor slice sampler
+# about one), raw and per direction (^(1/d)). Blocks of one sampler are pooled.
+block_acceptance <- function(samplers, draws) {
+
+  blocks <- c("RoBMA::CoarseCorrectedBlock", "BayesTools::FactorSlice")
+  rows <- lapply(intersect(blocks, unique(samplers[["Sampler"]])), function(sampler) {
+    nodes     <- samplers[["Node"]][samplers[["Sampler"]] == sampler]
+    monitored <- intersect(nodes, coda::varnames(draws))
+    moved <- if (length(monitored)) mean(unlist(lapply(draws, function(chain) {
+      values <- as.matrix(chain)[, monitored, drop = FALSE]
+      apply(values[-1L, , drop = FALSE] != values[-nrow(values), , drop = FALSE], 1L, all)
+    }))) else NA_real_
+    data.frame(sampler = sampler, nodes = length(nodes), monitored = length(monitored), moved = moved,
+               per_direction = moved^(1 / length(nodes)), stringsAsFactors = FALSE)
+  })
+  if (length(rows) == 0L) return(NULL)
+
+  return(do.call(rbind, rows))
+}
+
+# One row per efficiency run.
+efficiency_run_row <- function(run) {
+
+  job <- run[["job"]]
+  row <- data.frame(model = job[["model"]], arm = job[["arm"]], seed = as.integer(job[["seed"]]),
+                    status = if (is.null(run[["error"]])) "complete" else "failed",
+                    cpu = NA_real_, min_global_ess = NA_real_, min_global = NA_character_,
+                    global_ess_per_cpu = NA_real_, min_allocation_ess = NA_real_, min_allocation = NA_character_,
+                    allocation_ess_per_cpu = NA_real_, blocks = NA_character_, block_moved = NA_real_,
+                    block_per_direction = NA_real_, samplers = NA_real_, fallback_samplers = NA_real_,
+                    sampling_proposed = NA_real_, acceptance_rate = NA_real_, exhausted = NA_real_,
+                    assignment = NA_character_, error = if (is.null(run[["error"]])) "" else run[["error"]],
+                    stringsAsFactors = FALSE)
+  if (!is.null(run[["error"]])) return(row)
+  ess <- run[["ess"]][is.finite(run[["ess"]]) & run[["ess"]] > 0]
+  global <- ess[global_parameters(names(ess), run[["roles"]])]
+  allocation <- ess[allocation_parameters(names(ess))]
+  row[["cpu"]] <- run[["cpu"]]
+  if (length(global)) {
+    row[["min_global_ess"]] <- min(global)
+    row[["min_global"]] <- names(global)[which.min(global)]
+    row[["global_ess_per_cpu"]] <- min(global) / run[["cpu"]]
+  }
+  if (length(allocation)) {
+    row[["min_allocation_ess"]] <- min(allocation)
+    row[["min_allocation"]] <- names(allocation)[which.min(allocation)]
+    row[["allocation_ess_per_cpu"]] <- min(allocation) / run[["cpu"]]
+  }
+  block <- run[["block"]]
+  if (!is.null(block) && nrow(block) > 0L) {
+    row[["blocks"]] <- paste0(block[["sampler"]], ":", block[["nodes"]], collapse = " ")
+    corrected <- block[block[["sampler"]] == "RoBMA::CoarseCorrectedBlock", , drop = FALSE]
+    if (nrow(corrected) > 0L) {
+      row[["block_moved"]] <- corrected[["moved"]][[1L]]
+      row[["block_per_direction"]] <- corrected[["per_direction"]][[1L]]
+    }
+  }
+  record <- run[["record"]]
+  if (!is.null(record)) {
+    for (name in c("samplers", "fallback_samplers", "sampling_proposed", "acceptance_rate")) {
+      row[[name]] <- as.numeric(record[[name]])
+    }
+  }
+  row[["exhausted"]] <- as.numeric(run[["exhausted"]])
+  samplers <- run[["samplers"]]
+  row[["assignment"]] <- paste(samplers[["Node"]], samplers[["Sampler"]], sep = "=", collapse = ";")
+
+  return(row)
+}
+
+# Per model and comparison ('this' against 'other' and, for RoBMA.mv, against
+# 'this_noblocks'): the ratios of ESS per CPU second of the seed pairs for the
+# slowest global quantity and the slowest allocation parameter, their geometric
+# mean and a 95% t interval on the log scale.
+efficiency_ratios <- function(rows) {
+
+  out <- list()
+  for (model in unique(rows[["model"]])) {
+    part <- rows[rows[["model"]] == model, , drop = FALSE]
+    this <- part[part[["arm"]] == "this", , drop = FALSE]
+    for (reference in intersect(c("other", "this_noblocks"), part[["arm"]])) {
+      ref <- part[part[["arm"]] == reference, , drop = FALSE]
+      seeds <- intersect(this[["seed"]], ref[["seed"]])
+      for (target in c("global", "allocation")) {
+        column <- paste0(target, "_ess_per_cpu")
+        ratios <- this[[column]][match(seeds, this[["seed"]])] / ref[[column]][match(seeds, ref[["seed"]])]
+        if (all(is.na(ratios))) next
+        log_ratios <- log(ratios)
+        n  <- sum(!is.na(log_ratios))
+        m  <- mean(log_ratios, na.rm = TRUE)
+        se <- if (n > 1L) stats::sd(log_ratios, na.rm = TRUE) / sqrt(n) else NA_real_
+        q  <- if (n > 1L) stats::qt(.975, n - 1L) else NA_real_
+        out[[length(out) + 1L]] <- data.frame(
+          model = model, comparison = paste0("this/", reference), quantity = target, pairs = n,
+          ratios = paste(format(ratios, digits = 3), collapse = " "),
+          geometric_mean = exp(m), lower = exp(m - q * se), upper = exp(m + q * se),
+          incomplete = sum(is.na(ratios)), stringsAsFactors = FALSE)
+      }
+    }
+  }
+  if (length(out) == 0L) return(NULL)
+
+  return(do.call(rbind, out))
+}
+
+# Per model and arm: the claimed blocks and means of the block acceptance, the
+# record and the exhausted intervals; and, for RoBMA.mv, whether the
+# 'this_noblocks' arm has the other build's sampler assignment in every seed.
+efficiency_blocks <- function(rows) {
+
+  complete <- rows[rows[["status"]] == "complete", , drop = FALSE]
+  if (nrow(complete) == 0L) return(NULL)
+  table <- stats::aggregate(complete[c("cpu", "block_moved", "block_per_direction", "samplers",
+                                       "fallback_samplers", "sampling_proposed", "acceptance_rate",
+                                       "exhausted")],
+                            complete[c("model", "arm")], function(x) mean(x, na.rm = TRUE))
+  table[["blocks"]] <- vapply(seq_len(nrow(table)), function(i) {
+    paste(unique(complete[["blocks"]][complete[["model"]] == table[["model"]][[i]] &
+                                       complete[["arm"]] == table[["arm"]][[i]]]), collapse = " | ")
+  }, character(1))
+  table[["assignment_as_other"]] <- vapply(seq_len(nrow(table)), function(i) {
+    if (table[["arm"]][[i]] != "this_noblocks") return(NA)
+    part  <- complete[complete[["model"]] == table[["model"]][[i]], , drop = FALSE]
+    mine  <- part[part[["arm"]] == "this_noblocks", , drop = FALSE]
+    other <- part[part[["arm"]] == "other", , drop = FALSE]
+    seeds <- intersect(mine[["seed"]], other[["seed"]])
+    length(seeds) > 0L &&
+      identical(mine[["assignment"]][match(seeds, mine[["seed"]])], other[["assignment"]][match(seeds, other[["seed"]])])
+  }, logical(1))
+
+  return(table[order(table[["model"]], table[["arm"]]), , drop = FALSE])
+}
+
+# Runs jobs in new R processes, at most 'workers' at a time.
+run_processes <- function(jobs, dir, workers) {
+
+  if (length(jobs) == 0L) return(invisible(NULL))
+  cluster <- parallel::makePSOCKcluster(max(1L, min(workers, length(jobs))), rscript_args = "--vanilla")
+  on.exit(parallel::stopCluster(cluster), add = TRUE)
+  parallel::clusterExport(cluster, c("run_process", "arm_libraries", "cross_file", "other_lib", "script_path"),
+                          envir = globalenv())
+  log <- parallel::clusterApplyLB(cluster, jobs, function(job, dir) {
+    utils::capture.output(run_process(job, dir))
+  }, dir = dir)
+  cat(unlist(log), sep = "\n")
+}
+
+efficiency_driver <- function(models, seeds, workers, dir = out_dir, execute = run_processes) {
+
+  fit  <- list(chains = 3L, sample = 4000L)
+  jobs <- list()
+  for (i in seq_len(seeds)) for (model in models) {
+    arms <- if (i %% 2L == 1L) c("this", "other") else c("other", "this")
+    if (identical(model, "RoBMA.mv")) arms <- c(arms, "this_noblocks")
+    for (arm in arms) {
+      jobs[[length(jobs) + 1L]] <- list(part = "efficiency", model = model, arm = arm, seed = 8000L + i,
+                                        fit = fit, specs = "wider",
+                                        options = if (arm == "this_noblocks") list(sampler.blocks = FALSE) else list())
+    }
+  }
+  execute(Filter(function(job) !file.exists(cross_file(job, dir)), jobs), dir, workers)
+  runs <- lapply(jobs, read_cross, dir = dir)
+  rows <- do.call(rbind, lapply(runs, efficiency_run_row))
+  utils::write.csv(rows[setdiff(names(rows), "assignment")], file.path(dir, "efficiency-runs.csv"), row.names = FALSE)
+  ratios <- efficiency_ratios(rows)
+  blocks <- efficiency_blocks(rows)
+  if (!is.null(ratios)) utils::write.csv(ratios, file.path(dir, "efficiency.csv"), row.names = FALSE)
+  if (!is.null(blocks)) utils::write.csv(blocks, file.path(dir, "efficiency-blocks.csv"), row.names = FALSE)
+  cat("\nRuns:\n")
+  print(rows[c("model", "arm", "seed", "status", "cpu", "min_global", "min_global_ess", "global_ess_per_cpu",
+               "min_allocation_ess", "allocation_ess_per_cpu", "block_moved", "block_per_direction",
+               "fallback_samplers", "exhausted")], row.names = FALSE, digits = 4)
+  if (any(rows[["status"]] != "complete")) {
+    cat("INCOMPLETE: failed runs:\n")
+    print(rows[rows[["status"]] != "complete", c("model", "arm", "seed", "error")], row.names = FALSE)
+  }
+  cat("\nBlocks, record and exhausted intervals (means per model and arm):\n")
+  print(blocks, row.names = FALSE, digits = 4)
+  cat("\nRatios of ESS per CPU second (geometric mean, 95% t interval on the log scale):\n")
+  print(ratios, row.names = FALSE, digits = 4)
+
+  invisible(list(rows = rows, ratios = ratios, blocks = blocks))
 }
 
 
@@ -1055,12 +1338,16 @@ selftest <- function() {
     samplers = samplers, fallback_samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
     fallback_low_acceptance = 1, sampling_proposed = 1000, sampling_accepted = 990, acceptance_rate = .99,
     min_sampler_rate = .98, complete = TRUE, stringsAsFactors = FALSE)
-  wider_run <- function(job, names, shift = 0, constant = FALSE, i = job[["seed"]] %% 1000L) {
+  wider_run <- function(job, names, shift = 0, constant = FALSE, i = job[["seed"]] %% 1000L, sd_shift = NULL) {
     offset <- if (job[["arm"]] == "coarse") offsets[i] else offsets[11L - i]
     means  <- vapply(seq_along(names), function(j) if (constant) j else offset + j + shift[[min(j, length(shift))]],
                      numeric(1L))
+    # posterior SDs only when asked for: 1 + j + the run's offset, shifted in the coarse arm
+    sds <- if (is.null(sd_shift)) NULL else stats::setNames(vapply(seq_along(names), function(j) {
+      1 + j + offset / 10 + if (job[["arm"]] == "coarse") sd_shift[[min(j, length(sd_shift))]] else 0
+    }, numeric(1L)), paste0("sd:", names))
     list(job = job, build = list(RoBMA = "0", BayesTools = "0", RoBMA_dll = "x", BayesTools_dll = "y",
-                                 RoBMA_path = "p", library = "l"),
+                                 RoBMA_path = "p", library = "l"), sds = sds,
          wall = 1, jags_seconds = if (job[["arm"]] == "coarse") 1 else 2, warnings = character(),
          warning_classes = character(), means = stats::setNames(means, names),
          ess = stats::setNames(rep(100, length(names)), names),
@@ -1271,6 +1558,19 @@ selftest <- function() {
   check(x$decisions$decision == "pass" && x$decisions$quantities == 1L && all(x$table$quantity == "b"),
         "a single-quantity rerun: pass on 'b' alone")
 
+  # posterior SDs enter the comparison as quantities 'sd:<name>'
+  x <- wider_case("sd_same", function(job, i) wider_run(job, c("a", "b"), sd_shift = 0))
+  sd_file <- file.path(root, "sd_same", "wider-sd.csv")
+  check(x$decisions$decision == "pass" && x$decisions$quantities == 4L &&
+          setequal(x$table$quantity, c("a", "b", "sd:a", "sd:b")) && file.exists(sd_file) &&
+          utils::read.csv(sd_file)$max_relative < 1e-12,
+        "posterior SDs: compared as quantities, summarized per model")
+  x <- wider_case("sd_shifted", function(job, i) wider_run(job, c("a", "b"), sd_shift = c(0, .5)))
+  sd_summary <- utils::read.csv(file.path(root, "sd_shifted", "wider-sd.csv"), stringsAsFactors = FALSE)
+  check(x$decisions$decision == "fail" && identical(x$table$quantity[abs(x$table$t) > 2], "sd:b") &&
+          sd_summary$max_abs_t_quantity == "sd:b" && abs(sd_summary$max_relative - .5 / 3) < 1e-9,
+        "a shifted posterior SD: fail on that SD, the largest relative difference reported")
+
   # cross-build drivers on synthetic run files
   cross_run <- function(job, draws, seconds = 10) {
     list(job = job, build = list(RoBMA = job[["arm"]], BayesTools = "0", RoBMA_dll = "x", BayesTools_dll = "y",
@@ -1306,28 +1606,81 @@ selftest <- function() {
     list(rows = utils::read.csv(file.path(dir, "identity.csv"), stringsAsFactors = FALSE), output = output)
   }
   z <- identity_case("identity_same", function(job) FALSE)
-  check(nrow(z$rows) == 8L && all(z$rows$status == "complete") && all(z$rows$identical_draws) &&
-          sum(z$rows$pair == "builds") == 4L && sum(z$rows$pair == "options") == 4L,
-        "identity: 4 build pairs and 4 option pairs, all identical")
-  z <- identity_case("identity_differs", function(job) job$model == "RoBMA.mv" && job$arm == "other")
+  check(nrow(z$rows) == 10L && all(z$rows$status == "complete") && all(z$rows$identical_draws) &&
+          sum(z$rows$options == "default") == 4L && sum(z$rows$model == "RoBMA.mv") == 3L &&
+          all(z$rows$block_samplers == 0L) && !any(grepl("FINDING", z$output)),
+        "identity: 10 same-option pairs, all identical")
+  z <- identity_case("identity_differs", function(job) {
+    job$model == "RoBMA.mv" && job$arm == "other" && job$variant == "slice"
+  })
   check(sum(!z$rows$identical_draws) == 1L && any(grepl("FINDING", z$output)),
         "identity: a differing pair is reported as a finding")
 
-  # the build of --other-library rejects the current values of selection.sampler
-  other_jobs <- list()
+  # the cost part gives the other build (a released one) its released spelling;
+  # the identity part gives both builds the same options
+  recorded <- list()
   record_jobs <- function(job, dir) {
-    if (!identical(job[["arm"]], "this")) other_jobs[[length(other_jobs) + 1L]] <<- job
+    recorded[[length(recorded) + 1L]] <<- job
     saveRDS(cross_run(job, draws), cross_file(job, dir))
   }
   for (label in c("values_cost", "values_identity")) {
     dir.create(file.path(root, label, "runs"), recursive = TRUE, showWarnings = FALSE)
   }
   utils::capture.output(cost_driver(3L, dir = file.path(root, "values_cost"), execute = record_jobs))
+  cost_other <- Filter(function(job) job[["arm"]] == "other", recorded)
+  other_values <- unlist(lapply(cost_other, function(job) job[["options"]][["selection.sampler"]]))
+  check(length(cost_other) == 3L && identical(other_values, rep("coarse_corrected", 3L)),
+        "cost: jobs of the other build get the released selection.sampler value")
+  recorded <- list()
   utils::capture.output(identity_driver(dir = file.path(root, "values_identity"), execute = record_jobs))
-  other_values <- unlist(lapply(other_jobs, function(job) job[["options"]][["selection.sampler"]]))
-  check(length(other_jobs) == 7L && identical(other_values, rep("coarse_corrected", 3L)) &&
-          !any(other_values %in% c("slice.coarse", "slice", "jags.default")),
-        "cross-build: jobs of the other build get only released selection.sampler values")
+  pairs <- split(recorded, vapply(recorded, function(job) paste(job[["model"]], job[["variant"]]), ""))
+  check(length(recorded) == 20L && all(vapply(pairs, function(pair) {
+    length(pair) == 2L && identical(pair[[1L]][["options"]], pair[[2L]][["options"]]) &&
+      setequal(c(pair[[1L]][["arm"]], pair[[2L]][["arm"]]), c("this", "other"))
+  }, logical(1L))), "identity: both builds of a pair get the same options")
+
+  # efficiency: synthetic runs with known ratios. ESS 100 for the global 'mu'
+  # and the allocation SD, 1 for a raw Dirichlet parameter (left out); CPU 10 s
+  # in 'this', 20 in 'other', 15 in 'this_noblocks' (whose assignment equals
+  # the other build's); one 'other' run of 'm2' failed.
+  efficiency_run <- function(job) {
+    if (job$model == "m2" && job$arm == "other" && job$seed == 8003L) {
+      return(list(job = job, wall = 1, error = "synthetic fit failure"))
+    }
+    names <- c("mu", "mu__xRE_ALLOCx_heterogeneity__allocation_sd",
+               "prior_par_eta_mu__xRE_ALLOCx_heterogeneity__weight[1]")
+    blocked <- job$arm == "this"
+    list(job = job, wall = 1, cpu = c(this = 10, other = 20, this_noblocks = 15)[[job$arm]], exhausted = 0,
+         ess = stats::setNames(c(100, 100, 1), names), roles = stats::setNames(rep("sampled", 3L), names),
+         samplers = data.frame(Node = c("mu", "tau"), Sampler = if (blocked) rep("RoBMA::CoarseCorrectedBlock", 2L) else
+                                 c("RoBMA::CoarseCorrectedSlice", "base::RealSlicer"), stringsAsFactors = FALSE),
+         block = if (blocked) data.frame(sampler = "RoBMA::CoarseCorrectedBlock", nodes = 2L, monitored = 2L,
+                                         moved = .81, per_direction = .9) else NULL,
+         record = data.frame(samplers = 3, fallback_samplers = 0, sampling_proposed = 100, acceptance_rate = .9))
+  }
+  dir <- file.path(root, "efficiency")
+  dir.create(file.path(dir, "runs"), recursive = TRUE, showWarnings = FALSE)
+  executed <- list()
+  output <- utils::capture.output(e <- efficiency_driver(c("RoBMA.mv", "m2"), 6L, 2L, dir = dir,
+    execute = function(jobs, dir, workers) {
+      executed <<- jobs
+      for (job in jobs) saveRDS(efficiency_run(job), cross_file(job, dir))
+    }))
+  global <- e$ratios[e$ratios$quantity == "global", ]
+  allocation <- e$ratios[e$ratios$quantity == "allocation", ]
+  order_first <- vapply(1:6, function(i) {
+    Filter(function(job) job$seed == 8000L + i && job$model == "m2", executed)[[1L]]$arm
+  }, character(1L))
+  check(length(executed) == 30L && identical(order_first, rep(c("this", "other"), 3L)) &&
+          abs(global$geometric_mean[global$model == "RoBMA.mv" & global$comparison == "this/other"] - 2) < 1e-12 &&
+          abs(global$geometric_mean[global$model == "RoBMA.mv" & global$comparison == "this/this_noblocks"] - 1.5) < 1e-12 &&
+          abs(allocation$geometric_mean[allocation$model == "RoBMA.mv" & allocation$comparison == "this/other"] - 2) < 1e-12 &&
+          global$pairs[global$model == "m2"] == 5L && global$incomplete[global$model == "m2"] == 1L &&
+          all(e$rows$min_allocation[e$rows$status == "complete"] == "mu__xRE_ALLOCx_heterogeneity__allocation_sd") &&
+          isTRUE(e$blocks$assignment_as_other[e$blocks$arm == "this_noblocks"]) &&
+          abs(e$blocks$block_per_direction[e$blocks$model == "RoBMA.mv" & e$blocks$arm == "this"] - .9) < 1e-12 &&
+          any(grepl("INCOMPLETE", output)) && file.exists(file.path(dir, "efficiency.csv")),
+        "efficiency: alternated order, ratios, geometric means, allocation without raw parameters, noblocks check")
 
   unlink(root, recursive = TRUE)
   cat("Self-test passed.\n")
@@ -1362,3 +1715,9 @@ if (part %in% c("wider", "rerun")) {
 if (identical(part, "cost")) cost_driver(seeds)
 
 if (identical(part, "identity")) identity_driver()
+
+if (identical(part, "efficiency")) {
+  models <- grep(models_re, names(model_specs()), value = TRUE, perl = TRUE)
+  cat("models:", paste(models, collapse = ", "), "\n")
+  efficiency_driver(models, seeds, workers)
+}
