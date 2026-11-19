@@ -738,8 +738,11 @@ test_that("serial and parallel fits record their corrected samplers, and update(
     expect_length(values[[1L]], if (label == "serial") 1L else 3L)
     expect_identical(unlist(record[.fallback_count_names]), .fallback_value_sums(values)[.fallback_count_names],
                      info = label)
-    # one sampler object per corrected node and chain
-    expect_identical(record[["samplers"]], 3 * sum(fit[["fit"]][["samplers"]][["Sampler"]] == coarse), info = label)
+    # one sampler object per corrected node and chain, and one per chain for the
+    # declared block of this single model (the corrected block sampler)
+    expect_true(any(fit[["fit"]][["samplers"]][["Sampler"]] == "RoBMA::CoarseCorrectedBlock"), info = label)
+    expect_identical(record[["samplers"]], 3 * (sum(fit[["fit"]][["samplers"]][["Sampler"]] == coarse) + 1),
+                     info = label)
     expect_gt(record[["samplers"]], 0)
     .fallback_expect_identity(record, 50 + 1000 + 2, label)
     # the worst-sampler rate is the lowest of the processes' rates

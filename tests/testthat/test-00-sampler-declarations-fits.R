@@ -117,7 +117,7 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
 
   # with the corrected selection sampler (the default) an ensemble declares no
   # allocation block and the corrected sampler updates the allocation parameters;
-  # a single model keeps its block
+  # a single model keeps its block, which the corrected block sampler takes
   for (name in c("RoBMA.mv", "bselmodel.mv")) {
     model <- models[[name]]
     fit   <- .declaration_fit(model[["constructor"]], model[["args"]], declarations = TRUE,
@@ -134,7 +134,7 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
       expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedSlice")
     } else {
       expect_identical(unique(blocks[["prior"]]), model[["blocks"]])
-      expect_identical(samplers[["Sampler"]][allocation_sd], "BayesTools::FactorSlice")
+      expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedBlock")
     }
   }
 })
