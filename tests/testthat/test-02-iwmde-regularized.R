@@ -41,6 +41,7 @@ test_that("fitted standardized ridge hypotheses and prior overlay use the shared
   integrate_scale <- function(f) stats::integrate(f, lower, upper, rel.tol = 1e-10)$value
   posterior_at_zero <- integrate_scale(joint_at_zero) / integrate_scale(scale_likelihood)
   prior_at_zero <- log(upper / lower) / ((upper - lower) * sqrt(2 * pi))
+  sd_x <- stats::sd(dat$x)
   for (method in c("qCMDE", "IWMDE")) {
     result <- hypothesis(fit, "x = 0", standardized_coefficients = TRUE,
                          density_method = method, columns = "all", seed = 23)
@@ -51,19 +52,30 @@ test_that("fitted standardized ridge hypotheses and prior overlay use the shared
     expect_lte(log_error, 4 * log_mcse, label = method)
     expect_lt(log_error, .10, label = method)
     expect_equal(row$BF10, row$prior / row$posterior, info = method)
+    # On the default reporting scale, beta_x = beta_standardized / sd(x).
+    # The same Jacobian multiplies both ordinates, cancelling in the BF.
+    original <- as.data.frame(hypothesis(fit, "x = 0", density_method = method,
+                                         columns = "all", seed = 23))
+    expect_equal(original$prior, sd_x * prior_at_zero, tolerance = 1e-6, info = method)
+    expect_equal(original$posterior, sd_x * row$posterior, tolerance = 1e-5, info = method)
+    expect_equal(original$BF10, row$BF10, tolerance = 1e-5, info = method)
   }
 
-  p <- plot(fit, parameter = "x", component = "mods", standardized_coefficients = TRUE,
-            prior = TRUE, plot_type = "ggplot", xlim = c(-1, 1))
-  layers <- ggplot2::ggplot_build(p)$data
-  expect_true(any(vapply(layers, function(layer) {
-    if (length(layer$x) < 3L || length(layer$y) != length(layer$x)) return(FALSE)
-    indices <- vapply(c(0, .3, .8), function(target) which.min(abs(layer$x - target)), integer(1))
-    expected <- vapply(layer$x[indices], function(value) {
-      integrate_scale(function(s) stats::dnorm(value, 0, s)) / (upper - lower)
-    }, numeric(1))
-    isTRUE(all.equal(layer$y[indices], expected, tolerance = 1e-5, check.attributes = FALSE))
-  }, logical(1))))
+  expect_prior_overlay <- function(p, jacobian) {
+    layers <- ggplot2::ggplot_build(p)$data
+    expect_true(any(vapply(layers, function(layer) {
+      if (length(layer$x) < 3L || length(layer$y) != length(layer$x)) return(FALSE)
+      indices <- vapply(c(0, .3, .8) / jacobian, function(target) which.min(abs(layer$x - target)), integer(1))
+      expected <- vapply(layer$x[indices], function(value) {
+        jacobian * integrate_scale(function(s) stats::dnorm(jacobian * value, 0, s)) / (upper - lower)
+      }, numeric(1))
+      isTRUE(all.equal(layer$y[indices], expected, tolerance = 1e-5, check.attributes = FALSE))
+    }, logical(1))))
+  }
+  expect_prior_overlay(plot(fit, parameter = "x", component = "mods", standardized_coefficients = TRUE,
+                            prior = TRUE, plot_type = "ggplot", xlim = c(-1, 1)), 1)
+  expect_prior_overlay(plot(fit, parameter = "x", component = "mods", prior = TRUE,
+                            plot_type = "ggplot", xlim = c(-1, 1) / sd_x), sd_x)
 })
 
 test_that("fitted horseshoe point tests at zero refuse before constructing a density grid", {
