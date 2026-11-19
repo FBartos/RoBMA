@@ -5914,6 +5914,19 @@ int cpp_selnorm_rank_one_rounding_probe()
 // divided by the one it is compared with. Rows with power 0 are omitted and
 // `work` (2 n values) may be null. Invalid rows give NaN; a result beyond the
 // representable range is -Inf.
+//
+// Every product that enters a sum or a difference is rounded to double first
+// (rounded_product), as in the R twin .log_lik_cluster_norm_stable(). A residual
+// along the loadings cancels because a_i c rounds onto residual_i; a compiler
+// that contracts a * b + c into a fused multiply-add (GCC on aarch64 and on
+// x86-64 at -march=x86-64-v3) keeps the rounding error of the product instead,
+// which an sd far below the residual then magnifies.
+static inline double rounded_product(double left, double right)
+{
+  const volatile double value = left * right;
+  return value;
+}
+
 double cpp_gaussian_latent_loglik(
     int n, const double *residual, const double *sd, const double *loading,
     const double *power, double *work)
@@ -5941,7 +5954,7 @@ double cpp_gaussian_latent_loglik(
         !std::isfinite(residual[i]) || !std::isfinite(loading[i])) {
       return not_a_number;
     }
-    norm += -0.5 * weight * (log_two_pi + 2.0 * std::log(sd[i]));
+    norm += rounded_product(-0.5 * weight, log_two_pi + 2.0 * std::log(sd[i]));
     top = std::max(top, std::fabs(loading[i]));
     bottom = std::min(bottom, sd[i]);
   }
@@ -5954,7 +5967,7 @@ double cpp_gaussian_latent_loglik(
       if (weight == 0.0) continue;
       const double standardized = residual[i] / sd[i];
       const double weighted = std::sqrt(weight) * standardized;
-      quadratic += (0.5 * weighted) * weighted;
+      quadratic += rounded_product(0.5 * weighted, weighted);
     }
     return norm - quadratic;
   }
@@ -5970,8 +5983,8 @@ double cpp_gaussian_latent_loglik(
       first[i] = residual[i] / sd[i];
       if (!std::isfinite(first[i])) return -infinity;
       second[i] = loading[i] / sd[i];
-      information += weight * second[i] * second[i];
-      projection += weight * second[i] * first[i];
+      information += rounded_product(weight * second[i], second[i]);
+      projection += rounded_product(weight * second[i], first[i]);
     }
     const double total = 1.0 + information;
     double latent = projection / total;
@@ -5979,7 +5992,8 @@ double cpp_gaussian_latent_loglik(
     for (int i = 0; i < n; ++i) {
       const double weight = power == nullptr ? 1.0 : power[i];
       if (weight == 0.0) continue;
-      gradient += weight * second[i] * (first[i] - second[i] * latent);
+      gradient += rounded_product(weight * second[i],
+        first[i] - rounded_product(second[i], latent));
     }
     double step = (gradient - latent) / total;
     if (!std::isfinite(step)) step = 0.0;
@@ -5987,13 +6001,13 @@ double cpp_gaussian_latent_loglik(
     for (int i = 0; i < n; ++i) {
       const double weight = power == nullptr ? 1.0 : power[i];
       if (weight == 0.0) continue;
-      const double remainder = (first[i] - second[i] * latent) -
-        second[i] * step;
+      const double remainder = (first[i] - rounded_product(second[i], latent)) -
+        rounded_product(second[i], step);
       const double weighted = std::sqrt(weight) * remainder;
-      quadratic += (0.5 * weighted) * weighted;
+      quadratic += rounded_product(0.5 * weighted, weighted);
     }
     latent += step;
-    quadratic += (0.5 * latent) * latent;
+    quadratic += rounded_product(0.5 * latent, latent);
     return norm - 0.5 * std::log1p(information) - quadratic;
   }
 
@@ -6010,8 +6024,8 @@ double cpp_gaussian_latent_loglik(
     const double ratio = bottom / sd[i];
     first[i] = loading[i] / scale;
     second[i] = weight * (ratio * ratio) * first[i];
-    denominator += second[i] * first[i];
-    numerator += second[i] * residual[i];
+    denominator += rounded_product(second[i], first[i]);
+    numerator += rounded_product(second[i], residual[i]);
     underflow = underflow || (loading[i] != 0.0 && residual[i] != 0.0 &&
       !(std::fabs(second[i] * residual[i]) >= 1e-290));
   }
@@ -6049,24 +6063,24 @@ double cpp_gaussian_latent_loglik(
       numerator += log_term > 700.0 && residual[i] != 0.0 ?
         std::copysign(std::exp(log_term + std::log(std::fabs(residual[i]))),
           loading[i]) * std::copysign(1.0, residual[i]) :
-        second[i] * residual[i];
+        rounded_product(second[i], residual[i]);
     }
   }
   // The shift a_i c of row i; loading_i c / T equals it and does not
   // underflow with a_i.
   const auto shift = [&](int i, double center_value) {
     return loading[i] == 0.0 ? 0.0 :
-      std::fabs(first[i]) >= 1e-290 ? first[i] * center_value :
-        loading[i] * (center_value / scale);
+      std::fabs(first[i]) >= 1e-290 ? rounded_product(first[i], center_value) :
+        rounded_product(loading[i], center_value / scale);
   };
   double center = numerator / denominator;
   double gradient = 0.0;
   for (int i = 0; i < n; ++i) {
     const double weight = power == nullptr ? 1.0 : power[i];
     if (weight == 0.0) continue;
-    gradient += second[i] * (residual[i] - shift(i, center));
+    gradient += rounded_product(second[i], residual[i] - shift(i, center));
   }
-  double step = (gradient - prior * center) / denominator;
+  double step = (gradient - rounded_product(prior, center)) / denominator;
   if (!std::isfinite(step)) step = 0.0;
   double quadratic = 0.0;
   for (int i = 0; i < n; ++i) {
@@ -6075,11 +6089,11 @@ double cpp_gaussian_latent_loglik(
     const double standardized =
       ((residual[i] - shift(i, center)) - shift(i, step)) / sd[i];
     const double weighted = std::sqrt(weight) * standardized;
-    quadratic += (0.5 * weighted) * weighted;
+    quadratic += rounded_product(0.5 * weighted, weighted);
   }
   center += step;
   const double latent = center / scale;
-  quadratic += (0.5 * latent) * latent;
+  quadratic += rounded_product(0.5 * latent, latent);
   const double log_a = 2.0 * (std::log(scale) - std::log(bottom)) +
     log_factor + std::log(denominator);
   return norm - 0.5 * log_a - quadratic;
