@@ -52,6 +52,20 @@ test_that("fixed lasso rescales its Laplace coefficient scale", {
                list(location = 1, scale = 0.6))
 })
 
+test_that("density updates of regularized slopes condition on each row's shared scale", {
+  global <- prior("uniform", list(0.1, 1))
+  prior_list <- BayesTools::JAGS_formula(
+    ~ 0 + x + z, "mu", data.frame(x = c(0, 1, 3), z = c(1, 2, 0)),
+    list(pool = prior_regularized("ridge", scale = global)))$prior_list
+  expect_false(.iwmde_can_use_focal_prior_delta(prior_list$mu_x))
+  samples <- cbind(mu_intercept = 0, mu_x = 0.1, mu_z = -0.2, mu_pool_global = c(0.2, 0.8))
+  proposed <- samples
+  proposed[, "mu_x"] <- 0.4
+  log_density <- .iwmde_numerical_prior_rows_evaluator(prior_list)
+  expect_equal(log_density(proposed) - log_density(samples),
+               dnorm(0.4, 0, c(0.2, 0.8), log = TRUE) - dnorm(0.1, 0, c(0.2, 0.8), log = TRUE))
+})
+
 test_that("factor contrasts and scale multipliers survive regularization group assignment", {
   dat <- data.frame(y = c(.2, .1, -.1, .4, .2, -.3), se = .2,
                     f = factor(rep(c("a", "b", "c"), 2)))

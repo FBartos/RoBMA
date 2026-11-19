@@ -496,7 +496,9 @@
   if (is.null(prior) || BayesTools::is.prior.none(prior)) {
     return(TRUE)
   }
-  if (.iwmde_prior_is_invgamma(prior)) {
+  # A regularized coefficient's density is conditional on the shrinkage
+  # scales of this posterior row. Its marginal density cannot give the delta.
+  if (.iwmde_prior_is_invgamma(prior) || inherits(prior, "prior.regularized_term")) {
     return(FALSE)
   }
 
