@@ -487,11 +487,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   composes d direction moves), the rate exponent that the worst-sampler rate
   and the warning also use; after a fallback the block runs BayesTools'
   fixed-order sweep of the full conditional with the learned axes, call for
-  call. The header's resolvability check of transformed members on the full
-  conditional runs at the start, at axes refreshes, at the first `adaptOff()`
-  (raised at the next update) and every `resolvability_interval` updates
-  after it, in both kernels; its error and BayesTools' get the hint
-  `sampler.blocks = FALSE` (`.sampler_error_hint()`). Test hook
+  call. A member with two finite bounds whose span is not finite stops at
+  construction, as in BayesTools' sampler; that error and BayesTools' get the
+  hint `sampler.blocks = FALSE` (`.sampler_error_hint()`). Other precision
+  limits of the transformed scale (bounds far from where the posterior
+  concentrates) are not detected; BayesTools' header states them. Test hook
   `RoBMA_corrected_block_test` (fixed-order mutant, evaluation trace);
   exactness fixtures in `test-00-selection-corrected-block-exactness.R`.
 - Fallback and record: each sampler object (node or block x chain, per model build)

@@ -16,7 +16,6 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
-#include <exception>
 #include <limits>
 #include <map>
 #include <memory>
@@ -125,10 +124,6 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
   // the last clearing read of the report (the window of one run).
   std::uint64_t _window_proposed;
   std::uint64_t _window_accepted;
-  // Updates after adaptation (for the periodic resolvability check), and a
-  // failure of the check at adaptOff(), raised at the next update().
-  std::uint64_t _updates_after_adaptation;
-  std::exception_ptr _deferred_error;
 
   static std::vector<kernel::Coordinate> coordinates(GraphView const *graph, unsigned int chain)
   {
@@ -262,48 +257,6 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
     return u;
   }
 
-  // Stops the fit when a transformed member's coordinate cannot resolve its
-  // posterior at the current state (kernel::resolvable() on the full
-  // conditional, as BayesTools' factor slice sampler does): the coordinate
-  // reaches a value only to a relative precision of about |u| eps of its
-  // distance from the anchoring bound, so with bounds far from where the
-  // posterior concentrates the sampler would move on a grid coarser than the
-  // posterior. Runs at construction, at every refresh of the axes, at the
-  // first adaptOff() and every kernel::resolvability_interval updates after it, in
-  // both kernels; it draws no random numbers and restores the node values, so
-  // it changes no draw. A member on a bound is left to update().
-  void check_resolvable(char const *site)
-  {
-    std::vector<StochasticNode *> const &nodes = _graph->nodes();
-    std::vector<double> x(_d);
-    _graph->getValue(x, _chain);
-    std::vector<double> trial(x);
-    for (unsigned int i = 0; i < _d; ++i) {
-      kernel::Coordinate const &coordinate = _coordinates[i];
-      if (coordinate.transform() == kernel::Transform::identity ||
-          !(x[i] > coordinate.lower() && x[i] < coordinate.upper())) continue;
-      bool ok;
-      try {
-        ok = kernel::resolvable(coordinate, x[i], [&](double value) {
-          trial[i] = value;
-          _graph->setValue(trial, _chain);
-          return log_full("a resolvability check");
-        });
-      }
-      catch (...) {
-        _graph->setValue(x, _chain);
-        throw;
-      }
-      trial[i] = x[i];
-      _graph->setValue(x, _chain);
-      if (!ok) {
-        throwNodeError(nodes[i], std::string(
-          "Corrected slice (block): the support bounds of this node are too far from where its posterior "
-          "concentrates for the sampler's scale (found ") + site + ")");
-      }
-    }
-  }
-
   // One completed proposal of the corrected update.
   void countOutcome(bool accepted)
   {
@@ -405,7 +358,7 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
       corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
     }
     countOutcome(accepted);
-    if (_adapting && _axes.adapt(u_start, u)) check_resolvable("at a refresh of the axes during adaptation");
+    if (_adapting) _axes.adapt(u_start, u);
   }
 
 public:
@@ -415,7 +368,7 @@ public:
       _min_acceptance(min_acceptance), _fixed_order(fixed_order),
       _coordinates(coordinates(graph, chain)), _axes(_d), _x(_d), _adapting(true), _exact(false),
       _adaptive_proposed(0), _adaptive_accepted(0), _surrogate_not_exact(false),
-      _window_proposed(0), _window_accepted(0), _updates_after_adaptation(0)
+      _window_proposed(0), _window_accepted(0)
   {
     for (StochasticNode *child : graph->stochasticChildren()) {
       const ChildKind kind = child_kind(child, settings);
@@ -428,7 +381,21 @@ public:
     }
     if (_selected.empty()) throw std::logic_error("Corrected slice (block) has no selection child.");
     graph->checkFinite(chain);
-    check_resolvable("at the start of the fit");
+    // The one limit of the sampler's scale that the bounds alone decide (as in
+    // BayesTools' factor slice sampler): a two-sided member whose span
+    // upper - lower is not finite cannot be held through its distance from a
+    // bound. Other precision limits (bounds very far from where the posterior
+    // concentrates) are not detected; see the kernel header.
+    std::vector<StochasticNode *> const &nodes = graph->nodes();
+    for (unsigned int i = 0; i < _d; ++i) {
+      kernel::Coordinate const &coordinate = _coordinates[i];
+      if (coordinate.transform() == kernel::Transform::interval &&
+          !std::isfinite(coordinate.upper() - coordinate.lower())) {
+        throwNodeError(nodes[i],
+          "Corrected slice (block): the support bounds of this node are too wide for the sampler's scale "
+          "(their difference exceeds the largest double)");
+      }
+    }
     register_corrected_sampler(this);
   }
 
@@ -452,7 +419,6 @@ public:
 
   void update(RNG *rng) override
   {
-    if (_deferred_error) std::rethrow_exception(_deferred_error);
     std::vector<double> entry(_d);
     _graph->getValue(entry, _chain);
     // Any exception restores the block-entry values before it propagates.
@@ -463,9 +429,6 @@ public:
     catch (...) {
       _graph->setValue(entry, _chain);
       throw;
-    }
-    if (!_adapting && ++_updates_after_adaptation % kernel::resolvability_interval == 0) {
-      check_resolvable("during sampling");
     }
   }
 
@@ -479,19 +442,11 @@ public:
   // proposals were made, (c) no surrogate differed from the exact density by
   // construction, or (b) the per-direction acceptance rate^(1/d) is below
   // min_acceptance; the first rule that holds is the recorded reason. Later
-  // calls change nothing (JAGS calls adaptOff() repeatedly). JAGS reports an
-  // exception thrown here only as a message (rjags' adapt() returns normally),
-  // so a failed resolvability check is raised at the next update().
+  // calls change nothing (JAGS calls adaptOff() repeatedly).
   void adaptOff() override
   {
     if (!_adapting) return;
     _adapting = false;
-    try {
-      check_resolvable("at the end of adaptation");
-    }
-    catch (...) {
-      _deferred_error = std::current_exception();
-    }
     if (!(_min_acceptance > 0.0)) return;
     std::atomic<std::uint64_t> *reason = nullptr;
     if (_adaptive_proposed < corrected_min_adaptive_proposals) {

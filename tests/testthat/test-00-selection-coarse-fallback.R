@@ -339,12 +339,13 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
   }
   expect_identical(.sampler_error_hint("Error in node mu\nSlicer stuck"), "Error in node mu\nSlicer stuck")
 
-  # a member the block samplers' scale cannot resolve: BayesTools' sampler would
-  # stop it under "slice" too, so the hint undeclares the blocks
-  for (message in c(paste0("Error in node p\nCorrected slice (block): the support bounds of this node are too far ",
-                           "from where its posterior concentrates for the sampler's scale (found at the start of the fit)"),
-                    paste0("Error in node p\nFactor slice sampler: the support bounds of this node are too far ",
-                           "from where its posterior concentrates for the sampler's scale (found during sampling); ",
+  # a member whose two bounds are too wide apart for the block samplers' scale:
+  # BayesTools' sampler would stop it under "slice" too, so the hint undeclares
+  # the blocks
+  for (message in c(paste0("Error in node p\nCorrected slice (block): the support bounds of this node are too wide ",
+                           "for the sampler's scale (their difference exceeds the largest double)"),
+                    paste0("Error in node p\nFactor slice sampler: the support bounds of this node are too wide ",
+                           "for the sampler's scale (their difference exceeds the largest double); ",
                            "declare the block without this node"))) {
     hinted <- .sampler_error_hint(message)
     expect_identical(hinted, paste0(

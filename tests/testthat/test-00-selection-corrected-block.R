@@ -221,28 +221,32 @@ test_that("a rejection restores the block-entry values and an exhausted interval
 })
 
 
-test_that("a member whose bound the sampler's scale cannot resolve stops the fit, a wide resolvable one does not", {
+test_that("a member whose two bounds are too wide apart stops the fit, a wide one-sided bound does not", {
 
   skip_if_not_installed("rjags")
   members <- c("dbt_block(mu, 1)", "dbt_block(nu, 1)", "dbt_block(p, 1)")
-  # p ~ N(0, 1) above -1e6: u = log(p + 1e6), whose neighbouring doubles move p
-  # by about 2e-9, far below its posterior scale
+  # p ~ N(0, 1) above -1e6: u = log(p + 1e6) holds p to far finer than its
+  # posterior scale
   wide <- .block_pair_model(markers = members, extra = "  p ~ dnorm(0, 1) T(-1e6, )", inits = list(p = .3))
   expect_identical(.block_assigned(wide, c("mu", "nu", "p")), rep(.block_sampler, 3L))
   chain <- .block_chain(wide, c("mu", "nu", "p"), 200L, adapt = 300L, burnin = 0L)
   expect_gt(length(unique(chain$draws[, "p"])), 50L)
   expect_true(all(abs(chain$draws[, "p"]) < 6))
-  # above -1e16 the neighbouring doubles of u move p by about 2: the block
-  # sampler refuses the member when it is built
-  message <- tryCatch({
-    .block_pair_model(markers = members, extra = "  p ~ dnorm(0, 1) T(-1e16, )", inits = list(p = .3))
-    NA_character_
-  }, error = function(error) conditionMessage(error))
-  expect_true(grepl("Corrected slice (block): the support bounds of this node are too far from where its posterior",
-                    message, fixed = TRUE))
-  expect_true(grepl("(found at the start of the fit)", message, fixed = TRUE))
-  # the hint undeclares the blocks (BayesTools' sampler stops the member under "slice" too)
-  expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", .sampler_error_hint(message), fixed = TRUE))
+  # on (-1e308, 1e308) the span upper - lower is not finite: the block sampler
+  # refuses the member when it is built, and BayesTools' sampler under "slice"
+  span <- "  p ~ dnorm(0, 1) T(-1e308, 1e308)"
+  for (sampler in c("slice.coarse", "slice")) {
+    message <- tryCatch({
+      .block_pair_model(markers = members, extra = span, inits = list(p = .3), sampler = sampler)
+      NA_character_
+    }, error = function(error) conditionMessage(error))
+    expected <- if (sampler == "slice") "Factor slice sampler" else "Corrected slice (block)"
+    expect_true(grepl(paste0(expected, ": the support bounds of this node are too wide for the sampler's scale"),
+                      message, fixed = TRUE), info = sampler)
+    # the hint undeclares the blocks
+    expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", .sampler_error_hint(message), fixed = TRUE),
+                info = sampler)
+  }
 })
 
 
