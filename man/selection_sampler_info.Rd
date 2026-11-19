@@ -100,7 +100,7 @@ rate during adaptation is below the threshold; the first of these that
 holds is the recorded reason.
 Both kernels leave the posterior unchanged and the choice is not revisited,
 so the chain after adaptation is a single exact kernel. A threshold of
-\code{0} disables the fallback and the warning. Every model build (a fit,
+\code{0} disables the fallback and both warnings. Every model build (a fit,
 and each parallel worker's or extension's rebuild of the model) adapts and
 decides again.
 
