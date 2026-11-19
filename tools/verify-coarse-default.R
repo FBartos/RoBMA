@@ -13,8 +13,8 @@
 #   Rscript tools/verify-coarse-default.R --part=identity --out=<dir> --other-library=<dir>
 #   Rscript tools/verify-coarse-default.R --part=selftest
 #
-# wider: arms 'coarse' (selection.sampler = "coarse_corrected", the default
-# threshold) and 'default' (selection.sampler = "default"), --seeds runs per arm
+# wider: arms 'coarse' (selection.sampler = "slice.coarse", the default
+# threshold) and 'default' (selection.sampler = "slice"), --seeds runs per arm
 # of 3 chains x 4,000 draws (package defaults otherwise, serial chains in every
 # fit), arms interleaved by seed, the runs spread over --workers worker
 # processes of this build. Per run: the mean of every monitored quantity
@@ -61,7 +61,7 @@
 # be identical (any difference is reported) and the seconds per 1,000
 # iterations of the arms are compared.
 #
-# identity: with selection.sampler = "default" in this build and the defaults of
+# identity: with selection.sampler = "slice" in this build and the defaults of
 # the build of --other-library, one R process each: the sampler assignment and
 # the draws of a univariate selection model, a .mv selection model, a .mv
 # ensemble and a model without selection must be equal; and, in this build, a
@@ -204,8 +204,8 @@ model_specs <- function() {
 }
 
 arm_options <- list(
-  coarse  = list(selection.sampler = "coarse_corrected"),
-  default = list(selection.sampler = "default")
+  coarse  = list(selection.sampler = "slice.coarse"),
+  default = list(selection.sampler = "slice")
 )
 
 
@@ -936,7 +936,7 @@ cost_driver <- function(seeds, dir = out_dir, execute = run_process) {
   jobs <- list()
   for (i in seq_len(seeds)) for (arm in c("this", "other")) {
     jobs[[length(jobs) + 1L]] <- list(part = "cost", model = "bselmodel.mv", arm = arm, seed = 4000L + i, fit = fit,
-      options = list(sampler.blocks = FALSE, selection.sampler = "coarse_corrected",
+      options = list(sampler.blocks = FALSE, selection.sampler = "slice.coarse",
                      selection.coarse_min_acceptance = 0))
   }
   for (job in jobs) if (!file.exists(cross_file(job, dir))) execute(job, dir)
@@ -977,10 +977,10 @@ identity_driver <- function(dir = out_dir, execute = run_process) {
 
   fit  <- list(chains = 2L, adapt = 500L, burnin = 500L, sample = 500L)
   jobs <- list()
-  # the other build with its defaults against this build with selection.sampler = "default"
+  # the other build with its defaults against this build with selection.sampler = "slice"
   for (model in c("bselmodel", "bselmodel.mv", "RoBMA.mv", "brma.mv")) {
     jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "this", seed = 7001L, fit = fit,
-                                      options = list(selection.sampler = "default"), pair = "builds")
+                                      options = list(selection.sampler = "slice"), pair = "builds")
     jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "other", seed = 7001L, fit = fit,
                                       options = list(), pair = "builds")
   }
@@ -988,10 +988,12 @@ identity_driver <- function(dir = out_dir, execute = run_process) {
   # variances has single-estimate blocks only, so it also keeps its allocation
   # block), both option values
   for (model in c("bselmodel", "RoBMA", "brma.mv", "RoBMA.mv_vi")) {
-    for (sampler in c("default", "coarse_corrected")) {
+    # run files keep the labels of the earlier values ("default", "coarse_corrected")
+    for (variant in c("default", "coarse_corrected")) {
+      sampler <- c(default = "slice", coarse_corrected = "slice.coarse")[[variant]]
       jobs[[length(jobs) + 1L]] <- list(part = "identity", model = model, arm = "this", seed = 7001L, fit = fit,
                                         options = list(selection.sampler = sampler), pair = "options",
-                                        variant = sampler)
+                                        variant = variant)
     }
   }
   for (job in jobs) if (!file.exists(cross_file(job, dir))) execute(job, dir)
@@ -1040,7 +1042,7 @@ selftest <- function() {
   # arm uses the offsets in reverse order, so both arms have the same run values
   # (Welch t = 0) unless shifted.
   offsets <- stats::qnorm(stats::ppoints(10L)) / 5
-  record  <- function(samplers = 6) data.frame(sampler = "coarse_corrected", min_acceptance = .9,
+  record  <- function(samplers = 6) data.frame(sampler = "slice.coarse", min_acceptance = .9,
     samplers = samplers, fallback_samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
     fallback_low_acceptance = 1, sampling_proposed = 1000, sampling_accepted = 990, acceptance_rate = .99,
     min_sampler_rate = .98, complete = TRUE, stringsAsFactors = FALSE)

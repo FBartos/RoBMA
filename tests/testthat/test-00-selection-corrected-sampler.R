@@ -17,7 +17,7 @@
   # the corrected kernel throughout: its counters and exactness are tested
   configure <- function(value, capacity) {
 
-    RoBMA::RoBMA.options(selection.sampler = "coarse_corrected",
+    RoBMA::RoBMA.options(selection.sampler = "slice.coarse",
       selection.coarse_grid = value, selection.cache_max_bytes = capacity,
       selection.coarse_max_rules = 3L, selection.coarse_min_acceptance = 0)
     invisible(NULL)

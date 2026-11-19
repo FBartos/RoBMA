@@ -21,7 +21,7 @@ context("Sampler declarations in fitted models")
 # The fits compare the declarations with the samplers JAGS assigns, so the
 # corrected selection sampler is off unless `sampler` says otherwise.
 .declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L,
-                             sampler = "default") {
+                             sampler = "slice") {
 
   previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "selection.sampler")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
@@ -121,7 +121,7 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
   for (name in c("RoBMA.mv", "bselmodel.mv")) {
     model <- models[[name]]
     fit   <- .declaration_fit(model[["constructor"]], model[["args"]], declarations = TRUE,
-                              sampler = "coarse_corrected")
+                              sampler = "slice.coarse")
     expect_null(fit[["fit"]][["errors"]], info = name)
     blocks   <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
     samplers <- fit[["fit"]][["samplers"]]
@@ -137,6 +137,36 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
       expect_identical(samplers[["Sampler"]][allocation_sd], "BayesTools::FactorSlice")
     }
   }
+})
+
+
+test_that("\"jags.default\" keeps only the samplers JAGS assigns", {
+
+  skip_on_cran()
+  skip_if_not_certification("These fits (about 13 s) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  # a model-averaged fit with a full V: gates, the allocation block and the
+  # corrected sampler under the other values
+  setup <- .declaration_fits_data()
+  args  <- list(yi = quote(yi), V = setup[["V"]], random = ~ 1 | study / esid, data = setup[["data"]])
+  jags  <- .declaration_fit(RoBMA::RoBMA.mv, args, declarations = TRUE, sampler = "jags.default")
+  slice <- .declaration_fit(RoBMA::RoBMA.mv, args, declarations = FALSE, sampler = "slice")
+  expect_null(jags[["fit"]][["errors"]])
+  expect_null(slice[["fit"]][["errors"]])
+
+  samplers <- jags[["fit"]][["samplers"]]
+  expect_gt(nrow(samplers), 0L)
+  expect_false(any(startsWith(samplers[["Sampler"]], "BayesTools::") | startsWith(samplers[["Sampler"]], "RoBMA::")))
+  expect_null(attr(jags[["fit"]], "sampler_declarations", exact = TRUE))
+  expect_identical(.declaration_markers(jags), 0L)
+  expect_identical(RoBMA::selection_sampler_info(fit = jags)[c("sampler", "samplers", "sampling_proposed")],
+                   data.frame(sampler = "jags.default", samplers = 0, sampling_proposed = 0, stringsAsFactors = FALSE))
+  # the same samplers and draws as "slice" with both options off
+  expect_identical(samplers, slice[["fit"]][["samplers"]])
+  expect_identical(jags[["fit"]][["mcmc"]], slice[["fit"]][["mcmc"]])
 })
 
 
@@ -270,7 +300,7 @@ test_that("a serial update() of a selection model adapts its factor slice block"
 
   previous <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
-  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = max_rules)
+  RoBMA::RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = max_rules)
   suppressWarnings(do.call(RoBMA::RoBMA.mv, c(.coarse_factor_ensemble_args(rank), list(
     chains = 1L, adapt = 50L, burnin = 50L, sample = 100L, seed = 1L, parallel = FALSE, silent = TRUE,
     convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)))))

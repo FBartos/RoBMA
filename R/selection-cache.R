@@ -158,12 +158,13 @@ remove_selection_cache <- function(object) {
 #' or \code{RoBMA.mv()}) whose record to report, or \code{NULL} for the
 #' process counters.
 #' @details The corrected sampler is the default,
-#' \code{RoBMA.options(selection.sampler = "coarse_corrected")}; set
-#' \code{selection.sampler = "default"} before fitting to use the samplers JAGS
-#' assigns instead. Parameters that the options \code{sampler.blocks} and
+#' \code{RoBMA.options(selection.sampler = "slice.coarse")}; set
+#' \code{selection.sampler = "slice"} before fitting to use the other samplers
+#' instead, or \code{"jags.default"} for only the samplers JAGS assigns.
+#' Parameters that the options \code{sampler.blocks} and
 #' \code{sampler.gates} declare to the factor slice and gated samplers of the
 #' BayesTools JAGS module (see \code{\link{RoBMA.options}}) keep those samplers
-#' under either setting, so set the two options to \code{FALSE} for the
+#' under \code{"slice.coarse"}, so set the two options to \code{FALSE} for the
 #' corrected sampler to update them as well.
 #' Every proposal is corrected against the full original likelihood and prior.
 #' Only the selection normalizer used to construct proposals is coarsened.
@@ -404,7 +405,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
       ", below 'selection.coarse_min_acceptance' = ", threshold, "; ",
       record[["fallback_samplers"]], " of ", record[["samplers"]],
       " samplers switched to the exact slice sampler at the end of adaptation. ",
-      "Sampling is exact but inefficient. Set 'RoBMA.options(selection.sampler = \"default\")' ",
+      "Sampling is exact but inefficient. Set 'RoBMA.options(selection.sampler = \"slice\")' ",
       "before fitting to avoid the corrected sampler; an existing fit keeps the settings it was fitted with."
     )
     warning(structure(
@@ -496,7 +497,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
   }
   .selection_cache_configure(capacity)
   grid <- settings[["coarse_grid"]][c("mean", "variance", "log_weight")]
-  .Call("RoBMA_selnorm_sampler_control", settings[["sampler"]] == "coarse_corrected",
+  .Call("RoBMA_selnorm_sampler_control", .selection_sampler_corrected(settings[["sampler"]]),
         as.numeric(c(grid, settings[["coarse_max_rules"]],
                      .selection_runtime_min_acceptance(settings))),
         FALSE, PACKAGE = "RoBMA")

@@ -127,7 +127,7 @@
   old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules",
                                   "selection.coarse_min_acceptance")]
   on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
-  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = 3L,
+  RoBMA::RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = 3L,
                        selection.coarse_min_acceptance = min_acceptance)
   RoBMA:::.selection_sampler_report_read()
   design <- BayesTools::selection_qmc_design(2L * rank, 512L, 8L, 9049L)
@@ -375,7 +375,7 @@
   old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_grid",
                                   "selection.coarse_max_rules", "selection.coarse_min_acceptance")]
   on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
-  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_grid = setup$grid,
+  RoBMA::RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_grid = setup$grid,
                        selection.coarse_max_rules = 3L, selection.coarse_min_acceptance = min_acceptance)
   rows <- setup$rows
   covariance <- matrix(setup$rho, rows, rows)

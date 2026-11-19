@@ -27,7 +27,7 @@ source(testthat::test_path("common-functions.R"))
                   .fallback_report_names)
 }
 
-.fallback_settings <- list(sampler = "coarse_corrected", coarse_min_acceptance = .9)
+.fallback_settings <- list(sampler = "slice.coarse", coarse_min_acceptance = .9)
 
 .fallback_count_names_record <- c("samplers", "fallback_samplers", "fallback_few_proposals",
   "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted")
@@ -39,7 +39,7 @@ test_that("the corrected sampler is the default and its threshold is a number be
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
   defaults <- lapply(.RoBMA_option_schema[c("selection.sampler", "selection.coarse_min_acceptance")],
                      `[[`, "default")
-  expect_identical(defaults, list(selection.sampler = "coarse_corrected",
+  expect_identical(defaults, list(selection.sampler = "slice.coarse",
                                   selection.coarse_min_acceptance = 0.90))
   for (value in c(0, .5, 1)) {
     RoBMA.options(selection.coarse_min_acceptance = value)
@@ -136,7 +136,7 @@ test_that("the record sums the runs of every process and adds the input record o
   )
   record <- .selection_sampler_record(values, .fallback_settings)
   expect_identical(record, list(
-    sampler = "coarse_corrected", min_acceptance = .9, samplers = 6, fallback_samplers = 3,
+    sampler = "slice.coarse", min_acceptance = .9, samplers = 6, fallback_samplers = 3,
     fallback_few_proposals = 1, fallback_surrogate_exact = 1, fallback_low_acceptance = 1,
     sampling_proposed = 500, sampling_accepted = 479, acceptance_rate = 479 / 500,
     min_sampler_rate = .8, complete = TRUE
@@ -204,7 +204,7 @@ test_that("the record sums the runs of every process and adds the input record o
 .fallback_warning_record <- function(proposed, accepted, rate = NA_real_, threshold = .9, low = 1) {
 
   .selection_sampler_record(list(list(.fallback_report_value(4, 0, 0, low, proposed, accepted, rate))),
-                            list(sampler = "coarse_corrected", coarse_min_acceptance = threshold))
+                            list(sampler = "slice.coarse", coarse_min_acceptance = threshold))
 }
 
 .fallback_capture_warnings <- function(expr) {
@@ -231,7 +231,7 @@ test_that("a low acceptance warns once with its classes and keeps one message wi
     "The corrected selection sampler accepted 85% of its proposals after adaptation (lowest rate of a ",
     "single sampler 70%), below 'selection.coarse_min_acceptance' = 0.9; 1 of 4 samplers switched to the ",
     "exact slice sampler at the end of adaptation. Sampling is exact but inefficient. Set ",
-    "'RoBMA.options(selection.sampler = \"default\")' before fitting to avoid the corrected sampler; an ",
+    "'RoBMA.options(selection.sampler = \"slice\")' before fitting to avoid the corrected sampler; an ",
     "existing fit keeps the settings it was fitted with."
   )
   expect_identical(conditionMessage(condition), message)
@@ -297,7 +297,7 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
     hinted <- .sampler_error_hint(message)
     expect_identical(hinted, paste0(
       message, "\nThe error was raised by the corrected selection sampler that RoBMA uses by default. ",
-      "Fit the model again after 'RoBMA.options(selection.sampler = \"default\")' to sample these parameters ",
+      "Fit the model again after 'RoBMA.options(selection.sampler = \"slice\")' to sample these parameters ",
       "with the ordinary samplers, and please report the model to the RoBMA developers."
     ))
   }
@@ -644,7 +644,7 @@ test_that("serial and parallel fits record their corrected samplers, and update(
     values <- .fallback_values(fit)
     expect_identical(names(record), .fallback_record_names, info = label)
     expect_identical(record[c("sampler", "min_acceptance", "complete")],
-                     list(sampler = "coarse_corrected", min_acceptance = .9, complete = TRUE), info = label)
+                     list(sampler = "slice.coarse", min_acceptance = .9, complete = TRUE), info = label)
     # one run, with one report per process that ran chains, whose sum is the record
     expect_length(values, 1L)
     expect_length(values[[1L]], if (label == "serial") 1L else 3L)
@@ -723,11 +723,11 @@ test_that("the JASP path, alternating fits and leftover counts keep each fit's r
   expect_identical(report(list(phase = "report")), .fallback_report_value(rate = NA_real_))
 
   # a fit with the ordinary samplers, between two identical fits
-  RoBMA.options(selection.sampler = "default")
+  RoBMA.options(selection.sampler = "slice")
   ordinary <- .fallback_fit()
-  RoBMA.options(selection.sampler = "coarse_corrected")
+  RoBMA.options(selection.sampler = "slice.coarse")
   expect_identical(.fallback_record(ordinary)[c("sampler", "samplers", "sampling_proposed", "complete")],
-                   list(sampler = "default", samplers = 0, sampling_proposed = 0, complete = TRUE))
+                   list(sampler = "slice", samplers = 0, sampling_proposed = 0, complete = TRUE))
   expect_false(any(ordinary[["fit"]][["samplers"]][["Sampler"]] == "RoBMA::CoarseCorrectedSlice"))
   expect_identical(.fallback_record(.fallback_fit()), first)
 })

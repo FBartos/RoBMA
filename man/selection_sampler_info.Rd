@@ -27,12 +27,13 @@ of a fitted model, or the counters of the current R process.
 }
 \details{
 The corrected sampler is the default,
-\code{RoBMA.options(selection.sampler = "coarse_corrected")}; set
-\code{selection.sampler = "default"} before fitting to use the samplers JAGS
-assigns instead. Parameters that the options \code{sampler.blocks} and
+\code{RoBMA.options(selection.sampler = "slice.coarse")}; set
+\code{selection.sampler = "slice"} before fitting to use the other samplers
+instead, or \code{"jags.default"} for only the samplers JAGS assigns.
+Parameters that the options \code{sampler.blocks} and
 \code{sampler.gates} declare to the factor slice and gated samplers of the
 BayesTools JAGS module (see \code{\link{RoBMA.options}}) keep those samplers
-under either setting, so set the two options to \code{FALSE} for the
+under \code{"slice.coarse"}, so set the two options to \code{FALSE} for the
 corrected sampler to update them as well.
 Every proposal is corrected against the full original likelihood and prior.
 Only the selection normalizer used to construct proposals is coarsened.

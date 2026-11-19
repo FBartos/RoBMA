@@ -35,7 +35,7 @@
     return(paste0(
       message, "
 The error was raised by the corrected selection sampler that RoBMA uses by default. ",
-      "Fit the model again after 'RoBMA.options(selection.sampler = \"default\")' to sample these parameters ",
+      "Fit the model again after 'RoBMA.options(selection.sampler = \"slice\")' to sample these parameters ",
       "with the ordinary samplers, and please report the model to the RoBMA developers."
     ))
   }
@@ -56,10 +56,19 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 }
 
 
+# Whether the samplers of the JAGS modules may be declared at all:
+# 'selection.sampler = "jags.default"' keeps only the samplers JAGS assigns,
+# whatever 'sampler.gates' and 'sampler.blocks' say.
+.sampler_module_samplers <- function() {
+
+  return(!identical(RoBMA.get_option("selection.sampler"), "jags.default"))
+}
+
+
 # Gates: a bias-mixture prior, with or without a weight function branch.
 .sampler_gates_declared <- function(fit_priors) {
 
-  return(isTRUE(RoBMA.get_option("sampler.gates")) &&
+  return(.sampler_module_samplers() && isTRUE(RoBMA.get_option("sampler.gates")) &&
            inherits(fit_priors[["bias"]], "prior.bias_mixture"))
 }
 
@@ -71,7 +80,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 # selection sampler can take the allocation parameters (.sampler_ensemble_block()).
 .sampler_blocks_declared <- function(data, priors) {
 
-  if (!isTRUE(RoBMA.get_option("sampler.blocks")) ||
+  if (!.sampler_module_samplers() || !isTRUE(RoBMA.get_option("sampler.blocks")) ||
       !.is_priors_weightfunction(priors) || .selection_all_sources_conditioned(data)) {
     return(NULL)
   }
@@ -85,7 +94,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 
 
 # Whether a model-averaged fit declares its allocation block: yes unless the
-# corrected selection sampler is on ('selection.sampler = "coarse_corrected"')
+# corrected selection sampler is on ('selection.sampler = "slice.coarse"')
 # and can take the allocation parameters, which needs a selection block it
 # engages: a dense or rank-one block, or a factor block whose coarse rule (rule
 # min(selection.coarse_max_rules, rules) of its schedule) the sampler's node
@@ -95,7 +104,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 # density as their surrogate, so every corrected sampler would fall back).
 .sampler_ensemble_block <- function(data) {
 
-  if (!identical(RoBMA.get_option("selection.sampler"), "coarse_corrected") ||
+  if (!.selection_sampler_corrected(RoBMA.get_option("selection.sampler")) ||
       !.is_data_joint_selection(data)) {
     return(TRUE)
   }

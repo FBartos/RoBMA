@@ -252,10 +252,10 @@ test_that("model-averaged fits gate their bias branches and block only allocatio
   best_methods <- .data_selection_execution_plan(models[["best"]][["data"]])[["block_methods"]]
   expect_true(any(best_methods %in% c("rank_one", "factor")))
   expect_false(any(best_methods == "dense"))
-  for (sampler in c("default", "coarse_corrected")) {
+  for (sampler in c("slice", "slice.coarse")) {
     RoBMA.options(selection.sampler = sampler)
     for (variances in names(models)) {
-      declared <- sampler == "default" || variances != "V"
+      declared <- sampler == "slice" || variances != "V"
       .expect_declarations(models[[variances]], gates = TRUE,
                            blocks = if (declared) list(c(allocation_sd, split_w)) else NULL,
                            label = paste("RoBMA.mv", variances, sampler))
@@ -264,7 +264,7 @@ test_that("model-averaged fits gate their bias branches and block only allocatio
   # single selection models keep their block under both settings
   selection <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
                             only_priors = TRUE)
-  for (sampler in c("default", "coarse_corrected")) {
+  for (sampler in c("slice", "slice.coarse")) {
     RoBMA.options(selection.sampler = sampler)
     .expect_declarations(selection, gates = FALSE,
                          blocks = list(c("mu_intercept", allocation_sd, allocation_w, "omega")),
@@ -413,10 +413,10 @@ test_that("a factor block leaves the allocation block undeclared only where its 
     plan   <- .data_selection_execution_plan(object[["data"]])
     expect_identical(plan[["block_methods"]], "factor", info = label)
     expect_identical(plan[["factor_ranks"]], case$rank, info = label)
-    RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = case$max_rules)
+    RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = case$max_rules)
     expect_identical(.sampler_ensemble_block(object[["data"]]), case$block, info = label)
     # the stock sampler always declares it
-    RoBMA.options(selection.sampler = "default")
+    RoBMA.options(selection.sampler = "slice")
     expect_true(.sampler_ensemble_block(object[["data"]]), info = label)
   }
 })
@@ -434,12 +434,28 @@ test_that("the options switch the declarations off", {
   selection <- bselmodel(yi = yi, vi = vi, data = dat, measure = "SMD", only_priors = TRUE)
 
   # the ensemble's allocation block exists with the corrected selection sampler off
-  RoBMA.options(sampler.gates = FALSE, selection.sampler = "default")
+  RoBMA.options(sampler.gates = FALSE, selection.sampler = "slice")
   .expect_declarations(robma, gates = FALSE, blocks = list(c(allocation_sd, split_w)),
                        label = "gates off")
   RoBMA.options(sampler.gates = TRUE, sampler.blocks = FALSE)
   .expect_declarations(robma, gates = TRUE, blocks = "none", label = "blocks off")
   .expect_declarations(selection, gates = FALSE, blocks = "none", label = "blocks off")
+
+  # "jags.default" declares nothing whatever the two options say, also in a
+  # model-averaged fit without a selection likelihood
+  pet_peese <- RoBMA(yi = yi, vi = vi, data = dat, measure = "SMD", only_priors = TRUE,
+                     prior_bias = list(BayesTools::prior_PET("cauchy", list(0, 1), list(0, Inf)),
+                                       BayesTools::prior_PEESE("cauchy", list(0, 5), list(0, Inf))))
+  RoBMA.options(sampler.gates = TRUE, sampler.blocks = TRUE, selection.sampler = "slice")
+  .expect_declarations(robma, gates = TRUE, blocks = list(c(allocation_sd, split_w)), label = "slice")
+  .expect_declarations(selection, gates = FALSE, blocks = list(c("mu", "tau", "omega")), label = "slice")
+  .expect_declarations(pet_peese, gates = TRUE, blocks = "none", label = "slice PET-PEESE")
+  RoBMA.options(selection.sampler = "jags.default")
+  expect_true(RoBMA.get_option("sampler.gates"))
+  expect_true(RoBMA.get_option("sampler.blocks"))
+  .expect_declarations(robma, gates = FALSE, blocks = "none", label = "jags.default")
+  .expect_declarations(selection, gates = FALSE, blocks = "none", label = "jags.default")
+  .expect_declarations(pet_peese, gates = FALSE, blocks = "none", label = "jags.default PET-PEESE")
 })
 
 

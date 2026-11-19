@@ -434,7 +434,7 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   or randomized fallback, which on such a platform also takes any product that
   reaches the subnormal range at any factor, also when later weights above one
   would bring it back.
-- Corrected sampler: `selection.sampler = "coarse_corrected"`, the default
+- Corrected sampler: `selection.sampler = "slice.coarse"`, the default
   (`src/samplers/CoarseCorrectedSlice.cc`), makes one slice transition per
   eligible scalar update on a surrogate density and accepts it with the ratio
   of the exact full conditional to the surrogate, so any surrogate that is a
@@ -523,17 +523,21 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   spike-and-slab, ordered, point and discrete priors, inclusion priors and other
   random-effect priors are never declared. An ensemble declares its block
   unless the corrected sampler can take its allocation nodes
-  (`.sampler_ensemble_block()`): under `"coarse_corrected"` with a block the
+  (`.sampler_ensemble_block()`): under `"slice.coarse"` with a block the
   sampler engages (dense, rank-one, or factor with its coarse rule affordable
   at its rank, decided by the native `RoBMA_selnorm_factor_rule_affordable`)
   and a product-rule branch or a dense block; with singleton blocks only,
   unaffordable factor rules, or best-weight branches on cluster and factor
   blocks (every corrected sampler would fall back by rule (c)), the block
   stays.
-  So `selection.sampler = "default"` is no longer stock JAGS sampling
-  everywhere, and under `"coarse_corrected"` block members and gated nodes stay
-  with the BayesTools samplers unless `sampler.blocks` / `sampler.gates` are
-  `FALSE`.
+  The values of `selection.sampler` are tiers: `"slice.coarse"` (corrected
+  sampler and declarations), `"slice"` (declarations only) and `"jags.default"`
+  (no declaration and no corrected sampler in any model, as `"default"` in
+  4.1.1). Under `"slice.coarse"` block members and gated nodes stay with the
+  BayesTools samplers unless `sampler.blocks` / `sampler.gates` are `FALSE`.
+  The released `"coarse_corrected"` and `"default"` are deprecated aliases of
+  `"slice.coarse"` and `"jags.default"`; settings frozen in fits keep their
+  string and `.selection_sampler_corrected()` reads both spellings.
 
 Known limits: blocks routed to the Smolyak grid (chains of rank three or more
 and other supports the certificate rejects) keep the per-transition rule, so
