@@ -23,7 +23,13 @@ and an acceptance rate (`NA` before any proposals).
 ## Details
 
 Enable the alternative for future fits with
-`RoBMA.options(selection.sampler = "coarse_corrected")`. Every proposal
+`RoBMA.options(selection.sampler = "coarse_corrected")`. The default
+`"default"` does not use it; parameters that the options
+`sampler.blocks` and `sampler.gates` declare to the factor slice and
+gated samplers of the BayesTools JAGS module (see
+[`RoBMA.options`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA_options.md))
+keep those samplers under either setting, so set the two options to
+`FALSE` for the corrected sampler to update them as well. Every proposal
 is corrected against the full original likelihood and prior. Only the
 selection normalizer used to construct proposals is coarsened. A
 reversible slice transition for that surrogate is followed by a

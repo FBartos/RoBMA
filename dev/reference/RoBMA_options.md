@@ -123,13 +123,18 @@ The available options are:
 
 - `selection.sampler`:
 
-  `"default"` retains ordinary JAGS sampling. `"coarse_corrected"` uses
-  coarse slice proposals with a full-target Metropolis correction for
-  eligible scalar updates involving multivariate, cluster or factor step
-  selection blocks (see
+  `"default"` uses the samplers JAGS assigns, together with the gated
+  and factor slice samplers of the BayesTools JAGS module where
+  `sampler.gates` and `sampler.blocks` declare them.
+  `"coarse_corrected"` uses coarse slice proposals with a full-target
+  Metropolis correction for eligible scalar updates involving
+  multivariate, cluster or factor step selection blocks (see
   [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)
-  for the blocks that take part). The posterior target is unchanged.
-  Settings are captured when each model is compiled.
+  for the blocks that take part); parameters declared by
+  `sampler.blocks` or `sampler.gates` keep the BayesTools samplers, so
+  set those options to `FALSE` for the corrected sampler to update them.
+  The posterior target is unchanged. Settings are captured when each
+  model is compiled.
 
 - `selection.coarse_grid`:
 
@@ -157,6 +162,41 @@ The available options are:
   schedule) at the actual parameters, and the exact density where that
   rule is unavailable. The full-target evaluator retains its ordinary
   numerical controls and diagnostics.
+
+- `sampler.gates`:
+
+  whether the parameters of the publication-bias branches of
+  model-averaged fits
+  ([`RoBMA()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.md),
+  [`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
+  are updated by the gated slice sampler of the BayesTools JAGS module
+  (default `TRUE`): while the bias indicator does not select a branch,
+  its parameters are drawn directly from their prior instead of by slice
+  sampling.
+
+- `sampler.blocks`:
+
+  whether the global parameters of selection models with estimated
+  heterogeneity are updated jointly by the factor slice sampler of the
+  BayesTools JAGS module (default `TRUE`), which slice-samples along the
+  principal directions of their posterior covariance learned during
+  adaptation. Single models
+  ([`bselmodel()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.md),
+  [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.mv.md))
+  update the effect, moderator, heterogeneity and selection-weight
+  parameters together. Never block members: direct random-effect SDs and
+  correlations
+  ([`prior_random()`](https://fbartos.github.io/RoBMA/dev/reference/prior_random.md)
+  other than the allocation SD and weights), vector (mean-difference and
+  orthonormal) factor terms, the unit-level latent parameters and
+  random-effect coordinates, and every mixture, spike-and-slab, ordered
+  and point prior. Model-averaged fits
+  ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
+  update the allocation SD and weights of the heterogeneity allocation
+  together. Neither option changes the model or its posterior
+  distribution, only the draws; settings are captured when each model is
+  fitted, and [`update()`](https://rdrr.io/r/stats/update.html) keeps
+  those of the fit.
 
 - `default_UISD.effect`:
 
