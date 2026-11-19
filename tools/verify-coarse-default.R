@@ -44,7 +44,11 @@
 # (bselmodel.mv). A run stopped by the selection-normalizer diagnostic is
 # replaced by the next unused seed of its arm (after the planned seeds), at most
 # three per model and arm; replaced runs are listed and written to
-# '<part>-replaced.csv'. The efficiency table compares the arms; for the
+# '<part>-replaced.csv'. A quantity whose mean is missing from a completed run
+# (other than an indicator level the run never visited, frequency zero) has no
+# statistic and makes the model 'incomplete'; such cases are listed. The
+# efficiency table compares the arms, with the attempts BayesTools stopped and
+# restarted, the runs the diagnostic stopped and the wall hours; for the
 # model-averaged models the 'default' arm declares the allocation block and the
 # 'coarse' arm declares it too unless the corrected sampler takes the
 # allocation nodes (the block methods and samplers of each run show which).
@@ -427,19 +431,30 @@ welch_table <- function(runs, model, quantities = NULL) {
   arms <- vapply(runs, function(run) run[["job"]][["arm"]], character(1))
   names_all <- unique(unlist(lapply(runs, function(run) names(run[["means"]]))))
   if (!is.null(quantities)) names_all <- intersect(names_all, quantities)
-  # a level of an indicator absent from a run has frequency zero there
+  # quantity_means() names only the levels of an indicator that a run visited:
+  # a level absent from a run has frequency zero there; any other quantity
+  # missing from a completed run stays missing
   means <- run_matrix(runs, names_all, function(run, names) {
     values <- run[["means"]][names]
-    values[is.na(values) & grepl("==", names, fixed = TRUE)] <- 0
+    values[is.na(values) & grepl("indicator", names, fixed = TRUE) & grepl("==", names, fixed = TRUE)] <- 0
     values
   })
+  missing <- which(is.na(means), arr.ind = TRUE)
 
-  return(welch_rows(means, arms, model))
+  return(list(
+    table   = welch_rows(means, arms, model),
+    missing = data.frame(
+      model = rep(model, nrow(missing)), quantity = colnames(means)[missing[, "col"]],
+      arm = arms[missing[, "row"]],
+      seed = vapply(runs[missing[, "row"]], function(run) as.integer(run[["job"]][["seed"]]), integer(1)),
+      stringsAsFactors = FALSE)
+  ))
 }
 
 # Welch statistics of the per-run values of each column (runs in rows). With
-# fewer than two completed runs in an arm there is no statistic: the rows carry
-# NA statistics (the decision is then 'incomplete').
+# fewer than two completed runs in an arm, or a value missing from a completed
+# run, there is no statistic: the rows carry NA statistics (the decision is then
+# 'incomplete').
 welch_rows <- function(values, arms, model) {
 
   row <- function(name, a, b, se, t, df) {
@@ -453,8 +468,7 @@ welch_rows <- function(values, arms, model) {
   rows <- lapply(colnames(values), function(name) {
     a <- values[arms == "coarse", name]
     b <- values[arms == "default", name]
-    if (!testable) return(row(name, a, b, NA_real_, NA_real_, NA_real_))
-    if (anyNA(c(a, b))) return(NULL)
+    if (!testable || anyNA(c(a, b))) return(row(name, a, b, NA_real_, NA_real_, NA_real_))
     # degenerate: the same value in every run of both arms
     if (stats::var(c(a, b)) == 0) return(NULL)
     se2 <- stats::var(a) / length(a) + stats::var(b) / length(b)
@@ -474,8 +488,9 @@ welch_rows <- function(values, arms, model) {
 }
 
 # The decision of one model: 'incomplete' when any planned run failed or is
-# missing, an arm has fewer than two completed runs, or no quantity could be
-# compared; otherwise 'pass' or 'fail' by the rule.
+# missing, an arm has fewer than two completed runs, a quantity has no statistic
+# (a mean missing from a completed run), or no quantity could be compared;
+# otherwise 'pass' or 'fail' by the rule.
 decide <- function(table, model, counts) {
 
   counts <- counts[counts[["model"]] == model, , drop = FALSE]
@@ -505,7 +520,46 @@ decide <- function(table, model, counts) {
   )
 }
 
-# One row per completed run: its record, warnings and efficiency.
+# Stopped attempts of a run: the restart messages BayesTools stores among the
+# fit's warnings (older run files have them among the signalled ones). A run
+# without a posterior states its earlier attempts only when its warnings or
+# error carry such messages; otherwise their number is unknown (NA).
+restart_pattern <- "fitting attempt [0-9]+ failed and was restarted"
+
+stopped_attempts <- function(run) {
+
+  text  <- unique(c(run[["warnings"]], run[["fit_warnings"]], run[["error"]]))
+  count <- sum(grepl(restart_pattern, text))
+  if (!is.null(run[["error"]]) && count == 0L) return(NA_integer_)
+
+  return(count)
+}
+
+# Whether a run has no posterior because the selection-normalizer diagnostic
+# stopped every attempt.
+stopped_by_diagnostic <- function(run) {
+
+  !isTRUE(run[["missing"]]) && !is.null(run[["error"]]) && grepl(normalizer_diagnostic, run[["error"]], fixed = TRUE)
+}
+
+# Per model and arm over all runs, stopped ones included (the planned runs and
+# the runs a replacement took the place of): runs stopped by the diagnostic and
+# wall hours.
+arm_totals <- function(runs) {
+
+  if (length(runs) == 0L) return(NULL)
+  rows <- data.frame(
+    model        = vapply(runs, function(run) run[["job"]][["model"]], character(1)),
+    arm          = vapply(runs, function(run) run[["job"]][["arm"]], character(1)),
+    stopped_runs = vapply(runs, function(run) as.integer(stopped_by_diagnostic(run)), integer(1)),
+    wall_hours   = vapply(runs, function(run) as.numeric(run[["wall"]]) / 3600, numeric(1)),
+    stringsAsFactors = FALSE
+  )
+
+  return(stats::aggregate(rows[c("stopped_runs", "wall_hours")], rows[c("model", "arm")], sum, na.rm = TRUE))
+}
+
+# One row per completed run: its record, warnings, stopped attempts and efficiency.
 run_rows <- function(runs) {
 
   rows <- lapply(Filter(function(run) is.null(run[["error"]]), runs), function(run) {
@@ -527,6 +581,8 @@ run_rows <- function(runs) {
       complete = record[["complete"]],
       low_acceptance_warning = "RoBMA_selection_sampler_low_acceptance" %in% run[["warning_classes"]],
       warnings = length(run[["warnings"]]),
+      stopped_attempts = stopped_attempts(run),
+      wall = as.numeric(run[["wall"]]),
       min_ess = if (length(ess)) min(ess) else NA_real_,
       min_ess_quantity = if (length(ess)) names(ess)[which.min(ess)] else NA_character_,
       ess_per_second = if (length(ess)) min(ess) / as.numeric(run[["jags_seconds"]]) else NA_real_,
@@ -542,8 +598,10 @@ run_rows <- function(runs) {
 
 # Means over the completed runs per model and arm, and the ratio of the
 # 'coarse' to the 'default' arm of the JAGS seconds and the effective draws per
-# second.
-efficiency_table <- function(rows) {
+# second; the stopped attempts (total) and restarted runs over the completed
+# runs; and from 'totals' (arm_totals() over all runs) the stopped runs, the wall
+# hours and their coarse / default ratio.
+efficiency_table <- function(rows, totals = NULL) {
 
   if (is.null(rows)) return(NULL)
   metrics <- c("jags_seconds", "samplers", "fallback_samplers", "fallback_few_proposals",
@@ -551,6 +609,16 @@ efficiency_table <- function(rows) {
                "warnings", "low_acceptance_warning", "min_ess", "ess_per_second", "indicator_min_ess",
                "indicator_ess_per_second")
   table <- stats::aggregate(rows[metrics], rows[c("model", "arm")], function(x) mean(as.numeric(x)))
+  restarts <- data.frame(stopped_attempts = rows[["stopped_attempts"]],
+                         runs_restarted = as.integer(rows[["stopped_attempts"]] > 0L))
+  table <- merge(table, stats::aggregate(restarts, rows[c("model", "arm")], sum), by = c("model", "arm"))
+  if (is.null(totals)) {
+    totals <- data.frame(model = character(), arm = character(), stopped_runs = integer(), wall_hours = numeric())
+  }
+  table <- merge(table, totals, by = c("model", "arm"), all.x = TRUE)
+  wall_default <- table[["wall_hours"]][match(paste(table[["model"]], "default"),
+                                              paste(table[["model"]], table[["arm"]]))]
+  table[["wall_ratio"]] <- table[["wall_hours"]] / wall_default
   default <- table[table[["arm"]] == "default", c("model", "jags_seconds", "ess_per_second",
                                                   "indicator_ess_per_second")]
   names(default)[-1L] <- paste0(names(default)[-1L], "_default")
@@ -562,7 +630,9 @@ efficiency_table <- function(rows) {
   settings <- settings[!duplicated(settings[["model"]]), , drop = FALSE]
   table <- merge(table, settings, by = "model", all.x = TRUE)
   table <- table[order(table[["model"]], table[["arm"]]), c("model", "arm", "blocks", "control", metrics,
-                                                            "time_ratio", "speedup", "indicator_speedup")]
+                                                            "stopped_attempts", "runs_restarted", "stopped_runs",
+                                                            "wall_hours", "time_ratio", "wall_ratio", "speedup",
+                                                            "indicator_speedup")]
   rownames(table) <- NULL
 
   return(table)
@@ -575,6 +645,7 @@ run_summary <- function(runs) {
     data.frame(
       model = run[["job"]][["model"]], arm = run[["job"]][["arm"]], seed = run[["job"]][["seed"]],
       wall = round(as.numeric(run[["wall"]]), 1), jags_seconds = round(as.numeric(run[["jags_seconds"]]), 1),
+      stopped_attempts = if (isTRUE(run[["missing"]])) NA_integer_ else stopped_attempts(run),
       samplers = if (is.null(run[["samplers"]])) "" else
         paste(names(run[["samplers"]]), run[["samplers"]], sep = ":", collapse = " "),
       build = if (is.null(run[["build"]])) "" else build_text(run[["build"]]),
@@ -600,10 +671,7 @@ replace_stopped_runs <- function(jobs, base, seeds, specs, workers, dir, execute
                          replacement_seed = integer(), stringsAsFactors = FALSE)
   repeat {
     runs    <- read_runs(jobs, dir)
-    stopped <- which(vapply(runs, function(run) {
-      !isTRUE(run[["missing"]]) && !is.null(run[["error"]]) &&
-        grepl(normalizer_diagnostic, run[["error"]], fixed = TRUE)
-    }, logical(1)))
+    stopped <- which(vapply(runs, stopped_by_diagnostic, logical(1)))
     new_jobs <- list()
     for (k in stopped) {
       job  <- jobs[[k]]
@@ -664,10 +732,16 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   cat("\nSamplers per model and arm:\n")
   print(unique(summary[, c("model", "arm", "samplers")]), row.names = FALSE)
 
-  tables <- lapply(models, function(model) {
+  welch <- lapply(models, function(model) {
     quantities <- if (!is.null(failing)) failing[["quantity"]][failing[["model"]] == model] else NULL
     welch_table(runs, model, quantities)
   })
+  tables  <- lapply(welch, `[[`, "table")
+  missing <- do.call(rbind, lapply(welch, `[[`, "missing"))
+  if (nrow(missing) > 0L) {
+    cat("\nQuantities missing from a completed run (no statistic; the model is incomplete):\n")
+    print(missing, row.names = FALSE)
+  }
   table <- do.call(rbind, tables)
   if (is.null(table)) {
     table <- data.frame(model = character(), quantity = character(), mean_coarse = numeric(),
@@ -681,18 +755,27 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   cat("\nDecision per model:\n"); print(decisions, row.names = FALSE)
   incomplete <- decisions[["model"]][decisions[["decision"]] == "incomplete"]
   if (length(incomplete) > 0L) {
-    cat("INCOMPLETE: failed or missing runs, fewer than two completed runs in an arm, or no comparable quantity",
-        "in model(s)", paste(incomplete, collapse = ", "), "; the comparison is not a pass.\n")
+    cat("INCOMPLETE: failed or missing runs, fewer than two completed runs in an arm, a quantity missing from a",
+        "completed run, or no comparable quantity in model(s)", paste(incomplete, collapse = ", "),
+        "; the comparison is not a pass.\n")
   }
   cat("\nQuantities with |t| > 2:\n")
   print(table[(abs(table[["t"]]) > 2) %in% TRUE, , drop = FALSE], row.names = FALSE)
 
   rows <- run_rows(runs)
   if (!is.null(rows)) utils::write.csv(rows, file.path(dir, paste0(part, "-efficiency-runs.csv")), row.names = FALSE)
-  efficiency <- efficiency_table(rows)
+  # all runs of an arm for the totals: the planned and replacement runs and the
+  # stopped runs that a replacement took the place of
+  stopped_jobs <- lapply(seq_len(nrow(replaced)), function(i) {
+    list(part = part, model = replaced[["model"]][[i]], arm = replaced[["arm"]][[i]],
+         seed = replaced[["stopped_seed"]][[i]])
+  })
+  efficiency <- efficiency_table(rows, arm_totals(c(runs, read_runs(stopped_jobs, dir))))
   if (!is.null(efficiency)) {
     utils::write.csv(efficiency, file.path(dir, paste0(part, "-efficiency.csv")), row.names = FALSE)
-    cat("\nRecord, warnings and efficiency (means over completed runs; ratios coarse / default):\n")
+    cat("\nRecord, warnings and efficiency (means over completed runs; stopped_attempts and runs_restarted",
+        "summed over completed runs; stopped_runs and wall_hours over all runs, stopped ones included;",
+        "ratios coarse / default):\n")
     print(efficiency, row.names = FALSE, digits = 4)
     ensembles <- intersect(c("RoBMA.mv", "RoBMA.mv_vi", "best_ensemble"), efficiency[["model"]])
     if (length(ensembles) > 0L) {
@@ -948,6 +1031,7 @@ selftest <- function() {
     list(decisions = utils::read.csv(file.path(dir, paste0(part, "-decisions.csv")), stringsAsFactors = FALSE),
          table = utils::read.csv(file.path(dir, paste0(part, ".csv")), stringsAsFactors = FALSE),
          replaced = utils::read.csv(file.path(dir, paste0(part, "-replaced.csv")), stringsAsFactors = FALSE),
+         runs = utils::read.csv(file.path(dir, paste0(part, "-runs.csv")), stringsAsFactors = FALSE),
          efficiency = if (file.exists(efficiency)) utils::read.csv(efficiency, stringsAsFactors = FALSE) else NULL,
          output = output)
   }
@@ -964,6 +1048,44 @@ selftest <- function() {
           x$efficiency$samplers[x$efficiency$arm == "coarse"] == 6 &&
           all(x$efficiency$blocks == "rank_one:3 x2") && all(x$efficiency$control == "default"),
         "complete: pass, 3 quantities, 10 of 10 runs per arm, efficiency rows, ratios, blocks and control")
+
+  # one coarse run restarted twice by BayesTools (messages among the fit's warnings)
+  restart <- function(n) sprintf("JAGS fitting attempt %d failed and was restarted: synthetic stop.", n)
+  x <- wider_case("restarts", function(job, i) {
+    run <- wider_run(job, c("a", "b"))
+    if (job$arm == "coarse" && i == 3L) run$fit_warnings <- c(restart(1L), restart(2L))
+    run
+  })
+  coarse  <- x$efficiency[x$efficiency$arm == "coarse", ]
+  default <- x$efficiency[x$efficiency$arm == "default", ]
+  check(x$decisions$decision == "pass" && coarse$stopped_attempts == 2 && coarse$runs_restarted == 1 &&
+          default$stopped_attempts == 0 && default$runs_restarted == 0 &&
+          all(x$efficiency$stopped_runs == 0) && all(abs(x$efficiency$wall_hours - 10 / 3600) < 1e-12) &&
+          abs(coarse$wall_ratio - 1) < 1e-12 && coarse$warnings == 0 &&
+          sum(x$runs$stopped_attempts) == 2,
+        "two restart messages in one run: 2 stopped attempts, 1 restarted run, wall hours and ratio")
+
+  # a quantity missing from one completed run: no statistic, incomplete, listed
+  x <- wider_case("missing_mean", function(job, i) {
+    run <- wider_run(job, c("a", "b"))
+    if (job$arm == "default" && i == 4L) run$means <- run$means["a"]
+    run
+  })
+  check(x$decisions$decision == "incomplete" && x$decisions$quantities == 2L &&
+          is.na(x$table$t[x$table$quantity == "b"]) && !is.na(x$table$t[x$table$quantity == "a"]) &&
+          counts_are(x$decisions, c(10, 10, 0, 0), c(10, 10, 0, 0)) &&
+          any(grepl("missing from a completed run", x$output)) && any(grepl("default +2004", x$output)),
+        "a mean missing from a completed run: row with NA statistics, incomplete, case listed")
+
+  # an indicator level a run never visited has frequency zero there, not missing
+  x <- wider_case("unvisited_level", function(job, i) {
+    run <- wider_run(job, c("a", "bias_indicator==1", "bias_indicator==2"))
+    if (job$arm == "default" && i == 4L) run$means <- run$means[c("a", "bias_indicator==1")]
+    run
+  })
+  check(x$decisions$decision %in% c("pass", "fail") && !anyNA(x$table$t) &&
+          !any(grepl("missing from a completed run", x$output)),
+        "an unvisited indicator level: frequency zero, the model stays complete")
 
   x <- wider_case("one_failed", function(job, i) {
     if (job$arm == "default" && i == 10L) failed_run(job) else wider_run(job, c("a", "b"))
@@ -986,8 +1108,12 @@ selftest <- function() {
   }, execute = write_jobs(function(job) wider_run(job, c("a", "b"), i = 9L)))
   check(x$decisions$decision == "pass" && counts_are(x$decisions, c(10, 10, 0, 0), c(10, 10, 0, 0)) &&
           nrow(x$replaced) == 1L && x$replaced$arm == "default" && x$replaced$stopped_seed == 2009L &&
-          x$replaced$replacement_seed == 2011L && any(grepl("replacements", x$output)),
-        "a run stopped by the normalizer diagnostic: replaced by seed 2011, listed, complete")
+          x$replaced$replacement_seed == 2011L && any(grepl("replacements", x$output)) &&
+          x$efficiency$stopped_runs[x$efficiency$arm == "default"] == 1 &&
+          x$efficiency$stopped_runs[x$efficiency$arm == "coarse"] == 0 &&
+          abs(x$efficiency$wall_hours[x$efficiency$arm == "default"] - 11 / 3600) < 1e-12 &&
+          identical(x$runs$stopped_attempts[x$runs$seed == 2011L], 0L),
+        "a run stopped by the normalizer diagnostic: replaced by seed 2011, listed, complete; counted in the totals")
 
   # at most three replacements per model and arm; the fourth stopped run stays
   x <- wider_case("replaced_cap", function(job, i) {
