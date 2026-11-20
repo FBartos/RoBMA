@@ -19,7 +19,9 @@
 
 \item{bias_adjusted}{whether to adjust for publication bias. Defaults to
 \code{TRUE}. For PET/PEESE models this removes the regression bias term from
-the pooled location effect. This reference declares no new-publication
+the pooled location effect. With \code{bias_adjusted = FALSE}, the pooled
+PET/PEESE offset averages over all fitted rows, with zero offset for each
+exempt row. This reference declares no new-publication
 standard error or selection event; explicit unadjusted \code{predict()} rows
 instead target a selected new publication. Selection-model weighting affects response
 predictions, not this fixed-location posterior summary.}

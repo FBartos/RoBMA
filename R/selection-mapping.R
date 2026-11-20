@@ -647,7 +647,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 .selection_kernel_obs_bin <- function(context, bias_exempt = context[["bias_exempt"]]) {
 
   bins <- context[["obs_bin"]]
-  if (!is.null(bias_exempt)) bins[bias_exempt] <- 0L
+  if (!is.null(bias_exempt)) {
+    if (!is.logical(bias_exempt) || !is.vector(bias_exempt) || anyNA(bias_exempt) ||
+        length(bias_exempt) != length(bins)) {
+      stop("'bias_exempt' must contain one logical TRUE or FALSE per observed bin.", call. = FALSE)
+    }
+    bins[bias_exempt] <- 0L
+  }
   bins
 }
 

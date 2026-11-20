@@ -6,12 +6,31 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
   fixtures <- .native_selection_jags_fixtures()
   cluster_rules <- .selection_joint_cluster_quadrature_rules(c(7L, 15L, 31L, 63L))
   factor_rules <- .selection_joint_factor_quadrature_rules()
+  # Integrate the Gaussian in each eligible p-bin rectangle, conditioning the
+  # second coordinate on the first. This reference uses no selection kernels.
+  bounds <- c(Inf, 1, 0, -Inf)
+  cell_mass <- function(bins, mean, covariance) {
+    lo <- bounds[bins + 1L]
+    hi <- bounds[bins]
+    sd <- sqrt(diag(covariance))
+    if (length(bins) == 1L) return(pnorm(hi, mean, sd) - pnorm(lo, mean, sd))
+    slope <- covariance[2, 1] / covariance[1, 1]
+    conditional_sd <- sqrt(covariance[2, 2] - slope * covariance[1, 2])
+    integrate(function(x) {
+      center <- mean[2] + slope * (x - mean[1])
+      dnorm(x, mean[1], sd[1]) *
+        (pnorm(hi[2], center, conditional_sd) - pnorm(lo[2], center, conditional_sd))
+    }, lo[1], hi[1], rel.tol = 1e-10)$value
+  }
   # Three correlated outcomes with the most significant result in the middle.
   sampling <- matrix(c(.8, .32, -.1, .32, 1.1, .16, -.1, .16, .93), 3L)
   for (kind in names(fixtures$cases)) {
     spec <- fixtures$cases[[kind]]
     data <- utils::modifyList(fixtures$base, spec$extra)
-    data$y <- c(-.8, 1.7, -.6)
+    data$y <- c(.4, 1.7, -.6)
+    data$omega <- c(1, .2, .8)
+    data$lower <- c(1, 0, -1e300)
+    data$upper <- c(1e300, 1, 0)
     data$mu <- numeric(3L)
     data$sei <- rep(1, 3L)
     data$mode <- 1L
@@ -41,21 +60,19 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
     mean <- if (kind == "conditioned") drop(sampling %*% solve(total, data$y)) else data$mu
     for (rule in 0:1) {
       data$rule <- rule
-      for (bins in list(c(2L, 0L, 2L), c(0L, 0L, 2L), rep(0L, 3L))) {
+      for (bins in list(c(2L, 0L, 3L), c(0L, 0L, 3L), rep(0L, 3L))) {
         data$bins <- bins
         active <- which(bins > 0)
         expected <- gaussian
         if (length(active)) {
-          sd <- sqrt(diag(candidate))[active]
-          p_negative <- pnorm(0, mean[active], sd)
-          p_all_negative <- if (length(active) == 1L) p_negative else
-            as.numeric(mvtnorm::pmvnorm(upper = c(0, 0), mean = mean[active],
-              sigma = candidate[active, active], algorithm = mvtnorm::TVPACK()))
-          # w = 1 - .8 I(y<0). For best, both eligible p-values must lose;
-          # for product, expand the product of the two indicator weights.
-          normalizer <- if (rule == 1L) 1 - .8 * p_all_negative else
-            1 - .8 * sum(p_negative) + if (length(active) == 2L) .8^2 * p_all_negative else 0
-          numerator <- if (rule == 1L) .2 else .2^length(active)
+          weight <- function(cell) {
+            if (rule == 1L) data$omega[min(cell)] else prod(data$omega[cell])
+          }
+          cells <- expand.grid(rep(list(seq_along(data$omega)), length(active)))
+          normalizer <- sum(apply(cells, 1L, function(cell) {
+            weight(cell) * cell_mass(cell, mean[active], candidate[active, active, drop = FALSE])
+          }))
+          numerator <- weight(bins[active])
           expected <- expected + log(numerator / normalizer)
         }
         syntax <- paste0("model { y[1:3] ~ ", spec$distribution, "(",

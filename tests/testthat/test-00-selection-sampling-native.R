@@ -186,6 +186,22 @@ test_that("Matheron likelihood preserves singular sampling covariance", {
     likelihood_args, list(PACKAGE = "RoBMA"))),
     "Conditional sampling selection is unavailable because a fully retained outcome has zero acceptance probability. Use strictly positive selection weights or integrate an outcome-generating source.",
     fixed = TRUE)
+
+  # Only the exempt second row varies within a retained context. Although
+  # the observed eligible first row has positive weight, its retained error
+  # can put it in the leading zero-weight bin with positive probability.
+  likelihood_args[[10]] <- matrix(c(0, .5, 1), 1L)
+  likelihood_args[[11]] <- c(1, 0, -Inf)
+  likelihood_args[[12]] <- c(Inf, 1, 0)
+  for (rule in 0:1) {
+    likelihood_args[[17L]] <- rule
+    likelihood_args[[13L]] <- c(2L, 0L)
+    evaluate <- function() do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch"),
+      likelihood_args, list(PACKAGE = "RoBMA")))
+    expect_error(evaluate(), "fully retained outcome has zero acceptance probability", fixed = TRUE)
+    likelihood_args[[13L]] <- c(0L, 0L)
+    expect_equal(evaluate()$log_lik, mvtnorm::dmvnorm(yi, mean, V + diag(c(0, .49)), log = TRUE))
+  }
 })
 
 test_that("whole-sampling likelihoods use relative nonmonotone selection weights", {

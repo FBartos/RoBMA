@@ -1,5 +1,13 @@
 context("Row-level publication bias exemptions")
 
+test_that("native selection bins require a logical exemption mask", {
+
+  context <- list(obs_bin = 1:3, bias_exempt = c(TRUE, FALSE, TRUE))
+  expect_identical(.selection_kernel_obs_bin(context), c(0L, 2L, 0L))
+  expect_error(.selection_kernel_obs_bin(context, c(1L, 0L, 1L)),
+               "'bias_exempt' must contain one logical TRUE or FALSE per observed bin.", fixed = TRUE)
+})
+
 test_that("bias_exempt is a strict logical input aligned to retained outcome rows", {
 
   dat <- data.frame(

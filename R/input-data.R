@@ -73,11 +73,13 @@
 #' @param data an optional data frame containing the variables.
 #' @param slab an optional vector of study labels.
 #' @param bias_exempt an optional logical vector with one value per original
-#' outcome row. A `TRUE` row stays in the analysis with zero PET/PEESE offset
-#' and unit selection weight. Best-p-value selection uses the smallest p-value
-#' among the nonexempt outcomes in each publication. A fully exempt publication
-#' has unit selection weight. Omission is equivalent to all `FALSE`. The
-#' indicator must be nonmissing on rows retained for analysis.
+#' outcome row. A `TRUE` row stays in the analysis with zero PET/PEESE offset.
+#' Under product selection, its weight is one. Under best-p-value selection,
+#' only nonexempt outcomes compete to determine the publication's weight. A
+#' fully exempt publication has weight one. An exempt outcome can still be
+#' associated with selection through its correlation with a nonexempt outcome.
+#' Omission is equivalent to all `FALSE`. The indicator must be nonmissing on
+#' rows retained for analysis.
 #' @param subset an optional logical or numeric vector specifying a subset of
 #' data to be used. Subsetting precedes missing-row removal; retained-row
 #' outcome and predictor checks follow these steps. Type, shape, and existing
