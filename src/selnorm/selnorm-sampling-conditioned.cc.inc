@@ -17,9 +17,30 @@ int sampling_conditioned_bin(double x, double se,
 double sampling_conditioned_diagonal_mass(const double *mean,
     const double *diagonal, int dimension, const double *se,
     const double *omega, const SelNormKernelData &selection, int vector_rule,
-    const double *lower, const double *upper)
+    const double *lower, const double *upper, const int *obs_bin = nullptr)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
+  if (has_exempt_row(obs_bin, dimension)) {
+    const SelectionRows eligible(obs_bin, dimension);
+    double gaussian_mass = 0.0;
+    for (int row = 0; row < dimension; ++row) {
+      if (obs_bin[row]) continue;
+      const double lo = lower ? lower[row] : negative_infinity;
+      const double hi = upper ? upper[row] : -negative_infinity;
+      if (diagonal[row] == 0.0) {
+        if (mean[row] < lo || mean[row] > hi) return negative_infinity;
+      } else {
+        gaussian_mass += cpp_selnorm_normal_interval_log_prob(lo, hi, mean[row],
+          std::sqrt(diagonal[row]));
+      }
+    }
+    if (eligible.index.empty()) return gaussian_mass;
+    return gaussian_mass + sampling_conditioned_diagonal_mass(
+      eligible.take(mean).data(), eligible.take(diagonal).data(),
+      static_cast<int>(eligible.index.size()), eligible.take(se).data(), omega,
+      selection, vector_rule, lower ? eligible.take(lower).data() : nullptr,
+      upper ? eligible.take(upper).data() : nullptr);
+  }
   if (vector_rule == SELVECTOR_PRODUCT) {
     double value = 0.0;
     for (int row = 0; row < dimension; ++row) {
@@ -108,7 +129,8 @@ double sampling_conditioned_factor_mass(const double *mean,
     const double *diagonal, const double *loading, int dimension, int rank,
     const double *se, const double *omega, const SelNormKernelData &selection,
     int vector_rule, const double *qmc, int points, int design_points,
-    int scrambles, double *relative_mcse, const double *lower, const double *upper)
+    int scrambles, double *relative_mcse, const double *lower, const double *upper,
+    const int *obs_bin)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   std::vector<double> shifted(dimension), logs(scrambles, negative_infinity);
@@ -130,9 +152,9 @@ double sampling_conditioned_factor_mass(const double *mean,
       }
       const double value = factor_only ? rank_one_event_log_mass(shifted.data(),
         loading + dimension * (rank - 1), dimension, se, omega, selection,
-        SELKERNEL_STEP, vector_rule, lower, upper) :
+        SELKERNEL_STEP, vector_rule, lower, upper, obs_bin) :
         sampling_conditioned_diagonal_mass(shifted.data(), diagonal, dimension,
-          se, omega, selection, vector_rule, lower, upper);
+          se, omega, selection, vector_rule, lower, upper, obs_bin);
       logs[scramble] = log_add_exp(logs[scramble], value);
     }
     logs[scramble] -= std::log(static_cast<double>(points));
@@ -160,7 +182,7 @@ double sampling_conditioned_rank_two_mass(const double *mean,
     const double *loading, int dimension, const double *se, const double *omega,
     const SelNormKernelData &selection, int vector_rule, const double *lower,
     const double *upper, const SelNormConditionedQuadrature &quadrature,
-    double tolerance, double *relative_change)
+    double tolerance, double *relative_change, const int *obs_bin)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   struct Line { double intercept; double slope; };
@@ -169,7 +191,7 @@ double sampling_conditioned_rank_two_mass(const double *mean,
   const int sign = vector_rule == SELVECTOR_BEST_TWO_SIDED ? 1 : selection.effect_sign;
   for (int row = 0; row < dimension; ++row) {
     std::vector<double> boundaries;
-    for (int bin = 0; bin < selection.n_bins; ++bin) {
+    for (int bin = 0; (!obs_bin || obs_bin[row]) && bin < selection.n_bins; ++bin) {
       if (std::isfinite(selection.z_lower[bin])) {
         const double boundary = sign * se[row] * selection.z_lower[bin];
         boundaries.push_back(boundary);
@@ -212,7 +234,7 @@ double sampling_conditioned_rank_two_mass(const double *mean,
     if (!std::isfinite(latent)) return std::numeric_limits<double>::quiet_NaN();
     for (int row = 0; row < dimension; ++row) shifted[row] = mean[row] + loading[row] * latent;
     const double mass = rank_one_event_log_mass(shifted.data(), loading + dimension,
-      dimension, se, omega, selection, SELKERNEL_STEP, vector_rule, lower, upper);
+      dimension, se, omega, selection, SELKERNEL_STEP, vector_rule, lower, upper, obs_bin);
     if (std::isnan(mass)) return mass;
     // Between consecutive crossings the boundary ordering and deterministic
     // row bins are fixed. Thus positive conditional support cannot appear or
@@ -246,7 +268,7 @@ double sampling_conditioned_rank_two_mass(const double *mean,
         if (!std::isfinite(latent)) return std::numeric_limits<double>::quiet_NaN();
         for (int row = 0; row < dimension; ++row) shifted[row] = mean[row] + loading[row] * latent;
         const double mass = rank_one_event_log_mass(shifted.data(), loading + dimension,
-          dimension, se, omega, selection, SELKERNEL_STEP, vector_rule, lower, upper);
+          dimension, se, omega, selection, SELKERNEL_STEP, vector_rule, lower, upper, obs_bin);
         integral = log_add_exp(integral, quadrature.cluster_log_weights[offset + point] + mass);
       }
       current = log_add_exp(current, probability + integral);
@@ -266,7 +288,7 @@ double sampling_conditioned_normalizer(const double *mean,
     int vector_rule, const double *qmc, int initial_points, int max_points,
     int scrambles, double tolerance, double *relative_mcse,
     double *relative_change, const SelNormConditionedQuadrature &quadrature,
-    const double *lower, const double *upper)
+    const double *lower, const double *upper, const int *obs_bin = nullptr)
 {
   *relative_mcse = 0.0;
   *relative_change = 0.0;
@@ -294,16 +316,16 @@ double sampling_conditioned_normalizer(const double *mean,
   diagonal = residual.data();
   rank = static_cast<int>(active_loading.size()) / dimension;
   if (rank == 0) return sampling_conditioned_diagonal_mass(mean, diagonal,
-    dimension, se, omega, selection, vector_rule, lower, upper);
+    dimension, se, omega, selection, vector_rule, lower, upper, obs_bin);
   const bool factor_only = std::all_of(diagonal, diagonal + dimension,
     [](double value) { return value == 0.0; });
   if (factor_only && rank == 1) return rank_one_event_log_mass(mean,
     active_loading.data(), dimension, se, omega, selection, SELKERNEL_STEP,
-    vector_rule, lower, upper);
+    vector_rule, lower, upper, obs_bin);
   if (factor_only && rank == 2) {
     const double result = sampling_conditioned_rank_two_mass(mean,
       active_loading.data(), dimension, se, omega, selection, vector_rule,
-      lower, upper, quadrature, tolerance, relative_change);
+      lower, upper, quadrature, tolerance, relative_change, obs_bin);
     if (std::isfinite(result) || result == -std::numeric_limits<double>::infinity()) return result;
   }
 
@@ -375,7 +397,7 @@ double sampling_conditioned_normalizer(const double *mean,
   auto evaluate = [&](int points, double *error) {
     if (!use_dense) return sampling_conditioned_factor_mass(mean, diagonal,
       active_loading.data(), dimension, rank, se, omega, selection, vector_rule,
-      qmc, points, max_points, scrambles, error, lower, upper);
+      qmc, points, max_points, scrambles, error, lower, upper, obs_bin);
     // The existing event evaluator uses a contiguous design for each budget.
     std::vector<double> prefix(static_cast<std::size_t>(scrambles) * points * 2 * dimension);
     for (int stream = 0; stream < 2 * dimension; ++stream) {
@@ -384,7 +406,7 @@ double sampling_conditioned_normalizer(const double *mean,
     }
     return gaussian_event_log_mass(mean, covariance, dimension, se, omega,
       selection, SELKERNEL_STEP, vector_rule, lower, upper, prefix.data(),
-      points, scrambles, error);
+      points, scrambles, error, obs_bin);
   };
   double coarse_error = 0.0;
   double coarse = evaluate(std::max(1, initial_points / 2), &coarse_error);
@@ -412,13 +434,26 @@ double cpp_selnorm_conditioned_log_normalizer(
     const int *group_index, const double *qmc, int initial_points, int max_points,
     int scrambles, double tolerance, double *relative_mcse, double *relative_change,
     const SelNormConditionedQuadrature &quadrature,
-    const double *lower, const double *upper)
+    const double *lower, const double *upper, const int *obs_bin)
 {
   *relative_mcse = 0.0;
   *relative_change = 0.0;
   if (kernel_mode == SELKERNEL_NORMAL && lower == nullptr && upper == nullptr) return 0.0;
+  if (kernel_mode != SELKERNEL_NORMAL && !lower && !upper &&
+      has_exempt_row(obs_bin, dimension)) {
+    const SelectionRows rows(obs_bin, dimension);
+    if (rows.index.empty()) return 0.0;
+    return cpp_selnorm_conditioned_log_normalizer(rows.take(mean).data(),
+      rows.take(diagonal).data(), rows.take(loading, rank).data(),
+      static_cast<int>(rows.index.size()), rank, rows.take(selection_se).data(),
+      omega, n_bins, z_lower, z_upper, effect_sign, kernel_mode,
+      telescope_probabilities, vector_rule, rows.take(group_index).data(), qmc,
+      initial_points, max_points, scrambles, tolerance, relative_mcse,
+      relative_change, quadrature);
+  }
   std::vector<double> normal_weights;
   if (kernel_mode == SELKERNEL_NORMAL) {
+    obs_bin = nullptr;
     normal_weights.assign(n_bins, 1.0);
     omega = normal_weights.data();
     vector_rule = SELVECTOR_PRODUCT;
@@ -433,7 +468,7 @@ double cpp_selnorm_conditioned_log_normalizer(
   if (vector_rule == SELVECTOR_PRODUCT) return sampling_conditioned_normalizer(
     mean, diagonal, loading, dimension, rank, selection_se, omega, selection,
     vector_rule, qmc, initial_points, max_points, scrambles, tolerance,
-    relative_mcse, relative_change, quadrature, lower, upper);
+    relative_mcse, relative_change, quadrature, lower, upper, obs_bin);
   std::vector<int> groups;
   for (int row = 0; row < dimension; ++row) {
     if (std::find(groups.begin(), groups.end(), group_index[row]) == groups.end()) {
@@ -455,10 +490,12 @@ double cpp_selnorm_conditioned_log_normalizer(
     for (int row = 0; row < dimension; ++row) if (group_index[row] == group) rows.push_back(row);
     const int size = static_cast<int>(rows.size());
     std::vector<double> m(size), d(size), l(size * rank), se(size), lo(size), hi(size);
+    std::vector<int> bins(size);
     for (int i = 0; i < size; ++i) {
       m[i] = mean[rows[i]];
       d[i] = diagonal[rows[i]];
       se[i] = selection_se[rows[i]];
+      if (obs_bin) bins[i] = obs_bin[rows[i]];
       if (lower != nullptr) lo[i] = lower[rows[i]];
       if (upper != nullptr) hi[i] = upper[rows[i]];
       for (int factor = 0; factor < rank; ++factor) l[i + size * factor] = loading[rows[i] + dimension * factor];
@@ -467,7 +504,8 @@ double cpp_selnorm_conditioned_log_normalizer(
     result += sampling_conditioned_normalizer(m.data(), d.data(), l.data(), size,
       rank, se.data(), omega, selection, vector_rule, qmc, initial_points,
       max_points, scrambles, tolerance, &error, &change, quadrature,
-      lower == nullptr ? nullptr : lo.data(), upper == nullptr ? nullptr : hi.data());
+      lower == nullptr ? nullptr : lo.data(), upper == nullptr ? nullptr : hi.data(),
+      obs_bin ? bins.data() : nullptr);
     *relative_mcse = std::max(*relative_mcse, error);
     *relative_change = std::max(*relative_change, change);
   }
@@ -491,7 +529,8 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   *relative_change = 0.0;
   *log_normalizer = 0.0;
   std::vector<double> sampling(dimension * dimension), total;
-  bool deterministic = true;
+  std::vector<bool> integrated(dimension, false);
+  bool deterministic_event = true;
   int position = 0;
   for (int column = 0; column < dimension; ++column) {
     for (int row = column; row < dimension; ++row) {
@@ -502,12 +541,12 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   total = sampling;
   for (int row = 0; row < dimension; ++row) {
     total[row + dimension * row] += diagonal[row];
-    deterministic = deterministic && diagonal[row] == 0.0;
+    integrated[row] = diagonal[row] != 0.0;
     delta[row] = x[row] - mean[row] - sampling_auxiliary[row] - random_auxiliary[row];
   }
   for (int factor = 0; factor < rank; ++factor) {
     for (int row = 0; row < dimension; ++row) {
-      deterministic = deterministic && loading[row + dimension * factor] == 0.0;
+      if (loading[row + dimension * factor] != 0.0) integrated[row] = true;
       for (int column = 0; column < dimension; ++column) {
         total[row + dimension * column] += loading[row + dimension * factor] *
           loading[column + dimension * factor];
@@ -522,14 +561,22 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   if (info != 0) throw std::runtime_error("The total outcome covariance solve failed.");
   std::vector<double> normalizer_mean(dimension), whitened(dimension);
   double log_density = -.5 * dimension * std::log(2.0 * std::acos(-1.0));
+  const bool masked = has_exempt_row(obs_bin, dimension);
+  const bool deterministic_outcome = std::none_of(integrated.begin(), integrated.end(),
+    [](bool varies) { return varies; });
   for (int row = 0; row < dimension; ++row) {
-    sampling_effect[row] = deterministic ? x[row] - mean[row] : sampling_auxiliary[row];
-    if (!deterministic) {
+    if (obs_bin[row] && integrated[row]) deterministic_event = false;
+    const bool fixed = deterministic_outcome || (masked && !integrated[row]);
+    sampling_effect[row] = x[row] - mean[row];
+    if (!fixed) {
+      sampling_effect[row] = sampling_auxiliary[row];
       for (int column = 0; column < dimension; ++column) {
         sampling_effect[row] += sampling[row + dimension * column] * delta[column];
       }
     }
-    normalizer_mean[row] = mean[row] + sampling_effect[row];
+    // With no integrated source this coordinate is exactly the observed
+    // response. Reconstructing it by addition can move it across a step.
+    normalizer_mean[row] = fixed ? x[row] : mean[row] + sampling_effect[row];
     double value = x[row] - mean[row];
     for (int column = 0; column < row; ++column) {
       value -= total[row + dimension * column] * whitened[column];
@@ -537,34 +584,29 @@ double cpp_selnorm_sampling_conditioned_lpdf(
     whitened[row] = value / total[row + dimension * row];
     log_density -= std::log(total[row + dimension * row]) + .5 * whitened[row] * whitened[row];
   }
-  if (kernel_mode == SELKERNEL_NORMAL) return log_density;
+  if (kernel_mode == SELKERNEL_NORMAL ||
+      std::all_of(obs_bin, obs_bin + dimension, [](int bin) { return bin == 0; }))
+    return log_density;
   bool hard_zero = false;
   for (int bin = 0; bin < n_bins; ++bin) {
     hard_zero = hard_zero || (omega[bin] == 0.0 &&
       (vector_rule != SELVECTOR_BEST_TWO_SIDED || z_upper[bin] > 0.0));
   }
-  if (hard_zero && !deterministic) {
-    std::vector<bool> row_varies(dimension);
+  if (hard_zero && !deterministic_event) {
     for (int row = 0; row < dimension; ++row) {
-      row_varies[row] = diagonal[row] > 0.0;
-      for (int factor = 0; factor < rank; ++factor) {
-        row_varies[row] = row_varies[row] || loading[row + dimension * factor] != 0.0;
-      }
-      bool group_varies = row_varies[row];
+      if (obs_bin[row] == 0) continue;
+      bool group_varies = integrated[row];
       if (vector_rule != SELVECTOR_PRODUCT) {
         for (int other = 0; other < dimension; ++other) {
-          if (group_index[other] != group_index[row]) continue;
-          group_varies = group_varies || diagonal[other] > 0.0;
-          for (int factor = 0; factor < rank; ++factor) {
-            group_varies = group_varies || loading[other + dimension * factor] != 0.0;
-          }
+          if (obs_bin[other] == 0 || group_index[other] != group_index[row]) continue;
+          group_varies = group_varies || integrated[other];
         }
       }
       if (!group_varies) throw std::runtime_error(
         "Conditional sampling selection is unavailable because a fully retained outcome has zero acceptance probability. Use strictly positive selection weights or integrate an outcome-generating source.");
     }
   }
-  if (deterministic) {
+  if (deterministic_event) {
     for (int bin = 0; bin < n_bins; ++bin) {
       if (omega[bin] == 0.0 &&
           (vector_rule != SELVECTOR_BEST_TWO_SIDED || z_upper[bin] > 0.0)) {
@@ -575,14 +617,14 @@ double cpp_selnorm_sampling_conditioned_lpdf(
       loading, dimension, rank, selection_se, omega, n_bins, z_lower, z_upper,
       effect_sign, kernel_mode, telescope_probabilities, vector_rule, group_index,
       qmc, initial_points, max_points, scrambles, tolerance, relative_mcse,
-      relative_change, quadrature);
+      relative_change, quadrature, nullptr, nullptr, obs_bin);
     return log_density;
   }
   *log_normalizer = cpp_selnorm_conditioned_log_normalizer(normalizer_mean.data(),
     diagonal, loading, dimension, rank, selection_se, omega, n_bins, z_lower,
     z_upper, effect_sign, kernel_mode, telescope_probabilities, vector_rule,
     group_index, qmc, initial_points, max_points, scrambles, tolerance,
-    relative_mcse, relative_change, quadrature);
+    relative_mcse, relative_change, quadrature, nullptr, nullptr, obs_bin);
   if (*log_normalizer == -std::numeric_limits<double>::infinity() && *relative_mcse == 0.0) {
     throw std::runtime_error("Conditional sampling selection is unavailable because a retained context has zero acceptance probability. Use strictly positive selection weights or integrate an outcome-generating source.");
   }
@@ -599,8 +641,10 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   for (int group : groups) {
     std::vector<int> rows;
     for (int row = 0; row < dimension; ++row) {
-      if (vector_rule == SELVECTOR_PRODUCT || group_index[row] == group) rows.push_back(row);
+      if (obs_bin[row] && (vector_rule == SELVECTOR_PRODUCT || group_index[row] == group))
+        rows.push_back(row);
     }
+    if (rows.empty()) continue;
     const int size = static_cast<int>(rows.size());
     std::vector<double> local_se(size), local_x(size);
     std::vector<int> local_bin(size);
@@ -624,7 +668,7 @@ void cpp_selnorm_factor_projection(
     const int *group_index, const double *qmc, int initial_points, int max_points,
     int scrambles, double tolerance, const SelNormConditionedQuadrature &quadrature,
     const double *z, int size, int kind, double *density,
-    double *log_normalizer, double *relative_error)
+    double *log_normalizer, double *relative_error, const int *obs_bin)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   const auto integration_error = [infinity](double error, double change) {
@@ -655,7 +699,12 @@ void cpp_selnorm_factor_projection(
     }
     const int k = static_cast<int>(rows.size());
     std::vector<double> m(k), d(k), l(k * rank), se(k);
-    std::vector<int> one_group(k, 1);
+    std::vector<int> one_group(k, 1), bins;
+    if (obs_bin) {
+      bins.reserve(k);
+      for (int row : rows) bins.push_back(obs_bin[row]);
+    }
+    const int *group_bins = obs_bin ? bins.data() : nullptr;
     for (int row = 0; row < k; ++row) {
       m[row] = mean[rows[row]];
       d[row] = diagonal[rows[row]];
@@ -667,7 +716,7 @@ void cpp_selnorm_factor_projection(
       d.data(), l.data(), k, rank, se.data(), omega, n_bins, z_lower, z_upper,
       effect_sign, kernel_mode, telescope_probabilities, vector_rule,
       one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
-      &error, &change, quadrature);
+      &error, &change, quadrature, nullptr, nullptr, group_bins);
     *log_normalizer += denominator;
     const double denominator_error = integration_error(error, change);
     *relative_error = std::max(*relative_error, denominator_error);
@@ -692,7 +741,8 @@ void cpp_selnorm_factor_projection(
       if (active) factor.insert(factor.end(), l.data() + k * column, l.data() + k * (column + 1));
     }
     const int coordinates = static_cast<int>(factor.size()) / k;
-    bool unselected = kernel_mode == SELKERNEL_NORMAL;
+    bool unselected = kernel_mode == SELKERNEL_NORMAL ||
+      (group_bins && std::all_of(bins.begin(), bins.end(), [](int bin) { return bin == 0; }));
     if (!unselected) unselected = std::all_of(omega, omega + n_bins,
       [omega](double value) { return value == omega[0]; });
     for (int focal = 0; focal < k; ++focal) {
@@ -752,7 +802,7 @@ void cpp_selnorm_factor_projection(
             coordinates - 1, se.data(), omega, n_bins, z_lower, z_upper,
             effect_sign, kernel_mode, telescope_probabilities, vector_rule,
             one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
-            &error, &change, quadrature);
+            &error, &change, quadrature, nullptr, nullptr, group_bins);
           local_error = integration_error(error, change);
           value = std::exp(std::log(se[focal]) + dnorm(q, m[focal], sd, true) + numerator - denominator);
         } else {
@@ -762,7 +812,7 @@ void cpp_selnorm_factor_projection(
             d.data(), l.data(), k, rank, se.data(), omega, n_bins, z_lower, z_upper,
             effect_sign, kernel_mode, telescope_probabilities, vector_rule,
             one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
-            &error, &change, quadrature, lower.data(), upper.data());
+            &error, &change, quadrature, lower.data(), upper.data(), group_bins);
           local_error = integration_error(error, change);
           value = std::exp(first - denominator);
           upper[focal] = infinity;
@@ -773,7 +823,7 @@ void cpp_selnorm_factor_projection(
               d.data(), l.data(), k, rank, se.data(), omega, n_bins, z_lower, z_upper,
               effect_sign, kernel_mode, telescope_probabilities, vector_rule,
               one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
-              &error, &change, quadrature, lower.data(), upper.data());
+              &error, &change, quadrature, lower.data(), upper.data(), group_bins);
             local_error = std::max(first_error, integration_error(error, change));
             value = std::exp(log_add_exp(first, second) - denominator);
             lower[focal] = -infinity;

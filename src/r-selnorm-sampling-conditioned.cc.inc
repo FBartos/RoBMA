@@ -45,7 +45,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
     if (!std::isfinite(REAL(yi)[k]) || !std::isfinite(REAL(sei)[k]) ||
         !(REAL(sei)[k] > 0.0) || !std::isfinite(REAL(sampling_variances)[k]) ||
         !(REAL(sampling_variances)[k] > 0.0) ||
-        INTEGER(obs_bin)[k] < 1 || INTEGER(obs_bin)[k] > B) {
+        INTEGER(obs_bin)[k] < 0 || INTEGER(obs_bin)[k] > B) {
       Rf_error("Sampling-conditioned scalar deletion outcome inputs are invalid.");
     }
   }
@@ -108,7 +108,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
         const int cell = s + S * k;
         const double mean = REAL(means)[cell];
         const double variance = REAL(integrated_variances)[cell];
-        if (variance == 0.0 || mode == SELKERNEL_NORMAL || constant_weights) {
+        if (INTEGER(obs_bin)[k] == 0 || variance == 0.0 || mode == SELKERNEL_NORMAL || constant_weights) {
           REAL(out)[cell] = Rf_dnorm4(REAL(yi)[k], mean, std::sqrt(REAL(total_variances)[cell]), 1);
           continue;
         }
@@ -227,7 +227,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP z, SEXP kind)
+    SEXP z, SEXP kind, SEXP obs_bin)
 {
   const SelNormConditionedQuadrature quadrature = sampling_conditioned_quadrature(
     cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes,
@@ -251,6 +251,15 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
   check_logical(telescope_probabilities, "telescope_probabilities");
   const int S = matrix_nrow(means, "means"), K = matrix_ncol(means, "means");
   const int B = matrix_ncol(omega, "omega");
+  const int *bins = nullptr;
+  if (obs_bin != R_NilValue) {
+    check_integer(obs_bin, "obs_bin");
+    if (Rf_length(obs_bin) != K) Rf_error("'obs_bin' must have one value per observation.");
+    bins = INTEGER(obs_bin);
+    for (int k = 0; k < K; ++k) {
+      if (bins[k] < 0 || bins[k] > B) Rf_error("'obs_bin' is outside the selection partition.");
+    }
+  }
   if (S < 1 || K < 1 || B < 1 || Rf_length(rank) != 1 || INTEGER(rank)[0] < 0 ||
       Rf_length(sign) != 1 || (INTEGER(sign)[0] != 1 && INTEGER(sign)[0] != -1) ||
       Rf_length(initial_points) != 1 || INTEGER(initial_points)[0] < 2 ||
@@ -364,7 +373,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
         scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
         INTEGER(group_index), REAL(qmc), INTEGER(initial_points)[0], maximum,
         shifts, REAL(relative_tolerance)[0], quadrature, REAL(z), size,
-        projection_kind, row_projected.data(), &normalizer, REAL(VECTOR_ELT(out, 1)) + s);
+        projection_kind, row_projected.data(), &normalizer, REAL(VECTOR_ELT(out, 1)) + s, bins);
       REAL(VECTOR_ELT(out, 0))[s] = -normalizer;
       for (int index = 0; index < size; ++index) REAL(VECTOR_ELT(out, 2))[s + S * index] = row_projected[index];
     } else REAL(VECTOR_ELT(out, 0))[s] = cpp_selnorm_conditioned_log_normalizer(row_m.data(),
@@ -373,7 +382,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
         scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
         INTEGER(group_index), REAL(qmc), INTEGER(initial_points)[0], maximum,
         shifts, REAL(relative_tolerance)[0], REAL(VECTOR_ELT(out, 1)) + s,
-        REAL(VECTOR_ELT(out, 2)) + s, quadrature);
+        REAL(VECTOR_ELT(out, 2)) + s, quadrature, nullptr, nullptr, bins);
   });
   UNPROTECT(2);
   return out;
@@ -385,15 +394,15 @@ extern "C" SEXP RoBMA_selnorm_conditioned_normalizer_batch(
     SEXP telescope_probabilities, SEXP vector_rule, SEXP group_index, SEXP qmc,
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders)
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders, SEXP obs_bin)
 {
-  ROBMA_NATIVE_BEGIN(means, diagonal, loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders)
+  ROBMA_NATIVE_BEGIN(means, diagonal, loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders, obs_bin)
   return selnorm_conditioned_normalizer_or_projection_batch(means, diagonal,
     loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode,
     telescope_probabilities, vector_rule, group_index, qmc, initial_points,
     max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights,
     cluster_orders, factor_nodes, factor_log_weights, factor_orders,
-    R_NilValue, R_NilValue);
+    R_NilValue, R_NilValue, obs_bin);
   ROBMA_NATIVE_END
 }
 
@@ -404,15 +413,15 @@ extern "C" SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP z, SEXP kind)
+    SEXP z, SEXP kind, SEXP obs_bin)
 {
-  ROBMA_NATIVE_BEGIN(means, diagonal, loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders, z, kind)
+  ROBMA_NATIVE_BEGIN(means, diagonal, loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders, z, kind, obs_bin)
   return selnorm_conditioned_normalizer_or_projection_batch(means, diagonal,
     loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode,
     telescope_probabilities, vector_rule, group_index, qmc, initial_points,
     max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights,
     cluster_orders, factor_nodes, factor_log_weights, factor_orders,
-    z, kind);
+    z, kind, obs_bin);
   ROBMA_NATIVE_END
 }
 
@@ -512,7 +521,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
   }
   for (int row = 0; row < K; ++row) {
     if (!std::isfinite(REAL(yi)[row]) || !std::isfinite(REAL(sei)[row]) ||
-        !(REAL(sei)[row] > 0.0) || INTEGER(obs_bin)[row] < 1 ||
+        !(REAL(sei)[row] > 0.0) || INTEGER(obs_bin)[row] < 0 ||
         INTEGER(obs_bin)[row] > B || INTEGER(group_index)[row] < 1) {
       Rf_error("Conditional sampling selection outcome inputs are invalid.");
     }

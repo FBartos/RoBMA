@@ -65,7 +65,7 @@ bPET.mv <- function(
 
     # additional settings
     seed = NULL, silent, ...,
-    vi = NULL, sei = NULL) {
+    vi = NULL, sei = NULL, bias_exempt = NULL) {
 
   .fit_bias_regression_mv(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),
@@ -176,7 +176,7 @@ bPEESE.mv <- function(
 
     # additional settings
     seed = NULL, silent, ...,
-    vi = NULL, sei = NULL) {
+    vi = NULL, sei = NULL, bias_exempt = NULL) {
 
   .fit_bias_regression_mv(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),

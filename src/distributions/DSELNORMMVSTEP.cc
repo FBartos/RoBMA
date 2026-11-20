@@ -96,7 +96,7 @@ bool DSELNORMMVSTEP::checkControlParameterValue(
   const SelNormJagsBounds z_upper(par[5], len[5]);
   for (int i = 0; i < k; ++i) {
     if (!std::isfinite(par[2][i]) || !(par[2][i] > 0) ||
-        !selnorm_jags_integer_in_range(par[6][i], 1, n_bins)) {
+        !selnorm_jags_integer_in_range(par[6][i], 0, n_bins)) {
       return false;
     }
   }
@@ -194,6 +194,11 @@ double DSELNORMMVSTEP::surrogateLogDensity(
     double const *lower, double const *upper,
     SelNormCoarseSettings const &settings, bool *surrogate_not_exact) const
 {
+  // Reuse the exact projected normalizer for a partially selected block.
+  // The coarse ladders below assume every observation participates.
+  for (unsigned int i = 0; i < length; ++i) {
+    if (par[6][i] == 0) return logDensity(x, length, type, par, len, lower, upper);
+  }
   const int k = static_cast<int>(length);
   const int n_bins = static_cast<int>(len[3]);
   const SelNormJagsBounds z_lower(par[4], len[4]);

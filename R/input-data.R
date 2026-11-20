@@ -72,6 +72,14 @@
 #' meta-analysis.
 #' @param data an optional data frame containing the variables.
 #' @param slab an optional vector of study labels.
+#' @param bias_exempt an optional logical vector with one value per original
+#' outcome row. A `TRUE` row stays in the analysis with zero PET/PEESE offset.
+#' Under product selection, its weight is one. Under best-p-value selection,
+#' only nonexempt outcomes compete to determine the publication's weight. A
+#' fully exempt publication has weight one. An exempt outcome can still be
+#' associated with selection through its correlation with a nonexempt outcome.
+#' Omission is equivalent to all `FALSE`. The indicator must be nonmissing on
+#' rows retained for analysis.
 #' @param subset an optional logical or numeric vector specifying a subset of
 #' data to be used. Subsetting precedes missing-row removal; retained-row
 #' outcome and predictor checks follow these steps. Type, shape, and existing
@@ -315,6 +323,11 @@ NULL
   known_V_input      <- outcome_result$known_V_input
   known_V_hidden     <- outcome_result$known_V_hidden
 
+  bias_exempt <- .get_variable(.call, data, .envir, "bias_exempt")
+  if (!is.null(bias_exempt)) {
+    BayesTools::check_bool(bias_exempt, "bias_exempt", check_length = k, allow_NA = TRUE)
+  }
+
   ### Step 2: Extract moderator variables (mods and scale)
   if (!is.null(mods_from_yi)) {
     # Mods already extracted from yi formula
@@ -435,6 +448,17 @@ NULL
       ),
       call. = FALSE
     )
+  }
+
+  if (!is.null(bias_exempt)) {
+    bias_exempt <- bias_exempt[keep_rows]
+    if (anyNA(bias_exempt)) {
+      stop("The 'bias_exempt' argument must be TRUE or FALSE on every retained row.",
+           call. = FALSE)
+    }
+    if (any(bias_exempt)) {
+      data_outcome[["bias_exempt"]] <- bias_exempt
+    }
   }
 
   # Validate the retained real-valued outcome fields. Integer count fields
@@ -3019,6 +3043,21 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 
   # add data argument
   call_args[["data"]] <- quote(data)
+
+  uses_bias <- !bias_adjusted && (
+    (type %in% c("terms", "location", "cluster", "estimate", "response") &&
+       (.is_PET(object) || .is_PEESE(object))) ||
+      (type == "response" && .is_weightfunction(object)) ||
+      .is_selected_latent_prediction(object, type, bias_adjusted)
+  )
+  if (uses_bias) {
+    if ("bias_exempt" %in% names(newdata)) {
+      call_args[["bias_exempt"]] <- quote(bias_exempt)
+    } else if (!is.null(original_data[["outcome"]][["bias_exempt"]])) {
+      stop("Supply a logical 'bias_exempt' column in 'newdata' for this publication-bias prediction.",
+           call. = FALSE)
+    }
+  }
 
   # add outcome arguments based on outcome_type
   call_args <- c(

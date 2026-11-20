@@ -117,6 +117,9 @@ still selects the full original event when displaying one estimate.
 Supported full-covariance product blocks reuse numerator and normalizer
 calculations while refining their quadrature separately. Computation by
 posterior row and covariance block preserves the full publication event.
+When \code{bias_exempt} is supplied, only nonexempt outcomes determine
+that event. Correlation with a nonexempt outcome can still affect the
+fitted marginal curve of an exempt outcome.
 
 Numerical diagnostics distinguish raw normalizer-mass ratios from bounds on
 omitted contributions. A raw mass ratio does not certify that the compressed
@@ -127,6 +130,8 @@ Retained component weights are not renormalized to hide omissions.
 Independent univariate product-weight models and the released conditional
 cluster display retain their reference-bin-normalized inverse-weight
 extrapolation convention and corresponding \code{Missing N} summary.
+An independent exempt outcome has an inverse normalizing weight of one
+in the extrapolated curve and EDR calculation.
 Product selection does not use publication groups; its covariance
 dependencies and source settings determine the reference distribution and
 diagnostic. Best-p-value selection preserves the resolved publication groups.

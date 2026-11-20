@@ -125,7 +125,7 @@ RoBMA.mv <- function(
 
     # additional settings
     seed = NULL, silent = TRUE, ...,
-    vi = NULL, sei = NULL) {
+    vi = NULL, sei = NULL, bias_exempt = NULL) {
 
   BayesTools::check_selection_model(selection, name = "selection")
   initialized <- .initialize_mv_object(

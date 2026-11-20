@@ -91,7 +91,7 @@ RoBMA <- function(
 
   # selection likelihood
   selection = BayesTools::selection_model(),
-  selection_control = set_selection_likelihood_control(), ...) {
+  selection_control = set_selection_likelihood_control(), ..., bias_exempt = NULL) {
 
   BayesTools::check_selection_model(selection, name = "selection")
 

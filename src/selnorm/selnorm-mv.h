@@ -381,7 +381,7 @@ double cpp_selnorm_gaussian_event_log_mass(
   int kernel_mode, int vector_rule, const double *lower,
   const double *upper, const double *qmc, int points, int scrambles,
   double *relative_mcse, const double *rank_one_loading = nullptr,
-  SelNormDenseIntegration *integration = nullptr
+  SelNormDenseIntegration *integration = nullptr, const int *routing_bin = nullptr
 );
 
 // Whole sampling-error conditioning, evaluated by Gaussian conditional
@@ -422,7 +422,8 @@ double cpp_selnorm_conditioned_log_normalizer(
   const int *group_index, const double *qmc, int initial_points, int max_points,
   int scrambles, double tolerance, double *relative_mcse, double *relative_change,
   const SelNormConditionedQuadrature &quadrature,
-  const double *lower = nullptr, const double *upper = nullptr
+  const double *lower = nullptr, const double *upper = nullptr,
+  const int *obs_bin = nullptr
 );
 
 void cpp_selnorm_factor_projection(
@@ -433,7 +434,7 @@ void cpp_selnorm_factor_projection(
   const int *group_index, const double *qmc, int initial_points, int max_points,
   int scrambles, double tolerance, const SelNormConditionedQuadrature &quadrature,
   const double *z, int size, int kind, double *density,
-  double *log_normalizer, double *relative_error
+  double *log_normalizer, double *relative_error, const int *obs_bin = nullptr
 );
 
 bool cpp_selnorm_covariance_envelope_components(

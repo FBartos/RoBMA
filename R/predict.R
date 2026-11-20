@@ -37,6 +37,11 @@
 #'   or \code{vi} in explicit \code{newdata}. If an active
 #'   selection branch uses \code{weight_rule = "best"}, its publication groups
 #'   must also be resolvable in the prediction data.
+#'   Fitted-row predictions reuse their publication-bias exemptions. For
+#'   explicit new rows, supply a logical \code{bias_exempt} column when the
+#'   fit contains exempt rows and the requested prediction uses publication
+#'   bias. For fits without exempt rows, omission treats all new rows as
+#'   susceptible to the fitted publication-bias component.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item \code{"terms"} (alias: \code{"marginal"}): fixed location

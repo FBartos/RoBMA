@@ -317,6 +317,19 @@
   .known_v_validate_dependency_blocks(dependency_blocks, K)
   dependency_blocks <- lapply(dependency_blocks, as.integer)
 
+  exempt <- selection_context[["bias_exempt"]]
+  if (!is.null(exempt) && any(exempt)) {
+    covariance <- if (blocked) {
+      .block_covariance_coarsen(covariance_samples, dependency_blocks)
+    } else {
+      .block_covariance_from_array(covariance_samples, dependency_blocks)
+    }
+    if (all(exempt)) return(.outcome_rng.norm_known_v_covariance(mu_samples, covariance))
+    return(.outcome_rng.selnorm_mvn_exempt(
+      mu_samples, covariance, sei, selection_context, max_attempts
+    ))
+  }
+
   p_cuts  <- .selection_assert_p_cuts(selection_context[["p_cuts"]])
   z_lower <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)
   z_upper <- c(Inf, z_lower[-length(z_lower)])
@@ -383,6 +396,49 @@
   }
 
   return(result[["draws"]])
+}
+
+
+# W depends only on eligible outcomes. Draw their selected marginal with the
+# original kernel, then draw exempt outcomes from their Gaussian conditional.
+# Completing within blocks retains singular covariances and publication groups.
+.outcome_rng.selnorm_mvn_exempt <- function(mu, covariance, sei, context, max_attempts) {
+
+  S <- nrow(mu)
+  out <- mu
+  for (b in seq_along(covariance[["blocks"]])) {
+    block <- covariance[["blocks"]][[b]]
+    sigma <- covariance[["values"]][[b]]
+    draw <- rep_len(seq_len(dim(sigma)[1L]), S)
+    exempt <- which(context[["bias_exempt"]][block])
+    eligible <- setdiff(seq_along(block), exempt)
+    active <- block[eligible]
+    if (length(active)) {
+      marginal <- sigma[draw, eligible, eligible, drop = FALSE]
+      local <- BayesTools::selection_context_subset_observations(context, active)
+      out[, active] <- .outcome_rng.selnorm_mvn(
+        mu[, active, drop = FALSE], marginal, sei[active], local,
+        list(seq_along(active)), max_attempts
+      )
+    }
+    if (length(exempt)) {
+      # A stored one-row covariance supplies the same conditional law for
+      # every draw. Draw-dependent covariances retain their own regression.
+      for (i in seq_len(dim(sigma)[1L])) {
+        rows <- if (dim(sigma)[1L] == 1L) seq_len(S) else i
+        law <- .selection_conditional_gaussian_law(
+          matrix(sigma[i, , ], length(block), length(block)), eligible, exempt
+        )
+        root <- .covariance_sampling_factor(.covariance_factorization(law[["covariance"]]))
+        if (is.null(root)) stop("Conditional response covariance must be positive semidefinite.", call. = FALSE)
+        residual <- out[rows, active, drop = FALSE] - mu[rows, active, drop = FALSE]
+        normals <- matrix(stats::rnorm(length(rows) * nrow(root)), length(rows), nrow(root))
+        out[rows, block[exempt]] <- mu[rows, block[exempt], drop = FALSE] +
+          residual %*% law[["coefficient"]] + normals %*% root
+      }
+    }
+  }
+  out
 }
 
 

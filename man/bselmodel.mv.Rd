@@ -46,7 +46,8 @@ bselmodel.mv(
   silent,
   ...,
   vi = NULL,
-  sei = NULL
+  sei = NULL,
+  bias_exempt = NULL
 )
 }
 \arguments{
@@ -270,6 +271,15 @@ supplied for normal models.}
 
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
+
+\item{bias_exempt}{an optional logical vector with one value per original
+outcome row. A \code{TRUE} row stays in the analysis with zero PET/PEESE offset.
+Under product selection, its weight is one. Under best-p-value selection,
+only nonexempt outcomes compete to determine the publication's weight. A
+fully exempt publication has weight one. An exempt outcome can still be
+associated with selection through its correlation with a nonexempt outcome.
+Omission is equivalent to all \code{FALSE}. The indicator must be nonmissing on
+rows retained for analysis.}
 }
 \value{
 A fitted object of class

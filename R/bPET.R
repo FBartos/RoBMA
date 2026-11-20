@@ -58,7 +58,7 @@ bPET <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent, ...
+  seed = NULL, silent, ..., bias_exempt = NULL
 ) {
 
   ### create the output object

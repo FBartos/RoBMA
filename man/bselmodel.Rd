@@ -44,7 +44,8 @@ bselmodel(
   silent,
   selection = BayesTools::selection_model(),
   selection_control = set_selection_likelihood_control(),
-  ...
+  ...,
+  bias_exempt = NULL
 )
 }
 \arguments{
@@ -247,6 +248,15 @@ without changing the conditioning model or the vector weighting rule.}
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},
 \code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
+
+\item{bias_exempt}{an optional logical vector with one value per original
+outcome row. A \code{TRUE} row stays in the analysis with zero PET/PEESE offset.
+Under product selection, its weight is one. Under best-p-value selection,
+only nonexempt outcomes compete to determine the publication's weight. A
+fully exempt publication has weight one. An exempt outcome can still be
+associated with selection through its correlation with a nonexempt outcome.
+Omission is equivalent to all \code{FALSE}. The indicator must be nonmissing on
+rows retained for analysis.}
 }
 \value{
 A fitted object of class \code{c("bselmodel", "brma")} containing a

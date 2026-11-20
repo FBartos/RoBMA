@@ -38,7 +38,7 @@ bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
       !(*par[1] > 0 && *par[2] > 0 && *par[3] > 0) ||
       !(*par[8] == 1 || *par[8] == -1) ||
       !(*par[9] == 0 || *par[9] == 1) ||
-      !selnorm_jags_integer_in_range(*par[7], 1, n_bins)) {
+      !selnorm_jags_integer_in_range(*par[7], 0, n_bins)) {
     return false;
   }
 
@@ -95,7 +95,7 @@ double DSELNORMSTEP::logDensity(double const *x, unsigned int length,
     static_cast<int>(*par[7]),
     0,
     0,
-    SELKERNEL_STEP,
+    *par[7] == 0 ? SELKERNEL_NORMAL : SELKERNEL_STEP,
     data,
     1,
     false

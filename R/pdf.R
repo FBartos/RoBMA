@@ -137,29 +137,40 @@
       }
     }
   }
+  observed_context <- selection_context
+  exempt <- selection_context[["bias_exempt"]]
+  if (!is.null(exempt)) {
+    observed_context <- BayesTools::selection_context_subset_observations(selection_context, observed)
+  }
   if (!length(missing)) {
     return(list(
       log_numerator = gaussian_log_density + .selection_joint_log_weight(
-        values, selection_se[observed], selection_context
+        values, selection_se[observed], observed_context
       ), relative_mcse = numeric(S)
     ))
   }
+  eligible_observed <- if (is.null(exempt)) seq_along(observed) else which(!exempt[observed])
   conditional_context <- .selection_joint_condition_event_context(
-    selection_context,
-    if (shared_values) values[1L, , drop = FALSE] else values,
-    selection_se[observed]
+    selection_context, values[if (shared_values) 1L else seq_len(S), eligible_observed, drop = FALSE],
+    selection_se[observed[eligible_observed]]
   )
+  if (!is.null(exempt)) {
+    conditional_context <- BayesTools::selection_context_subset_observations(conditional_context, missing)
+  }
   result <- .selection_gaussian_event_mass(
     conditional_mean, conditional_lower, selection_se[missing],
     conditional_context, execution_plan, lower = lower, upper = upper, qmc = qmc,
     rank_one_loading = conditional_rank_one
   )
-  product <- rep_len(selection_context[["vector_rule"]], S) == 0L
+  # A best event with no eligible missing coordinate has already been
+  # determined by its observed coordinates, just like an observed product.
+  observed_factor <- rep_len(selection_context[["vector_rule"]], S) == 0L |
+    (!is.null(exempt) && all(exempt[missing]))
   observed_weight <- numeric(S)
-  if (any(product)) {
-    observed_weight[product] <- .selection_joint_log_weight(
-      values, selection_se[observed], selection_context
-    )[product]
+  if (any(observed_factor)) {
+    observed_weight[observed_factor] <- .selection_joint_log_weight(
+      values, selection_se[observed], observed_context
+    )[observed_factor]
   }
   result[["log_numerator"]] <- gaussian_log_density + observed_weight + result[["log_mass"]]
   result
@@ -171,6 +182,13 @@
   .selection_joint_check_event_geometry(context)
   y <- as.matrix(y)
   S <- nrow(y)
+  exempt <- context[["bias_exempt"]]
+  if (!is.null(exempt)) {
+    if (length(exempt) != ncol(y)) stop("Selection exemptions must match observed outcomes.", call. = FALSE)
+    if (all(exempt)) return(numeric(S))
+    y <- y[, !exempt, drop = FALSE]
+    sei <- sei[!exempt]
+  }
   rule <- context[["vector_rule"]]
   if (!length(rule) || !length(rule) %in% c(1L, S) || anyNA(rule) ||
       any(!rule %in% 0:2)) {

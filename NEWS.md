@@ -1,5 +1,6 @@
 ## development version
 ### Features
+- `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
 
 ### Changes

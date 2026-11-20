@@ -1,6 +1,33 @@
 context("Selection kernel")
 skip_on_cran()
 
+test_that("scalar selection scores and predictions respect row exemptions", {
+
+  yi <- c(2, -1)
+  se <- c(.8, 1.1)
+  mu <- matrix(c(.2, .4, -.1, .15), 2L)
+  sd <- matrix(c(.9, 1.2, 1, .7), 2L)
+  weights <- c(.6, 1.7)
+  omega <- rbind(c(1, .7, .35, .2), c(1, .2, .8, .1))
+  spec <- .test_step_spec(yi, se)
+  expected <- .test_step_reference(yi, mu, sd, se, omega, spec, weights)
+  spec$bias_exempt <- c(TRUE, FALSE)
+  expected[, 1L] <- weights[1L] * dnorm(yi[1L], mu[, 1L], sd[, 1L], log = TRUE)
+  args <- list(yi = yi, mu_num = mu, sigma_num = sd, sei = se, omega = omega,
+               selection_spec = spec, weights = weights)
+  expect_equal(do.call(.selnorm_kernel_loglik_matrix, args), expected, tolerance = 1e-12)
+  expect_equal(do.call(.selnorm_kernel_loglik_row_sum, args), rowSums(expected), tolerance = 1e-12)
+
+  normalizer <- .selnorm_kernel_log_norm_matrix(mu, sd, se, omega, spec)
+  expect_equal(normalizer[, 1L], c(0, 0))
+  expect_equal(normalizer[, 2L], .test_step_log_norm_reference(mu, sd, se, omega, spec)[, 2L],
+               tolerance = 1e-12)
+  summary <- .selnorm_kernel_predictive_summary_matrix(yi, mu, sd, se, omega, spec)
+  expect_equal(summary$log_lower[, 1L], pnorm(yi[1L], mu[, 1L], sd[, 1L], log.p = TRUE))
+  expect_equal(summary$mean[, 1L], mu[, 1L])
+  expect_equal(summary$variance[, 1L], sd[, 1L]^2)
+})
+
 test_that("declined telescoping uses stable log interval masses", {
 
   skip_if_not(.has_native_selnorm_kernel())
@@ -1150,7 +1177,7 @@ test_that("general scalar ingress retains all four declared kernel modes", {
       native[["z_lower"]], native[["z_upper"]], native[["sign"]], native[["phack_q"]],
       native[["phack_z_source"]], native[["phack_z_dest"]], native[["segment_bounds"]],
       native[["segment_step_bin"]], native[["segment_phack_region"]], telescope,
-      PACKAGE = "RoBMA")
+      NULL, PACKAGE = "RoBMA")
   }
   for (mode in 0:3) expect_equal(as.numeric(evaluate(mode)), 0, tolerance = 1e-14)
   for (mode in c(NA_integer_, -1L, 999L)) {
