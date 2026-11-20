@@ -115,9 +115,9 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     expect_true(all(grepl("^equals\\(bias_indicator, [0-9]+\\)$", gates[["active"]])), info = name)
   }
 
-  # with the corrected selection sampler (the default) an ensemble declares no
-  # allocation block and the corrected sampler updates the allocation parameters;
-  # a single model keeps its block
+  # with the corrected selection sampler (the default) the ensemble's allocation
+  # block and the single model's block are declared and the corrected block
+  # sampler takes them
   for (name in c("RoBMA.mv", "bselmodel.mv")) {
     model <- models[[name]]
     fit   <- .declaration_fit(model[["constructor"]], model[["args"]], declarations = TRUE,
@@ -128,15 +128,22 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     # the scalar allocation SD (the Dirichlet weights are a vector node)
     allocation_sd <- grepl("ALLOCx_heterogeneity__allocation_sd", samplers[["Node"]], fixed = TRUE)
     expect_identical(sum(allocation_sd), 1L, info = name)
-    if (name == "RoBMA.mv") {
-      expect_identical(NROW(blocks), 0L)
-      expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"))
-      expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedSlice")
-    } else {
-      expect_identical(unique(blocks[["prior"]]), model[["blocks"]])
-      expect_identical(samplers[["Sampler"]][allocation_sd], "BayesTools::FactorSlice")
-    }
+    expect_identical(unique(blocks[["prior"]]), model[["blocks"]], info = name)
+    expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"), info = name)
+    expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedBlock", info = name)
   }
+
+  # a single model with a cs() random effect: its SD and correlation join the
+  # block the corrected block sampler takes
+  cs  <- .declaration_fit(RoBMA::bselmodel.mv, list(yi = quote(yi), V = V, random = ~ cs(deltype | study), data = dat),
+                          declarations = TRUE, sampler = "slice.coarse")
+  expect_null(cs[["fit"]][["errors"]])
+  random   <- c("mu__xREx__study_sd", "mu__xREx__study_rho")
+  blocks   <- attr(cs[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+  samplers <- cs[["fit"]][["samplers"]]
+  expect_identical(unique(blocks[["prior"]]), c("mu_intercept", random, "omega"))
+  expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"))
+  expect_identical(samplers[["Sampler"]][match(random, samplers[["Node"]])], rep("RoBMA::CoarseCorrectedBlock", 2L))
 })
 
 
@@ -307,7 +314,7 @@ test_that("a serial update() of a selection model adapts its factor slice block"
 }
 
 
-test_that("an ensemble declares its allocation block exactly when no corrected sampler takes it", {
+test_that("an ensemble's allocation block goes to the corrected block sampler exactly when a selection block takes part", {
 
   skip_on_cran()
   skip_if_not_certification("These fits (about 30 s) run in the numerical-kernels case.")
@@ -315,8 +322,8 @@ test_that("an ensemble declares its allocation block exactly when no corrected s
 
   # the coarse rule of a rank-three block: order 7 (rule 3) is affordable, order
   # 95 (rule 11, the last) is not (95^3 nodes exceed the budget); the exact
-  # boundary at higher ranks is checked on the declarations alone (fits of
-  # rank six and seven take minutes)
+  # boundary at higher ranks is checked on the native rule alone (fits of rank
+  # six and seven take minutes)
   cases <- list(
     list(rank = 3L, max_rules = 3L, engaged = TRUE),
     list(rank = 3L, max_rules = 11L, engaged = FALSE)
@@ -330,18 +337,15 @@ test_that("an ensemble declares its allocation block exactly when no corrected s
     expect_null(fit[["fit"]][["errors"]], info = label)
     samplers <- fit[["fit"]][["samplers"]]
     blocks   <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
-    corrected <- any(samplers[["Sampler"]] == "RoBMA::CoarseCorrectedSlice")
     allocation_sd <- grepl("ALLOCx_heterogeneity__allocation_sd", samplers[["Node"]], fixed = TRUE)
-    expect_identical(corrected, case$engaged, info = label)
-    # the block is declared exactly when the corrected sampler engages nothing
-    expect_identical(NROW(blocks) > 0L, !case$engaged, info = label)
+    # the block is always declared; the corrected block sampler takes it when the
+    # factor block's coarse rule is affordable, BayesTools' otherwise
+    expect_gt(NROW(blocks), 0L)
     expect_identical(samplers[["Sampler"]][allocation_sd],
-                     if (case$engaged) "RoBMA::CoarseCorrectedSlice" else "BayesTools::FactorSlice", info = label)
-    # the record flags the withheld block, and a fallback there warns
+                     if (case$engaged) "RoBMA::CoarseCorrectedBlock" else "BayesTools::FactorSlice", info = label)
     record <- attr(fit[["fit"]], "selection_sampler", exact = TRUE)
-    expect_identical(record[["allocation_block_withheld"]], case$engaged, info = label)
-    fallback_warned <- any(grepl(RoBMA:::.selection_sampler_fallback_pattern,
-                                 attr(fit[["fit"]], "warnings", exact = TRUE)))
-    expect_identical(fallback_warned, case$engaged && record[["fallback_samplers"]] > 0, info = label)
+    expect_false("allocation_block_withheld" %in% names(record))
+    expect_false(any(grepl(RoBMA:::.selection_sampler_fallback_pattern, attr(fit[["fit"]], "warnings", exact = TRUE))),
+                 info = label)
   }
 })

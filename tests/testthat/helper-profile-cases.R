@@ -404,6 +404,7 @@ certification_cases <- function() {
         "selection-kernel.*|selection-probability-numerics|",
         "selection-factor-routing|selection-estimate-cells|",
         "selection-coarse-blocks|selection-coarse-exactness|selection-coarse-fallback|",
+        "selection-corrected-block|selection-corrected-block-exactness|",
         "jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
         "selection-node-memo|sampler-declarations-fits)|",
@@ -431,13 +432,21 @@ certification_cases <- function() {
           "guarded priors keep the stock samplers",
           "declarations hold through parallel chains, autofit and update()",
           "a serial update() of a selection model adapts its factor slice block",
-          "an ensemble declares its allocation block exactly when no corrected sampler takes it"
+          "an ensemble's allocation block goes to the corrected block sampler exactly when a selection block takes part"
         )),
         .required_tests("test-00-selection-coarse-exactness.R", c(
           "the corrected chain on a rank-one cluster block targets the exact posterior",
           "the corrected chain on a rank-two factor block targets the exact posterior",
           "the corrected chain is exact when a loading column of a factor block is sampled",
           "the corrected chain is exact when the weight rule is a mixture of product and best"
+        )),
+        .required_tests("test-00-selection-corrected-block.R",
+          "a selection model with a full sampling covariance samples its declared block with the block sampler"),
+        .required_tests("test-00-selection-corrected-block-exactness.R", c(
+          "the corrected block chain targets the exact posterior and a fixed-order sweep does not",
+          "one update from exact draws of independent blocks leaves their law unchanged",
+          "the corrected block chain is exact on a dense selection child with a crude anchor grid",
+          "the block surrogate does not depend on the evaluation history or on warm memos"
         )),
         .required_tests("test-00-selection-coarse-fallback.R", c(
           "stress fixtures fall back at the default threshold and are exact with and without the fallback",

@@ -158,8 +158,10 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
 }
 
 
+# `normalize` maps the lines of both sides before they are compared; the
+# candidate keeps the output as printed.
 .test_reference_lines <- function(actual_output, filename, info_msg,
-                                  print_dir) {
+                                  print_dir, normalize = identity) {
 
   ref_file      <- file.path(print_dir, filename)
   candidate     <- .reference_candidate_path(ref_file)
@@ -175,8 +177,9 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
     return(invisible(actual_output))
   }
 
-  expected_output <- readLines(ref_file, warn = FALSE, encoding = "UTF-8")
-  if (identical(actual_output, expected_output)) {
+  expected_output <- normalize(readLines(ref_file, warn = FALSE, encoding = "UTF-8"))
+  compared_output <- normalize(actual_output)
+  if (identical(compared_output, expected_output)) {
     if (file.exists(candidate) &&
         (unlink(candidate) != 0L || file.exists(candidate))) {
       stop("Could not remove reference candidate: ", candidate, call. = FALSE)
@@ -186,7 +189,7 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
   }
 
   expect_equal(
-    actual_output,
+    compared_output,
     expected_output,
     info = paste(c(info_msg, candidate_msg), collapse = "\n")
   )
@@ -195,14 +198,16 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
 
 
 test_reference_table <- function(table, filename, info_msg = NULL,
-                                 print_dir = REFERENCE_DIR) {
+                                 print_dir = REFERENCE_DIR,
+                                 normalize = identity) {
 
   actual_output <- capture_output_lines(table, print = TRUE, width = 150)
   return(.test_reference_lines(
     actual_output = actual_output,
     filename      = filename,
     info_msg      = info_msg,
-    print_dir     = print_dir
+    print_dir     = print_dir,
+    normalize     = normalize
   ))
 }
 
@@ -1264,8 +1269,13 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/r-selnorm-loglik.cc.inc",
     "src/r-selnorm-mv.cc.inc",
     "src/r-selnorm-sampling-conditioned.cc.inc",
+    "src/samplers/CoarseCorrectedBlock.cc",
+    "src/samplers/CoarseCorrectedBlock.h",
     "src/samplers/CoarseCorrectedSlice.cc",
     "src/samplers/CoarseCorrectedSlice.h",
+    "src/samplers/CoarseSurrogate.h",
+    "src/samplers/CorrectedSampler.cc",
+    "src/samplers/CorrectedSampler.h",
     "src/selnorm/selnorm.cc",
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",

@@ -30,6 +30,31 @@
 # (the density could not be computed, or a declaration is wrong).
 .sampler_error_hint <- function(message) {
 
+  # Errors of either block sampler (RoBMA's corrected block sampler and
+  # BayesTools' factor slice sampler, which takes the same block under "slice"
+  # and stops the same way): only undeclaring the blocks helps. A member on a
+  # bound of its support is avoided by a start strictly inside it.
+  bound <- if (grepl("current value lies on a bound of its support", message, fixed = TRUE)) {
+    "A start strictly inside the support of the parameter avoids this error; otherwise fit"
+  } else {
+    "Fit"
+  }
+  if (grepl("Corrected slice (block", message, fixed = TRUE) ||
+      grepl("the support bounds of this node are too wide", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
+      bound, " the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      "the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+  if (grepl("Factor slice sampler:", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by a sampler of the BayesTools JAGS module that RoBMA uses by default. ",
+      bound, " the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      "the ordinary JAGS samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+
   if (grepl("Corrected slice", message, fixed = TRUE) ||
       grepl("Surrogate slice transition failed", message, fixed = TRUE)) {
     return(paste0(
@@ -40,17 +65,13 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     ))
   }
 
-  option <- if (grepl("Factor slice sampler:", message, fixed = TRUE)) {
-    "sampler.blocks"
-  } else if (grepl("gated node changes the likelihood", message, fixed = TRUE)) {
-    "sampler.gates"
-  } else {
+  if (!grepl("gated node changes the likelihood", message, fixed = TRUE)) {
     return(message)
   }
 
   return(paste0(
     message, "\nThe error was raised by a sampler of the BayesTools JAGS module that RoBMA uses by default. ",
-    "Fit the model again after 'RoBMA.options(", option, " = FALSE)' to sample these parameters with the ordinary JAGS ",
+    "Fit the model again after 'RoBMA.options(sampler.gates = FALSE)' to sample these parameters with the ordinary JAGS ",
     "samplers, and please report the model to the RoBMA developers."
   ))
 }
@@ -76,8 +97,9 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 # Blocks: NULL unless a selection likelihood is present; otherwise a function
 # of the combined prior list (formula priors under their final names and with
 # their random-effect attributes), which BayesTools::JAGS_fit() calls once.
-# Model-averaged fits declare their allocation block unless the corrected
-# selection sampler can take the allocation parameters (.sampler_ensemble_block()).
+# Under 'selection.sampler = "slice.coarse"' RoBMA's corrected block sampler
+# takes a declared block with a coarse-capable selection child; BayesTools'
+# factor slice sampler takes the others.
 .sampler_blocks_declared <- function(data, priors) {
 
   if (!.sampler_module_samplers() || !isTRUE(RoBMA.get_option("sampler.blocks")) ||
@@ -89,84 +111,20 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     .data_scale_component_specs(data), function(spec) spec[["parameter"]], character(1)
   )
 
-  return(.sampler_block_function(scale_parameters, ensemble_block = .sampler_ensemble_block(data)))
+  return(.sampler_block_function(scale_parameters))
 }
 
 
-# Whether a model-averaged fit declares its allocation block: yes unless the
-# corrected selection sampler is on ('selection.sampler = "slice.coarse"')
-# and can take the allocation parameters, which needs a selection block it
-# engages: a dense or rank-one block, or a factor block whose coarse rule (rule
-# min(selection.coarse_max_rules, rules) of its schedule) the sampler's node
-# budget affords at the block's rank (singletons never engage it). Unless one
-# of them is dense, it also needs a selection branch with the product rule
-# (cluster and factor blocks under best-weight rules only have the exact
-# density as their surrogate, so every corrected sampler would fall back).
-.sampler_ensemble_block <- function(data) {
-
-  if (!.selection_sampler_corrected(RoBMA.get_option("selection.sampler")) ||
-      !.is_data_joint_selection(data)) {
-    return(TRUE)
-  }
-  plan    <- .data_selection_execution_plan(data)
-  methods <- plan[["block_methods"]]
-  engaged <- methods %in% c("dense", "rank_one")
-  factor  <- which(methods == "factor")
-  if (length(factor) > 0L) {
-    orders <- plan[["factor_quadrature"]][["orders"]]
-    order  <- orders[[min(RoBMA.get_option("selection.coarse_max_rules"), length(orders))]]
-    # the sampler's own affordability rule, not a copy of it
-    engaged[factor] <- .Call("RoBMA_selnorm_factor_rule_affordable",
-                             rep(as.numeric(order), length(factor)),
-                             as.numeric(plan[["factor_ranks"]][factor]), PACKAGE = "RoBMA")
-  }
-  if (!any(engaged)) {
-    return(TRUE)
-  }
-  model    <- .data_selection_model(data)
-  branches <- model[["branches"]][model[["active_branches"]]]
-  best     <- length(branches) > 0L && all(vapply(branches, function(branch) {
-    identical(branch[["weight_rule"]], "best")
-  }, logical(1L)))
-
-  return(best && !any(methods == "dense"))
-}
-
-
-# A closure over the names of the scale formulas and the ensemble switch only
-# (it keeps no data). When BayesTools::JAGS_fit() calls it, it also records
-# whether a model-averaged fit withholds the allocation block it would declare
-# with the switch on (read by .sampler_allocation_block_withheld()).
-.sampler_block_function <- function(scale_parameters, ensemble_block) {
+# A closure over the names of the scale formulas only (it keeps no data).
+.sampler_block_function <- function(scale_parameters) {
 
   force(scale_parameters)
-  force(ensemble_block)
-  allocation_block_withheld <- FALSE
-  return(function(prior_list) {
-    allocation_block_withheld <<- !ensemble_block && .sampler_is_ensemble(prior_list) &&
-      !is.null(.sampler_block_members(prior_list, scale_parameters, ensemble_block = TRUE))
-    .sampler_block_members(prior_list, scale_parameters, ensemble_block)
-  })
+  return(function(prior_list) .sampler_block_members(prior_list, scale_parameters))
 }
 
 
-# Whether the declarations of a fresh fit withheld the allocation block of a
-# model-averaged fit for the corrected selection sampler: the block that
-# 'selection.sampler = "slice"' would declare. Known once JAGS_fit() has
-# called the block function; FALSE without one.
-.sampler_allocation_block_withheld <- function(declarations) {
-
-  blocks <- declarations[["sampler_blocks"]]
-  if (!is.function(blocks)) {
-    return(FALSE)
-  }
-  return(isTRUE(environment(blocks)[["allocation_block_withheld"]]))
-}
-
-
-# The block of a combined prior list: list(<prior names>) or NULL. With
-# 'ensemble_block = FALSE' a model-averaged fit declares no block.
-.sampler_block_members <- function(prior_list, scale_parameters = character(), ensemble_block = TRUE) {
+# The block of a combined prior list: list(<prior names>) or NULL.
+.sampler_block_members <- function(prior_list, scale_parameters = character()) {
 
   if (!.sampler_heterogeneity_estimated(prior_list, scale_parameters)) {
     return(NULL)
@@ -178,9 +136,6 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
   members      <- setdiff(names(prior_list)[eligible], unit_latents)
 
   if (.sampler_is_ensemble(prior_list)) {
-    if (!ensemble_block) {
-      return(NULL)
-    }
     # Model-averaged fits: the plain allocation SD and the Dirichlet allocation
     # weights of a random-effect variance allocation only.
     members <- members[vapply(prior_list[members], function(prior) {
@@ -240,11 +195,26 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
            identical(prior[["distribution"]], "dirichlet"))
 }
 
+# A direct random-effect SD or a scalar structured correlation (e.g. of cs() or
+# hcs()) with a simple continuous scalar prior, outside any allocation.
+.sampler_is_random_scalar <- function(prior) {
+
+  return(!.sampler_prior_guarded(prior) && .sampler_prior_scalar(prior) &&
+           (isTRUE(attr(prior, "random_sd", exact = TRUE)) ||
+              isTRUE(attr(prior, "random_correlation", exact = TRUE))) &&
+           is.null(attr(prior, "random_allocation", exact = TRUE)) &&
+           is.null(attr(prior, "random_summary", exact = TRUE)))
+}
+
 # Priors that may join a block: simple continuous scalar priors and treatment
 # or independent factor priors without random-effect metadata, a single weight
-# function, the plain allocation SD and the Dirichlet allocation weights.
-# Vector priors (mean-difference and orthonormal factors, mnormal, mt), other
-# random-effect priors (SDs, correlations) and the guarded priors are not.
+# function, the plain allocation SD and the Dirichlet allocation weights, and
+# direct random-effect SDs and scalar structured correlations with simple
+# continuous scalar priors. Vector priors (mean-difference and orthonormal
+# factors, mnormal, mt), other random-effect priors (factor or vector SDs; LKJ
+# correlations are not prior-list entries) and the guarded priors are not.
+# The ensemble filter of .sampler_block_members() keeps only the allocation
+# parameters of model-averaged fits.
 .sampler_block_eligible <- function(prior) {
 
   if (.sampler_prior_guarded(prior)) {
@@ -254,7 +224,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     return(TRUE)
   }
   if (.sampler_prior_random_metadata(prior)) {
-    return(FALSE)
+    return(.sampler_is_random_scalar(prior))
   }
 
   return(.sampler_prior_scalar(prior) ||

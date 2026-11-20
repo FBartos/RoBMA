@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.1.1.9005
+Version: 4.1.1.9008
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -38,7 +38,7 @@ NeedsCompilation: yes
 Depends:
     R (>= 4.3.0)
 Imports:
-    BayesTools (>= 0.4.0.9005),
+    BayesTools (>= 0.4.0.9007),
     bridgesampling,
     loo (>= 2.10.0),
     MASS,
@@ -76,6 +76,7 @@ Suggests:
     pkgload,
     processx
 LinkingTo:
+    BayesTools,
     Matrix (>= 1.6-2),
     mvtnorm
 RdMacros: Rdpack
