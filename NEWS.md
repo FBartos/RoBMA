@@ -1,5 +1,6 @@
 ## development version
 ### Features
+- Trace plots show batched inclusion probabilities, mixture component probabilities, and switching rates.
 - `update()` gains `adapt` to set the adaptation of one extension
 
 ### Changes
