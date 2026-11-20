@@ -377,9 +377,13 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
       // state. A chain that starts where the surrogate is poor would otherwise
       // reject over and over and not move, and axes learned from repeated
       // states collapse, freezing the chain after adaptation too. The adaptive
-      // phase need not leave the target invariant (its draws are discarded);
-      // the proposal still counts as rejected, so the acceptance statistic and
-      // the fallback rules keep their meaning.
+      // phase need not leave the target invariant (its draws are discarded).
+      // The proposal still counts as rejected, but the adaptive chain leaves
+      // regions where the surrogate is poor faster than the corrected kernel
+      // alone would, so the adaptive rate that the low-acceptance rule reads is
+      // optimistic. A block kept on that reading is still exact (the rule
+      // guards efficiency only), and the per-fit warning judges the rate after
+      // adaptation.
       if (_adapting) u = exact_sweep(rng);
     }
     countOutcome(accepted);
