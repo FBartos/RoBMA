@@ -136,6 +136,8 @@
     object            = x,
     posterior_samples = posterior_samples
   )
+  # Grid rows have their own exemption flags in the interval calculation.
+  if (!is.null(selection)) selection[["bias_exempt"]] <- NULL
   .plot_check_scalar_selection_target(x, selection, "regplot")
   use_normal     <- if (is.null(selection)) {
     rep(TRUE, S)

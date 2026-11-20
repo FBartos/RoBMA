@@ -1,5 +1,5 @@
-# Fits all eight publication-bias constructors. At these fixed slope and
-# heterogeneity settings the posterior of mu has an independent 1D reference.
+# Fits all eight publication-bias constructors against one-dimensional
+# references for the location, ensemble probabilities and free bias parameters.
 library(RoBMA)
 
 requested <- commandArgs(trailingOnly = TRUE)
@@ -124,5 +124,70 @@ for (mv in c(FALSE, TRUE)) {
       stopifnot(identical(dim(response), dim(base)), all(is.finite(response)))
     }
     cat("  fitted and explicit-newdata predictions passed\n")
+  }
+}
+
+# With mu fixed, compare the first two posterior moments of each free bias
+# parameter to its own reference. Complete exemption recovers its prior.
+groups <- rep(letters[1:4], c(3, 2, 2, 1))
+free_data <- data.frame(sei = dat$sei, paper = groups,
+                        registered = c(TRUE, FALSE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE))
+correlation <- .45
+R <- (1 - correlation) * diag(length(groups)) + correlation * outer(groups, groups, "==")
+for (name in c("bPET", "bPEESE.mv", "bselmodel.mv")) {
+  if (length(requested) && !name %in% requested) next
+  for (all_exempt in c(FALSE, TRUE)) {
+    free_data$exempt <- free_data$registered | all_exempt
+    active <- !free_data$exempt
+    cat(name, if (all_exempt) "all exempt" else "mixed exemptions", "free coefficient\n")
+    args <- list(yi = quote(yi), data = free_data, bias_exempt = quote(exempt),
+      measure = "GEN", prior_unit_information_sd = 1, effect_direction = "positive",
+      prior_effect = point(0), sample = 3200L, burnin = 250L, adapt = 500L,
+      chains = 1L, seed = 91483L, silent = TRUE,
+      convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))
+    V <- diag(free_data$sei^2)
+    if (name == "bPET") {
+      args$sei <- quote(sei)
+      args$prior_heterogeneity <- point(0)
+    } else {
+      V <- R * outer(free_data$sei, free_data$sei)
+      args$V <- V
+    }
+    if (name == "bselmodel.mv") {
+      # Protected, highly significant positive outcomes accompany negative
+      # eligible outcomes. Best-p selection is driven by the latter alone.
+      args$data$yi <- ifelse(free_data$registered, 1.6, -.24)
+      args$prior_bias <- BayesTools::prior_weightfunction("one-sided", .5,
+        BayesTools::wf_cumulative(c(1, 1)),
+        model = selection_model(weight_rule = "best", group = "paper"))
+      parameter <- "omega[2]"
+      counts <- as.integer(tapply(active, groups, sum))
+      # For two centered Gaussian coordinates, Pr(both negative) is the
+      # Gaussian quadrant probability; for one coordinate it is one half.
+      negative <- c(.5, .25 + asin(correlation) / (2 * pi))[counts[counts > 0]]
+      integrate_moment <- function(power) {
+        integrate(function(w) {
+          value <- w^power
+          for (p in negative) value <- value * w / (1 - p + p * w)
+          value
+        }, 0, 1, rel.tol = 1e-11)$value
+      }
+      reference <- vapply(1:2, integrate_moment, numeric(1L)) / integrate_moment(0)
+    } else {
+      args$data$yi <- ifelse(free_data$registered, -.55, .65)
+      parameter <- if (name == "bPET") "PET" else "PEESE"
+      args$prior_bias <- if (name == "bPET") BayesTools::prior_PET("normal", list(0, 1)) else
+        BayesTools::prior_PEESE("normal", list(0, 1))
+      x <- active * if (name == "bPET") free_data$sei else free_data$sei^2
+      # Gaussian conjugacy followed by truncation at zero.
+      variance <- 1 / (1 + sum(x * solve(V, x)))
+      mean <- variance * sum(x * solve(V, args$data$yi))
+      sd <- sqrt(variance)
+      shift <- sd * dnorm(mean / sd) / pnorm(mean / sd)
+      reference <- c(mean + shift, variance + mean^2 + mean * shift)
+    }
+    fit <- do.call(getExportedValue("RoBMA", name), args)
+    draws <- RoBMA:::.get_posterior_samples(fit$fit)[, parameter]
+    for (power in 1:2) check_mcmc_mean(draws^power, reference[power])
   }
 }

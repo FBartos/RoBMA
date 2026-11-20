@@ -1,3 +1,28 @@
+test_that("an all-FALSE bias flag preserves the complete univariate and multivariate JAGS graphs", {
+
+  dat <- data.frame(yi = c(.1, .4, -.2, .3), sei = c(.4, .3, .5, .4),
+                    registered = rep(FALSE, 4L))
+  for (mv in c(FALSE, TRUE)) {
+    constructor <- if (mv) RoBMA.mv else RoBMA
+    args <- list(yi = quote(yi), data = dat, measure = "GEN",
+                 prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+    if (mv) {
+      args$V <- diag(dat$sei^2)
+      args$V[1, 2] <- args$V[2, 1] <- .06
+    } else {
+      args$sei <- quote(sei)
+    }
+    before <- do.call(constructor, args)
+    after <- do.call(constructor, c(args, list(bias_exempt = quote(registered))))
+    expect_null(after$data$outcome$bias_exempt)
+    expect_identical(.create_fit_data(after$data, after$priors),
+                     .create_fit_data(before$data, before$priors))
+    expect_identical(.create_model_syntax(after$data, after$priors),
+                     .create_model_syntax(before$data, before$priors))
+  }
+})
+
+
 test_that("PET and PEESE use the fitted and explicitly predicted row exemptions", {
 
   dat <- data.frame(yi = c(.1, -.2, .4), sei = c(.5, .7, .9),

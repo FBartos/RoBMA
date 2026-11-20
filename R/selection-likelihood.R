@@ -3296,9 +3296,7 @@ set_selection_likelihood_control <- function(
   singleton_blocks <- execution_plan[["singleton_blocks"]]
   if (length(singleton_blocks) > 0L) {
     rows <- execution_plan[["singleton_rows"]]
-    singleton_context <- selection_context
-    singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    singleton_context[["bias_exempt"]] <- selection_context[["bias_exempt"]][rows]
+    singleton_context <- BayesTools::selection_context_subset_observations(selection_context, rows)
     variances <- .selection_joint_expand_state_rows(
       parts = .selection_joint_singleton_variances(
         setup                     = parts_setup,
@@ -3340,13 +3338,7 @@ set_selection_likelihood_control <- function(
     method <- execution_plan[["block_methods"]][[block_index]]
     # The grid subsets the context to its own rows when it evaluates anchors,
     # so the block's observation fields must already be the block's.
-    block_context <- if (is.null(setup[["normalizer_grid"]])) {
-      selection_context
-    } else {
-      BayesTools::selection_context_subset_observations(selection_context, rows)
-    }
-    block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    block_context[["bias_exempt"]] <- selection_context[["bias_exempt"]][rows]
+    block_context <- BayesTools::selection_context_subset_observations(selection_context, rows)
     if (method %in% c("rank_one", "factor")) {
       components <- .selection_joint_expand_state_rows(
         parts = .selection_joint_factor_block_samples(

@@ -319,7 +319,7 @@ test_that("prepared scalar bridge evaluation preserves augmentation and directio
       object$priors, direction, object$data)
     actual_exempt <- .marglik_conditioned_sampling_independent(parameters, fit_data, plan,
       TRUE, FALSE, FALSE, direction, NULL)
-    expected_scale[exempt] <- dnorm(y[exempt], parameters$mu, sqrt(vi[exempt] + .7^2), log = TRUE)
+    expected_scale[exempt] <- dnorm(y[exempt], parameters$mu[exempt], sqrt(vi[exempt] + .7^2), log = TRUE)
     expect_equal(actual_exempt, sum(expected_scale), tolerance = 1e-12)
   }
 })

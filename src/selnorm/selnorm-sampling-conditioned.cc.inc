@@ -529,7 +529,8 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   *relative_change = 0.0;
   *log_normalizer = 0.0;
   std::vector<double> sampling(dimension * dimension), total;
-  bool deterministic = true;
+  std::vector<bool> integrated(dimension, false);
+  bool deterministic_event = true;
   int position = 0;
   for (int column = 0; column < dimension; ++column) {
     for (int row = column; row < dimension; ++row) {
@@ -540,12 +541,12 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   total = sampling;
   for (int row = 0; row < dimension; ++row) {
     total[row + dimension * row] += diagonal[row];
-    deterministic = deterministic && diagonal[row] == 0.0;
+    integrated[row] = diagonal[row] != 0.0;
     delta[row] = x[row] - mean[row] - sampling_auxiliary[row] - random_auxiliary[row];
   }
   for (int factor = 0; factor < rank; ++factor) {
     for (int row = 0; row < dimension; ++row) {
-      deterministic = deterministic && loading[row + dimension * factor] == 0.0;
+      if (loading[row + dimension * factor] != 0.0) integrated[row] = true;
       for (int column = 0; column < dimension; ++column) {
         total[row + dimension * column] += loading[row + dimension * factor] *
           loading[column + dimension * factor];
@@ -560,14 +561,22 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   if (info != 0) throw std::runtime_error("The total outcome covariance solve failed.");
   std::vector<double> normalizer_mean(dimension), whitened(dimension);
   double log_density = -.5 * dimension * std::log(2.0 * std::acos(-1.0));
+  const bool masked = has_exempt_row(obs_bin, dimension);
+  const bool deterministic_outcome = std::none_of(integrated.begin(), integrated.end(),
+    [](bool varies) { return varies; });
   for (int row = 0; row < dimension; ++row) {
-    sampling_effect[row] = deterministic ? x[row] - mean[row] : sampling_auxiliary[row];
-    if (!deterministic) {
+    if (obs_bin[row] && integrated[row]) deterministic_event = false;
+    const bool fixed = deterministic_outcome || (masked && !integrated[row]);
+    sampling_effect[row] = x[row] - mean[row];
+    if (!fixed) {
+      sampling_effect[row] = sampling_auxiliary[row];
       for (int column = 0; column < dimension; ++column) {
         sampling_effect[row] += sampling[row + dimension * column] * delta[column];
       }
     }
-    normalizer_mean[row] = mean[row] + sampling_effect[row];
+    // With no integrated source this coordinate is exactly the observed
+    // response. Reconstructing it by addition can move it across a step.
+    normalizer_mean[row] = fixed ? x[row] : mean[row] + sampling_effect[row];
     double value = x[row] - mean[row];
     for (int column = 0; column < row; ++column) {
       value -= total[row + dimension * column] * whitened[column];
@@ -583,29 +592,21 @@ double cpp_selnorm_sampling_conditioned_lpdf(
     hard_zero = hard_zero || (omega[bin] == 0.0 &&
       (vector_rule != SELVECTOR_BEST_TWO_SIDED || z_upper[bin] > 0.0));
   }
-  if (hard_zero && !deterministic) {
-    std::vector<bool> row_varies(dimension);
+  if (hard_zero && !deterministic_event) {
     for (int row = 0; row < dimension; ++row) {
       if (obs_bin[row] == 0) continue;
-      row_varies[row] = diagonal[row] > 0.0;
-      for (int factor = 0; factor < rank; ++factor) {
-        row_varies[row] = row_varies[row] || loading[row + dimension * factor] != 0.0;
-      }
-      bool group_varies = row_varies[row];
+      bool group_varies = integrated[row];
       if (vector_rule != SELVECTOR_PRODUCT) {
         for (int other = 0; other < dimension; ++other) {
           if (obs_bin[other] == 0 || group_index[other] != group_index[row]) continue;
-          group_varies = group_varies || diagonal[other] > 0.0;
-          for (int factor = 0; factor < rank; ++factor) {
-            group_varies = group_varies || loading[other + dimension * factor] != 0.0;
-          }
+          group_varies = group_varies || integrated[other];
         }
       }
       if (!group_varies) throw std::runtime_error(
         "Conditional sampling selection is unavailable because a fully retained outcome has zero acceptance probability. Use strictly positive selection weights or integrate an outcome-generating source.");
     }
   }
-  if (deterministic) {
+  if (deterministic_event) {
     for (int bin = 0; bin < n_bins; ++bin) {
       if (omega[bin] == 0.0 &&
           (vector_rule != SELVECTOR_BEST_TWO_SIDED || z_upper[bin] > 0.0)) {

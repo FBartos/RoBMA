@@ -188,11 +188,13 @@ test_that("all-conditioned fixed-effect fitting preserves known sampling covaria
 
 test_that("hard selection respects the direction of singular candidate variation", {
 
-  make <- function(x, rule = "product", side = "one-sided") {
+  make <- function(x, rule = "product", side = "one-sided",
+                   exempt = rep(FALSE, 2L)) {
 
-    dat <- data.frame(yi = c(.2, .1), study = c("a", "a"), x = x)
+    dat <- data.frame(yi = c(.2, .1), study = c("a", "a"), x = x, exempt = exempt)
     bselmodel.mv(
       yi = yi, V = diag(c(.16, .25)), data = dat, random = ~ 0 + x | study,
+      bias_exempt = exempt,
       measure = "GEN", effect_direction = "positive",
       standardize_continuous_predictors = FALSE,
       prior_effect = prior("point", list(location = 0)),
@@ -214,6 +216,13 @@ test_that("hard selection respects the direction of singular candidate variation
   # Either outcome suffices for best selection; both tails suffice when two-sided.
   expect_s3_class(make(c(1, -1), "best"), "bselmodel.mv")
   expect_s3_class(make(c(1, -1), side = "two-sided"), "bselmodel.mv")
+  # Hard selection needs feasible support only on the eligible coordinates.
+  for (rule in c("product", "best")) {
+    expect_s3_class(make(c(0, 1), rule, exempt = c(TRUE, FALSE)), "bselmodel.mv")
+    expect_error(make(c(0, 1), rule, exempt = c(FALSE, TRUE)),
+      "Selection with zero weights is unavailable for retained rows {1}", fixed = TRUE)
+    expect_s3_class(make(c(0, 1), rule, exempt = c(TRUE, TRUE)), "bselmodel.mv")
+  }
 })
 
 
