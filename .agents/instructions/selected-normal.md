@@ -482,18 +482,30 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the block-entry values, an exhausted interval the direction-entry values.
   The random order makes the sweep a reversible proposal on the surrogate, so
   one correction is exact; a fixed order with one correction is not (the
-  fixed-order mutant of the test hook fails the power fixture). The fallback
-  rules are the scalar sampler's, judged on acceptance^(1/d) (a block move
-  composes d direction moves), the rate exponent that the worst-sampler rate
-  and the warning also use; after a fallback the block runs BayesTools'
-  fixed-order sweep of the full conditional with the learned axes, call for
-  call. A member with two finite bounds whose span is not finite stops at
-  construction, as in BayesTools' sampler; that error and BayesTools' get the
-  hint `sampler.blocks = FALSE` (`.sampler_error_hint()`). Other precision
-  limits of the transformed scale (bounds far from where the posterior
-  concentrates) are not detected; BayesTools' header states them. Test hook
-  `RoBMA_corrected_block_test` (fixed-order mutant, evaluation trace);
-  exactness fixtures in `test-00-selection-corrected-block-exactness.R`.
+  fixed-order mutant of the test hook fails the power fixture). While
+  adapting, a rejected correction is followed by one exact sweep (the full
+  conditional, the current axes) from the restored entry state, and the axes
+  adapt to the state it leaves: started where the surrogate is poor, the chain
+  would otherwise reject, not move, and learn collapsed axes that freeze it
+  after adaptation too. The adaptive phase need not be invariant (its draws are
+  discarded); the rejection still counts for the acceptance statistic. The
+  fallback rules are the scalar sampler's, judged on acceptance^(1/d) (a block
+  move composes d direction moves), the rate exponent that the worst-sampler
+  rate and the warning (`sampling_judged`) also use; after a fallback the block
+  runs BayesTools' fixed-order sweep of the full conditional with the learned
+  axes, call for call. A member with two finite bounds whose span is not
+  finite stops at construction, as in BayesTools' sampler; every error of
+  either block sampler gets the hint `sampler.blocks = FALSE`
+  (`.sampler_error_hint()`), a member on a bound also the interior start. Test
+  hook `RoBMA_corrected_block_test` (fixed-order mutant, evaluation trace,
+  widths of the live blocks); exactness fixtures in
+  `test-00-selection-corrected-block-exactness.R`.
+  Precision limit: declared blocks hold their members on BayesTools'
+  transformed scale (distance from a bound, on the log scale) and inherit its
+  limit: a posterior narrower than about 1e-13 of a member's distance from its
+  bound is not resolved, and this is not detected (see the kernel header). The
+  scalar samplers do not have this limit; `sampler.blocks = FALSE` is the
+  remedy.
 - Fallback and record: each sampler object (node or block x chain, per model build)
   keeps its own adaptation flag (JAGS has no accessor), counts its adaptive
   proposals and accepted corrections, and records whether any adaptive
