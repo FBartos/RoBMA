@@ -353,10 +353,10 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
   )
   # Observe the actual public BF input without replacing its computation.
   captured <- NULL
-  compute <- BayesTools:::hypothesis_BF.default
+  compute <- BayesTools:::.hypothesis_BF_draws
   # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, ...) {
+    .hypothesis_BF_draws = function(posterior, ...) {
       captured <<- c(list(posterior = posterior), list(...))
       do.call(compute, captured)
     },
@@ -809,10 +809,10 @@ test_that("point hypotheses on the fixed reference level give one reason for eve
   )
 
   captured <- NULL
-  compute <- BayesTools:::hypothesis_BF.default
+  compute <- BayesTools:::.hypothesis_BF_draws
   # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, ...) {
+    .hypothesis_BF_draws = function(posterior, ...) {
       captured <<- c(list(posterior = posterior), list(...))
       do.call(compute, captured)
     },

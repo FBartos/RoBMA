@@ -71,7 +71,7 @@ testthat::test_that("quarter-step lattice under-resolution reaches the existing 
   testthat::expect_identical(seed$S, 500L)
   testthat::expect_true(is.finite(reference) && reference > 0)
   result <- tryCatch(RoBMA::hypothesis(seed$object, paste0("mu = ", sprintf("%.17g", seed$value)),
-    density_method = "qCMDE", columns = "all"), error = identity)
+    density_method = "qCMDE", include_densities = TRUE), error = identity)
   testthat::expect_true(inherits(result, "RoBMA_density_ordinate_error"))
   if (inherits(result, "RoBMA_density_ordinate_error")) {
     diagnostic <- as.data.frame(result[["density_diagnostics"]])
@@ -105,7 +105,7 @@ testthat::test_that("the resolved divisor-four window remains publicly available
   prior <- BayesTools::prior("cauchy", list(location = 0, scale = 1))
   seed <- .resolution_seed_fit(4, prior, -1.85, 1)
   result <- tryCatch(RoBMA::hypothesis(seed$object, paste0("mu = ", sprintf("%.17g", seed$value)),
-    density_method = "qCMDE", columns = "all"), error = identity)
+    density_method = "qCMDE", include_densities = TRUE), error = identity)
   testthat::expect_false(inherits(result, "error"))
   if (!inherits(result, "error")) testthat::expect_true(is.finite(unname(attr(result, "raw_BF"))))
 })
@@ -122,7 +122,7 @@ testthat::test_that("the sharp Cauchy core retains its existing diagnostic refus
 testthat::test_that("Normal-prior closed forms retain the exact conditional mixture", {
   seed <- .resolution_seed_fit(8, BayesTools::prior("normal", list(mean = 0, sd = 1)), -1.85, 1)
   result <- RoBMA::hypothesis(seed$object, paste0("mu = ", sprintf("%.17g", seed$value)),
-    density_method = "qCMDE", columns = "all")
+    density_method = "qCMDE", include_densities = TRUE)
   precision <- seed$K / (seed$sei^2 + c(0, 1)^2)
   mean <- precision / (1 + precision) * seed$ybar
   sd <- sqrt(1 / (1 + precision))

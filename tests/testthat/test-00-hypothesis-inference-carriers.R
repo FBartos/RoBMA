@@ -3,7 +3,7 @@ test_that("variance point-region identities retain canonical logs and row diagno
   object <- gated_random_object()
   tau2 <- "`(mu) study: tau2(intercept)`"
   run <- function(statement) hypothesis(object, statement, density_method = "KDE",
-    columns = "all", seed = 1, logBF = TRUE)
+    include_densities = TRUE, seed = 1, logBF = TRUE)
   point <- run(paste0(tau2, " = 0.09 vs ", tau2, " != 0.09"))
   region <- run(paste0(tau2, " > 0.09 vs ", tau2, " >= 0"))
   mixed <- run(paste0(tau2, " = 0.09 vs ", tau2, " > 0.09"))
@@ -24,7 +24,7 @@ test_that("exported hypothesis tables carry the visible values, not the canonica
   out <- BayesTools::hypothesis_BF(
     c(1, 2, 3), BayesTools::prior("normal", list(0, 1)),
     c("a = 356 vs a != 356", "a = 0"),
-    parameter = "a", density_method = "normal", columns = "all")
+    parameter = "a", density_method = "normal", include_densities = TRUE)
   expect_equal(attr(out, "raw_log_BF")[1L], 710, tolerance = 1e-12)
   plain <- .output_table_as_long_data_frame(out, "location")
   bound <- .output_bind_long_data_frames(list(plain, plain[2L, , drop = FALSE]))
@@ -55,7 +55,7 @@ test_that("variance point-region diagnostics align actual repeated point produce
   object <- gated_random_object()
   tau2 <- "`(mu) study: tau2(intercept)`"
   points <- c(.09, .16, .09)
-  run <- function(statement) hypothesis(object, statement, density_method = "KDE", columns = "all", seed = 1, logBF = TRUE)
+  run <- function(statement) hypothesis(object, statement, density_method = "KDE", include_densities = TRUE, seed = 1, logBF = TRUE)
   direct <- run(sprintf("%s = %.17g vs %s != %.17g", tau2, points, tau2, points))
   expected <- attr(direct, "numerical_diagnostics")
   for(reverse in c(FALSE, TRUE)){
@@ -68,8 +68,8 @@ test_that("variance point-region diagnostics align actual repeated point produce
   }
   for(i in seq_along(points)){
     diagnostic <- expected[[i]]
-    expect_equal(diagnostic$log_prior_height, log(direct$prior[i]), tolerance = 1e-12)
-    expect_equal(diagnostic$log_posterior_height, log(direct$posterior[i]), tolerance = 1e-12)
+    expect_equal(diagnostic$log_prior_height, log(direct$prior_density[i]), tolerance = 1e-12)
+    expect_equal(diagnostic$log_posterior_height, log(direct$posterior_density[i]), tolerance = 1e-12)
     expect_identical(diagnostic$requested_value, points[i])
     expect_equal(diagnostic$evaluation_value, sqrt(points[i]), tolerance = 1e-14)
   }
@@ -86,8 +86,8 @@ test_that("equivalent SD and variance zero-point zero-region BFs are canonical u
       if(reverse) sprintf("%s > %.17g vs %s = %.17g", name, value, name, value) else
         sprintf("%s = %.17g vs %s > %.17g", name, value, name, value)
     }
-    sd_result <- hypothesis(object, statement(sd, 10), density_method = "KDE", columns = "all", seed = 1)
-    var_result <- hypothesis(object, statement(variance, 100), density_method = "KDE", columns = "all", seed = 1)
+    sd_result <- hypothesis(object, statement(sd, 10), density_method = "KDE", include_densities = TRUE, seed = 1)
+    var_result <- hypothesis(object, statement(variance, 100), density_method = "KDE", include_densities = TRUE, seed = 1)
     expect_identical(attr(var_result, "raw_log_BF"), attr(sd_result, "raw_log_BF"))
     expect_identical(attr(var_result, "raw_log_BF"), NA_real_)
     expect_false(any(is.nan(attr(var_result, "raw_log_BF"))))
@@ -112,7 +112,7 @@ test_that("single and gated variance composition retains indexed diagnostics and
     sd <- if(name == "gated") "`(mu) study: tau(intercept)`" else "`(mu) tau(intercept)`"
     variance <- if(name == "gated") "`(mu) study: tau2(intercept)`" else "`(mu) tau2(intercept)`"
     run <- function(statements, ...) hypothesis(object, statements,
-      density_method = "KDE", columns = "all", seed = 1, ...)
+      density_method = "KDE", include_densities = TRUE, seed = 1, ...)
     real_point <- run(sprintf("%s = %.17g vs %s != %.17g", variance, cuts^2, variance, cuts^2))
     point_diagnostics <- attr(real_point, "numerical_diagnostics")
     for(reverse in c(FALSE, TRUE)){

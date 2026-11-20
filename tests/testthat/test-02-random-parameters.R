@@ -338,10 +338,10 @@ test_that("random point hypotheses follow quantity-specific policy", {
       out <- hypothesis(
         fit_alloc,
         paste0("`tau2_prop(study)` = ", value),
-        component = "random", n_samples = 1000, seed = 24, columns = "all"
+        component = "random", n_samples = 1000, seed = 24, include_densities = TRUE
       )
-      c(ordinate = as.numeric(out[["posterior"]]),
-        mcse     = as.numeric(out[["posterior"]]) * as.numeric(out[["BF_error"]]) / 100)
+      c(ordinate = as.numeric(out[["posterior_density"]]),
+        mcse     = as.numeric(out[["posterior_density"]]) * as.numeric(out[["BF_error"]]) / 100)
     })
     ordinate <- vapply(ordinates, `[[`, numeric(1), "ordinate")
     mcse     <- vapply(ordinates, `[[`, numeric(1), "mcse")
@@ -377,7 +377,7 @@ test_that("random-effect variances are tested through their standard deviations"
     run <- function(statement) {
       suppressWarnings(hypothesis(
         fit, statement, density_method = method, density_control = control,
-        columns = "all", seed = 1
+        include_densities = TRUE, seed = 1
       ))
     }
     sd  <- run(paste0("`(mu) study: tau(intercept)` = ", value))
@@ -385,11 +385,11 @@ test_that("random-effect variances are tested through their standard deviations"
     expect_true(is.finite(attr(sd, "raw_BF")), info = method)
     expect_equal(attr(var, "raw_BF"), attr(sd, "raw_BF"), tolerance = 1e-10,
                  info = method)
-    expect_equal(as.numeric(var[["prior"]]),
-                 as.numeric(sd[["prior"]]) / (2 * value),
+    expect_equal(as.numeric(var[["prior_density"]]),
+                 as.numeric(sd[["prior_density"]]) / (2 * value),
                  tolerance = 1e-10, info = method)
-    expect_equal(as.numeric(var[["posterior"]]),
-                 as.numeric(sd[["posterior"]]) / (2 * value),
+    expect_equal(as.numeric(var[["posterior_density"]]),
+                 as.numeric(sd[["posterior_density"]]) / (2 * value),
                  tolerance = 1e-10, info = method)
     # A variance point against a region: the point part (the point statement
     # against its complement, through the SD) over the region part (the
@@ -414,7 +414,7 @@ test_that("random-effect variances are tested through their standard deviations"
   run_conditional <- function(statement) {
     suppressWarnings(hypothesis(
       fit, statement, density_method = "KDE", conditional = TRUE,
-      columns = "all", seed = 1
+      include_densities = TRUE, seed = 1
     ))
   }
   point  <- run_conditional(paste0(tau2, " = ", value^2, " vs ", tau2, " != ", value^2))
@@ -622,7 +622,7 @@ test_that("nonlinear transformed scale intercepts test points with KDE and fail 
     density_method = "KDE",
     n_samples      = 1000L,
     seed           = 32,
-    columns        = "all"
+    include_densities = TRUE
   )
   # Independent Savage-Dickey: the prior ordinate by numerical integration of
   # the scale product over the slope prior, and the posterior ordinate as the
@@ -634,8 +634,8 @@ test_that("nonlinear transformed scale intercepts test points with KDE and fail 
                tolerance = 1e-12)
   expect_equal(as.numeric(plan[["draws"]][["posterior"]]), reference[["draws"]],
                tolerance = 1e-12)
-  expect_equal(as.numeric(kde[["prior"]]), reference[["prior"]], tolerance = 1e-10)
-  expect_equal(as.numeric(kde[["posterior"]]), reference[["posterior"]], tolerance = 1e-12)
+  expect_equal(as.numeric(kde[["prior_density"]]), reference[["prior"]], tolerance = 1e-10)
+  expect_equal(as.numeric(kde[["posterior_density"]]), reference[["posterior"]], tolerance = 1e-12)
   expect_equal(attr(kde, "raw_BF"), reference[["posterior"]] / reference[["prior"]],
                tolerance = 1e-10)
   expect_s3_class(

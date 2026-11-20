@@ -1,6 +1,6 @@
 ## development version
 ### Features
-- `hypothesis()` supports interval and unconstrained comparisons and can report prior and posterior densities and region probabilities
+- `hypothesis()` supports interval and unconstrained comparisons and can report prior and posterior densities, region probabilities, and the Bayes factor method
 - `update()` gains `adapt` to set the adaptation of one extension
 
 ### Changes

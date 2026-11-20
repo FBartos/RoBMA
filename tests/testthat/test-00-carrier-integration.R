@@ -38,8 +38,8 @@ test_that("expanded public factor groups retain every statement-major result row
   skip_on_cran()
   fit <- .carrier_integration_fits()$ordinary
   statements <- c("g1 > 0", "mu > 0", "g1 > 0")
-  separate <- lapply(statements, function(statement) hypothesis(fit, statement, density_method = "KDE", columns = "all", seed = 1, standardized_coefficients = TRUE))
-  combined <- hypothesis(fit, statements, density_method = "KDE", columns = "all", seed = 1, standardized_coefficients = TRUE)
+  separate <- lapply(statements, function(statement) hypothesis(fit, statement, density_method = "KDE", include_probabilities = TRUE, seed = 1, standardized_coefficients = TRUE))
+  combined <- hypothesis(fit, statements, density_method = "KDE", include_probabilities = TRUE, seed = 1, standardized_coefficients = TRUE)
   expect_identical(nrow(combined), 7L)
   expected <- unlist(lapply(separate, function(result) attr(result, "raw_log_BF")), use.names = FALSE)
   expect_identical(attr(combined, "raw_log_BF"), expected)
@@ -62,9 +62,9 @@ test_that("point and region marginal groups select their own execution method", 
   means <- marginal_means(.carrier_integration_fits()$ordinary, bf = FALSE)
   statements <- c("g1[10] - g1[20] = 0", "g1[10] > 0")
   for(method in c("qCMDE", "IWMDE")){
-    separate <- lapply(statements, function(statement) hypothesis(means, statement, density_method = method, columns = "all", seed = 1))
-    combined <- hypothesis(means, statements, density_method = method, columns = "all", seed = 1)
-    reversed <- hypothesis(means, rev(statements), density_method = method, columns = "all", seed = 1)
+    separate <- lapply(statements, function(statement) hypothesis(means, statement, density_method = method, include_densities = TRUE, include_probabilities = TRUE, seed = 1))
+    combined <- hypothesis(means, statements, density_method = method, include_densities = TRUE, include_probabilities = TRUE, seed = 1)
+    reversed <- hypothesis(means, rev(statements), density_method = method, include_densities = TRUE, include_probabilities = TRUE, seed = 1)
     expected <- unlist(lapply(separate, function(result) attr(result, "raw_log_BF")), use.names = FALSE)
     expect_equal(attr(combined, "raw_log_BF"), expected, tolerance = 1e-12)
     expect_equal(attr(reversed, "raw_log_BF"), rev(expected), tolerance = 1e-12)

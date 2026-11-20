@@ -141,7 +141,8 @@ test_that("unconstrained intervals distinguish factor coefficients and marginal 
   object <- review_factor_replay(c("A", "B"), "treatment", distribution = "normal")
   means <- marginal_means(object, bf = FALSE, density_method = "KDE", n_samples = 1000)
   draws <- as.matrix(object$fit$mcmc)
-  region <- "-0.2 <= g[B] < 0.4"
+  region <- "-.20  <=  g[B] <   .4"
+  label <- "-.20 <= g[B] < .4"
   statements <- c(paste(region, "vs unconstrained"), paste("unconstrained vs", region))
 
   # At level B the marginal mean adds the intercept to the treatment coefficient.
@@ -149,9 +150,11 @@ test_that("unconstrained intervals distinguish factor coefficients and marginal 
     list(object = object, values = draws[, "mu_g"], prior_sd = 1),
     list(object = means, values = draws[, "mu_g"] + draws[, "mu_intercept"], prior_sd = sqrt(2))
   )) {
-    result <- as.data.frame(hypothesis(target$object, statements, columns = "evidence", seed = 19))
+    result <- as.data.frame(hypothesis(target$object, statements, include_probabilities = TRUE, seed = 19))
     prior_mass <- stats::pnorm(0.4, sd = target$prior_sd) - stats::pnorm(-0.2, sd = target$prior_sd)
     posterior_mass <- mean(target$values >= -0.2 & target$values < 0.4)
+    expect_identical(result$Alternative, c(label, "unconstrained"))
+    expect_identical(result$Null, c("unconstrained", label))
     expect_equal(result$prior_prob_alt, c(prior_mass, 1))
     expect_equal(result$prior_prob_null, c(1, prior_mass))
     expect_equal(result$posterior_prob_alt, c(posterior_mass, 1))
@@ -217,9 +220,9 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
     .iwmde_diagnostics_density_failure_reason(record$diagnostics), character(1L))
   expect_true(all(grepl("120 estimator rows across.*2 active states", failures)))
   captured <- NULL
-  compute <- BayesTools:::hypothesis_BF.default
+  compute <- BayesTools:::.hypothesis_BF_draws
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, ...) {
+    .hypothesis_BF_draws = function(posterior, ...) {
       captured <<- posterior
       compute(posterior = posterior, ...)
     },

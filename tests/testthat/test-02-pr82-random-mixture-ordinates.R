@@ -138,7 +138,7 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
       standardized_coefficients = TRUE, density_method = "qCMDE",
       density_control = list(samples = 20L, n_points = 20L,
         normalization_points = 300L, normalization_prob = probability),
-      columns = "all")
+      include_densities = TRUE)
   }
   result <- ordinate(1 - 1e-8)
   diagnostic <- density_diagnostics(result)
@@ -155,7 +155,7 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
   # ordinates are also rounded in double precision, which the error model
   # leaves out: when both bounds are zero they agree to a few ulps.
   rounding <- 64 * .Machine$double.eps
-  error <- result[["posterior"]] / mean(expected) - 1
+  error <- result[["posterior_density"]] / mean(expected) - 1
   expect_identical(diagnostic[["normalization_truncation_status"]], "exact")
   expect_lte(diagnostic[["normalization_truncation"]],
              (1 - (1 - 1e-8)) * (1 + 1e-6))
@@ -170,13 +170,13 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
   # reported bound. A positive truncation needs rows that are not exact.
   loose <- ordinate(.99)
   loose_diagnostic <- density_diagnostics(loose)
-  loose_error <- loose[["posterior"]] / mean(expected) - 1
+  loose_error <- loose[["posterior_density"]] / mean(expected) - 1
   expect_equal(loose_diagnostic[["normalization_truncation"]], 0)
   expect_lt(abs(loose_error), 1e-6)
   expect_lte(loose_error, loose_diagnostic[["truncation_ordinate_bound"]] +
     loose_diagnostic[["ordinate_relative_change"]] + rounding)
   # The public prior height uses BayesTools' shared linear-density interpolation
   # with a 1e-4 relative refinement target, unlike the analytic reference here.
-  expect_lt(abs(as.numeric(result[["prior"]]) / stats::dnorm(.1, prior_mean, prior_sd) - 1), 1e-4)
+  expect_lt(abs(as.numeric(result[["prior_density"]]) / stats::dnorm(.1, prior_mean, prior_sd) - 1), 1e-4)
   expect_lt(abs(attr(result, "raw_BF") / (stats::dnorm(.1, prior_mean, prior_sd) / mean(expected)) - 1), 1e-4)
 })

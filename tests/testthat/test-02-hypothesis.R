@@ -712,11 +712,11 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       statement,
       density_method = "KDE",
       n_samples      = 1000,
-      columns        = "all"
+      include_densities = TRUE
     ))
-    expect_equal(as.numeric(kde[["prior"]]), reference[["prior"]], tolerance = 1e-10,
+    expect_equal(as.numeric(kde[["prior_density"]]), reference[["prior"]], tolerance = 1e-10,
                  info = statement)
-    expect_equal(as.numeric(kde[["posterior"]]), reference[["posterior"]], tolerance = 1e-12,
+    expect_equal(as.numeric(kde[["posterior_density"]]), reference[["posterior"]], tolerance = 1e-12,
                  info = statement)
     expect_equal(attr(kde, "raw_BF"), reference[["prior"]] / reference[["posterior"]],
                  tolerance = 1e-10, info = statement)
@@ -728,19 +728,19 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       component      = case[["component"]],
       density_method = "KDE",
       n_samples      = 1000,
-      columns        = "all"
+      include_densities = TRUE
     ))
     expect_identical(attr(aliased, "raw_BF"), attr(kde, "raw_BF"), info = statement)
-    expect_identical(aliased[["prior"]], kde[["prior"]], info = statement)
-    expect_identical(aliased[["posterior"]], kde[["posterior"]], info = statement)
+    expect_identical(aliased[["prior_density"]], kde[["prior_density"]], info = statement)
+    expect_identical(aliased[["posterior_density"]], kde[["posterior_density"]], info = statement)
     qcmde <- suppressWarnings(hypothesis(
       fit,
       statement,
       density_method  = "qCMDE",
       density_control = list(n_points = 20, samples = 50),
-      columns         = "all"
+      include_densities = TRUE
     ))
-    expect_equal(as.numeric(qcmde[["prior"]]), reference[["prior"]], tolerance = 1e-10,
+    expect_equal(as.numeric(qcmde[["prior_density"]]), reference[["prior"]], tolerance = 1e-10,
                  info = statement)
     expect_true(is.finite(attr(qcmde, "raw_BF")), info = statement)
   }
@@ -976,7 +976,7 @@ test_that("display labels of the summary tables are evaluable on cached fits", {
   )
   test <- function(statement, component = "auto", standardized) {
     hypothesis(fit, statement, component = component, density_method = "KDE",
-               standardized_coefficients = standardized, columns = "all",
+               standardized_coefficients = standardized, include_probabilities = TRUE,
                seed = 1)
   }
   for (case in cases) {
@@ -990,14 +990,15 @@ test_that("display labels of the summary tables are evaluable on cached fits", {
         info <- paste(case[["label"]], component, standardized)
         out  <- test(paste0("`", case[["label"]], "` > ", value), component,
                      standardized)
-        # On the fitted scale, the posterior odds of the region are those of
+        # On the fitted scale, the posterior masses match the shares of
         # the labelled coordinate's draws; on both scales the label tests its
         # parameter.
         if (standardized) {
-          expect_equal(out[["posterior"]], inside / (1 - inside),
+          expect_equal(out[["posterior_prob_alt"]], inside, tolerance = 1e-12, info = info)
+          expect_equal(out[["posterior_prob_null"]], 1 - inside,
                        tolerance = 1e-12, info = info)
         }
-        for (column in c("BF", "prior", "posterior")) {
+        for (column in c("BF", "prior_prob_alt", "posterior_prob_alt", "prior_prob_null", "posterior_prob_null")) {
           expect_identical(unclass(out[[column]]), unclass(reference[[column]]),
                            info = paste(info, column))
         }
@@ -1099,7 +1100,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     fit_full,
     c("vi = 0", "vi = 0.01"),
     standardized_coefficients = FALSE,
-    columns                   = "all",
+    include_method = TRUE,
     density_method            = "qCMDE",
     density_control           = list(
       n_points             = 60,
@@ -1112,7 +1113,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     fit_full,
     "vi = 0",
     standardized_coefficients = FALSE,
-    columns                   = "all",
+    include_method = TRUE,
     density_method            = "IWMDE",
     density_control           = list(
       n_points = 60,
@@ -1124,7 +1125,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     fit_full,
     "vi = 0 vs vi > 0",
     standardized_coefficients = FALSE,
-    columns                   = "all",
+    include_method = TRUE,
     density_method            = "qCMDE",
     density_control           = list(
       n_points             = 40,
@@ -1135,7 +1136,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     seed                      = 1
   )
 
-  expect_true(all(bf_qcmde[["method"]] == "Savage-Dickey (precomputed)"))
+  expect_true(all(bf_qcmde[["method"]] == "Savage-Dickey (qCMDE)"))
   expect_true(all(is.finite(bf_qcmde[["BF_error"]])))
   diagnostics <- density_diagnostics(bf_qcmde)
   expect_s3_class(diagnostics, "RoBMA_density_diagnostics")
@@ -1148,10 +1149,10 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     fit_full,
     index = 1L
   )
-  expect_equal(bf_iwmde[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(bf_iwmde[["method"]], "Savage-Dickey (IWMDE)")
   expect_true(is.finite(bf_iwmde[["BF_error"]]))
   .hypothesis_expect_bridge_agreement(bf_iwmde, fit_null, fit_full)
-  expect_equal(bf_point_region[["method"]], "transitive Savage-Dickey")
+  expect_equal(bf_point_region[["method"]], "transitive Savage-Dickey (qCMDE)")
   expect_true(is.finite(bf_point_region[["BF_error"]]))
 })
 
@@ -1167,7 +1168,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
   level_bf <- hypothesis(
     fit,
     "mu_alloc[alternate] > mu_alloc[random]",
-    columns   = "all",
+    include_method = TRUE,
     seed      = 11,
     n_samples = 1000
   )
@@ -1179,7 +1180,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
       "0 > alloc[random] vs 0 = alloc[random]",
       "alloc[random] < 0 vs alloc[random] = 0"
     ),
-    columns         = "all",
+    include_method = TRUE,
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
@@ -1200,7 +1201,6 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     fit,
     contrast,
     density_method = "KDE",
-    columns        = "all",
     seed           = 11,
     n_samples      = 1000
   )
@@ -1208,7 +1208,6 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     fit,
     contrast_explicit,
     density_method = "KDE",
-    columns        = "all",
     seed           = 11,
     n_samples      = 1000
   )
@@ -1221,7 +1220,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
       samples              = 120,
       normalization_points = 50
     ),
-    columns   = "all",
+    include_method = TRUE,
     seed      = 11,
     n_samples = 1000
   )
@@ -1234,7 +1233,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
       samples              = 120,
       normalization_points = 50
     ),
-    columns   = "all",
+    include_method = TRUE,
     seed      = 11,
     n_samples = 1000
   )
@@ -1250,7 +1249,6 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
       samples              = 120,
       normalization_points = 50
     ),
-    columns   = "all",
     seed      = 11,
     n_samples = 1000
   )
@@ -1259,10 +1257,10 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
   expect_true(is.finite(attr(level_bf, "raw_BF")))
   expect_true(is.finite(level_bf[["BF_error"]]))
   expect_true(all(
-    point_bf[["method"]][1:2] == "Savage-Dickey (precomputed)"
+    point_bf[["method"]][1:2] == "Savage-Dickey (qCMDE)"
   ))
   expect_true(all(
-    point_bf[["method"]][3:4] == "transitive Savage-Dickey"
+    point_bf[["method"]][3:4] == "transitive Savage-Dickey (qCMDE)"
   ))
   expect_true(all(is.finite(point_bf[["BF_error"]])))
   expect_equal(
@@ -1274,8 +1272,8 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     attr(contrast_explicit_kde, "raw_BF"),
     tolerance = 1e-12
   )
-  expect_identical(contrast_qcmde[["method"]], "transitive Savage-Dickey")
-  expect_identical(contrast_iwmde[["method"]], "transitive Savage-Dickey")
+  expect_identical(contrast_qcmde[["method"]], "transitive Savage-Dickey (qCMDE)")
+  expect_identical(contrast_iwmde[["method"]], "transitive Savage-Dickey (IWMDE)")
   expect_true(is.finite(attr(contrast_qcmde, "raw_BF")))
   expect_true(is.finite(attr(contrast_iwmde, "raw_BF")))
   expect_true(is.finite(attr(baseline_contrast_qcmde, "raw_BF")))
@@ -1323,7 +1321,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
   bf_tau_zero <- hypothesis(
     fit,
     "tau = 0",
-    columns         = "all",
+    include_method = TRUE,
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 30,
@@ -1335,7 +1333,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
   bf_tau_zero_iwmde <- hypothesis(
     fit,
     "tau = 0",
-    columns         = "all",
+    include_method = TRUE,
     density_method  = "IWMDE",
     density_control = list(
       n_points             = 30,
@@ -1345,9 +1343,9 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     n_samples       = 10000
   )
 
-  expect_equal(bf_tau_zero[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(bf_tau_zero[["method"]], "Savage-Dickey (qCMDE)")
   expect_true(is.finite(attr(bf_tau_zero, "raw_BF")))
-  expect_equal(bf_tau_zero_iwmde[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(bf_tau_zero_iwmde[["method"]], "Savage-Dickey (IWMDE)")
   expect_true(is.finite(attr(bf_tau_zero_iwmde, "raw_BF")))
 
   context <- .iwmde_context(fit)
@@ -1433,18 +1431,18 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
   level_bf <- hypothesis(
     mm_qcmde,
     "alloc[alternate] > alloc[random]",
-    columns = "all",
+    include_method = TRUE,
     seed    = 11
   )
   expect_equal(level_bf[["method"]], "prior-posterior odds")
   point_bf <- hypothesis(
     mm_qcmde,
     "alloc[random] = 0",
-    columns        = "all",
+    include_method = TRUE,
     density_method = "qCMDE"
   )
 
-  expect_equal(point_bf[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(point_bf[["method"]], "Savage-Dickey (qCMDE)")
   expect_true(is.finite(point_bf[["BF_error"]]))
   expect_error(
     hypothesis(
@@ -1458,9 +1456,9 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     mm_qcmde,
     "alloc[random] = 0",
     density_method = "qCMDE",
-    columns        = "all"
+    include_method = TRUE
   )
-  expect_equal(point_bf_default[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(point_bf_default[["method"]], "Savage-Dickey (qCMDE)")
 
   mm_kde <- marginal_means(fit, n_samples = 1000)
   contrast_kde <- hypothesis(
@@ -1469,7 +1467,6 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
       "alloc[random] < alloc[alternate] vs",
       "alloc[random] = alloc[alternate]"
     ),
-    columns        = "all",
     density_method = "KDE",
     seed           = 11
   )
@@ -1479,7 +1476,6 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
       "alloc[random] - alloc[alternate] < 0 vs",
       "alloc[random] - alloc[alternate] = 0"
     ),
-    columns        = "all",
     density_method = "KDE",
     seed           = 11
   )
@@ -1492,7 +1488,7 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
   point_bf_kde <- hypothesis(
     mm_kde,
     "alloc[alternate] = 0",
-    columns        = "all",
+    include_method = TRUE,
     density_method = "qCMDE",
     density_control = list(
       n_points             = 40,
@@ -1500,7 +1496,7 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
       normalization_points = 50
     )
   )
-  expect_equal(point_bf_kde[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(point_bf_kde[["method"]], "Savage-Dickey (qCMDE)")
 })
 
 
@@ -1607,9 +1603,9 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     },
     .package = "RoBMA"
   )
-  # The engine evaluates a group with the draw-based method directly.
+  # The engine evaluates a group through its draw evaluator.
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, hypothesis, parameter,
+    .hypothesis_BF_draws = function(posterior, hypothesis, parameter,
                                      density_method, ...) {
 
       captured <<- list(
@@ -1925,7 +1921,7 @@ test_that("marginal means hypotheses select averaged or conditioned marginals", 
 
   captured <- list()
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, hypothesis, parameter,
+    .hypothesis_BF_draws = function(posterior, hypothesis, parameter,
                                      density_method, ...) {
 
       captured[[length(captured) + 1L]] <<- list(
@@ -2020,11 +2016,14 @@ test_that("marginal means routes level-contrast KDE through the certified target
   class(object) <- "marginal_means.brma"
 
   captured <- NULL
-  used     <- NULL
   target_posterior <- with_draw_metadata(
     seq(-1.5, 0.5, length.out = 20),
     class         = c("marginal_posterior.simple", "marginal_posterior"),
-    prior_density = BayesTools::prior("normal", list(0, sqrt(2)))
+    prior_density = BayesTools:::.prior_linear_combination_density(
+      prior_list = list(contrast = BayesTools::prior("normal", list(0, sqrt(2)))),
+      weights = c(contrast = 1), n_grid = 1024L
+    ),
+    atoms         = BayesTools::posterior_atom_attribute()
   )
   testthat::local_mocked_bindings(
     hypothesis_linear_target = function(posterior, hypothesis, parameter) {
@@ -2040,10 +2039,6 @@ test_that("marginal means routes level-contrast KDE through the certified target
         weights    = c(random = 1, alternate = -1)
       )
     },
-    hypothesis_BF.default = function(posterior, density_method, ...) {
-      used <<- list(posterior = posterior, density_method = density_method)
-      data.frame(BF = 1)
-    },
     .package = "BayesTools"
   )
 
@@ -2053,15 +2048,19 @@ test_that("marginal means routes level-contrast KDE through the certified target
       "alloc[random] < alloc[alternate] vs",
       "alloc[random] = alloc[alternate]"
     ),
-    density_method = "KDE"
+    density_method = "KDE",
+    include_method = TRUE
   )
 
-  expect_identical(out[["BF"]], 1)
+  reference <- BayesTools::hypothesis_BF(
+    target_posterior, hypothesis = "contrast < 0 vs contrast = 0",
+    parameter = "contrast", density_method = "KDE"
+  )
+  expect_equal(attr(out, "raw_BF"), attr(reference, "raw_BF"))
+  expect_identical(out[["method"]], "transitive Savage-Dickey (KDE)")
   expect_identical(captured[["posterior"]], level_posterior)
   expect_identical(captured[["parameter"]], "mu_alloc")
   expect_s3_class(captured[["hypothesis"]], "BayesTools_hypothesis_ast")
-  expect_identical(used[["density_method"]], "KDE")
-  expect_identical(used[["posterior"]], target_posterior)
 })
 
 
@@ -2094,7 +2093,7 @@ test_that("marginal means region hypotheses use KDE with stored density methods"
 
   captured <- character()
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(..., density_method) {
+    .hypothesis_BF_draws = function(..., density_method) {
       captured <<- c(captured, density_method)
       return("ok")
     },
@@ -2126,7 +2125,6 @@ test_that("marginal means hypothesis rejects normal density method", {
     hypothesis(
       mm,
       "alloc[random] = 0",
-      columns        = "all",
       density_method = "normal"
     ),
     "density_method.*must be one of"
@@ -2184,7 +2182,7 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
   bf_qcmde <- hypothesis(
     fit_full,
     "Preregistered[Pre-Registered] = 0",
-    columns         = "all",
+    include_method = TRUE,
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 60,
@@ -2196,7 +2194,7 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
   bf_iwmde <- hypothesis(
     fit_full,
     "Preregistered[Pre-Registered] = 0",
-    columns         = "all",
+    include_method = TRUE,
     density_method  = "IWMDE",
     density_control = list(
       n_points = 60,
@@ -2209,9 +2207,9 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
                tolerance = 0.35)
   .hypothesis_expect_bridge_agreement(bf_qcmde, fit_null, fit_full)
   .hypothesis_expect_bridge_agreement(bf_iwmde, fit_null, fit_full)
-  expect_equal(bf_qcmde[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(bf_qcmde[["method"]], "Savage-Dickey (qCMDE)")
   expect_true(is.finite(bf_qcmde[["BF_error"]]))
-  expect_equal(bf_iwmde[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(bf_iwmde[["method"]], "Savage-Dickey (IWMDE)")
   expect_true(is.finite(bf_iwmde[["BF_error"]]))
 })
 
@@ -2345,11 +2343,11 @@ test_that("certified exp-affine KDE respects its open support", {
     density_method = "KDE",
     n_samples      = 500,
     seed           = 1,
-    columns        = "all"
+    include_densities = TRUE
   ))
   reference <- exp_affine_scale_intercept_reference(fit, slope = "ni100", value = 0.2)
-  expect_equal(as.numeric(point[["prior"]]), reference[["prior"]], tolerance = 1e-10)
-  expect_equal(as.numeric(point[["posterior"]]), reference[["posterior"]], tolerance = 1e-12)
+  expect_equal(as.numeric(point[["prior_density"]]), reference[["prior"]], tolerance = 1e-10)
+  expect_equal(as.numeric(point[["posterior_density"]]), reference[["posterior"]], tolerance = 1e-12)
   expect_equal(attr(point, "raw_BF"), reference[["prior"]] / reference[["posterior"]],
                tolerance = 1e-10)
   # The plan tests the BayesTools marginal posterior of the target: the
