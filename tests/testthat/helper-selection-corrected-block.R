@@ -464,8 +464,11 @@
 # 500 adaptive proposals), adapted for 500 updates, then 10,000 draws. Returns
 # the adaptive acceptance, the widths the block learned and the widths an exact
 # sampler learns at stationarity (2.5 sqrt of the eigenvalues of the posterior
-# covariance of (a, b), from the reference moments), and the comparison of the
-# draws with the reference.
+# covariance of (a, b), from the reference moments), the share of the last 200
+# adaptive updates after which the block's state differs from its entry state
+# (the entry states from the evaluation trace: a full evaluation followed by a
+# surrogate evaluation at the same point opens a corrected update), and the
+# comparison of the draws with the reference.
 # ---------------------------------------------------------------------------- #
 
 .block_poor_start <- function(min_acceptance, draws = 10000L) {
@@ -482,15 +485,26 @@
                               min_acceptance = min_acceptance)
   model <- hand$model
   RoBMA::selection_sampler_info(clear = TRUE)
+  .block_test_hook(trace = TRUE)
   rjags::adapt(model, 500L, end.adaptation = FALSE)
+  records <- .block_trace_records(.block_test_hook(trace = FALSE)$records)
   adaptive <- RoBMA::selection_sampler_info()
+  # the entry state of every adaptive update and the state after the last
+  kind  <- vapply(records, `[[`, numeric(1), "kind")
+  x     <- do.call(rbind, lapply(records, `[[`, "x"))
+  n     <- length(records)
+  entry <- which(kind[-n] == 1 & kind[-1L] == 0 & x[-n, 1L] == x[-1L, 1L] & x[-n, 2L] == x[-1L, 2L])
+  state <- model$state(internal = FALSE)[[1L]]
+  after <- rbind(x[entry[-1L], , drop = FALSE], c(state[["a"]], state[["b"]]))
+  late  <- utils::tail(seq_along(entry), 200L)
+  moved <- mean(rowSums(after[late, , drop = FALSE] != x[entry[late], , drop = FALSE]) > 0)
   rjags::adapt(model, 0L, end.adaptation = TRUE)
   # the widths of the block built last (the hook lists the live blocks in
   # construction order: chain, d, widths)
   widths <- .block_test_hook()$widths
   values <- rjags::coda.samples(model, c("a", "b", "s", "r"), n.iter = draws, progress.bar = "none")
   list(samplers = hand$samplers, adaptive_rate = adaptive[["accepted"]] / adaptive[["proposed"]],
-       widths = sort(utils::tail(widths, 2L)),
+       adaptive_updates = length(entry), moved_late = moved, widths = sort(utils::tail(widths, 2L)),
        reference_widths = sort(2.5 * sqrt(eigen(covariance, symmetric = TRUE)$values)),
        report = RoBMA:::.selection_sampler_report_read(),
        comparison = .block_compare(.block_power_observables(as.matrix(values[[1L]])), reference))

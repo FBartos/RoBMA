@@ -207,6 +207,10 @@ test_that("a block started where the surrogate is poor learns its axes and sampl
     expect_identical(unname(result$samplers[c("a", "b")]), rep(.block_sampler, 2L), info = label)
     expect_lt(result$adaptive_rate, .9, label = label)
     expect_identical(result$report[["fallback_low_acceptance"]], as.numeric(min_acceptance > 0), info = label)
+    # the chain moves: the block left its entry state in at least 90% of the
+    # last 200 adaptive updates (a chain frozen at the start moved in a few)
+    expect_identical(result$adaptive_updates, 500L, info = label)
+    expect_gte(result$moved_late, .9, label = label)
     expect_length(result$widths, 2L)
     ratio <- result$widths / result$reference_widths
     expect_true(all(ratio > 1 / 3 & ratio < 3), info = paste(label, paste(round(ratio, 3), collapse = " ")))
