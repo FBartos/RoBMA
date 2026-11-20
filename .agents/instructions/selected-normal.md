@@ -435,7 +435,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   reaches the subnormal range at any factor, also when later weights above one
   would bring it back.
 - Corrected sampler: `selection.sampler = "slice.coarse"`, the default
-  (`src/samplers/CoarseCorrectedSlice.cc`), makes one slice transition per
+  (`src/samplers/CoarseCorrectedSlice.cc`; the surrogate terms are in
+  `CoarseSurrogate.h`, the configuration, counters and registry that all
+  corrected samplers share in `CorrectedSampler.cc`), makes one slice transition per
   eligible scalar update on a surrogate density and accepts it with the ratio
   of the exact full conditional to the surrogate, so any surrogate that is a
   deterministic function of the graph state leaves the exact target invariant;
@@ -463,10 +465,53 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`
   pins the surrogate values, fallbacks and purity, and
   `test-00-selection-coarse-exactness.R` the exactness of the corrected chains
-  against QUADPACK references. The factory skips any node with a `dbt_block` or
-  `dbt_gate` marker child, so declared nodes keep the BayesTools samplers below
-  whatever the factory order.
-- Fallback and record: each sampler object (node x chain, per model build)
+  against QUADPACK references. The scalar factory skips any node with a
+  `dbt_block` or `dbt_gate` marker child, whatever the factory order.
+- Corrected block sampler (`src/samplers/CoarseCorrectedBlock.cc`,
+  `RoBMA::CoarseCorrectedBlock`): a declared block (`sampler.blocks`) whose
+  multilevel view has a coarse-capable selection child. Its factory groups the
+  marked members as BayesTools' factor slice factory does (markers read the
+  same way) and is asked first: RoBMA's module loads after BayesTools', and
+  JAGS asks a later module's factories first; other groups go to
+  `BayesTools::FactorSlice`. One update: the full density and the surrogate
+  (each member's full density, the exact terms of the other children, the
+  selected children's surrogates) at block entry, a fair forward or backward
+  order draw, one slice update of the surrogate per direction with chained
+  values (BayesTools' header `factor_slice_kernel.h`, `LinkingTo`), one full
+  evaluation and the long-double correction; rejection and exceptions restore
+  the block-entry values, an exhausted interval the direction-entry values.
+  The random order makes the sweep a reversible proposal on the surrogate, so
+  one correction is exact; a fixed order with one correction is not (the
+  fixed-order mutant of the test hook fails the power fixture). While
+  adapting, a rejected correction is followed by one exact sweep (the full
+  conditional, the current axes) from the restored entry state, and the axes
+  adapt to the state it leaves: started where the surrogate is poor, the chain
+  would otherwise reject, not move, and learn collapsed axes that freeze it
+  after adaptation too. The adaptive phase need not be invariant (its draws are
+  discarded). The proposal still counts as rejected, but the adaptive chain
+  leaves regions where the surrogate is poor faster than the corrected kernel
+  alone would, so the adaptive rate that the low-acceptance rule (b) reads is
+  optimistic; a block kept on that reading is still exact (the rule guards
+  efficiency only), and the per-fit warning judges the rate after adaptation.
+  The
+  fallback rules are the scalar sampler's, judged on acceptance^(1/d) (a block
+  move composes d direction moves), the rate exponent that the worst-sampler
+  rate and the warning (`sampling_judged`) also use; after a fallback the block
+  runs BayesTools' fixed-order sweep of the full conditional with the learned
+  axes, call for call. A member with two finite bounds whose span is not
+  finite stops at construction, as in BayesTools' sampler; every error of
+  either block sampler gets the hint `sampler.blocks = FALSE`
+  (`.sampler_error_hint()`), a member on a bound also the interior start. Test
+  hook `RoBMA_corrected_block_test` (fixed-order mutant, evaluation trace,
+  widths of the live blocks); exactness fixtures in
+  `test-00-selection-corrected-block-exactness.R`.
+  Precision limit: declared blocks hold their members on BayesTools'
+  transformed scale (distance from a bound, on the log scale) and inherit its
+  limit: a posterior narrower than about 1e-13 of a member's distance from its
+  bound is not resolved, and this is not detected (see the kernel header). The
+  scalar samplers do not have this limit; `sampler.blocks = FALSE` is the
+  remedy.
+- Fallback and record: each sampler object (node or block x chain, per model build)
   keeps its own adaptation flag (JAGS has no accessor), counts its adaptive
   proposals and accepted corrections, and records whether any adaptive
   surrogate used a normalizer that is not the exact one (the trailing
@@ -506,14 +551,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   and a pooled or worst-sampler rate below the threshold warns
   (`RoBMA_selection_sampler_low_acceptance`, family
   `RoBMA_selection_sampler_warning`) and keeps one message in
-  `attr(fit, "warnings")`. The record's `allocation_block_withheld` is set by
-  the block function when `JAGS_fit()` calls it for a fresh fit (an ensemble
-  whose allocation block `.sampler_ensemble_block()` withheld, a block it would
-  declare under `"slice"`; `.sampler_allocation_block_withheld()`), carried by
-  extensions and `FALSE` in older records; with it, any fallback warns
-  (`RoBMA_selection_sampler_fallback`, same family), replaced like the
-  low-acceptance message, since the allocation SD and weights may then have
-  neither the block nor the corrected sampler.
+  `attr(fit, "warnings")`. Development versions also recorded
+  `allocation_block_withheld` and warned on fallbacks of ensembles without
+  their allocation block; the accessor drops that element and a refresh of the
+  warnings drops that stored message (`.selection_sampler_fallback_pattern`).
 - BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
   `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
   marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`
@@ -528,20 +569,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   weights) except the unit-level latents `theta`, `gamma`, `sampling_z`, `pi`,
   `phi`; an ensemble blocks the allocation SD and weights only. Mixtures,
   spike-and-slab, ordered, point and discrete priors, inclusion priors and other
-  random-effect priors are never declared. An ensemble declares its block
-  unless the corrected sampler can take its allocation nodes
-  (`.sampler_ensemble_block()`): under `"slice.coarse"` with a block the
-  sampler engages (dense, rank-one, or factor with its coarse rule affordable
-  at its rank, decided by the native `RoBMA_selnorm_factor_rule_affordable`)
-  and a product-rule branch or a dense block; with singleton blocks only,
-  unaffordable factor rules, or best-weight branches on cluster and factor
-  blocks (every corrected sampler would fall back by rule (c)), the block
-  stays.
+  random-effect priors are never declared.
   The values of `selection.sampler` are tiers: `"slice.coarse"` (corrected
   sampler and declarations), `"slice"` (declarations only) and `"jags.default"`
   (no declaration and no corrected sampler in any model, as `"default"` in
-  4.1.1). Under `"slice.coarse"` block members and gated nodes stay with the
-  BayesTools samplers unless `sampler.blocks` / `sampler.gates` are `FALSE`.
+  4.1.1). Under `"slice.coarse"` gated nodes stay with the gated sampler and a
+  declared block goes to the corrected block sampler when it has a
+  coarse-capable selection child, to the factor slice sampler otherwise.
   The released `"coarse_corrected"` and `"default"` are deprecated aliases of
   `"slice.coarse"` and `"jags.default"`; settings frozen in fits keep their
   string and `.selection_sampler_corrected()` reads both spellings.
