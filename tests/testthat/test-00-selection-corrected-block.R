@@ -302,19 +302,40 @@ test_that("the record counts a block once per chain and model build, with the sc
 })
 
 
-test_that("errors of the block sampler say 'Corrected slice' and get the hint to the ordinary samplers", {
+test_that("errors of the block sampler say 'Corrected slice' and their hint recovers the fit", {
 
   skip_if_not_installed("rjags")
   # a member on a bound of its support
-  hand <- .block_pair_model(markers = c("dbt_block(mu, 1)", "dbt_block(p, 1)"), extra = "  p ~ dunif(0, 1)",
-                            inits = list(p = 0))
+  bounded <- function(markers, p0, ...) {
+    .block_pair_model(markers = markers, extra = "  p ~ dunif(0, 1)", inits = list(p = p0), ...)
+  }
+  declared <- c("dbt_block(mu, 1)", "dbt_block(p, 1)")
+  hand <- bounded(declared, 0)
   expect_identical(.block_assigned(hand, c("mu", "p")), rep(.block_sampler, 2L))
   message <- tryCatch({
     stats::update(hand$model, n.iter = 1L, progress.bar = "none")
     NA_character_
   }, error = function(error) conditionMessage(error))
   expect_true(grepl("Corrected slice (block): current value lies on a bound of its support", message, fixed = TRUE))
-  expect_true(grepl("selection.sampler = \"slice\"", .sampler_error_hint(message), fixed = TRUE))
+  hinted <- .sampler_error_hint(message)
+  expect_true(grepl("A start strictly inside the support of the parameter avoids this error", hinted, fixed = TRUE))
+  expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", hinted, fixed = TRUE))
+  # under "slice" BayesTools' sampler takes the block and stops the same way:
+  # the hint is the same
+  slice <- bounded(declared, 0, sampler = "slice")
+  message <- tryCatch({
+    stats::update(slice$model, n.iter = 1L, progress.bar = "none")
+    NA_character_
+  }, error = function(error) conditionMessage(error))
+  expect_true(grepl("Factor slice sampler: current value lies on a bound of its support", message, fixed = TRUE))
+  expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", .sampler_error_hint(message), fixed = TRUE))
+  # both remedies recover the fit: the model without the block declaration (what
+  # sampler.blocks = FALSE fits), and a start strictly inside the support
+  for (recovered in list(bounded(character(), 0), bounded(declared, .5))) {
+    stats::update(recovered$model, n.iter = 20L, progress.bar = "none")
+    values <- rjags::coda.samples(recovered$model, "p", n.iter = 20L, progress.bar = "none")
+    expect_true(all(as.numeric(values[[1L]]) > 0 & as.numeric(values[[1L]]) < 1))
+  }
 })
 
 

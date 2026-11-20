@@ -402,9 +402,22 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
       "the ordinary samplers, and please report the model to the RoBMA developers."
     ))
   }
-  # other errors of the block sampler keep the hint to the ordinary samplers
-  block_error <- "Error in node p\nCorrected slice (block): current value lies on a bound of its support"
-  expect_true(grepl("selection.sampler = \"slice\"", .sampler_error_hint(block_error), fixed = TRUE))
+  # every other error of either block sampler gets the same option; a member on
+  # a bound also gets the interior start
+  for (message in c("Error in node p\nCorrected slice (block): current value lies on a bound of its support",
+                    "Error in node p\nFactor slice sampler: current value lies on a bound of its support")) {
+    hinted <- .sampler_error_hint(message)
+    expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", hinted, fixed = TRUE), info = message)
+    expect_false(grepl("selection.sampler", hinted, fixed = TRUE), info = message)
+    expect_true(grepl("A start strictly inside the support of the parameter avoids this error", hinted, fixed = TRUE),
+                info = message)
+  }
+  block_error <- "Error in node mu\nCorrected slice (block) requires a finite current full density"
+  expect_identical(.sampler_error_hint(block_error), paste0(
+    block_error, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
+    "Fit the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+    "the ordinary samplers, and please report the model to the RoBMA developers."
+  ))
 })
 
 

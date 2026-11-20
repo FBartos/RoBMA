@@ -30,14 +30,28 @@
 # (the density could not be computed, or a declaration is wrong).
 .sampler_error_hint <- function(message) {
 
-  # A block member whose two bounds are too wide apart for the samplers' scale
-  # stops either block sampler (BayesTools' under "slice" too): only undeclaring
-  # the blocks helps.
-  if (grepl("the support bounds of this node are too wide", message, fixed = TRUE)) {
+  # Errors of either block sampler (RoBMA's corrected block sampler and
+  # BayesTools' factor slice sampler, which takes the same block under "slice"
+  # and stops the same way): only undeclaring the blocks helps. A member on a
+  # bound of its support is avoided by a start strictly inside it.
+  bound <- if (grepl("current value lies on a bound of its support", message, fixed = TRUE)) {
+    "A start strictly inside the support of the parameter avoids this error; otherwise fit"
+  } else {
+    "Fit"
+  }
+  if (grepl("Corrected slice (block)", message, fixed = TRUE) ||
+      grepl("the support bounds of this node are too wide", message, fixed = TRUE)) {
     return(paste0(
       message, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
-      "Fit the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      bound, " the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
       "the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+  if (grepl("Factor slice sampler:", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by a sampler of the BayesTools JAGS module that RoBMA uses by default. ",
+      bound, " the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      "the ordinary JAGS samplers, and please report the model to the RoBMA developers."
     ))
   }
 
@@ -51,17 +65,13 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     ))
   }
 
-  option <- if (grepl("Factor slice sampler:", message, fixed = TRUE)) {
-    "sampler.blocks"
-  } else if (grepl("gated node changes the likelihood", message, fixed = TRUE)) {
-    "sampler.gates"
-  } else {
+  if (!grepl("gated node changes the likelihood", message, fixed = TRUE)) {
     return(message)
   }
 
   return(paste0(
     message, "\nThe error was raised by a sampler of the BayesTools JAGS module that RoBMA uses by default. ",
-    "Fit the model again after 'RoBMA.options(", option, " = FALSE)' to sample these parameters with the ordinary JAGS ",
+    "Fit the model again after 'RoBMA.options(sampler.gates = FALSE)' to sample these parameters with the ordinary JAGS ",
     "samplers, and please report the model to the RoBMA developers."
   ))
 }
