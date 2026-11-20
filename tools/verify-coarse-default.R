@@ -25,11 +25,18 @@
 # (selection_sampler_info(fit = )), the slice intervals the corrected block
 # sampler exhausted, the warnings, the JAGS seconds and the effective draws per
 # second of the global quantities and, separately, of the model-inclusion
-# indicators. Decision per model, on the Welch statistics of the run means and
-# posterior SDs of every non-degenerate quantity: pass when
-# no |t| > 3.5 and the count of |t| > 2 is at most twice its expectation under
-# the Welch t distribution; a failing model is rerun once ('--part=rerun') with
-# fresh seeds, judged on its failing quantities only. The count treats the
+# indicators; and its convergence (convergence_fields()): the potential scale
+# reduction of every monitored quantity, RoBMA's convergence result of the fit
+# and the per-chain means of the global quantities. A completed run with a
+# potential scale reduction above 1.05 is listed and makes its model's decision
+# 'fail' ("non-converged run"), whatever the Welch statistics say; a completed
+# run without a recorded one makes it 'incomplete'. Otherwise the decision per
+# model is on the Welch statistics of the run means and posterior SDs of every
+# non-degenerate quantity: pass when no |t| > 3.5 and the count of |t| > 2 is
+# at most twice its expectation under the Welch t distribution; a failing model
+# is rerun once ('--part=rerun') with fresh seeds, judged on its failing
+# quantities only (on every quantity when it failed by convergence alone) and
+# on the convergence of all of its runs. The count treats the
 # quantities as independent, though some are one (complementary weights and
 # their prior parameters, strongly correlated run means), so a single deviation
 # can count several times. Every planned run is
@@ -83,12 +90,18 @@
 # included), the effective sample size of the slowest global quantity and of
 # the slowest allocation parameter (the allocation SD and the derived
 # allocation weights; the raw Dirichlet parameters 'prior_par_eta_...' are not
-# identified and are left out in every arm), the claimed blocks, their
+# identified and are left out in every arm; the eligible parameters are chosen
+# from the monitored ones first, and a zero, missing or non-finite effective
+# sample size of one makes the run 'failed' with that reason), the convergence
+# as in 'wider' (non-converged runs are listed), the claimed blocks, their
 # acceptance (the share of iterations in which every monitored member moved,
 # raw and per direction, ^(1/d)), fallbacks, retained corrected proposals and
 # exhausted slice intervals. Per model and comparison: the ratios of ESS per
 # CPU second of the seed pairs, their geometric mean and a t interval on the
 # log scale.
+#
+# Every summary prints the distinct builds (RoBMA and BayesTools DLL md5 sums)
+# of the runs it read, per arm, and the word MIXED for an arm with more than one.
 #
 # --part=selftest runs the drivers on synthetic run files in a temporary
 # directory (no fits) and stops on a wrong decision, shape or count, or on any
@@ -273,6 +286,7 @@ run_job <- function(job, specs, arm_options, sample = 4000L) {
   result[["indicator_ess"]] <- indicator_ess(draws)
   result[["roles"]]        <- coordinate_roles(fit)
   result[["fit_warnings"]] <- unique(attr(fit[["fit"]], "warnings", exact = TRUE))
+  result <- c(result, convergence_fields(fit, draws, result[["roles"]]))
 
   return(result)
 }
@@ -372,6 +386,155 @@ global_parameters <- function(names, roles) {
   return(names[keep])
 }
 
+# Convergence -------------------------------------------------------------------------
+
+# The potential scale reduction recorded per monitored quantity, and its limit.
+rhat_method <- paste("Gelman-Rubin potential scale reduction, point estimate (coda::gelman.diag,",
+                     "autoburnin = FALSE, multivariate = FALSE; whole chains, not split)")
+rhat_limit  <- 1.05
+
+# The potential scale reduction of every monitored quantity: NA for one that is
+# constant over all draws, Inf for one constant within each chain at different
+# values; NA for all with fewer than two chains.
+rhat_values <- function(draws) {
+
+  matrix <- as.matrix(draws)
+  rhat   <- stats::setNames(rep(NA_real_, ncol(matrix)), colnames(matrix))
+  if (coda::nchain(draws) < 2L) return(rhat)
+  varying <- apply(matrix, 2L, stats::var) > 0
+  frozen  <- vapply(colnames(matrix), function(name) {
+    all(vapply(draws, function(chain) stats::var(as.numeric(chain[, name])) == 0, logical(1)))
+  }, logical(1))
+  rhat[varying & frozen] <- Inf
+  use <- colnames(matrix)[varying & !frozen]
+  if (length(use)) {
+    rhat[use] <- coda::gelman.diag(draws[, use, drop = FALSE], autoburnin = FALSE, multivariate = FALSE)$psrf[, 1L]
+  }
+
+  return(rhat)
+}
+
+# The convergence of a fit: the potential scale reduction of every monitored
+# quantity (rhat_method), RoBMA's convergence result of the fit (BayesTools'
+# check with the fit's convergence settings) and its messages, and the
+# per-chain means of the global quantities (chains in rows).
+convergence_fields <- function(fit, draws, roles) {
+
+  converged <- fit[["fit"]][["converged"]]
+  global    <- global_parameters(coda::varnames(draws), roles)
+
+  list(rhat = rhat_values(draws), rhat_method = rhat_method, converged = isTRUE(converged),
+       convergence_messages = as.character(attr(converged, "errors", exact = TRUE)),
+       chain_means = do.call(rbind, lapply(draws, function(chain) {
+         colMeans(as.matrix(chain)[, global, drop = FALSE])
+       })))
+}
+
+# The convergence of one run: the largest potential scale reduction among the
+# judged quantities (every monitored one except the auxiliary ones, private
+# implementation nodes such as Dirichlet gamma draws that are not identified and
+# that BayesTools' convergence check never assesses), its quantity and its
+# per-chain means (a global quantity), RoBMA's result; 'recorded' is FALSE for a
+# run file without the potential scale reductions.
+run_convergence <- function(run) {
+
+  rhat <- run[["rhat"]]
+  out  <- data.frame(model = run[["job"]][["model"]], arm = run[["job"]][["arm"]],
+                     seed = as.integer(run[["job"]][["seed"]]), recorded = !is.null(rhat), max_rhat = NA_real_,
+                     max_rhat_quantity = NA_character_, chain_means = NA_character_,
+                     robma_converged = if (is.null(run[["converged"]])) NA else isTRUE(run[["converged"]]),
+                     stringsAsFactors = FALSE)
+  if (is.null(rhat)) return(out)
+  roles  <- run[["roles"]]
+  judged <- rhat[!names(rhat) %in% names(roles)[roles %in% "auxiliary"] & !is.na(rhat)]
+  if (length(judged) == 0L) return(out)
+  worst <- names(judged)[which.max(judged)]
+  out[["max_rhat"]] <- max(judged)
+  out[["max_rhat_quantity"]] <- worst
+  means <- run[["chain_means"]]
+  if (!is.null(means) && worst %in% colnames(means)) {
+    out[["chain_means"]] <- paste(format(means[, worst], digits = 4), collapse = " / ")
+  }
+
+  return(out)
+}
+
+# The convergence of the completed runs (one row per run, run_convergence()).
+convergence_table <- function(runs) {
+
+  rows <- lapply(Filter(function(run) is.null(run[["error"]]), runs), run_convergence)
+  if (length(rows) == 0L) return(run_convergence(list(job = list(model = "", arm = "", seed = 0L)))[0L, ])
+
+  return(do.call(rbind, rows))
+}
+
+# Lists the runs whose largest potential scale reduction exceeds the limit or
+# that RoBMA did not judge converged, and the runs without a recorded one.
+print_convergence <- function(convergence) {
+
+  cat("\nConvergence of the completed runs (", rhat_method, "; limit ", rhat_limit, "):\n", sep = "")
+  flagged <- convergence[(convergence[["max_rhat"]] > rhat_limit) %in% TRUE |
+                           convergence[["robma_converged"]] %in% FALSE, , drop = FALSE]
+  if (nrow(flagged) > 0L) {
+    flagged[["non_converged"]] <- (flagged[["max_rhat"]] > rhat_limit) %in% TRUE
+    print(flagged[c("model", "arm", "seed", "max_rhat", "max_rhat_quantity", "chain_means", "robma_converged",
+                    "non_converged")], row.names = FALSE, digits = 4)
+  } else {
+    cat("every run below the limit and judged converged by RoBMA\n")
+  }
+  unrecorded <- convergence[!convergence[["recorded"]], , drop = FALSE]
+  if (nrow(unrecorded) > 0L) {
+    cat("Runs without a recorded potential scale reduction:\n")
+    print(unrecorded[c("model", "arm", "seed")], row.names = FALSE)
+  }
+  if (any(flagged[["non_converged"]])) {
+    cat("NON-CONVERGED: run(s) above the limit in model(s)",
+        paste(unique(flagged[["model"]][flagged[["non_converged"]]]), collapse = ", "), "\n")
+  }
+
+  invisible(flagged)
+}
+
+
+# Builds ---------------------------------------------------------------------------
+
+# The distinct builds (RoBMA and BayesTools DLL md5 sums) of the runs of each
+# arm that record one; an arm with more than one is MIXED.
+build_table <- function(runs) {
+
+  runs <- Filter(function(run) !is.null(run[["build"]]), runs)
+  if (length(runs) == 0L) return(NULL)
+  rows <- data.frame(
+    arm   = vapply(runs, function(run) run[["job"]][["arm"]], character(1)),
+    build = vapply(runs, function(run) paste0("RoBMA dll ", run[["build"]][["RoBMA_dll"]], ", BayesTools dll ",
+                                              run[["build"]][["BayesTools_dll"]]), character(1)),
+    stringsAsFactors = FALSE
+  )
+  out <- do.call(rbind, lapply(split(rows, rows[["arm"]]), function(part) {
+    builds <- table(part[["build"]])
+    data.frame(arm = part[["arm"]][[1L]], build = names(builds), runs = as.integer(builds),
+               mixed = if (length(builds) > 1L) "MIXED" else "", stringsAsFactors = FALSE)
+  }))
+  rownames(out) <- NULL
+
+  return(out)
+}
+
+print_builds <- function(runs) {
+
+  table <- build_table(runs)
+  cat("\nBuilds per arm (RoBMA and BayesTools DLL md5 of the runs read):\n")
+  if (is.null(table)) {
+    cat("no run records its build\n")
+    return(invisible(NULL))
+  }
+  print(table, row.names = FALSE, right = FALSE)
+  mixed <- unique(table[["arm"]][table[["mixed"]] == "MIXED"])
+  if (length(mixed) > 0L) cat("MIXED: arm(s)", paste(mixed, collapse = ", "), "pool runs of more than one build.\n")
+
+  invisible(table)
+}
+
 run_file <- function(job, dir = out_dir) {
 
   file.path(dir, "runs", sprintf("%s-%s-%s-%03d.rds", job[["part"]], job[["model"]], job[["arm"]], job[["seed"]]))
@@ -392,6 +555,7 @@ run_jobs <- function(jobs, specs, n_workers) {
   }, .libPaths())
   parallel::clusterExport(cluster, c("run_job", "quantity_means", "quantity_sds", "exhausted_intervals",
                                      "indicator_ess", "coordinate_roles", "block_methods", "build_info",
+                                     "convergence_fields", "rhat_values", "rhat_method", "global_parameters",
                                      "arm_options", "specs"), envir = environment())
   builds <- parallel::clusterCall(cluster, build_info)
   if (!all(vapply(builds, identical, logical(1), build_info()))) {
@@ -558,22 +722,27 @@ sd_differences <- function(table) {
   return(do.call(rbind, out))
 }
 
-# The decision of one model: 'incomplete' when any planned run failed or is
-# missing, an arm has fewer than two completed runs, a quantity has no statistic
-# (a mean missing from a completed run), or no quantity could be compared;
-# otherwise 'pass' or 'fail' by the rule.
-decide <- function(table, model, counts) {
+# The decision of one model: 'fail' ("non-converged run") when a completed run
+# has a potential scale reduction above the limit, whatever the Welch
+# statistics say; 'incomplete' when any planned run failed or is missing, an
+# arm has fewer than two completed runs, a completed run has no recorded
+# potential scale reduction, a quantity has no statistic (a mean missing from a
+# completed run), or no quantity could be compared; otherwise 'pass' or 'fail'
+# by the rule.
+decide <- function(table, model, counts, convergence) {
 
   counts <- counts[counts[["model"]] == model, , drop = FALSE]
+  convergence <- convergence[convergence[["model"]] == model, , drop = FALSE]
   arm_count <- function(arm, field) {
     value <- counts[[field]][counts[["arm"]] == arm]
     if (length(value) == 0L) 0L else as.integer(value)
   }
   t <- if (is.null(table)) numeric() else table[["t"]]
   p <- if (is.null(table)) numeric() else table[["p_beyond_2"]]
+  non_converged <- sum((convergence[["max_rhat"]] > rhat_limit) %in% TRUE)
   complete <- sum(counts[["failed"]]) == 0L && sum(counts[["missing"]]) == 0L &&
     all(vapply(c("coarse", "default"), arm_count, integer(1), field = "completed") >= 2L) &&
-    length(t) > 0L && !anyNA(t)
+    all(convergence[["recorded"]]) && length(t) > 0L && !anyNA(t)
   rule <- complete && !any(abs(t) > 3.5) && sum(abs(t) > 2) <= 2 * sum(p)
   data.frame(
     model = model,
@@ -586,7 +755,11 @@ decide <- function(table, model, counts) {
     beyond_3.5 = sum(abs(t) > 3.5, na.rm = TRUE),
     beyond_2 = sum(abs(t) > 2, na.rm = TRUE),
     expected_beyond_2 = sum(p, na.rm = TRUE),
-    decision = if (!complete) "incomplete" else if (rule) "pass" else "fail",
+    non_converged_runs = non_converged,
+    max_rhat = if (any(!is.na(convergence[["max_rhat"]]))) max(convergence[["max_rhat"]], na.rm = TRUE) else NA_real_,
+    decision = if (non_converged > 0L) "fail" else if (!complete) "incomplete" else if (rule) "pass" else "fail",
+    reason = if (non_converged > 0L) "non-converged run" else if (!complete) "incomplete" else if (rule) "" else
+      "Welch statistics",
     stringsAsFactors = FALSE
   )
 }
@@ -728,10 +901,14 @@ run_summary <- function(runs, replaced = NULL) {
     replaced_by <- if (is.null(replaced)) integer() else replaced[["replacement_seed"]][
       replaced[["model"]] == run[["job"]][["model"]] & replaced[["arm"]] == run[["job"]][["arm"]] &
         replaced[["stopped_seed"]] == run[["job"]][["seed"]]]
+    convergence <- if (is.null(run[["error"]])) run_convergence(run) else
+      data.frame(max_rhat = NA_real_, max_rhat_quantity = NA_character_, robma_converged = NA)
     data.frame(
       model = run[["job"]][["model"]], arm = run[["job"]][["arm"]], seed = run[["job"]][["seed"]],
       replaced_by = if (length(replaced_by)) as.integer(replaced_by[[1L]]) else NA_integer_,
       wall = round(as.numeric(run[["wall"]]), 1), jags_seconds = round(as.numeric(run[["jags_seconds"]]), 1),
+      max_rhat = convergence[["max_rhat"]], max_rhat_quantity = convergence[["max_rhat_quantity"]],
+      robma_converged = convergence[["robma_converged"]],
       stopped_attempts = if (isTRUE(run[["missing"]])) NA_integer_ else stopped_attempts(run),
       samplers = if (is.null(run[["samplers"]])) "" else
         paste(names(run[["samplers"]]), run[["samplers"]], sep = ":", collapse = " "),
@@ -806,6 +983,7 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
       # no file of an earlier rerun in this directory may contradict that
       utils::write.csv(data.frame(model = character(), arm = character(), seed = integer(),
                                   replaced_by = integer(), wall = numeric(), jags_seconds = numeric(),
+                                  max_rhat = numeric(), max_rhat_quantity = character(), robma_converged = logical(),
                                   stopped_attempts = integer(), samplers = character(), build = character(),
                                   error = character(), warnings = character()),
                        file.path(dir, paste0(part, "-runs.csv")), row.names = FALSE)
@@ -844,14 +1022,18 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
                    row.names = FALSE)
   cat("\nRuns with errors:", sum(nzchar(summary[["error"]])), "\n")
   if (any(nzchar(summary[["error"]]))) print(summary[nzchar(summary[["error"]]), c("model", "arm", "seed", "error")])
-  builds <- unique(summary[["build"]][nzchar(summary[["build"]])])
-  cat("\nBuilds of the runs:\n")
-  cat(builds, sep = "\n")
+  print_builds(runs)
   cat("\nSamplers per model and arm:\n")
   print(unique(summary[, c("model", "arm", "samplers")]), row.names = FALSE)
+  # the convergence of every completed run (of a rerun too, on all quantities)
+  convergence <- convergence_table(runs)
+  print_convergence(convergence)
 
   welch <- lapply(models, function(model) {
+    # a rerun compares the failing quantities of its model, or every quantity
+    # when the model failed by convergence alone
     quantities <- if (!is.null(failing)) failing[["quantity"]][failing[["model"]] == model] else NULL
+    if (length(quantities) == 0L) quantities <- NULL
     welch_table(runs, model, quantities)
   })
   tables  <- lapply(welch, `[[`, "table")
@@ -863,15 +1045,22 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   table <- do.call(rbind, tables)
   if (is.null(table)) table <- empty_welch_table()
   utils::write.csv(table, file.path(dir, paste0(part, ".csv")), row.names = FALSE)
-  decisions <- do.call(rbind, lapply(seq_along(models), function(i) decide(tables[[i]], models[[i]], counts)))
+  decisions <- do.call(rbind, lapply(seq_along(models), function(i) {
+    decide(tables[[i]], models[[i]], counts, convergence)
+  }))
   utils::write.csv(decisions, file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
   cat("\nRuns per model and arm (planned, completed, failed, missing):\n"); print(counts, row.names = FALSE)
   cat("\nDecision per model:\n"); print(decisions, row.names = FALSE)
   incomplete <- decisions[["model"]][decisions[["decision"]] == "incomplete"]
   if (length(incomplete) > 0L) {
-    cat("INCOMPLETE: failed or missing runs, fewer than two completed runs in an arm, a quantity missing from a",
-        "completed run, or no comparable quantity in model(s)", paste(incomplete, collapse = ", "),
-        "; the comparison is not a pass.\n")
+    cat("INCOMPLETE: failed or missing runs, fewer than two completed runs in an arm, a completed run without a",
+        "recorded potential scale reduction, a quantity missing from a completed run, or no comparable quantity",
+        "in model(s)", paste(incomplete, collapse = ", "), "; the comparison is not a pass.\n")
+  }
+  non_converged <- decisions[["model"]][decisions[["reason"]] == "non-converged run"]
+  if (length(non_converged) > 0L) {
+    cat("FAIL (non-converged run) in model(s)", paste(non_converged, collapse = ", "),
+        "whatever the Welch statistics say.\n")
   }
   cat("\nQuantities with |t| > 2:\n")
   print(table[(abs(table[["t"]]) > 2) %in% TRUE, , drop = FALSE], row.names = FALSE)
@@ -895,8 +1084,8 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
     print(efficiency, row.names = FALSE, digits = 4)
     ensembles <- intersect(c("RoBMA.mv", "RoBMA.mv_vi", "best_ensemble"), efficiency[["model"]])
     if (length(ensembles) > 0L) {
-      cat("\nAllocation block (model-averaged models: 'default' declares the block; 'coarse' declares it",
-          "unless the corrected sampler takes the allocation nodes):\n")
+      cat("\nAllocation block (model-averaged models: both arms declare the block; the samplers of each run",
+          "show which sampler takes it):\n")
       print(efficiency[efficiency[["model"]] %in% ensembles,
                        c("model", "arm", "jags_seconds", "ess_per_second", "indicator_ess_per_second",
                          "time_ratio", "speedup", "indicator_speedup")], row.names = FALSE, digits = 4)
@@ -978,11 +1167,13 @@ fit_job <- function(job) {
     NA_real_
   if (identical(job[["part"]], "efficiency")) {
     draws <- fit[["fit"]][["mcmc"]]
+    result[["monitored"]] <- coda::varnames(draws)
     result[["ess"]]    <- coda::effectiveSize(draws)
     result[["roles"]]  <- coordinate_roles(fit)
     result[["record"]] <- RoBMA::selection_sampler_info(fit = fit)
     result[["block"]]  <- block_acceptance(fit[["fit"]][["samplers"]], draws)
     result[["draws"]]  <- NULL
+    result <- c(result, convergence_fields(fit, draws, result[["roles"]]))
   }
 
   return(result)
@@ -1058,6 +1249,7 @@ cost_driver <- function(seeds, dir = out_dir, execute = run_process) {
   cat("\nCost of the diagnostic (this build, fallback off, against the other build):\n")
   print(rows, row.names = FALSE, digits = 4)
   cat("mean time ratio:", mean(rows[["time_ratio"]]), "\n")
+  print_builds(runs)
   if (any(rows[["status"]] != "complete")) cat("INCOMPLETE: a run failed or is missing.\n")
   if (any(rows[["status"]] == "complete" & !rows[["identical_draws"]])) {
     cat("FINDING: the draws of the builds differ.\n")
@@ -1110,6 +1302,7 @@ identity_driver <- function(dir = out_dir, execute = run_process) {
   utils::write.csv(rows, file.path(dir, "identity.csv"), row.names = FALSE)
   cat("\nSame-option identity (this build against the other build):\n")
   print(rows, row.names = FALSE)
+  print_builds(runs)
   if (any(rows[["status"]] != "complete")) cat("INCOMPLETE: a run failed or is missing.\n")
   if (any(rows[["status"]] == "complete" & !(rows[["identical_samplers"]] & rows[["identical_draws"]]))) {
     cat("FINDING: a pair differs.\n")
@@ -1152,7 +1345,10 @@ block_acceptance <- function(samplers, draws) {
   return(do.call(rbind, rows))
 }
 
-# One row per efficiency run.
+# One row per efficiency run. The eligible parameters (global and allocation
+# ones) are chosen from the monitored quantities first (from the ESS names for
+# a run file without them); a zero, missing or non-finite ESS of one of them
+# makes the run 'failed' with that reason, without ESS figures.
 efficiency_run_row <- function(run) {
 
   job <- run[["job"]]
@@ -1160,25 +1356,39 @@ efficiency_run_row <- function(run) {
                     status = if (is.null(run[["error"]])) "complete" else "failed",
                     cpu = NA_real_, min_global_ess = NA_real_, min_global = NA_character_,
                     global_ess_per_cpu = NA_real_, min_allocation_ess = NA_real_, min_allocation = NA_character_,
-                    allocation_ess_per_cpu = NA_real_, blocks = NA_character_, block_moved = NA_real_,
+                    allocation_ess_per_cpu = NA_real_, max_rhat = NA_real_, max_rhat_quantity = NA_character_,
+                    robma_converged = NA, blocks = NA_character_, block_moved = NA_real_,
                     block_per_direction = NA_real_, samplers = NA_real_, fallback_samplers = NA_real_,
                     sampling_proposed = NA_real_, acceptance_rate = NA_real_, exhausted = NA_real_,
                     assignment = NA_character_, error = if (is.null(run[["error"]])) "" else run[["error"]],
                     stringsAsFactors = FALSE)
   if (!is.null(run[["error"]])) return(row)
-  ess <- run[["ess"]][is.finite(run[["ess"]]) & run[["ess"]] > 0]
-  global <- ess[global_parameters(names(ess), run[["roles"]])]
-  allocation <- ess[allocation_parameters(names(ess))]
+  monitored  <- if (is.null(run[["monitored"]])) names(run[["ess"]]) else run[["monitored"]]
+  eligible   <- list(global = global_parameters(monitored, run[["roles"]]),
+                     allocation = allocation_parameters(monitored))
+  ess        <- lapply(eligible, function(names) stats::setNames(run[["ess"]][names], names))
+  unusable   <- unlist(lapply(ess, function(values) names(values)[!is.finite(values) | values <= 0]))
   row[["cpu"]] <- run[["cpu"]]
-  if (length(global)) {
-    row[["min_global_ess"]] <- min(global)
-    row[["min_global"]] <- names(global)[which.min(global)]
-    row[["global_ess_per_cpu"]] <- min(global) / run[["cpu"]]
-  }
-  if (length(allocation)) {
-    row[["min_allocation_ess"]] <- min(allocation)
-    row[["min_allocation"]] <- names(allocation)[which.min(allocation)]
-    row[["allocation_ess_per_cpu"]] <- min(allocation) / run[["cpu"]]
+  convergence <- run_convergence(run)
+  row[c("max_rhat", "max_rhat_quantity", "robma_converged")] <-
+    convergence[c("max_rhat", "max_rhat_quantity", "robma_converged")]
+  if (length(unusable)) {
+    row[["status"]] <- "failed"
+    row[["error"]]  <- paste0("zero, missing or non-finite ESS of eligible parameter(s): ",
+                              paste(unique(unusable), collapse = ", "))
+  } else {
+    global     <- ess[["global"]]
+    allocation <- ess[["allocation"]]
+    if (length(global)) {
+      row[["min_global_ess"]] <- min(global)
+      row[["min_global"]] <- names(global)[which.min(global)]
+      row[["global_ess_per_cpu"]] <- min(global) / run[["cpu"]]
+    }
+    if (length(allocation)) {
+      row[["min_allocation_ess"]] <- min(allocation)
+      row[["min_allocation"]] <- names(allocation)[which.min(allocation)]
+      row[["allocation_ess_per_cpu"]] <- min(allocation) / run[["cpu"]]
+    }
   }
   block <- run[["block"]]
   if (!is.null(block) && nrow(block) > 0L) {
@@ -1300,14 +1510,16 @@ efficiency_driver <- function(models, seeds, workers, dir = out_dir, execute = r
   blocks <- efficiency_blocks(rows)
   if (!is.null(ratios)) utils::write.csv(ratios, file.path(dir, "efficiency.csv"), row.names = FALSE)
   if (!is.null(blocks)) utils::write.csv(blocks, file.path(dir, "efficiency-blocks.csv"), row.names = FALSE)
+  print_builds(runs)
   cat("\nRuns:\n")
   print(rows[c("model", "arm", "seed", "status", "cpu", "min_global", "min_global_ess", "global_ess_per_cpu",
-               "min_allocation_ess", "allocation_ess_per_cpu", "block_moved", "block_per_direction",
+               "min_allocation_ess", "allocation_ess_per_cpu", "max_rhat", "block_moved", "block_per_direction",
                "fallback_samplers", "exhausted")], row.names = FALSE, digits = 4)
   if (any(rows[["status"]] != "complete")) {
     cat("INCOMPLETE: failed runs:\n")
     print(rows[rows[["status"]] != "complete", c("model", "arm", "seed", "error")], row.names = FALSE)
   }
+  print_convergence(convergence_table(runs))
   cat("\nBlocks, record and exhausted intervals (means per model and arm):\n")
   print(blocks, row.names = FALSE, digits = 4)
   cat("\nRatios of ESS per CPU second (geometric mean, 95% t interval on the log scale):\n")
@@ -1338,7 +1550,10 @@ selftest <- function() {
     samplers = samplers, fallback_samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
     fallback_low_acceptance = 1, sampling_proposed = 1000, sampling_accepted = 990, acceptance_rate = .99,
     min_sampler_rate = .98, complete = TRUE, stringsAsFactors = FALSE)
-  wider_run <- function(job, names, shift = 0, constant = FALSE, i = job[["seed"]] %% 1000L, sd_shift = NULL) {
+  # converged runs: potential scale reduction 1.001 for every quantity unless
+  # 'rhat' names others, RoBMA's result TRUE, per-chain means of three chains
+  wider_run <- function(job, names, shift = 0, constant = FALSE, i = job[["seed"]] %% 1000L, sd_shift = NULL,
+                        rhat = NULL) {
     offset <- if (job[["arm"]] == "coarse") offsets[i] else offsets[11L - i]
     means  <- vapply(seq_along(names), function(j) if (constant) j else offset + j + shift[[min(j, length(shift))]],
                      numeric(1L))
@@ -1353,7 +1568,10 @@ selftest <- function() {
          ess = stats::setNames(rep(100, length(names)), names),
          indicator_ess = c("bias_indicator==1" = 50), roles = stats::setNames(rep("sampled", length(names)), names),
          blocks = "rank_one:3 x2", control = "default",
-         record = record(if (job[["arm"]] == "coarse") 6 else 0))
+         record = record(if (job[["arm"]] == "coarse") 6 else 0),
+         rhat = unlist(utils::modifyList(as.list(stats::setNames(rep(1.001, length(names)), names)), as.list(rhat))),
+         rhat_method = rhat_method, converged = TRUE, convergence_messages = character(),
+         chain_means = matrix(rep(means, each = 3L), 3L, dimnames = list(NULL, names)))
   }
   failed_run <- function(job) list(job = job, wall = 1, error = "synthetic fit failure")
   write_runs <- function(dir, part, make) {
@@ -1389,8 +1607,82 @@ selftest <- function() {
           abs(x$efficiency$speedup[x$efficiency$arm == "coarse"] - 2) < 1e-12 &&
           abs(x$efficiency$time_ratio[x$efficiency$arm == "coarse"] - .5) < 1e-12 &&
           x$efficiency$samplers[x$efficiency$arm == "coarse"] == 6 &&
-          all(x$efficiency$blocks == "rank_one:3 x2") && all(x$efficiency$control == "default"),
-        "complete: pass, 3 quantities, 10 of 10 runs per arm, efficiency rows, ratios, blocks and control")
+          all(x$efficiency$blocks == "rank_one:3 x2") && all(x$efficiency$control == "default") &&
+          x$decisions$non_converged_runs == 0L && abs(x$decisions$max_rhat - 1.001) < 1e-12 &&
+          x$decisions$reason %in% c("", NA) && all(abs(x$runs$max_rhat - 1.001) < 1e-12) && all(x$runs$robma_converged) &&
+          any(grepl("every run below the limit", x$output)) &&
+          sum(grepl("RoBMA dll x, BayesTools dll y", x$output)) == 2L && !any(grepl("MIXED", x$output)),
+        paste("complete: pass, 3 quantities, 10 of 10 runs per arm, efficiency rows, ratios, blocks and control,",
+              "converged runs, one build per arm"))
+
+  # a run above the potential-scale-reduction limit fails its model although
+  # the Welch statistics pass; it is listed with its per-chain means
+  x <- wider_case("non_converged", function(job, i) {
+    wider_run(job, c("a", "b"), rhat = if (job$arm == "coarse" && i == 3L) c(b = 1.2) else NULL)
+  })
+  check(x$decisions$decision == "fail" && x$decisions$reason == "non-converged run" &&
+          x$decisions$non_converged_runs == 1L && abs(x$decisions$max_rhat - 1.2) < 1e-12 &&
+          all(abs(x$table$t) < 1e-12) && any(grepl("NON-CONVERGED", x$output)) &&
+          any(grepl("m +coarse +1003 +1.2 +b", x$output)) && any(grepl("non-converged run", x$output)) &&
+          identical(x$runs$max_rhat_quantity[x$runs$seed == 1003L], "b"),
+        "a non-converged run: fail ('non-converged run') whatever the Welch statistics, listed")
+
+  # an auxiliary node (not identified, never assessed) above the limit is
+  # recorded but not judged; a quantity constant within each chain at different
+  # values is Inf and judged
+  x <- wider_case("auxiliary_rhat", function(job, i) {
+    run <- wider_run(job, c("a", "b"), rhat = c(prior_par_eta_w = 2))
+    run$roles <- c(run$roles, prior_par_eta_w = "auxiliary")
+    run
+  })
+  check(x$decisions$decision == "pass" && x$decisions$non_converged_runs == 0L,
+        "an auxiliary node above the limit: recorded, not judged")
+  frozen <- coda::mcmc.list(lapply(1:3, function(k) coda::mcmc(cbind(a = stats::rnorm(50), b = rep(k, 50),
+                                                                    c = rep(1, 50)))))
+  values <- rhat_values(frozen)
+  check(is.finite(values[["a"]]) && identical(values[["b"]], Inf) && is.na(values[["c"]]),
+        "rhat_values: finite for a varying quantity, Inf for one frozen at different values, NA for a constant")
+
+  # a completed run without recorded potential scale reductions: incomplete
+  x <- wider_case("rhat_unrecorded", function(job, i) {
+    run <- wider_run(job, c("a", "b"))
+    if (job$arm == "default" && i == 5L) run$rhat <- NULL
+    run
+  })
+  check(x$decisions$decision == "incomplete" && any(grepl("without a recorded potential scale reduction", x$output)),
+        "a completed run without a recorded potential scale reduction: incomplete, listed")
+
+  # an arm whose runs come from two builds is MIXED
+  x <- wider_case("mixed_builds", function(job, i) {
+    run <- wider_run(job, c("a", "b"))
+    if (job$arm == "default" && i == 2L) run$build$RoBMA_dll <- "z"
+    run
+  })
+  check(any(grepl("MIXED: arm\\(s\\) default", x$output)) && sum(grepl("MIXED$", x$output)) == 2L &&
+          any(grepl("RoBMA dll z, BayesTools dll y", x$output)),
+        "two builds in one arm: both listed, the arm MIXED")
+
+  # a model that failed by convergence alone is rerun on every quantity; a
+  # rerun judges the convergence of all of its runs
+  dir <- file.path(root, "rerun_convergence")
+  x <- wider_case("rerun_convergence", function(job, i) {
+    wider_run(job, c("a", "b"), rhat = if (job$arm == "default" && i == 1L) c(a = 1.5) else NULL)
+  }, dir = dir)
+  check(x$decisions$decision == "fail" && nrow(x$table[(abs(x$table$t) > 2) %in% TRUE, ]) == 0L,
+        "stage one fails by convergence alone")
+  x <- wider_case("rerun_convergence", function(job, i) wider_run(job, c("a", "b", "c")), part = "rerun", dir = dir)
+  check(x$decisions$decision == "pass" && x$decisions$quantities == 3L,
+        "a rerun after a failure by convergence alone: every quantity compared, pass")
+  dir <- file.path(root, "rerun_nonconverged")
+  x <- wider_case("rerun_nonconverged", function(job, i) {
+    wider_run(job, c("a", "b"), shift = if (job$arm == "coarse") c(0, 1) else 0)
+  }, dir = dir)
+  x <- wider_case("rerun_nonconverged", function(job, i) {
+    wider_run(job, c("a", "b"), rhat = if (job$arm == "coarse" && i == 4L) c(a = 1.1) else NULL)
+  }, part = "rerun", dir = dir)
+  check(x$decisions$decision == "fail" && x$decisions$reason == "non-converged run" &&
+          identical(x$table$quantity, "b") && abs(x$table$t) < 1e-12,
+        "a rerun with a non-converged run on a quantity it does not compare: fail")
 
   # one coarse run restarted twice by BayesTools (messages among the fit's warnings)
   restart <- function(n) sprintf("JAGS fitting attempt %d failed and was restarted: synthetic stop.", n)
@@ -1593,7 +1885,8 @@ selftest <- function() {
   }
   y <- cost_case("cost_same", function(job) FALSE)
   check(nrow(y$rows) == 3L && all(y$rows$identical_draws) && all(abs(y$rows$time_ratio - 1) < 1e-12) &&
-          !any(grepl("FINDING", y$output)), "cost: identical draws, time ratio 1")
+          !any(grepl("FINDING", y$output)) && sum(grepl("RoBMA dll x, BayesTools dll y +3", y$output)) == 2L,
+        "cost: identical draws, time ratio 1, one build per arm")
   y <- cost_case("cost_differs", function(job) job$arm == "other" && job$seed == 4002L)
   check(sum(!y$rows$identical_draws) == 1L && any(grepl("FINDING", y$output)) &&
           abs(y$rows$time_ratio[2L] - 10 / 11) < 1e-12, "cost: a differing pair is reported as a finding")
@@ -1608,8 +1901,9 @@ selftest <- function() {
   z <- identity_case("identity_same", function(job) FALSE)
   check(nrow(z$rows) == 10L && all(z$rows$status == "complete") && all(z$rows$identical_draws) &&
           sum(z$rows$options == "default") == 4L && sum(z$rows$model == "RoBMA.mv") == 3L &&
-          all(z$rows$block_samplers == 0L) && !any(grepl("FINDING", z$output)),
-        "identity: 10 same-option pairs, all identical")
+          all(z$rows$block_samplers == 0L) && !any(grepl("FINDING", z$output)) &&
+          sum(grepl("^ (this|other) +RoBMA dll x, BayesTools dll y +10", z$output)) == 2L && !any(grepl("MIXED", z$output)),
+        "identity: 10 same-option pairs, all identical, one build per arm")
   z <- identity_case("identity_differs", function(job) {
     job$model == "RoBMA.mv" && job$arm == "other" && job$variant == "slice"
   })
@@ -1640,18 +1934,29 @@ selftest <- function() {
   }, logical(1L))), "identity: both builds of a pair get the same options")
 
   # efficiency: synthetic runs with known ratios. ESS 100 for the global 'mu'
-  # and the allocation SD, 1 for a raw Dirichlet parameter (left out); CPU 10 s
-  # in 'this', 20 in 'other', 15 in 'this_noblocks' (whose assignment equals
-  # the other build's); one 'other' run of 'm2' failed.
+  # and the allocation SD, 1 for a raw Dirichlet parameter (left out), 0 for a
+  # structural constant (not eligible); CPU 10 s in 'this', 20 in 'other', 15
+  # in 'this_noblocks' (whose assignment equals the other build's); one 'other'
+  # run of 'm2' failed; in 'this' of 'm2', seed 8005 has a zero ESS of 'mu' and
+  # seed 8006 no ESS of the allocation SD (both runs 'failed' with that reason);
+  # the 'other' run of RoBMA.mv seed 8002 is not converged (listed only).
   efficiency_run <- function(job) {
     if (job$model == "m2" && job$arm == "other" && job$seed == 8003L) {
       return(list(job = job, wall = 1, error = "synthetic fit failure"))
     }
     names <- c("mu", "mu__xRE_ALLOCx_heterogeneity__allocation_sd",
-               "prior_par_eta_mu__xRE_ALLOCx_heterogeneity__weight[1]")
+               "prior_par_eta_mu__xRE_ALLOCx_heterogeneity__weight[1]", "omega[1]")
+    ess   <- stats::setNames(c(100, 100, 1, 0), names)
+    if (job$model == "m2" && job$arm == "this" && job$seed == 8005L) ess[["mu"]] <- 0
+    if (job$model == "m2" && job$arm == "this" && job$seed == 8006L) ess <- ess[-2L]
+    rhat <- stats::setNames(c(1.001, 1.002, 1.003, NA), names)
+    if (job$model == "RoBMA.mv" && job$arm == "other" && job$seed == 8002L) rhat[["mu"]] <- 1.3
     blocked <- job$arm == "this"
     list(job = job, wall = 1, cpu = c(this = 10, other = 20, this_noblocks = 15)[[job$arm]], exhausted = 0,
-         ess = stats::setNames(c(100, 100, 1), names), roles = stats::setNames(rep("sampled", 3L), names),
+         build = list(RoBMA = "0", BayesTools = "0", RoBMA_dll = paste0("dll-", job$arm), BayesTools_dll = "y",
+                      RoBMA_path = "p", library = "l"),
+         monitored = names, ess = ess, roles = stats::setNames(c("sampled", "sampled", "auxiliary", "structural"), names),
+         rhat = rhat, converged = TRUE, chain_means = matrix(1, 3L, 2L, dimnames = list(NULL, names[1:2])),
          samplers = data.frame(Node = c("mu", "tau"), Sampler = if (blocked) rep("RoBMA::CoarseCorrectedBlock", 2L) else
                                  c("RoBMA::CoarseCorrectedSlice", "base::RealSlicer"), stringsAsFactors = FALSE),
          block = if (blocked) data.frame(sampler = "RoBMA::CoarseCorrectedBlock", nodes = 2L, monitored = 2L,
@@ -1675,12 +1980,25 @@ selftest <- function() {
           abs(global$geometric_mean[global$model == "RoBMA.mv" & global$comparison == "this/other"] - 2) < 1e-12 &&
           abs(global$geometric_mean[global$model == "RoBMA.mv" & global$comparison == "this/this_noblocks"] - 1.5) < 1e-12 &&
           abs(allocation$geometric_mean[allocation$model == "RoBMA.mv" & allocation$comparison == "this/other"] - 2) < 1e-12 &&
-          global$pairs[global$model == "m2"] == 5L && global$incomplete[global$model == "m2"] == 1L &&
+          global$pairs[global$model == "m2"] == 3L && global$incomplete[global$model == "m2"] == 3L &&
           all(e$rows$min_allocation[e$rows$status == "complete"] == "mu__xRE_ALLOCx_heterogeneity__allocation_sd") &&
           isTRUE(e$blocks$assignment_as_other[e$blocks$arm == "this_noblocks"]) &&
           abs(e$blocks$block_per_direction[e$blocks$model == "RoBMA.mv" & e$blocks$arm == "this"] - .9) < 1e-12 &&
           any(grepl("INCOMPLETE", output)) && file.exists(file.path(dir, "efficiency.csv")),
         "efficiency: alternated order, ratios, geometric means, allocation without raw parameters, noblocks check")
+  failed <- e$rows[e$rows$model == "m2" & e$rows$arm == "this" & e$rows$status == "failed", ]
+  check(identical(failed$seed, c(8005L, 8006L)) &&
+          identical(failed$error, paste0("zero, missing or non-finite ESS of eligible parameter(s): ",
+                                         c("mu", "mu__xRE_ALLOCx_heterogeneity__allocation_sd"))) &&
+          all(is.na(failed$global_ess_per_cpu)) && any(grepl("8005 +zero, missing or non-finite ESS", output)) &&
+          sum(e$rows$status == "failed") == 3L,
+        "efficiency: a zero or missing ESS of an eligible parameter fails the run with that reason")
+  check(abs(e$rows$max_rhat[e$rows$model == "RoBMA.mv" & e$rows$arm == "other" & e$rows$seed == 8002L] - 1.3) < 1e-12 &&
+          any(grepl("NON-CONVERGED", output)) && any(grepl("RoBMA.mv +other +8002 +1.3 +mu", output)) &&
+          e$rows$status[e$rows$model == "RoBMA.mv" & e$rows$arm == "other" & e$rows$seed == 8002L] == "complete",
+        "efficiency: a non-converged run is listed (and kept)")
+  check(sum(grepl("dll-(this|other|this_noblocks), BayesTools dll y", output)) == 3L && !any(grepl("MIXED", output)),
+        "efficiency: one build per arm listed")
 
   unlink(root, recursive = TRUE)
   cat("Self-test passed.\n")
