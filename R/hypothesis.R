@@ -222,9 +222,13 @@ hypothesis.default <- function(object, hypothesis, ...) {
 #' @param columns output columns passed to \code{BayesTools::hypothesis_BF()}.
 #' \code{"default"} returns the compact BayesTools table with
 #' \code{Alternative}, \code{Null}, \code{BF}, and \code{error\%(BF)}
-#' columns. \code{"all"} also returns \code{prior}, \code{posterior}, and
-#' \code{method} columns. The \code{prior} and \code{posterior} columns are
-#' diagnostics rather than probabilities for all hypothesis types.
+#' columns. Use \code{columns = "evidence"} for prior and posterior densities
+#' at a tested point and prior and posterior probabilities of the alternative
+#' and null regions. For example, \code{"-0.1 <= mu <= 0.1"} compares the
+#' interval with its complement. \code{"-0.1 <= mu <= 0.1 vs unconstrained"}
+#' compares it with the full model under the selected conditioning. See
+#' \code{BayesTools::hypothesis_BF()} for the individual column names and
+#' the additional diagnostics available with \code{columns = "all"}.
 #' @param density_method posterior density method. Defaults to \code{"qCMDE"}
 #' for fitted \code{brma} objects. \code{"KDE"} uses the standard BayesTools
 #' kernel density estimate. \code{"normal"} uses the
