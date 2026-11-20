@@ -132,6 +132,18 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"), info = name)
     expect_identical(samplers[["Sampler"]][allocation_sd], "RoBMA::CoarseCorrectedBlock", info = name)
   }
+
+  # a single model with a cs() random effect: its SD and correlation join the
+  # block the corrected block sampler takes
+  cs  <- .declaration_fit(RoBMA::bselmodel.mv, list(yi = quote(yi), V = V, random = ~ cs(deltype | study), data = dat),
+                          declarations = TRUE, sampler = "slice.coarse")
+  expect_null(cs[["fit"]][["errors"]])
+  random   <- c("mu__xREx__study_sd", "mu__xREx__study_rho")
+  blocks   <- attr(cs[["fit"]], "sampler_declarations", exact = TRUE)[["blocks"]]
+  samplers <- cs[["fit"]][["samplers"]]
+  expect_identical(unique(blocks[["prior"]]), c("mu_intercept", random, "omega"))
+  expect_false(any(samplers[["Sampler"]] == "BayesTools::FactorSlice"))
+  expect_identical(samplers[["Sampler"]][match(random, samplers[["Node"]])], rep("RoBMA::CoarseCorrectedBlock", 2L))
 })
 
 

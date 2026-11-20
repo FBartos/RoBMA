@@ -200,13 +200,66 @@ test_that("single selection models block their global parameters", {
     gates = FALSE, blocks = list(c("mu_intercept", allocation_w, "log_tau_intercept", "log_tau_x", "omega")),
     label = "bselmodel.mv V location-scale")
 
-  # a direct random-effect SD (prior_random(sd = )) is not a member
+  # a direct random-effect SD (prior_random(sd = )) is a member
   .expect_declarations(
     bselmodel.mv(yi = yi, V = V, random = ~ 1 | study, data = dat, measure = "SMD",
                  prior_heterogeneity = BayesTools::prior_random(
                    sd = BayesTools::prior("normal", list(0, 1), list(0, Inf))),
                  only_priors = TRUE),
-    gates = FALSE, blocks = list(c("mu_intercept", "omega")), label = "bselmodel.mv direct SD")
+    gates = FALSE, blocks = list(c("mu_intercept", "mu__xREx__study_intercept", "omega")),
+    label = "bselmodel.mv direct SD")
+})
+
+
+test_that("direct random-effect SDs and scalar structured correlations join the block of a single model only", {
+
+  setup <- .declaration_data()
+  dat   <- setup[["data"]]
+  V     <- setup[["V"]]
+  direct <- BayesTools::prior_random(sd = BayesTools::prior("normal", list(0, 1), list(0, Inf)))
+
+  # single models: the direct SDs of nested intercepts, the SD and correlation
+  # of cs(), and the correlation of hcs() next to its default allocation
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                 prior_heterogeneity = direct, only_priors = TRUE),
+    gates = FALSE,
+    blocks = list(c("mu_intercept", "mu__xREx__esid_study_intercept", "mu__xREx__study_intercept", "omega")),
+    label = "bselmodel.mv direct nested SDs")
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ cs(g | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", "mu__xREx__study_sd", "mu__xREx__study_rho", "omega")),
+    label = "bselmodel.mv cs")
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ hcs(g | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", allocation_sd, allocation_w, "mu__xREx__study_rho", "omega")),
+    label = "bselmodel.mv hcs")
+
+  # an unstructured correlation is an LKJ primitive, not a prior-list entry:
+  # the block is unchanged
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ g | study, data = dat, measure = "SMD", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", allocation_sd, allocation_w, "omega")),
+    label = "bselmodel.mv LKJ")
+
+  # ensembles with the same random structure keep their allocation members
+  .expect_declarations(
+    RoBMA.mv(yi = yi, V = V, random = ~ cs(g | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = TRUE, blocks = NULL, label = "RoBMA.mv cs")
+  .expect_declarations(
+    RoBMA.mv(yi = yi, V = V, random = ~ hcs(g | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = TRUE, blocks = list(c(allocation_sd, "mu__xRE_ALLOCx_study_components__weight")),
+    label = "RoBMA.mv hcs")
+
+  # a random-effect scalar that is a summary, part of an allocation or neither
+  # an SD nor a correlation is not eligible
+  half_normal <- BayesTools::prior("normal", list(0, 1), list(0, Inf))
+  as_random   <- function(...) do.call(structure, c(list(half_normal), list(...)))
+  expect_true(.sampler_block_eligible(as_random(random_sd = TRUE)))
+  expect_true(.sampler_block_eligible(as_random(random_correlation = TRUE)))
+  expect_false(.sampler_block_eligible(as_random(random_sd = TRUE, random_summary = "sd")))
+  expect_false(.sampler_block_eligible(as_random(random_sd = TRUE, random_allocation = "heterogeneity")))
+  expect_false(.sampler_block_eligible(as_random(random_summary = "sd")))
 })
 
 
