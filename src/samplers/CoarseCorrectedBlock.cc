@@ -425,10 +425,20 @@ public:
           "(their difference exceeds the largest double)");
       }
     }
-    register_corrected_sampler(this);
-    LiveBlocks &blocks = live_blocks();
-    const std::lock_guard<std::mutex> lock(blocks.mutex);
-    blocks.live.push_back(this);
+    // Joins the live list first and the sampler registry last: a constructor
+    // that throws runs no destructor, so a failed registration leaves the live
+    // list again and neither list keeps a pointer to this sampler.
+    {
+      LiveBlocks &blocks = live_blocks();
+      const std::lock_guard<std::mutex> lock(blocks.mutex);
+      blocks.live.push_back(this);
+    }
+    try {
+      register_corrected_sampler(this);
+    } catch (...) {
+      leave_live_blocks();
+      throw;
+    }
   }
 
   // A sampler destroyed before the report is read still counts for the worst
@@ -436,6 +446,11 @@ public:
   ~CoarseCorrectedBlock() override
   {
     unregister_corrected_sampler(this);
+    leave_live_blocks();
+  }
+
+  void leave_live_blocks()
+  {
     LiveBlocks &blocks = live_blocks();
     const std::lock_guard<std::mutex> lock(blocks.mutex);
     std::vector<CoarseCorrectedBlock const *> &live = blocks.live;
