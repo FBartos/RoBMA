@@ -58,7 +58,8 @@ context("Sampler declarations passed to BayesTools")
   blocks <- declarations[["sampler_blocks"]]
   if (!is.null(blocks)) {
     expect_true(is.function(blocks))
-    blocks <- list(value = blocks(.declaration_prior_list(object)))
+    prior_list <- .declaration_prior_list(object)
+    blocks <- list(value = blocks(prior_list), prior_list = prior_list)
   } else {
     blocks <- "none"
   }
@@ -66,6 +67,8 @@ context("Sampler declarations passed to BayesTools")
   return(list(gates = declarations[["sampler_gates"]], blocks = blocks))
 }
 
+# The declared blocks also pass BayesTools' block declaration check, so these
+# tests fail against a BayesTools that refuses a member RoBMA declares.
 .expect_declarations <- function(object, gates, blocks, label) {
 
   declarations <- .declarations_of(object)
@@ -74,6 +77,12 @@ context("Sampler declarations passed to BayesTools")
     expect_identical(declarations[["blocks"]], "none", info = label)
   } else {
     expect_identical(declarations[["blocks"]][["value"]], blocks, info = label)
+    refusal <- tryCatch({
+      BayesTools:::.bt_sampler_block_declarations(declarations[["blocks"]][["value"]],
+                                                  declarations[["blocks"]][["prior_list"]])
+      NULL
+    }, error = conditionMessage)
+    expect_null(refusal, info = label)
   }
 }
 
@@ -234,6 +243,21 @@ test_that("direct random-effect SDs and scalar structured correlations join the 
     bselmodel.mv(yi = yi, V = V, random = ~ hcs(g | study), data = dat, measure = "SMD", only_priors = TRUE),
     gates = FALSE, blocks = list(c("mu_intercept", allocation_sd, allocation_w, "mu__xREx__study_rho", "omega")),
     label = "bselmodel.mv hcs")
+  # ar1() and car() have a single SD and a correlation; har() has the
+  # correlation next to its default allocation
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ ar1(g | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", "mu__xREx__study_sd", "mu__xREx__study_rho", "omega")),
+    label = "bselmodel.mv ar1")
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ har(g | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", allocation_sd, allocation_w, "mu__xREx__study_rho", "omega")),
+    label = "bselmodel.mv har")
+  dat[["time"]] <- rep(1:2, 4)
+  .expect_declarations(
+    bselmodel.mv(yi = yi, V = V, random = ~ car(time | study), data = dat, measure = "SMD", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", "mu__xREx__study_sd", "mu__xREx__study_rho", "omega")),
+    label = "bselmodel.mv car")
 
   # an unstructured correlation is an LKJ primitive, not a prior-list entry:
   # the block is unchanged
