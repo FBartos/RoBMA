@@ -121,7 +121,17 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     gates <- attr(on[["fit"]], "sampler_declarations", exact = TRUE)[["gates"]]
     expect_true(all(gates[["prior"]] == "bias"), info = name)
     expect_true(all(grepl("^equals\\(bias_indicator, [0-9]+\\)$", gates[["active"]])), info = name)
+    if (name == "bselmodel_shrinkage") shrinkage <- on
   }
+
+  # update() of the shrinkage fit replays its block, and its scales keep
+  # their samplers
+  updated <- suppressWarnings(update(shrinkage, sample_extend = 50L, silent = TRUE))
+  expect_null(updated[["fit"]][["errors"]])
+  expect_identical(nrow(updated[["fit"]][["mcmc"]][[1L]]), 150L)
+  expect_identical(attr(updated[["fit"]], "sampler_declarations", exact = TRUE),
+                   attr(shrinkage[["fit"]], "sampler_declarations", exact = TRUE))
+  expect_identical(updated[["fit"]][["samplers"]], shrinkage[["fit"]][["samplers"]])
 
   # with the corrected selection sampler (the default) the ensemble's allocation
   # block and the single model's block are declared and the corrected block

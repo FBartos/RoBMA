@@ -825,6 +825,27 @@
     par_null_omit <- NULL
   }
 
+  # A bare shrinkage group supplies the slopes of its side. Name it apart from
+  # the formula terms and from the entries named on both sides, so that both
+  # sides of a term mixture keep their own groups.
+  bare_group <- function(prior) {
+    BayesTools::is.prior(prior) && (BayesTools::is.prior.regularized(prior) ||
+      !is.null(attr(prior, "regularized_spec", exact = TRUE)))
+  }
+  named <- function(prior) if (is.list(prior) && !BayesTools::is.prior(prior)) names(prior)
+  taken <- c(attr(stats::terms(attr(data[[parameter]], "formula")), "term.labels"),
+             if (!missing(prior_list)) named(prior_list),
+             if (!missing(prior_list_null)) named(prior_list_null))
+  if (!missing(prior_list) && bare_group(prior_list)) {
+    group    <- utils::tail(make.unique(c(taken, "shrinkage"), sep = "_"), 1L)
+    taken    <- c(taken, group)
+    prior_list <- stats::setNames(list(prior_list), group)
+  }
+  if (!missing(prior_list_null) && bare_group(prior_list_null)) {
+    group <- utils::tail(make.unique(c(taken, "shrinkage_null"), sep = "_"), 1L)
+    prior_list_null <- stats::setNames(list(prior_list_null), group)
+  }
+
 
   if (parameter == "scale") {
     # in the case of scale moderation, spike at zero prior (i.e., fixed-effect model) is not possible since the intercept

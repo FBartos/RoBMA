@@ -185,4 +185,19 @@ test_that("a shrinkage group in the null list supplies its factor and slope null
   expect_identical(locals, c("mu_x_component_1_local_1", "mu_x_component_2_local_1"))
   expect_true(all(c("mu_shrinkage_global", "mu_shrinkage_null_global") %in%
                     BayesTools::JAGS_to_monitor(rebound$prior_list)))
+
+  # generated names avoid the names given on the other side
+  groups_of <- function(fit) {
+    args <- .create_jags_formula_args(fit$data, fit$priors)
+    rebound <- BayesTools::JAGS_formula(
+      args$formula_list$mu, "mu", args$formula_data_list$mu,
+      prior_list = args$formula_prior_list$mu, formula_scale = args$formula_scale_list$mu)
+    vapply(rebound$prior_list$mu_x, function(p) p$regularization$group, character(1))
+  }
+  expect_identical(groups_of(build(list(shrinkage_null = prior_regularized("ridge", wide)),
+                                   prior_regularized("ridge", narrow))),
+                   c("shrinkage_null_1", "shrinkage_null"))
+  expect_identical(groups_of(build(prior_regularized("ridge", wide),
+                                   list(shrinkage = prior_regularized("ridge", narrow)))),
+                   c("shrinkage", "shrinkage_1"))
 })
