@@ -566,10 +566,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   node names): a single model blocks every eligible prior (simple continuous
   scalars and treatment/independent factors without random-effect metadata, the
   single weight function, the plain allocation SD and Dirichlet allocation
-  weights, and direct random-effect SDs (one per term: `prior_random(sd = )` or
-  the single SD of `cs()`, `ar1()`, `car()`) and the scalar correlations of
-  `cs()`, `hcs()`, `ar1()`, `har()`, `car()`, with simple continuous scalar
-  priors outside an allocation) except the unit-level latents `theta`, `gamma`, `sampling_z`,
+  weights, and directly sampled scalar random-effect SDs (a random intercept's,
+  or the one SD shared by the levels of `id()`, `diag(hom = TRUE)`, `cs()`,
+  `ar1()`, `car()`) and the scalar correlations of `cs()`, `hcs()`, `ar1()`,
+  `har()`, `car()`, with simple continuous scalar priors outside an
+  allocation) except the unit-level latents `theta`, `gamma`, `sampling_z`,
   `pi`, `phi`; an ensemble blocks the allocation SD and weights only. Mixtures,
   spike-and-slab, ordered, point and discrete priors, inclusion priors and other
   random-effect priors (factor or vector SDs, summaries) are never declared;
