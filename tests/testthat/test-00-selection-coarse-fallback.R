@@ -952,7 +952,7 @@ test_that("a fit with a low acceptance warns and keeps one message through updat
   fit <- NULL
   expect_warning(fit <- .fallback_fit(), class = "RoBMA_selection_sampler_low_acceptance")
   expect_length(stored(fit), 1L)
-  expect_match(stored(fit), "accepted 80% of its proposals after adaptation", fixed = TRUE)
+  expect_match(stored(fit), "accepted 80% of its proposals per direction after adaptation", fixed = TRUE)
   expect_true(stored(fit) %in% fit[["fit"]][["warnings"]])
 
   extended <- NULL
