@@ -12,6 +12,8 @@ fit	fit_reg2_null	2.110000000	0.640039	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_reg2_plus	2.330000000	0.640137	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_reg3	2.880000000	0.640137	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_reg3_metafor	0.000000000	0.384277	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_selection_all	2.470000000	0.250684	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_selection_exempt	2.300000000	0.249707	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_simple	1.880000000	0.520703	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_simple_duplicated	0.870000000	0.459766	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_simple_duplicated_metafor	0.000000000	0.360352	4.6.0	Windows/x86_64-w64-mingw32
@@ -117,6 +119,7 @@ time	fit_reg3_hypotheses_IWMDE	0.440000000	0.598535	4.6.0	Windows/x86_64-w64-min
 time	fit_reg3_rstudent	0.080000000	0.521094	4.6.0	Windows/x86_64-w64-mingw32
 time	fit_simple_influence	0.710000000	0.573926	4.6.0	Windows/x86_64-w64-mingw32
 time	fit_simple_weighted_influence	0.670000000	0.573828	4.6.0	Windows/x86_64-w64-mingw32
+text	bias_exempt_comparison	0.000000000	0.164062	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_reg1_BF_IWMDE	0.470000000	0.549121	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_reg1_BF_cross_level	2.540000000	0.573926	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_reg1_BF_cross_level_default	1.220000000	0.558594	4.6.0	Windows/x86_64-w64-mingw32
@@ -173,6 +176,7 @@ text	fit_simple_weighted_cooks	0.000000000	0.325586	4.6.0	Windows/x86_64-w64-min
 text	fit_simple_weighted_dffits	0.000000000	0.325488	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_weighted_hatvalues	0.000000000	0.325586	4.6.0	Windows/x86_64-w64-mingw32
 text	priors_moment	0.000000000	0.383496	4.6.0	Windows/x86_64-w64-mingw32
+plot	bias_exempt_comparison	0.000000000	0.166895	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_moment_posterior_mu	0.390000000	0.559082	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_moment_posterior_tau	0.520000000	0.523438	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_reg1_emmplot	3.220000000	0.573926	4.6.0	Windows/x86_64-w64-mingw32
