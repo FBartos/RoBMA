@@ -148,3 +148,41 @@ test_that("a pooled interaction preserves the fitted bases of its two factors", 
                    prior_mods = prior("laplace", list(0, .4)), only_priors = TRUE),
                'prior_regularized("lasso", scale = ...)', fixed = TRUE)
 })
+
+test_that("a shrinkage group in the null list supplies its factor and slope nulls", {
+  dat <- data.frame(y = c(.2, .1, -.1, .4, .2, -.3), se = .2,
+                    f = factor(rep(c("a", "b", "c"), 2L)), x = c(-1, 2, 0, 2, 1, 0))
+  wide   <- prior("uniform", list(.3, .9))
+  narrow <- prior("uniform", list(.03, .09))
+  build <- function(prior_mods, prior_mods_null) {
+    BMA(yi = y, sei = se, data = dat, mods = ~ f + x, measure = "SMD",
+        prior_mods = prior_mods, prior_mods_null = prior_mods_null, only_priors = TRUE)
+  }
+  null_group <- function(fit, term) fit$priors$mods[[term]][[1L]]$regularization$group
+
+  # a group without 'terms' supplies every null not named in the list
+  fit <- build(list(slab = prior_regularized("ridge", wide)),
+               list(nullpool = prior_regularized("ridge", narrow)))
+  for (term in c("f", "x")) {
+    expect_identical(null_group(fit, term), "nullpool", info = term)
+    expect_identical(fit$priors$mods[[term]][[2L]]$regularization$group, "slab", info = term)
+  }
+  # a group naming the factor supplies only its null; the slope keeps the spike
+  fit <- build(list(slab = prior_regularized("ridge", wide)),
+               list(nullpool = prior_regularized("ridge", narrow, terms = "f")))
+  expect_identical(null_group(fit, "f"), "nullpool")
+  expect_true(BayesTools::is.prior.point(fit$priors$mods$x[[1L]]))
+
+  # bare groups on both sides, here horseshoes with local scales, stay apart
+  fit <- build(prior_regularized("horseshoe", wide), prior_regularized("horseshoe", narrow))
+  expect_identical(null_group(fit, "x"), "shrinkage_null")
+  expect_identical(fit$priors$mods$x[[2L]]$regularization$group, "shrinkage")
+  args <- .create_jags_formula_args(fit$data, fit$priors)
+  rebound <- BayesTools::JAGS_formula(
+    args$formula_list$mu, "mu", args$formula_data_list$mu,
+    prior_list = args$formula_prior_list$mu, formula_scale = args$formula_scale_list$mu)
+  locals <- unlist(lapply(rebound$prior_list$mu_x, function(p) p$regularization$local_names))
+  expect_identical(locals, c("mu_x_component_1_local_1", "mu_x_component_2_local_1"))
+  expect_true(all(c("mu_shrinkage_global", "mu_shrinkage_null_global") %in%
+                    BayesTools::JAGS_to_monitor(rebound$prior_list)))
+})

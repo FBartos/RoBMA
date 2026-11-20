@@ -179,6 +179,26 @@
       if (orthonormal) "orthonormal" else "meandif")
   }
 }
+# The terms among 'remaining' that the regularization groups of a named
+# formula prior list supply (BayesTools binds them): the group's 'terms', or
+# every remaining term for a group without 'terms'. Entries named by a term
+# are that term's own prior, not a group.
+.regularized_group_members <- function(prior_list, remaining, terms) {
+
+  key <- function(labels) vapply(strsplit(labels, ":", fixed = TRUE), function(parts) {
+    paste(sort(parts), collapse = ":")
+  }, character(1))
+  members <- lapply(names(prior_list), function(name) {
+    prior <- prior_list[[name]]
+    spec  <- if (BayesTools::is.prior.regularized(prior)) prior else attr(prior, "regularized_spec", exact = TRUE)
+    if (is.null(spec) || name %in% c("intercept", terms)) {
+      return(character())
+    }
+    if (is.null(spec[["terms"]])) remaining else remaining[key(remaining) %in% key(spec[["terms"]])]
+  })
+
+  return(unique(unlist(members, use.names = FALSE)))
+}
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield, rescale_priors,
@@ -200,8 +220,11 @@
   user_default_prior <- NULL
   if (!missing(prior_list) && (BayesTools::is.prior.regularized(prior_list) ||
       !is.null(attr(prior_list, "regularized_spec", exact = TRUE)))) {
+    # A bare group supplies all slopes. The null side names its group apart,
+    # so that both sides of a term's mixture keep their own scales.
     term_labels <- attr(stats::terms(attr(data[[parameter]], "formula")), "term.labels")
-    group_name <- utils::tail(make.unique(c(term_labels, "shrinkage"), sep = "_"), 1L)
+    group_name <- if (set_default_spike) "shrinkage_null" else "shrinkage"
+    group_name <- utils::tail(make.unique(c(term_labels, group_name), sep = "_"), 1L)
     prior_list <- stats::setNames(list(prior_list), group_name)
   }
   if (!missing(prior_list) && BayesTools::is.prior(prior_list)) {
@@ -848,6 +871,9 @@
       (length(prior_list_null) == 0L || !is.null(names(prior_list_null)))) {
     unspecified_null <- setdiff(names(prior_list_alt),
       c("intercept", names(prior_list_null), par_null_omit, par_alt_omit))
+    # Terms that a regularization group of the null list supplies are specified.
+    unspecified_null <- setdiff(unspecified_null,
+      .regularized_group_members(prior_list_null, unspecified_null, names(prior_list_alt)))
     for (term in unspecified_null) {
       contrast <- .prior_factor_contrast(prior_list_alt[[term]])
       if (!is.na(contrast)) {
