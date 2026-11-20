@@ -10,7 +10,7 @@ test_that("moderator and scale groups survive both passes of formula binding", {
               only_priors = TRUE, silent = TRUE)
   expect_s3_class(fit$priors$mods$x, "prior.regularized_term")
   expect_s3_class(fit$priors$mods$z, "prior.regularized_term")
-  expect_false(inherits(fit$priors$mods$w, "prior.regularized_term"))
+  expect_false(BayesTools::is.prior.regularized_term(fit$priors$mods$w))
   expect_identical(fit$priors$mods$w$parameters$sd, 1)
   args <- .create_jags_formula_args(fit$data, fit$priors)
   for (component in c("mu", "log_tau")) {
