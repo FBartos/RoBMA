@@ -195,11 +195,26 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
            identical(prior[["distribution"]], "dirichlet"))
 }
 
+# A direct random-effect SD or a scalar structured correlation (e.g. of cs() or
+# hcs()) with a simple continuous scalar prior, outside any allocation.
+.sampler_is_random_scalar <- function(prior) {
+
+  return(!.sampler_prior_guarded(prior) && .sampler_prior_scalar(prior) &&
+           (isTRUE(attr(prior, "random_sd", exact = TRUE)) ||
+              isTRUE(attr(prior, "random_correlation", exact = TRUE))) &&
+           is.null(attr(prior, "random_allocation", exact = TRUE)) &&
+           is.null(attr(prior, "random_summary", exact = TRUE)))
+}
+
 # Priors that may join a block: simple continuous scalar priors and treatment
 # or independent factor priors without random-effect metadata, a single weight
-# function, the plain allocation SD and the Dirichlet allocation weights.
-# Vector priors (mean-difference and orthonormal factors, mnormal, mt), other
-# random-effect priors (SDs, correlations) and the guarded priors are not.
+# function, the plain allocation SD and the Dirichlet allocation weights, and
+# direct random-effect SDs and scalar structured correlations with simple
+# continuous scalar priors. Vector priors (mean-difference and orthonormal
+# factors, mnormal, mt), other random-effect priors (factor or vector SDs; LKJ
+# correlations are not prior-list entries) and the guarded priors are not.
+# The ensemble filter of .sampler_block_members() keeps only the allocation
+# parameters of model-averaged fits.
 .sampler_block_eligible <- function(prior) {
 
   if (.sampler_prior_guarded(prior)) {
@@ -209,7 +224,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     return(TRUE)
   }
   if (.sampler_prior_random_metadata(prior)) {
-    return(FALSE)
+    return(.sampler_is_random_scalar(prior))
   }
 
   return(.sampler_prior_scalar(prior) ||
