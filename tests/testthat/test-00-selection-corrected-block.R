@@ -190,6 +190,34 @@ test_that("a block decides its kernel once, at the end of adaptation, judging ra
 })
 
 
+test_that("a block started where the surrogate is poor learns its axes and samples the posterior", {
+
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("coda")
+  # While adapting, a rejected correction is followed by one exact sweep, so the
+  # chain moves from a start where the corrected block rejects most proposals
+  # and the axes learn from moving states: the widths it learns are those of an
+  # exact sampler at stationarity within a factor of 3, with the fallback off
+  # (the corrected kernel after adaptation) and on (its adaptive rate is below
+  # 0.90, so the exact sweep after adaptation), and the draws agree with the
+  # reference.
+  for (min_acceptance in c(0, .9)) {
+    label  <- paste("min_acceptance", min_acceptance)
+    result <- .block_poor_start(min_acceptance)
+    expect_identical(unname(result$samplers[c("a", "b")]), rep(.block_sampler, 2L), info = label)
+    expect_lt(result$adaptive_rate, .9, label = label)
+    expect_identical(result$report[["fallback_low_acceptance"]], as.numeric(min_acceptance > 0), info = label)
+    expect_length(result$widths, 2L)
+    ratio <- result$widths / result$reference_widths
+    expect_true(all(ratio > 1 / 3 & ratio < 3), info = paste(label, paste(round(ratio, 3), collapse = " ")))
+    comparison <- result$comparison[result$comparison$observable %in% c("a", "b", "var_a", "var_b", "ab"), ]
+    expect_true(all(comparison$ess >= 150), info = paste(label, paste(round(comparison$ess), collapse = " ")))
+    expect_true(all(abs(comparison$estimate - comparison$reference) <= 4.5 * comparison$mcse + 2 * comparison$allowance),
+                info = paste(label, paste(round(comparison$z, 2), collapse = " ")))
+  }
+})
+
+
 test_that("a rejection restores the block-entry values and an exhausted interval the direction-entry values", {
 
   skip_if_not_installed("rjags")

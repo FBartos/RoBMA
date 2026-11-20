@@ -42,6 +42,9 @@ bool corrected_block_test_fixed_order();
 bool corrected_block_test_trace();
 std::vector<double> corrected_block_test_take_trace();
 std::uint64_t corrected_block_test_take_exhausted();
+// The current widths of the live block samplers, in construction order:
+// per sampler its chain, d and the d widths of its axes.
+std::vector<double> corrected_block_test_widths();
 
 }
 }

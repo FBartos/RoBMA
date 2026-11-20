@@ -86,6 +86,21 @@ struct TraceStore {
   std::vector<double> records;
 };
 
+class CoarseCorrectedBlock;
+
+// The live block samplers, for the test hook that reads their widths. Never
+// destroyed, like the sampler registry: samplers may be destroyed late.
+struct LiveBlocks {
+  std::mutex mutex;
+  std::vector<CoarseCorrectedBlock const *> live;
+};
+
+LiveBlocks &live_blocks()
+{
+  static LiveBlocks *blocks = new LiveBlocks();
+  return *blocks;
+}
+
 // Never destroyed, like the sampler registry: samplers may run late.
 TraceStore &trace_store()
 {
@@ -275,8 +290,8 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
 
   // The exact kernel: BayesTools' factor slice update (BTFactorSlice.cc,
   // FactorSlice::update), the same calls in the same order, on the full
-  // conditional with the axes learned while adapting.
-  void exact_update(RNG *rng)
+  // conditional with the current axes. Returns the u of the state it leaves.
+  std::vector<double> exact_sweep(RNG *rng)
   {
     std::vector<double> u = current_u();
     for (unsigned int k = 0; k < _d; ++k) {
@@ -294,10 +309,11 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
         [rng]() { return rng->exponential(); });
       if (!result.accepted) _graph->setValue(x_start, _chain);
     }
+    return u;
   }
 
-  // The corrected update (plan: Kernel, steps 1-5), then the adaptation from
-  // the retained state (a repeated state after a rejection) while adapting.
+  // The corrected update (plan: Kernel, steps 1-5), then, while adapting, the
+  // adaptation of the axes from the state the update leaves.
   void corrected_update(RNG *rng, std::vector<double> const &entry)
   {
     std::vector<double> u = current_u();
@@ -356,6 +372,15 @@ class CoarseCorrectedBlock : public MutableSampleMethod, public CorrectedSampler
       _graph->setValue(entry, _chain);
       u = u_start;
       corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
+      // While adapting, a rejected correction is followed by one exact sweep
+      // (the full conditional, the current axes) from the restored entry
+      // state. A chain that starts where the surrogate is poor would otherwise
+      // reject over and over and not move, and axes learned from repeated
+      // states collapse, freezing the chain after adaptation too. The adaptive
+      // phase need not leave the target invariant (its draws are discarded);
+      // the proposal still counts as rejected, so the acceptance statistic and
+      // the fallback rules keep their meaning.
+      if (_adapting) u = exact_sweep(rng);
     }
     countOutcome(accepted);
     if (_adapting) _axes.adapt(u_start, u);
@@ -397,6 +422,9 @@ public:
       }
     }
     register_corrected_sampler(this);
+    LiveBlocks &blocks = live_blocks();
+    const std::lock_guard<std::mutex> lock(blocks.mutex);
+    blocks.live.push_back(this);
   }
 
   // A sampler destroyed before the report is read still counts for the worst
@@ -404,6 +432,23 @@ public:
   ~CoarseCorrectedBlock() override
   {
     unregister_corrected_sampler(this);
+    LiveBlocks &blocks = live_blocks();
+    const std::lock_guard<std::mutex> lock(blocks.mutex);
+    std::vector<CoarseCorrectedBlock const *> &live = blocks.live;
+    for (std::size_t i = 0; i < live.size(); ++i) {
+      if (live[i] == this) {
+        live.erase(live.begin() + static_cast<std::ptrdiff_t>(i));
+        break;
+      }
+    }
+  }
+
+  // Test hook: chain, d and the current widths of the axes.
+  void append_widths(std::vector<double> &out) const
+  {
+    out.push_back(_chain);
+    out.push_back(_d);
+    for (unsigned int k = 0; k < _d; ++k) out.push_back(_axes.width(k));
   }
 
   // Window counters of the report (read with the registry mutex held).
@@ -423,7 +468,7 @@ public:
     _graph->getValue(entry, _chain);
     // Any exception restores the block-entry values before it propagates.
     try {
-      if (_exact) exact_update(rng);
+      if (_exact) exact_sweep(rng);
       else corrected_update(rng, entry);
     }
     catch (...) {
@@ -566,6 +611,15 @@ std::vector<double> corrected_block_test_take_trace()
   const std::lock_guard<std::mutex> lock(store.mutex);
   std::vector<double> out;
   out.swap(store.records);
+  return out;
+}
+
+std::vector<double> corrected_block_test_widths()
+{
+  LiveBlocks &blocks = live_blocks();
+  const std::lock_guard<std::mutex> lock(blocks.mutex);
+  std::vector<double> out;
+  for (CoarseCorrectedBlock const *block : blocks.live) block->append_widths(out);
   return out;
 }
 

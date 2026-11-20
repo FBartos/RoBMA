@@ -633,7 +633,8 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
 // NULL argument keeps the setting. Returns the settings, the slice intervals
 // exhausted in corrected mode and the trace records since the last call
 // (both cleared): per evaluation kind (0 surrogate, 1 full), chain, d, the d
-// member values and the log density without the Jacobian.
+// member values and the log density without the Jacobian; and the current
+// widths of the live block samplers (per sampler chain, d, the d widths).
 extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
 {
   ROBMA_NATIVE_BEGIN(fixed_order, trace)
@@ -650,18 +651,22 @@ extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
   jags::RoBMA::corrected_block_test_set(new_fixed_order, new_trace);
   const double exhausted = static_cast<double>(jags::RoBMA::corrected_block_test_take_exhausted());
   const std::vector<double> records = jags::RoBMA::corrected_block_test_take_trace();
-  const char *names[] = {"fixed_order", "trace", "exhausted", "records"};
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
+  const std::vector<double> widths = jags::RoBMA::corrected_block_test_widths();
+  const char *names[] = {"fixed_order", "trace", "exhausted", "records", "widths"};
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
   SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(new_fixed_order));
   SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(new_trace));
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal(exhausted));
   SEXP values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
   for (std::size_t i = 0; i < records.size(); ++i) REAL(values)[i] = records[i];
   SET_VECTOR_ELT(out, 3, values);
-  for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  SEXP width_values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(widths.size())));
+  for (std::size_t i = 0; i < widths.size(); ++i) REAL(width_values)[i] = widths[i];
+  SET_VECTOR_ELT(out, 4, width_values);
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   Rf_setAttrib(out, R_NamesSymbol, labels);
-  UNPROTECT(3);
+  UNPROTECT(4);
   return out;
   ROBMA_NATIVE_END
 }
