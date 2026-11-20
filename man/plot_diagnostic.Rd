@@ -135,6 +135,15 @@ coordinate plots are produced, invisibly for base graphics.
 fitted brma object. Convenience wrappers are available for trace, density,
 and autocorrelation plots.
 }
+\examples{
+\dontrun{
+fit <- RoBMA(yi = yi, vi = vi, data = metadat::dat.lehmann2018, measure = "SMD")
+plot_diagnostic_trace(fit, parameter = "mu", statistic = "inclusion")
+plot_diagnostic_trace(fit, parameter = "bias", statistic = "component")
+plot_diagnostic(fit, parameter = "bias", type = "trace", statistic = "switching")
+}
+
+}
 \seealso{
 \code{\link[=summary.brma]{summary.brma()}}
 }

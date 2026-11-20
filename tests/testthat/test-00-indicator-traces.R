@@ -30,5 +30,6 @@ test_that("random SD traces select the gate of the requested component", {
   )
   expect_equal(ggplot2::ggplot_build(trace("study: tau"))$data[[1L]]$y, c(1, 1))
   expect_equal(ggplot2::ggplot_build(trace("other: tau"))$data[[1L]]$y, c(0, 0))
-  expect_equal(ggplot2::ggplot_build(trace("tau_total"))$data[[1L]]$y, c(0, 0))
+  # The aggregate SD has a continuous prior and depends on both block gates.
+  expect_error(trace("tau_total"), class = "RoBMA_indicator_unavailable")
 })
