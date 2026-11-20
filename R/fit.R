@@ -840,8 +840,7 @@
         settings  = attr(fit, "selection_runtime", exact = TRUE),
         previous  = previous,
         extension = extension,
-        new_draws = !extension || .fit_draw_count(fit) > .fit_draw_count(object[["fit"]]),
-        allocation_block_withheld = !extension && .sampler_allocation_block_withheld(declarations)
+        new_draws = !extension || .fit_draw_count(fit) > .fit_draw_count(object[["fit"]])
       )
       attr(fit, "warnings") <- .selection_sampler_warn(fit)
     }

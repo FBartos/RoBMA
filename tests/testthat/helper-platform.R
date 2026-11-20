@@ -5,9 +5,13 @@
 # they round in double and these results differ in the last bits.
 .test_long_double_extended <- function() .Machine$sizeof.longdouble > 8
 
-# Compilers fuse a * b + c in native code where FMA is part of the baseline
-# instruction set (aarch64); x86-64 builds keep the two roundings.
-.test_fused_multiply_add <- function() R.version$arch %in% c("aarch64", "arm64")
+# Whether the package's native code fuses a * b + c into one rounding. Compilers
+# do where FMA is part of the instruction set they target: always on aarch64, and
+# on x86-64 from -march=x86-64-v3 (the GCC default on the Ubuntu 26.04 runners).
+# The native probe reports what this build does.
+.test_fused_multiply_add <- function() {
+  .Call("RoBMA_native_unwind_probe", "fused_multiply_add", NULL, 1L, PACKAGE = "RoBMA")
+}
 
 # Bit for bit where long double is extended, otherwise within an absolute bound
 # measured at the call site.

@@ -211,9 +211,14 @@ by another test.
 - Justify tolerances from Monte Carlo or numerical error. Do not use a fixed
   package-wide tolerance merely because it makes a test pass.
 - Keep an exact check on the platforms where it holds. Apple silicon has no
-  extended long double and fuses multiply-adds, so relax a bit-for-bit check only
-  behind `.test_long_double_extended()` or `.test_fused_multiply_add()`
-  (`tests/testthat/helper-platform.R`), with the measured gap in a comment.
+  extended long double, and compilers fuse multiply-adds wherever the target has
+  FMA: on aarch64, and on x86-64 from `-march=x86-64-v3`, the GCC default on the
+  Ubuntu 26.04 runners. Relax a bit-for-bit check only behind
+  `.test_long_double_extended()` or `.test_fused_multiply_add()`, which asks the
+  build (`tests/testthat/helper-platform.R`), with the measured gap in a comment.
+  Native code whose result needs a product rounded before it is added keeps that
+  rounding itself (`rounded_product()` in `src/selnorm/selnorm-mv.cc`) instead of
+  relying on the build.
 - State numerical error explicitly with absolute, relative, log, or peak-scaled
   comparisons where scale matters. Do not rely on testthat edition-specific
   `expect_equal()` normalization for small probabilities or near-zero quantities.

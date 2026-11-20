@@ -12,6 +12,7 @@
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/DSELNORMSAMPLINGCONDITIONED.h"
 #include "samplers/CoarseCorrectedSlice.h"
+#include "samplers/CoarseCorrectedBlock.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -40,8 +41,12 @@ namespace jags {
       insert(new DSELNORMCLUSTERSTEP);
       insert(new DSELNORMFACTORSTEP);
       insert(new DSELNORMSAMPLINGCONDITIONED);
-      // This process-lifetime factory starts disabled and owns no fitted model.
+      // These process-lifetime factories start disabled (the shared corrected
+      // sampler configuration) and own no fitted model. JAGS asks the factories
+      // of a module loaded later first, so RoBMA's (loaded after BayesTools')
+      // claim their blocks before BayesTools' factor slice factory.
       insert(coarse_corrected_slice_factory());
+      insert(coarse_corrected_block_factory());
     }
 
     // destructor (executed when unloading the module)

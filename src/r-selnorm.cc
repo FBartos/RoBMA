@@ -26,7 +26,8 @@
 #include "selnorm/zplot-context.h"
 #include "selnorm/selnorm-parallel.h"
 #include "selnorm/selnorm-qmc-z.h"
-#include "samplers/CoarseCorrectedSlice.h"
+#include "samplers/CorrectedSampler.h"
+#include "samplers/CoarseCorrectedBlock.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/selnorm-jags-bounds.h"
@@ -532,12 +533,11 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
       Rf_error("The coarse acceptance threshold must be a number between 0 and 1.");
     }
   }
-  jags::RoBMA::CoarseCorrectedSliceConfig config;
-  jags::RoBMA::CoarseCorrectedSliceStats stats;
+  jags::RoBMA::CorrectedSamplerConfig config;
+  jags::RoBMA::CorrectedSamplerStats stats;
   char error_message[512] = {};
   try {
-    auto *factory = jags::RoBMA::coarse_corrected_slice_factory();
-    config = factory->configuration();
+    config = jags::RoBMA::corrected_sampler_configuration();
     if (enabled != R_NilValue) config.enabled = LOGICAL(enabled)[0] != 0;
     if (settings != R_NilValue) {
       config.settings.mean_step = REAL(settings)[0];
@@ -547,10 +547,10 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
       config.min_acceptance = XLENGTH(settings) == 5 ? REAL(settings)[4] : 0.0;
     }
     if (enabled != R_NilValue || settings != R_NilValue) {
-      factory->configure(config.enabled, config.settings, config.min_acceptance);
+      jags::RoBMA::configure_corrected_samplers(config);
     }
-    if (LOGICAL(clear)[0]) jags::RoBMA::coarse_corrected_slice_stats(true);
-    stats = jags::RoBMA::coarse_corrected_slice_stats();
+    if (LOGICAL(clear)[0]) jags::RoBMA::corrected_sampler_stats(true);
+    stats = jags::RoBMA::corrected_sampler_stats();
   } catch (const std::exception &error) {
     std::strncpy(error_message, error.what(), sizeof(error_message) - 1);
   }
@@ -605,25 +605,70 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
     Rf_error("'clear' must be one non-missing logical value.");
   }
-  const jags::RoBMA::CoarseCorrectedSliceReport report =
-    jags::RoBMA::coarse_corrected_slice_report(LOGICAL(clear)[0] != 0);
+  const jags::RoBMA::CorrectedSamplerReport report =
+    jags::RoBMA::corrected_sampler_report(LOGICAL(clear)[0] != 0);
   const char *names[] = {"samplers", "fallback_few_proposals", "fallback_surrogate_exact",
-    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "min_sampler_rate"};
+    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "sampling_judged",
+    "min_sampler_rate"};
   const double values[] = {static_cast<double>(report.samplers),
     static_cast<double>(report.fallback_few_proposals),
     static_cast<double>(report.fallback_surrogate_exact),
     static_cast<double>(report.fallback_low_acceptance),
     static_cast<double>(report.sampling_proposed),
     static_cast<double>(report.sampling_accepted),
+    report.sampling_judged,
     report.has_min_rate ? report.min_sampler_rate : NA_REAL};
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 7));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 7));
-  for (int i = 0; i < 7; ++i) {
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 8));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 8));
+  for (int i = 0; i < 8; ++i) {
     SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the corrected block sampler's fixed-order
+// mutant (for block samplers built from now on) and its evaluation trace. A
+// NULL argument keeps the setting. Returns the settings, the slice intervals
+// exhausted in corrected mode and the trace records since the last call
+// (both cleared): per evaluation kind (0 surrogate, 1 full), chain, d, the d
+// member values and the log density without the Jacobian; and the current
+// widths of the live block samplers (per sampler chain, d, the d widths).
+extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
+{
+  ROBMA_NATIVE_BEGIN(fixed_order, trace)
+  for (SEXP flag : {fixed_order, trace}) {
+    if (flag != R_NilValue && (TYPEOF(flag) != LGLSXP || XLENGTH(flag) != 1 ||
+        LOGICAL(flag)[0] == NA_LOGICAL)) {
+      Rf_error("The block sampler test flags must be NULL or one non-missing logical value.");
+    }
+  }
+  const bool new_fixed_order = fixed_order == R_NilValue ?
+    jags::RoBMA::corrected_block_test_fixed_order() : LOGICAL(fixed_order)[0] != 0;
+  const bool new_trace = trace == R_NilValue ?
+    jags::RoBMA::corrected_block_test_trace() : LOGICAL(trace)[0] != 0;
+  jags::RoBMA::corrected_block_test_set(new_fixed_order, new_trace);
+  const double exhausted = static_cast<double>(jags::RoBMA::corrected_block_test_take_exhausted());
+  const std::vector<double> records = jags::RoBMA::corrected_block_test_take_trace();
+  const std::vector<double> widths = jags::RoBMA::corrected_block_test_widths();
+  const char *names[] = {"fixed_order", "trace", "exhausted", "records", "widths"};
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(new_fixed_order));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(new_trace));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal(exhausted));
+  SEXP values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
+  for (std::size_t i = 0; i < records.size(); ++i) REAL(values)[i] = records[i];
+  SET_VECTOR_ELT(out, 3, values);
+  SEXP width_values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(widths.size())));
+  for (std::size_t i = 0; i < widths.size(); ++i) REAL(width_values)[i] = widths[i];
+  SET_VECTOR_ELT(out, 4, width_values);
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(4);
   return out;
   ROBMA_NATIVE_END
 }

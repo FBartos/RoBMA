@@ -481,9 +481,10 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
   expect_identical(RoBMA::selection_sampler_info()[["proposed"]], 0)
 
   # with the default declarations the global nodes (effect, allocation SD and
-  # weights, weight function) form the factor slice block, which the corrected
-  # factory leaves alone; the random-effect coordinates of the rank-one blocks
-  # stay corrected and the singleton's keeps the stock sampler
+  # weights, weight function) form the declared block, which the corrected block
+  # sampler takes (it has selection children); the random-effect coordinates of
+  # the rank-one blocks stay with the scalar corrected sampler and the
+  # singleton's keeps the stock sampler
   RoBMA::RoBMA.options(sampler.blocks = TRUE, sampler.gates = TRUE)
   RoBMA::selection_sampler_info(clear = TRUE)
   declared <- .coarse_blocks_tiny_fit("cluster")
@@ -493,8 +494,8 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
   expect_identical(unique(blocks[["prior"]]), c("mu_intercept",
     "mu__xRE_ALLOCx_heterogeneity__allocation_sd", "mu__xRE_ALLOCx_heterogeneity__weight", "omega"))
   expect_identical(nrow(blocks), 5L)
-  expect_true(all(samplers[["Sampler"]][!is_z] == "BayesTools::FactorSlice"))
-  expect_identical(sum(samplers[["Sampler"]] == "BayesTools::FactorSlice"), nrow(blocks))
+  expect_true(all(samplers[["Sampler"]][!is_z] == "RoBMA::CoarseCorrectedBlock"))
+  expect_identical(sum(samplers[["Sampler"]] == "RoBMA::CoarseCorrectedBlock"), nrow(blocks))
   expect_identical(sum(samplers[["Sampler"]][is_z] == coarse), sum(declared[["methods"]] == "rank_one"))
   expect_true(all(samplers[["Sampler"]][is_z & samplers[["Sampler"]] != coarse] == "base::RealSlicer"))
   expect_gt(RoBMA::selection_sampler_info()[["proposed"]], 0)
@@ -647,8 +648,10 @@ test_that("blocks without a coarse rule leave their nodes the stock sampler", {
 
 
 # BayesTools::JAGS_fit() declares nodes to the samplers of the BayesTools JAGS
-# module by marker children ('dbt_block', 'dbt_gate'); the corrected factory
-# leaves such nodes to them, whatever the order in which the factories run.
+# module by marker children ('dbt_block', 'dbt_gate'); the scalar corrected
+# factory leaves such nodes alone, whatever the order in which the factories
+# run, and a declared block with a selection child goes to the corrected block
+# sampler (test-00-selection-corrected-block.R).
 test_that("nodes with a BayesTools sampler declaration keep out of the corrected sampler", {
 
   skip_if_not_installed("rjags")
@@ -670,9 +673,9 @@ test_that("nodes with a BayesTools sampler declaration keep out of the corrected
   }
   # without a declaration both nodes of the cluster block are corrected
   expect_identical(unname(assigned()), c(coarse, coarse))
-  # a block of both nodes goes to the factor slice sampler
+  # a block of both nodes goes to the corrected block sampler
   expect_identical(unname(assigned(c("dbt_block(mu, 1)", "dbt_block(nu, 1)"))),
-                   rep("BayesTools::FactorSlice", 2L))
+                   rep("RoBMA::CoarseCorrectedBlock", 2L))
   # a block of one is declined by BayesTools: its node keeps the stock sampler,
   # the undeclared node stays corrected
   expect_identical(unname(assigned("dbt_block(mu, 1)")), c("base::RealSlicer", coarse))
