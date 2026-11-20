@@ -1236,7 +1236,7 @@ test_that("ordered levels with a Beta share have an infinite prior ordinate at z
   for (method in c("KDE", "qCMDE", "IWMDE")) {
     expect_error(
       suppressWarnings(hypothesis(fit, "g[b] = g[a]", density_method = method)),
-      "Prior density at point hypothesis 'g[b] - g[a] = 0' is infinite, so the Savage-Dickey density ratio is undefined.",
+      "Prior density at point hypothesis 'g[b] = g[a]' is infinite, so the Savage-Dickey density ratio is undefined.",
       fixed = TRUE,
       class = "BayesTools_infinite_ordinate",
       info  = method

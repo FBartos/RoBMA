@@ -344,7 +344,7 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
   expect_false(g[["contrast_test"]])
   expect_match(
     g[["reason"]],
-    "Prior density at point hypothesis 'mu_g[lo] - mu_g[mid] = 0' is infinite",
+    "Prior density at point hypothesis '`mu_g[lo]` = `mu_g[mid]`' is infinite",
     fixed = TRUE
   )
   expect_error(
