@@ -48,6 +48,13 @@ extern "C" SEXP RoBMA_native_unwind_probe(SEXP action, SEXP callback, SEXP threa
     return Rf_ScalarLogical(FALSE);
 #endif
   }
+  if (std::strcmp(mode, "fused_multiply_add") == 0) {
+    // Whether this build contracts a * b + c into one rounding: the exact
+    // product is 1 - 2^-60, which rounds to 1 on its own.
+    volatile double left = 1.0 + 0x1p-30, right = 1.0 - 0x1p-30, minus_one = -1.0;
+    const double sum = left * right + minus_one;
+    return Rf_ScalarLogical(sum != 0.0);
+  }
   NativeProbeWorkspace outer;
   {
     NativeProbeWorkspace inner;

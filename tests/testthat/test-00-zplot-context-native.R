@@ -256,6 +256,7 @@
     # The R controller rounds a * b + c twice and the native batch once. Measured
     # gaps on Apple silicon: 1.8e-15 relative on the density, 3.1e-11 absolute on
     # the error diagnostics, whose small sums cancel; everything else stays exact.
+    # GCC at -march=x86-64-v3: up to 2.4e-15 and 3.0e-11.
     errors <- grep("_error$", names(reference), value = TRUE)
     exact  <- setdiff(names(reference), c("density", errors))
     expect_identical(names(native), names(reference))
