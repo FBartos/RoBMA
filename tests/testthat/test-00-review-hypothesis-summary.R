@@ -167,7 +167,7 @@ test_that("unconstrained intervals distinguish factor coefficients and marginal 
   statements <- c("g[B] = .2 vs unconstrained", "unconstrained vs g[B] = .2", paste(region, "vs unconstrained"))
   result <- hypothesis(object, statements, seed = 19)
   expect_equal(attr(result, "raw_log_BF")[[2L]], -attr(result, "raw_log_BF")[[1L]])
-  expect_gt(length(attr(result, "warnings")), 0L)
+  expect_setequal(unique(names(attr(result, "warnings"))), rownames(result)[1:2])
 })
 
 
@@ -208,14 +208,16 @@ test_that("unconstrained comparisons keep the conditioning, variance, and scale 
 
   # Scale statements reconstruct their BFs from the reported evidence.
   object <- .review_h_random("scale")
+  log_tau <- as.matrix(object$fit$mcmc)[, "log_tau_intercept"]
   scale <- as.data.frame(hypothesis(object,
-    c("log_tau_intercept = .2 vs unconstrained", "unconstrained vs -.2 <= log_tau_intercept < .4"),
+    c("log_tau_intercept = .2 vs unconstrained", "unconstrained vs -.2 <= log_tau_intercept < .25"),
     component = "scale", density_method = "KDE", include_densities = TRUE,
     include_probabilities = TRUE, seed = 19))
-  expect_identical(scale$Null, c("unconstrained", "-.2 <= log_tau_intercept < .4"))
+  expect_identical(scale$Null, c("unconstrained", "-.2 <= log_tau_intercept < .25"))
   expect_equal(scale$BF10[1], scale$posterior_density[1] / scale$prior_density[1])
+  expect_equal(scale$posterior_prob_alt[2], 1)
+  expect_equal(scale$posterior_prob_null[2], mean(log_tau >= -.2 & log_tau < .25))
   expect_equal(scale$BF10[2], scale$prior_prob_null[2] / scale$posterior_prob_null[2])
-  expect_equal(scale$posterior_prob_null[2], 1)
 })
 
 
