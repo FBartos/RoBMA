@@ -96,7 +96,7 @@ bool DSELNORMCLUSTERSTEP::checkControlParameterValue(
   const SelNormJagsBounds z_upper(par[6], len[6]);
   for (int i = 0; i < k; ++i) {
     if (!std::isfinite(par[3][i]) || !(par[3][i] > 0.0) ||
-        !selnorm_jags_integer_in_range(par[7][i], 1, n_bins)) return false;
+        !selnorm_jags_integer_in_range(par[7][i], 0, n_bins)) return false;
   }
   for (int bin = 0; bin < n_bins; ++bin) {
     if (!(z_lower[bin] < z_upper[bin])) return false;
@@ -193,6 +193,11 @@ double DSELNORMCLUSTERSTEP::surrogateLogDensity(
     double const *lower, double const *upper,
     SelNormCoarseSettings const &settings, bool *surrogate_not_exact) const
 {
+  // Reuse the exact projected normalizer for a partially selected block.
+  // The coarse ladders below assume every observation participates.
+  for (unsigned int i = 0; i < length; ++i) {
+    if (par[7][i] == 0) return logDensity(x, length, type, par, len, lower, upper);
+  }
   // Neither reads nor stores the node memo: a surrogate value is not the exact
   // density the memo holds for these inputs.
   const int k = static_cast<int>(length);

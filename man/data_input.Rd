@@ -81,6 +81,13 @@ meta-analysis.}
 
 \item{slab}{an optional vector of study labels.}
 
+\item{bias_exempt}{an optional logical vector with one value per original
+outcome row. A \code{TRUE} row stays in the analysis with zero PET/PEESE offset
+and unit selection weight. Best-p-value selection uses the smallest p-value
+among the nonexempt outcomes in each publication. A fully exempt publication
+has unit selection weight. Omission is equivalent to all \code{FALSE}. The
+indicator must be nonmissing on rows retained for analysis.}
+
 \item{subset}{an optional logical or numeric vector specifying a subset of
 data to be used. Subsetting precedes missing-row removal; retained-row
 outcome and predictor checks follow these steps. Type, shape, and existing

@@ -107,7 +107,7 @@ extern SEXP RoBMA_selnorm_kernel_loglik_matrix(SEXP yi, SEXP mu_num,
                                                    SEXP segment_bounds,
                                                    SEXP segment_step_bin,
                                                    SEXP segment_phack_region,
-                                                   SEXP telescope_probabilities);
+                                                   SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
     SEXP yi, SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
@@ -134,7 +134,7 @@ extern SEXP RoBMA_selnorm_conditioned_normalizer_batch(
     SEXP telescope_probabilities, SEXP vector_rule, SEXP group_index, SEXP qmc,
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders);
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders, SEXP obs_bin);
 extern SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP means, SEXP diagonal, SEXP loading, SEXP rank, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
@@ -142,7 +142,7 @@ extern SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP z, SEXP kind);
+    SEXP z, SEXP kind, SEXP obs_bin);
 extern SEXP RoBMA_selnorm_mnorm_zplot_batch(
     SEXP yi, SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
@@ -173,6 +173,12 @@ extern SEXP RoBMA_selnorm_gaussian_event_mass_batch(
     SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
     SEXP points, SEXP scrambles, SEXP rank_one_loading,
     SEXP normalizer_quadrature, SEXP relative_tolerance);
+extern SEXP RoBMA_selnorm_gaussian_event_mass_masked_batch(
+    SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
+    SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
+    SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
+    SEXP points, SEXP scrambles, SEXP rank_one_loading,
+    SEXP normalizer_quadrature, SEXP relative_tolerance, SEXP bias_exempt);
 extern SEXP RoBMA_norm_loglik_row_sum(SEXP yi, SEXP mu_samples,
                                       SEXP tau_within, SEXP sei,
                                       SEXP weights);
@@ -233,7 +239,7 @@ extern SEXP RoBMA_selnorm_kernel_loglik_row_sum(SEXP yi, SEXP mu_num,
                                                 SEXP segment_bounds,
                                                 SEXP segment_step_bin,
                                                 SEXP segment_phack_region,
-                                                SEXP telescope_probabilities);
+                                                SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_norm_cluster_analytic_loglik(SEXP yi, SEXP sei,
                                                SEXP mu_samples,
                                                SEXP tau_within,
@@ -264,7 +270,7 @@ extern SEXP RoBMA_selnorm_kernel_log_norm_matrix(SEXP mean, SEXP sd,
                                                  SEXP segment_bounds,
                                                  SEXP segment_step_bin,
                                                  SEXP segment_phack_region,
-                                                 SEXP telescope_probabilities);
+                                                 SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(SEXP mean, SEXP sd,
                                                      SEXP basis,
                                                      SEXP current_log_norm,
@@ -282,7 +288,7 @@ extern SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(SEXP mean, SEXP sd,
                                                      SEXP segment_bounds,
                                                      SEXP segment_step_bin,
                                                      SEXP segment_phack_region,
-                                                     SEXP telescope_probabilities);
+                                                     SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_kernel_cdf_matrix(SEXP x, SEXP mean, SEXP sd,
                                             SEXP sei, SEXP omega,
                                             SEXP alpha, SEXP phack_kind,
@@ -295,7 +301,7 @@ extern SEXP RoBMA_selnorm_kernel_cdf_matrix(SEXP x, SEXP mean, SEXP sd,
                                             SEXP segment_step_bin,
                                             SEXP segment_phack_region,
                                             SEXP lower_tail,
-                                            SEXP telescope_probabilities);
+                                            SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(SEXP x, SEXP mean,
                                                            SEXP sd, SEXP sei,
                                                            SEXP omega, SEXP alpha,
@@ -309,7 +315,7 @@ extern SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(SEXP x, SEXP mean,
                                                            SEXP segment_bounds,
                                                            SEXP segment_step_bin,
                                                            SEXP segment_phack_region,
-                                                           SEXP telescope_probabilities);
+                                                           SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_kernel_moments_matrix(SEXP mean, SEXP sd,
                                                 SEXP sei, SEXP omega,
                                                 SEXP alpha,
@@ -323,7 +329,7 @@ extern SEXP RoBMA_selnorm_kernel_moments_matrix(SEXP mean, SEXP sd,
                                                 SEXP segment_bounds,
                                                 SEXP segment_step_bin,
                                                 SEXP segment_phack_region,
-                                                SEXP telescope_probabilities);
+                                                SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_kernel_rng_matrix(SEXP mean, SEXP sd,
                                             SEXP sei, SEXP omega,
                                             SEXP alpha,
@@ -337,7 +343,7 @@ extern SEXP RoBMA_selnorm_kernel_rng_matrix(SEXP mean, SEXP sd,
                                             SEXP segment_bounds,
                                             SEXP segment_step_bin,
                                             SEXP segment_phack_region,
-                                            SEXP telescope_probabilities);
+                                            SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_selnorm_kernel_weighted_summary(SEXP yi, SEXP mean,
                                                   SEXP sd, SEXP sei,
                                                   SEXP psis_weights,
@@ -352,7 +358,7 @@ extern SEXP RoBMA_selnorm_kernel_weighted_summary(SEXP yi, SEXP mean,
                                                   SEXP segment_bounds,
                                                   SEXP segment_step_bin,
                                                   SEXP segment_phack_region,
-                                                  SEXP telescope_probabilities);
+                                                  SEXP telescope_probabilities, SEXP bias_exempt);
 extern SEXP RoBMA_zcurve_normal_density_matrix(SEXP z_sequence,
                                                SEXP mean, SEXP sd,
                                                SEXP sei);
@@ -453,17 +459,18 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_glmm_pois_conditional_loglik_sum",  (DL_FUNC) &RoBMA_glmm_pois_conditional_loglik_sum,  7},
     {"RoBMA_plot_normal_mixture_quantiles", (DL_FUNC) &RoBMA_plot_normal_mixture_quantiles, 4},
     {"RoBMA_plot_selnorm_mixture_quantiles", (DL_FUNC) &RoBMA_plot_selnorm_mixture_quantiles, 20},
-    {"RoBMA_selnorm_kernel_loglik_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_matrix, 22},
+    {"RoBMA_selnorm_kernel_loglik_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_matrix, 23},
     {"RoBMA_selnorm_mnorm_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_loglik_batch, 18},
     {"RoBMA_selnorm_sampling_conditioned_batch", (DL_FUNC) &RoBMA_selnorm_sampling_conditioned_batch, 29},
     {"RoBMA_selnorm_sampling_deletion_loglik_batch", (DL_FUNC) &RoBMA_selnorm_sampling_deletion_loglik_batch, 16},
-    {"RoBMA_selnorm_conditioned_normalizer_batch", (DL_FUNC) &RoBMA_selnorm_conditioned_normalizer_batch, 24},
-    {"RoBMA_selnorm_factor_projection_batch", (DL_FUNC) &RoBMA_selnorm_factor_projection_batch, 26},
+    {"RoBMA_selnorm_conditioned_normalizer_batch", (DL_FUNC) &RoBMA_selnorm_conditioned_normalizer_batch, 25},
+    {"RoBMA_selnorm_factor_projection_batch", (DL_FUNC) &RoBMA_selnorm_factor_projection_batch, 27},
     {"RoBMA_selnorm_mnorm_zplot_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_zplot_batch, 19},
     {"RoBMA_selnorm_cluster_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_cluster_step_loglik_batch, 22},
     {"RoBMA_selnorm_factor_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_factor_step_loglik_batch, 22},
     {"RoBMA_selnorm_mnorm_step_rng_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_rng_batch, 11},
     {"RoBMA_selnorm_gaussian_event_mass_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_batch, 17},
+    {"RoBMA_selnorm_gaussian_event_mass_masked_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_masked_batch, 18},
     {"RoBMA_norm_loglik_row_sum", (DL_FUNC) &RoBMA_norm_loglik_row_sum, 5},
     {"RoBMA_norm_predictor_grid_loglik", (DL_FUNC) &RoBMA_norm_predictor_grid_loglik, 11},
     {"RoBMA_known_v_covariance_plan_create", (DL_FUNC) &RoBMA_known_v_covariance_plan_create, 4},
@@ -477,17 +484,17 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_known_v_covariance_plan_conditional_loglik_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_loglik_batch, 4},
     {"RoBMA_known_v_covariance_plan_conditional_summary_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_summary_batch, 4},
     {"RoBMA_known_v_covariance_plan_precision_residual_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_precision_residual_batch, 4},
-    {"RoBMA_selnorm_kernel_loglik_row_sum", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_row_sum, 22},
+    {"RoBMA_selnorm_kernel_loglik_row_sum", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_row_sum, 23},
     {"RoBMA_norm_cluster_analytic_loglik", (DL_FUNC) &RoBMA_norm_cluster_analytic_loglik, 8},
     {"RoBMA_norm_cluster_analytic_loglik_row_sum", (DL_FUNC) &RoBMA_norm_cluster_analytic_loglik_row_sum, 8},
     {"RoBMA_norm_cluster_analytic_rho_grid_loglik", (DL_FUNC) &RoBMA_norm_cluster_analytic_rho_grid_loglik, 8},
-    {"RoBMA_selnorm_kernel_log_norm_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_log_norm_matrix, 17},
-    {"RoBMA_selnorm_kernel_log_norm_delta_grid", (DL_FUNC) &RoBMA_selnorm_kernel_log_norm_delta_grid, 22},
-    {"RoBMA_selnorm_kernel_cdf_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_cdf_matrix, 19},
-    {"RoBMA_selnorm_kernel_predictive_summary_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_predictive_summary_matrix, 18},
-    {"RoBMA_selnorm_kernel_moments_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_moments_matrix, 17},
-    {"RoBMA_selnorm_kernel_rng_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_rng_matrix, 17},
-    {"RoBMA_selnorm_kernel_weighted_summary", (DL_FUNC) &RoBMA_selnorm_kernel_weighted_summary, 19},
+    {"RoBMA_selnorm_kernel_log_norm_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_log_norm_matrix, 18},
+    {"RoBMA_selnorm_kernel_log_norm_delta_grid", (DL_FUNC) &RoBMA_selnorm_kernel_log_norm_delta_grid, 23},
+    {"RoBMA_selnorm_kernel_cdf_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_cdf_matrix, 20},
+    {"RoBMA_selnorm_kernel_predictive_summary_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_predictive_summary_matrix, 19},
+    {"RoBMA_selnorm_kernel_moments_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_moments_matrix, 18},
+    {"RoBMA_selnorm_kernel_rng_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_rng_matrix, 18},
+    {"RoBMA_selnorm_kernel_weighted_summary", (DL_FUNC) &RoBMA_selnorm_kernel_weighted_summary, 20},
     {"RoBMA_zcurve_normal_density_matrix", (DL_FUNC) &RoBMA_zcurve_normal_density_matrix, 4},
     {"RoBMA_selnorm_zcurve_threshold_summary", (DL_FUNC) &RoBMA_selnorm_zcurve_threshold_summary, 19},
     {"RoBMA_selnorm_zcurve_threshold_quadrature", (DL_FUNC) &RoBMA_selnorm_zcurve_threshold_quadrature, 24},

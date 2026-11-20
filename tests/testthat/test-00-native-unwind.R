@@ -240,7 +240,7 @@ test_that("serial selected-normal summaries interrupt within one observation", {
   caught <- tryCatch(.native_unwind_probe("callback", function() {
     setTimeLimit(elapsed = .02, transient = TRUE)
     do.call(.Call, c(list("RoBMA_selnorm_kernel_weighted_summary"), args,
-      list(PACKAGE = "RoBMA")))
+      list(NULL, PACKAGE = "RoBMA")))
     completed <<- TRUE
     setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE)
   }), error = identity)

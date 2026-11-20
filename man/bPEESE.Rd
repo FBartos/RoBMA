@@ -41,7 +41,8 @@ bPEESE(
   convergence_checks = set_convergence_checks(),
   seed = NULL,
   silent,
-  ...
+  ...,
+  bias_exempt = NULL
 )
 }
 \arguments{
@@ -224,6 +225,13 @@ Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},
 \code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
+
+\item{bias_exempt}{an optional logical vector with one value per original
+outcome row. A \code{TRUE} row stays in the analysis with zero PET/PEESE offset
+and unit selection weight. Best-p-value selection uses the smallest p-value
+among the nonexempt outcomes in each publication. A fully exempt publication
+has unit selection weight. Omission is equivalent to all \code{FALSE}. The
+indicator must be nonmissing on rows retained for analysis.}
 }
 \value{
 A fitted object of class \code{c("bPEESE", "brma")} containing a single

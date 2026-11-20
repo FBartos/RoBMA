@@ -48,7 +48,7 @@ bool DSELNORMSTEPSWITCH::checkParameterValue(std::vector<double const *> const &
     return true;
   }
 
-  if (!selnorm_jags_integer_in_range(*par[7], 1, n_bins)) {
+  if (!selnorm_jags_integer_in_range(*par[7], 0, n_bins)) {
     return false;
   }
 
@@ -72,7 +72,7 @@ double DSELNORMSTEPSWITCH::logDensity(double const *x, unsigned int length,
 {
   const int kernel_mode = static_cast<int>(*par[9]);
 
-  if (kernel_mode == SELKERNEL_NORMAL) {
+  if (kernel_mode == SELKERNEL_NORMAL || *par[7] == 0) {
     const double log_lik = dnorm(*x, *par[0], *par[1], true);
     return *par[3] == 1 ? log_lik : *par[3] * log_lik;
   }

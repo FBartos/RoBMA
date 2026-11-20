@@ -351,7 +351,8 @@
       mu_basis      = .bias_regression_predictor(
         sei              = data[["outcome"]][["sei"]],
         parameter        = column,
-        effect_direction = .data_effect_direction(data)
+        effect_direction = .data_effect_direction(data),
+        bias_exempt      = data[["outcome"]][["bias_exempt"]]
       ),
       log_tau_basis = NULL,
       scale_update  = "none"

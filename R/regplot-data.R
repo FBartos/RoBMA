@@ -922,6 +922,10 @@
     n_pred  = n_pred,
     sei     = prediction_sei
   )
+  if (!is.null(x[["data"]][["outcome"]][["bias_exempt"]]) &&
+      !"bias_exempt" %in% names(newdata)) {
+    newdata[["bias_exempt"]] <- rep(FALSE, n_pred)
+  }
 
   posterior_samples <- .get_posterior_samples(x[["fit"]])
   selected_rows     <- .thin_sample_rows(nrow(posterior_samples), max_samples)
@@ -1036,6 +1040,7 @@
         mean_samples      = pred_samples,
         sd_samples        = sd_si,
         se                = grid_sei,
+        bias_exempt       = newdata[["bias_exempt"]],
         probs             = probs,
         posterior_samples = posterior_samples
       )
