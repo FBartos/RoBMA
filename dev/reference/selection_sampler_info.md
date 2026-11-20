@@ -38,19 +38,20 @@ The corrected sampler is the default,
 `RoBMA.options(selection.sampler = "slice.coarse")`; set
 `selection.sampler = "slice"` before fitting to use the other samplers
 instead, or `"jags.default"` for only the samplers JAGS assigns.
-Parameters that the options `sampler.blocks` and `sampler.gates` declare
-to the factor slice and gated samplers of the BayesTools JAGS module
+Parameters that `sampler.gates` declares to the gated sampler of the
+BayesTools JAGS module keep it. A block that `sampler.blocks` declares
 (see
 [`RoBMA.options`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA_options.md))
-keep those samplers under `"slice.coarse"`, so set the two options to
-`FALSE` for the corrected sampler to update them as well. Every proposal
-is corrected against the full original likelihood and prior. Only the
-selection normalizer used to construct proposals is coarsened. A
-reversible slice transition for that surrogate is followed by a
-Metropolis correction using both original and surrogate densities at the
-current and proposed states. The original likelihood keeps its existing
-numerical integration controls and diagnostics; the correction does not
-replace those numerical integrals by symbolic exact values.
+is updated by the corrected block sampler when one of its selection
+blocks takes part (below), and by the factor slice sampler of the
+BayesTools JAGS module otherwise. Every proposal is corrected against
+the full original likelihood and prior. Only the selection normalizer
+used to construct proposals is coarsened. A reversible slice transition
+for that surrogate is followed by a Metropolis correction using both
+original and surrogate densities at the current and proposed states. The
+original likelihood keeps its existing numerical integration controls
+and diagnostics; the correction does not replace those numerical
+integrals by symbolic exact values.
 
 Dense multivariate step blocks. The surrogate rounds means and the
 logarithms of positive weights to fixed grids. Each covariance diagonal
@@ -92,26 +93,37 @@ the ordinary sampler.
 A scalar update is eligible when at least one stochastic child of the
 updated node is a dense multivariate block or a coarse-capable cluster
 or factor block; its other children enter the surrogate through their
-exact densities. Discrete, vector-valued and unrelated updates, and
+exact densities.
+
+Blocks. The corrected block sampler makes one factor slice sweep on the
+surrogate over all parameters of a declared block, in forward or
+backward direction order chosen at random at each update, and accepts or
+rejects the whole sweep with the same correction. The random order makes
+the proposal reversible, so the corrected chain targets the exact
+posterior of the block; the directions and widths adapt as in the factor
+slice sampler. Discrete, vector-valued and unrelated updates, and
 updates whose selection children are all without a coarse rule, retain
 ordinary JAGS samplers. Whatever the surrogate, the corrected chain
 targets the exact full conditional; a coarser rule changes the
 acceptance rate and the cost, not the posterior.
 
-Fallback. Each corrected sampler (one per parameter and chain) chooses
-its kernel once, at the end of adaptation, from its adaptation updates:
-with `selection.coarse_min_acceptance` above 0 (default `0.90`) it
-updates its parameter with the exact slice sampler for the rest of the
-fit when it made fewer than 50 proposals during adaptation, when no
-surrogate it evaluated during adaptation differed from the exact density
-(no block's surrogate differs under the normal kernel, and a cluster or
-factor block's does not where its rule is unavailable, as in a model
-average whose selection branches all use the best-weight rule), or when
-its acceptance rate during adaptation is below the threshold; the first
-of these that holds is the recorded reason. Both kernels leave the
+Fallback. Each corrected sampler (one per parameter or block and chain)
+chooses its kernel once, at the end of adaptation, from its adaptation
+updates: with `selection.coarse_min_acceptance` above 0 (default `0.90`)
+it updates its parameter with the exact slice sampler (a block with the
+factor slice sweep of the exact posterior) for the rest of the fit when
+it made fewer than 50 proposals during adaptation, when no surrogate it
+evaluated during adaptation differed from the exact density (no block's
+surrogate differs under the normal kernel, and a cluster or factor
+block's does not where its rule is unavailable, as in a model average
+whose selection branches all use the best-weight rule), or when its
+acceptance rate during adaptation is below the threshold; the first of
+these that holds is the recorded reason. A block of d parameters is
+judged per direction: its acceptance rate to the power 1/d, here, for
+`min_sampler_rate` and for the warning below. Both kernels leave the
 posterior unchanged and the choice is not revisited, so the chain after
 adaptation is a single exact kernel. A threshold of `0` disables the
-fallback and both warnings. Every model build (a fit, and each parallel
+fallback and the warning. Every model build (a fit, and each parallel
 worker's or extension's rebuild of the model) adapts and decides again.
 
 Record. A fitted selection model keeps the record of its corrected
@@ -121,24 +133,24 @@ the fit and its extensions
 `min_acceptance`, the settings the model was fitted with (`sampler`
 shows the value the fit was made with, so fits of earlier versions show
 `"coarse_corrected"` or `"default"`; `min_acceptance` is `0` for fits
-made before the threshold existed); `allocation_block_withheld`, `TRUE`
-when the model was built as a model-averaged fit that leaves the joint
-block of its heterogeneity allocation to the corrected sampler, a block
-it would declare under `"slice"` (see `sampler.blocks` in
-[`RoBMA.options`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA_options.md);
-`FALSE` for fits made before this element existed); `samplers`, the
-corrected sampler objects constructed, one per parameter and chain and
-counted again for every model build; `fallback_samplers`, those that
-switched to the exact slice sampler, split by reason into
-`fallback_few_proposals`, `fallback_surrogate_exact` and
-`fallback_low_acceptance`; `sampling_proposed` and `sampling_accepted`,
-the proposals made after adaptation by samplers that stayed corrected
-and the proposals whose correction accepted them (unchanged values
-included), counting burn-in, retained and extension draws and the
-closing draws the sampler makes after recording the chain end;
-`acceptance_rate`, their ratio (`NA` without proposals);
-`min_sampler_rate`, the lowest acceptance rate of one sampler over one
-backend run (of the fit, of an automatic extension or of an
+made before the threshold existed); `samplers`, the corrected sampler
+objects constructed, one per parameter or block and chain and counted
+again for every model build; `fallback_samplers`, those that switched to
+the exact slice sampler, split by reason into `fallback_few_proposals`,
+`fallback_surrogate_exact` and `fallback_low_acceptance`;
+`sampling_proposed` and `sampling_accepted`, the proposals made after
+adaptation by samplers that stayed corrected and the proposals whose
+correction accepted them (unchanged values included), counting burn-in,
+retained and extension draws and the closing draws the sampler makes
+after recording the chain end; `sampling_judged`, the sum over the
+samplers of their proposals times their acceptance rate per direction
+(rate^(1/d) for a block of d parameters, the accepted proposals of a
+scalar sampler, over each backend run); `acceptance_rate`, the judged,
+per-direction rate `sampling_judged / sampling_proposed`, which equals
+the raw rate `sampling_accepted / sampling_proposed` for fits without
+blocks (`NA` without proposals); `min_sampler_rate`, the lowest
+acceptance rate of one sampler over one backend run (of the fit, of an
+automatic extension or of an
 [`update()`](https://rdrr.io/r/stats/update.html)), among samplers with
 at least 1,000 proposals in that run (`NA` when none has). A fit made of
 several backend runs (automatic or
@@ -155,17 +167,12 @@ only. Adaptation updates and updates of samplers that fell back are not
 counted.
 
 Warning. A fit or an extension whose record has at least 1,000 counted
-proposals and whose acceptance rate, or `min_sampler_rate`, is below
-`min_acceptance` warns with the condition classes
+proposals and whose judged `acceptance_rate`, or `min_sampler_rate`, is
+below `min_acceptance` warns with the condition classes
 `RoBMA_selection_sampler_low_acceptance` and
-`RoBMA_selection_sampler_warning`: sampling is exact but inefficient. A
-fit or an extension whose record has `allocation_block_withheld` and at
-least one sampler that switched to the exact slice sampler warns with
-the condition classes `RoBMA_selection_sampler_fallback` and
-`RoBMA_selection_sampler_warning`: the allocation SD and weights may
-then be updated one at a time and mix more slowly, while sampling stays
-exact. Both warnings can occur for one fit. Each message is kept with
-the fit's warnings, replaced at every extension.
+`RoBMA_selection_sampler_warning`: sampling is exact but inefficient.
+The message is kept with the fit's warnings, replaced at every
+extension.
 
 Process counters. Without `fit`, the function reports the counters of
 all corrected samplers in this process, including adaptation; clear them

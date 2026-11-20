@@ -130,23 +130,17 @@ The available options are:
   selection blocks (see
   [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)
   for the blocks that take part, the fallback to the exact slice sampler
-  and the per-fit record); parameters that `sampler.gates` or
-  `sampler.blocks` declare keep the BayesTools samplers, so set those
-  options to `FALSE` for the corrected sampler to update them. `"slice"`
-  uses the samplers JAGS assigns together with the gated and factor
-  slice samplers of the BayesTools JAGS module where `sampler.gates` and
-  `sampler.blocks` declare them. `"jags.default"` uses only the samplers
-  JAGS assigns, in every model and whatever `sampler.gates` and
-  `sampler.blocks` say (as `"default"` did in RoBMA 4.1.1). Under
-  `"slice.coarse"`, model-averaged fits
-  ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
-  leave the block of their heterogeneity allocation undeclared when the
-  corrected sampler engages selection blocks (dense, rank-one, or factor
-  blocks whose coarse rule the node budget affords at their rank; not
-  single estimates) and a selection branch has the product weight rule
-  or a block is dense; the corrected sampler then updates the allocation
-  parameters. The posterior target is unchanged. Settings are captured
-  when each model is compiled, and
+  and the per-fit record); a block that `sampler.blocks` declares is
+  updated jointly by the corrected block sampler when it has such a
+  selection block among its children, and by the factor slice sampler of
+  the BayesTools JAGS module otherwise; parameters that `sampler.gates`
+  declares keep the gated sampler. `"slice"` uses the samplers JAGS
+  assigns together with the gated and factor slice samplers of the
+  BayesTools JAGS module where `sampler.gates` and `sampler.blocks`
+  declare them. `"jags.default"` uses only the samplers JAGS assigns, in
+  every model and whatever `sampler.gates` and `sampler.blocks` say (as
+  `"default"` did in RoBMA 4.1.1). The posterior target is unchanged.
+  Settings are captured when each model is compiled, and
   [`update()`](https://rdrr.io/r/stats/update.html) keeps those of the
   fit. The deprecated values `"coarse_corrected"` (now `"slice.coarse"`)
   and `"default"` (now `"jags.default"`) are accepted with a warning of
@@ -158,15 +152,14 @@ The available options are:
   number between `0` and `1`). Each corrected sampler whose acceptance
   rate during adaptation is below it, that made fewer than 50 proposals
   during adaptation, or whose surrogate never differed from the exact
-  density during adaptation updates its parameter with the exact slice
-  sampler for the rest of the fit, and a fit with at least 1,000 counted
-  proposals whose post-adaptation acceptance rate, or that of its worst
-  sampler, is below it warns. A model-averaged fit that leaves its
-  allocation block to the corrected sampler also warns when any of its
-  corrected samplers falls back (see
+  density during adaptation updates its parameter or block with the
+  exact sampler for the rest of the fit, and a fit with at least 1,000
+  counted proposals whose post-adaptation acceptance rate, or that of
+  its worst sampler, is below it warns. A block of d parameters is
+  judged by its acceptance rate to the power 1/d (see
   [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)).
-  `0` disables the fallback and both warnings. Captured when each model
-  is compiled, like the other sampler settings.
+  `0` disables the fallback and the warning. Captured when each model is
+  compiled, like the other sampler settings.
 
 - `selection.coarse_grid`:
 
@@ -210,10 +203,14 @@ The available options are:
 - `sampler.blocks`:
 
   whether the global parameters of selection models with estimated
-  heterogeneity are updated jointly by the factor slice sampler of the
-  BayesTools JAGS module (default `TRUE`), which slice-samples along the
-  principal directions of their posterior covariance learned during
-  adaptation. Single models
+  heterogeneity are updated jointly (default `TRUE`), slice-sampling
+  along the principal directions of their posterior covariance learned
+  during adaptation: under `selection.sampler = "slice.coarse"` by the
+  corrected block sampler when the block has a dense, cluster or factor
+  selection block that takes part in the corrected sampler
+  ([`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)),
+  otherwise and under `"slice"` by the factor slice sampler of the
+  BayesTools JAGS module. Single models
   ([`bselmodel()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.md),
   [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.mv.md))
   update the effect, moderator, heterogeneity and selection-weight
@@ -226,8 +223,8 @@ The available options are:
   and point prior. Model-averaged fits
   ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
   update the allocation SD and weights of the heterogeneity allocation
-  together. `selection.sampler = "jags.default"` turns the factor slice
-  sampler off. Neither option changes the model or its posterior
+  together. `selection.sampler = "jags.default"` turns both block
+  samplers off. Neither option changes the model or its posterior
   distribution, only the draws; settings are captured when each model is
   fitted, and [`update()`](https://rdrr.io/r/stats/update.html) keeps
   those of the fit.
