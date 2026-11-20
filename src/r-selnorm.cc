@@ -608,17 +608,19 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   const jags::RoBMA::CorrectedSamplerReport report =
     jags::RoBMA::corrected_sampler_report(LOGICAL(clear)[0] != 0);
   const char *names[] = {"samplers", "fallback_few_proposals", "fallback_surrogate_exact",
-    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "min_sampler_rate"};
+    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "sampling_judged",
+    "min_sampler_rate"};
   const double values[] = {static_cast<double>(report.samplers),
     static_cast<double>(report.fallback_few_proposals),
     static_cast<double>(report.fallback_surrogate_exact),
     static_cast<double>(report.fallback_low_acceptance),
     static_cast<double>(report.sampling_proposed),
     static_cast<double>(report.sampling_accepted),
+    report.sampling_judged,
     report.has_min_rate ? report.min_sampler_rate : NA_REAL};
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 7));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 7));
-  for (int i = 0; i < 7; ++i) {
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 8));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 8));
+  for (int i = 0; i < 8; ++i) {
     SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }

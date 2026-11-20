@@ -260,7 +260,12 @@ remove_selection_cache <- function(object) {
 #' after adaptation by samplers that stayed corrected and the proposals whose
 #' correction accepted them (unchanged values included), counting burn-in,
 #' retained and extension draws and the closing draws the sampler makes after
-#' recording the chain end; \code{acceptance_rate}, their ratio
+#' recording the chain end; \code{sampling_judged}, the sum over the samplers
+#' of their proposals times their acceptance rate per direction (rate^(1/d)
+#' for a block of d parameters, the accepted proposals of a scalar sampler,
+#' over each backend run); \code{acceptance_rate}, the judged, per-direction
+#' rate \code{sampling_judged / sampling_proposed}, which equals the raw rate
+#' \code{sampling_accepted / sampling_proposed} for fits without blocks
 #' (\code{NA} without proposals); \code{min_sampler_rate}, the lowest
 #' acceptance rate of one sampler over one backend run (of the fit, of an
 #' automatic extension or of an \code{update()}), among samplers with at least
@@ -277,7 +282,7 @@ remove_selection_cache <- function(object) {
 #' Adaptation updates and updates of samplers that fell back are not counted.
 #'
 #' Warning. A fit or an extension whose record has at least 1,000 counted
-#' proposals and whose acceptance rate, or \code{min_sampler_rate}, is below
+#' proposals and whose judged \code{acceptance_rate}, or \code{min_sampler_rate}, is below
 #' \code{min_acceptance} warns with the condition classes
 #' \code{RoBMA_selection_sampler_low_acceptance} and
 #' \code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.
@@ -322,7 +327,19 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
 
 # The counts of the per-fit record, in the order of the record.
 .selection_sampler_count_names <- c("samplers", "fallback_samplers", "fallback_few_proposals",
-  "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted")
+  "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted",
+  "sampling_judged")
+
+# A report or record without judged acceptances (made by an earlier build) is
+# read as one of scalar samplers, whose judged acceptances are their accepted
+# proposals.
+.selection_sampler_judged <- function(counts) {
+
+  if (!is.null(counts) && is.null(counts[["sampling_judged"]])) {
+    counts[["sampling_judged"]] <- counts[["sampling_accepted"]]
+  }
+  return(counts)
+}
 
 # The record of a selection fit from the runtime report values of this call
 # (a list of retained runs, each a list with one element per process) and,
@@ -346,6 +363,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
         complete <- FALSE
         next
       }
+      process <- .selection_sampler_judged(process)
       process[["fallback_samplers"]] <- sum(unlist(process[reasons]))
       for (name in .selection_sampler_count_names) {
         counts[[name]] <- counts[[name]] + process[[name]]
@@ -357,7 +375,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
     if (is.null(previous)) {
       complete <- FALSE
     } else {
-      counts   <- counts + unlist(previous[.selection_sampler_count_names])
+      counts   <- counts + unlist(.selection_sampler_judged(previous)[.selection_sampler_count_names])
       rates    <- c(rates, previous[["min_sampler_rate"]])
       complete <- complete && isTRUE(previous[["complete"]])
     }
@@ -368,8 +386,9 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
     list(sampler = settings[["sampler"]],
          min_acceptance = .selection_runtime_min_acceptance(settings)),
     as.list(counts),
+    # the judged rate: per direction for blocks, raw for scalar samplers
     list(acceptance_rate  = if (counts[["sampling_proposed"]] > 0)
-           counts[["sampling_accepted"]] / counts[["sampling_proposed"]] else NA_real_,
+           counts[["sampling_judged"]] / counts[["sampling_proposed"]] else NA_real_,
          min_sampler_rate = if (length(rates)) min(rates) else NA_real_,
          complete         = complete)
   ))
@@ -388,8 +407,15 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
       list(acceptance_rate = NA_real_, min_sampler_rate = NA_real_, complete = FALSE)
     )
   }
-  # records of development versions carried a flag of the withheld allocation block
+  # records of development versions carried a flag of the withheld allocation
+  # block, and earlier records no judged acceptances
   record[["allocation_block_withheld"]] <- NULL
+  if (is.null(record[["sampling_judged"]])) {
+    names  <- names(record)
+    at     <- match("sampling_accepted", names)
+    record <- c(record[seq_len(at)], list(sampling_judged = record[["sampling_accepted"]]),
+                record[-seq_len(at)])
+  }
   return(as.data.frame(record, stringsAsFactors = FALSE))
 }
 
@@ -405,9 +431,9 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
   "at the end of adaptation \\(")
 
 # Judge a fit's cumulative record: with at least 1,000 counted proposals, a
-# pooled or worst-sampler acceptance rate below the threshold warns once. The
-# message replaces an earlier one among the fit's warnings, which extensions
-# carry forward. Returns the fit's warnings.
+# pooled judged (per-direction) or worst-sampler acceptance rate below the
+# threshold warns once. The message replaces an earlier one among the fit's
+# warnings, which extensions carry forward. Returns the fit's warnings.
 .selection_sampler_warn <- function(fit) {
 
   record   <- attr(fit, "selection_sampler", exact = TRUE)
@@ -421,7 +447,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
   if (low) {
     message <- paste0(
       .selection_sampler_warning_prefix,
-      format(100 * record[["acceptance_rate"]], digits = 3), "% of its proposals after adaptation",
+      format(100 * record[["acceptance_rate"]], digits = 3), "% of its proposals per direction after adaptation",
       if (!is.na(record[["min_sampler_rate"]])) paste0(
         " (lowest rate of a single sampler ", format(100 * record[["min_sampler_rate"]], digits = 3), "%)"),
       ", below 'selection.coarse_min_acceptance' = ", threshold, "; ",

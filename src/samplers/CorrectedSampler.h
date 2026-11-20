@@ -47,6 +47,9 @@ struct CorrectedSamplerReport {
   std::uint64_t fallback_low_acceptance;
   std::uint64_t sampling_proposed;
   std::uint64_t sampling_accepted;
+  // sum over the samplers of their proposals x window rate^rateExponent()
+  // (the accepted proposals of a scalar sampler)
+  double sampling_judged;
   bool has_min_rate;
   double min_sampler_rate;
 };

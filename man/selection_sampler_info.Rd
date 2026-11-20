@@ -129,7 +129,12 @@ sampler, split by reason into \code{fallback_few_proposals},
 after adaptation by samplers that stayed corrected and the proposals whose
 correction accepted them (unchanged values included), counting burn-in,
 retained and extension draws and the closing draws the sampler makes after
-recording the chain end; \code{acceptance_rate}, their ratio
+recording the chain end; \code{sampling_judged}, the sum over the samplers
+of their proposals times their acceptance rate per direction (rate^(1/d)
+for a block of d parameters, the accepted proposals of a scalar sampler,
+over each backend run); \code{acceptance_rate}, the judged, per-direction
+rate \code{sampling_judged / sampling_proposed}, which equals the raw rate
+\code{sampling_accepted / sampling_proposed} for fits without blocks
 (\code{NA} without proposals); \code{min_sampler_rate}, the lowest
 acceptance rate of one sampler over one backend run (of the fit, of an
 automatic extension or of an \code{update()}), among samplers with at least
@@ -146,7 +151,7 @@ case the counts cover the recorded part only.
 Adaptation updates and updates of samplers that fell back are not counted.
 
 Warning. A fit or an extension whose record has at least 1,000 counted
-proposals and whose acceptance rate, or \code{min_sampler_rate}, is below
+proposals and whose judged \code{acceptance_rate}, or \code{min_sampler_rate}, is below
 \code{min_acceptance} warns with the condition classes
 \code{RoBMA_selection_sampler_low_acceptance} and
 \code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.

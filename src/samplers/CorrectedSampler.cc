@@ -32,6 +32,21 @@ bool window_rate(CorrectedSamplerWindow const *sampler, double *rate)
                      sampler->rateExponent(), rate);
 }
 
+// The judged acceptances of one sampler's window: its proposals times its rate
+// to its exponent (rate^(1/d) for a block of d members), so that the pooled
+// judged rate is a proposal-weighted mean of per-direction rates; for a scalar
+// sampler, its accepted proposals.
+double judged_accepted(CorrectedSamplerWindow const *sampler)
+{
+  const std::uint64_t proposed = sampler->windowProposed();
+  const std::uint64_t accepted = sampler->windowAccepted();
+  const double exponent = sampler->rateExponent();
+  if (proposed == 0) return 0.0;
+  if (exponent == 1.0) return static_cast<double>(accepted);
+  return static_cast<double>(proposed) *
+    std::pow(static_cast<double>(accepted) / static_cast<double>(proposed), exponent);
+}
+
 struct ConfigurationStore {
   std::mutex mutex;
   CorrectedSamplerConfig configuration;
@@ -53,6 +68,8 @@ struct SamplerRegistry {
   std::vector<CorrectedSamplerWindow *> live;
   bool has_retired = false;
   double retired_min_rate = 0.0;
+  // the judged acceptances of the samplers destroyed since the last clearing read
+  double retired_judged = 0.0;
 };
 
 // Allocated once and never destroyed: samplers of models that R frees late
@@ -114,6 +131,7 @@ void unregister_corrected_sampler(CorrectedSamplerWindow *sampler)
     registry.retired_min_rate = rate;
     registry.has_retired = true;
   }
+  registry.retired_judged += judged_accepted(sampler);
 }
 
 CorrectedSamplerStats corrected_sampler_stats(bool reset)
@@ -155,7 +173,9 @@ CorrectedSamplerReport corrected_sampler_report(bool clear)
   const std::lock_guard<std::mutex> lock(registry.mutex);
   report.has_min_rate = registry.has_retired;
   report.min_sampler_rate = registry.has_retired ? registry.retired_min_rate : 0.0;
+  report.sampling_judged = registry.retired_judged;
   for (CorrectedSamplerWindow *sampler : registry.live) {
+    report.sampling_judged += judged_accepted(sampler);
     double rate;
     if (window_rate(sampler, &rate) &&
         (!report.has_min_rate || rate < report.min_sampler_rate)) {
@@ -167,6 +187,7 @@ CorrectedSamplerReport corrected_sampler_report(bool clear)
   if (clear) {
     registry.has_retired = false;
     registry.retired_min_rate = 0.0;
+    registry.retired_judged = 0.0;
   }
   return report;
 }

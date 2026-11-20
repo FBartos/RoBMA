@@ -134,7 +134,7 @@ test_that("after a fallback the block runs BayesTools' factor slice update, draw
 
   report <- list(samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
                  fallback_low_acceptance = 0, sampling_proposed = 0, sampling_accepted = 0,
-                 min_sampler_rate = NA_real_)
+                 sampling_judged = 0, min_sampler_rate = NA_real_)
   report[[reason]] <- 1
   report
 }
@@ -290,6 +290,15 @@ test_that("the record counts a block once per chain and model build, with the sc
                                                 .block_cluster_child("y3[1:4]", "means3[1:4]", 4L)),
                     data = list(y3 = rep(0, 4)), inits = list(kappa = 0))
   expect_identical(RoBMA:::.selection_sampler_report_read()[["samplers"]], 4)
+
+  # the judged acceptances of one block of two over its window: its proposals
+  # times its rate per direction, rate^(1/2)
+  chain  <- .block_chain(.block_pair_model(), "mu", 600L, adapt = 0L, burnin = 0L)
+  report <- chain$report
+  expect_identical(report[["sampling_proposed"]], 600)
+  expect_lt(report[["sampling_accepted"]], 600)
+  expected <- 600 * sqrt(report[["sampling_accepted"]] / 600)
+  expect_lt(abs(report[["sampling_judged"]] - expected), 1e-9 * expected)
 })
 
 

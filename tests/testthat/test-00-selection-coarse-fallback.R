@@ -13,24 +13,26 @@ source(testthat::test_path("common-functions.R"))
 # case 'numerical-kernels' (helpers in helper-selection-coarse-exactness.R).
 
 .fallback_report_names <- c("samplers", "fallback_few_proposals", "fallback_surrogate_exact",
-  "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "min_sampler_rate")
+  "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "sampling_judged", "min_sampler_rate")
 
 .fallback_record_names <- c("sampler", "min_acceptance", "samplers", "fallback_samplers",
   "fallback_few_proposals", "fallback_surrogate_exact", "fallback_low_acceptance",
-  "sampling_proposed", "sampling_accepted", "acceptance_rate", "min_sampler_rate", "complete")
+  "sampling_proposed", "sampling_accepted", "sampling_judged", "acceptance_rate", "min_sampler_rate", "complete")
 
-# One process's report as the native routine returns it.
+# One process's report as the native routine returns it; the judged
+# acceptances of scalar samplers are their accepted proposals.
 .fallback_report_value <- function(samplers = 0, few = 0, exact = 0, low = 0, proposed = 0,
-                                   accepted = 0, rate = NA_real_) {
+                                   accepted = 0, rate = NA_real_, judged = accepted) {
 
-  stats::setNames(list(samplers, few, exact, low, proposed, accepted, rate),
+  stats::setNames(list(samplers, few, exact, low, proposed, accepted, judged, rate),
                   .fallback_report_names)
 }
 
 .fallback_settings <- list(sampler = "slice.coarse", coarse_min_acceptance = .9)
 
 .fallback_count_names_record <- c("samplers", "fallback_samplers", "fallback_few_proposals",
-  "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted")
+  "fallback_surrogate_exact", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted",
+  "sampling_judged")
 
 
 test_that("the corrected sampler is the default and its threshold is a number between 0 and 1", {
@@ -139,7 +141,7 @@ test_that("the record sums the runs of every process and adds the input record o
     sampler = "slice.coarse", min_acceptance = .9, samplers = 6,
     fallback_samplers = 3,
     fallback_few_proposals = 1, fallback_surrogate_exact = 1, fallback_low_acceptance = 1,
-    sampling_proposed = 500, sampling_accepted = 479, acceptance_rate = 479 / 500,
+    sampling_proposed = 500, sampling_accepted = 479, sampling_judged = 479, acceptance_rate = 479 / 500,
     min_sampler_rate = .8, complete = TRUE
   ))
 
@@ -229,7 +231,7 @@ test_that("a low acceptance warns once with its classes and keeps one message wi
                                        "simpleWarning", "warning", "condition"))
   expect_null(conditionCall(condition))
   message <- paste0(
-    "The corrected selection sampler accepted 85% of its proposals after adaptation (lowest rate of a ",
+    "The corrected selection sampler accepted 85% of its proposals per direction after adaptation (lowest rate of a ",
     "single sampler 70%), below 'selection.coarse_min_acceptance' = 0.9; 1 of 4 samplers switched to the ",
     "exact slice sampler at the end of adaptation. Sampling is exact but inefficient. Set ",
     "'RoBMA.options(selection.sampler = \"slice\")' before fitting to avoid the corrected sampler; an ",
@@ -244,7 +246,7 @@ test_that("a low acceptance warns once with its classes and keeps one message wi
   expect_length(result$warnings, 1L)
   expect_identical(result$value[1L], "an earlier warning")
   expect_length(result$value, 2L)
-  expect_match(result$value[2L], "accepted 95% of its proposals after adaptation (lowest rate of a single sampler 50%)",
+  expect_match(result$value[2L], "accepted 95% of its proposals per direction after adaptation (lowest rate of a single sampler 50%)",
                fixed = TRUE)
 
   # no warning, and no message kept: fewer than 1,000 counted proposals, rates at
@@ -261,6 +263,52 @@ test_that("a low acceptance warns once with its classes and keeps one message wi
     expect_identical(result$value, "other")
   }
   expect_null(.selection_sampler_warn(.fallback_warning_fit(quiet[[1L]])))
+})
+
+
+test_that("the warning judges a block per direction, pooled with the scalar samplers by their proposals", {
+
+  # a block of 2 members accepting 820 of 1,000 proposals: 0.906 per direction,
+  # above the threshold 0.90, so no warning (raw, 0.82, it would warn)
+  pair <- .selection_sampler_record(list(list(.fallback_report_value(
+    1, 0, 0, 0, 1000, 820, rate = sqrt(.82), judged = 1000 * sqrt(.82)))), .fallback_settings)
+  expect_identical(pair[["sampling_accepted"]], 820)
+  expect_lt(abs(pair[["acceptance_rate"]] - sqrt(.82)), 1e-15)
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(pair)))
+  expect_length(result$warnings, 0L)
+
+  # a block of 5 members at a raw 0.60 (0.903 per direction) and three scalar
+  # samplers at 0.95, 1,000 proposals each: the judged rate pools the
+  # per-direction rates by proposals, 0.938; the raw rate would be 0.8625
+  judged <- 1000 * .6^(1 / 5) + 3 * 950
+  mixed  <- .selection_sampler_record(list(list(.fallback_report_value(
+    4, 0, 0, 0, 4000, 600 + 3 * 950, rate = .6^(1 / 5), judged = judged))), .fallback_settings)
+  expect_identical(mixed[["acceptance_rate"]], judged / 4000)
+  expect_gt(mixed[["acceptance_rate"]], .93)
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(mixed)))
+  expect_length(result$warnings, 0L)
+
+  # a judged rate below the threshold warns with that rate
+  slow <- .selection_sampler_record(list(list(.fallback_report_value(
+    1, 0, 0, 0, 1000, 640, rate = .8, judged = 800))), .fallback_settings)
+  result <- .fallback_capture_warnings(.selection_sampler_warn(.fallback_warning_fit(slow)))
+  expect_length(result$warnings, 1L)
+  expect_match(conditionMessage(result$warnings[[1L]]), "accepted 80% of its proposals per direction", fixed = TRUE)
+
+  # the judged acceptances add up over runs, processes and extensions; a report
+  # or an input record of an earlier build, without them, counts as scalar
+  older <- .fallback_report_value(2, 0, 0, 0, 1000, 950)
+  older[["sampling_judged"]] <- NULL
+  pooled <- .selection_sampler_record(list(list(older), list(.fallback_report_value(
+    1, 0, 0, 0, 1000, 640, judged = 800))), .fallback_settings)
+  expect_identical(pooled[["sampling_judged"]], 1750)
+  expect_identical(pooled[["acceptance_rate"]], 1750 / 2000)
+  input <- pooled[setdiff(names(pooled), "sampling_judged")]
+  extended <- .selection_sampler_record(list(list(.fallback_report_value(1, 0, 0, 0, 1000, 640, judged = 800))),
+                                        .fallback_settings, previous = input, extension = TRUE)
+  expect_identical(extended[["sampling_judged"]], 1590 + 800)
+  fitted <- structure(list(fit = structure(list(), selection_sampler = input)), class = "brma")
+  expect_identical(selection_sampler_info(fit = fitted)[["sampling_judged"]], 1590)
 })
 
 
@@ -662,7 +710,7 @@ test_that("the worst-sampler rate is the rate of one sampler over its whole run"
 .fallback_value_sums <- function(values) {
 
   processes <- unlist(values, recursive = FALSE)
-  counts    <- .fallback_report_names[1:6]
+  counts    <- .fallback_report_names[1:6]  # the integer counts
   sums <- vapply(counts, function(name) sum(vapply(processes, `[[`, numeric(1L), name)), numeric(1L))
   c(sums, fallback_samplers = sum(sums[c("fallback_few_proposals", "fallback_surrogate_exact",
                                           "fallback_low_acceptance")]))
