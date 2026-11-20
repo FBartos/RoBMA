@@ -1,4 +1,7 @@
 ## development version
+### Breaking changes
+- `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis
+
 ### Features
 - `hypothesis()` supports interval and unconstrained comparisons and can report prior and posterior densities, region probabilities, and the Bayes factor method
 - `update()` gains `adapt` to set the adaptation of one extension
