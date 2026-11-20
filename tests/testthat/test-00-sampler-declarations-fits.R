@@ -92,6 +92,14 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     bselmodel    = list(constructor = RoBMA::bselmodel, n_gates = 0L,
                         args = list(yi = quote(yi), vi = quote(vi), data = dat),
                         blocks = c("mu", "tau", "omega")),
+    # shrinkage coefficients join the block; their global, slab and local
+    # scales keep the samplers JAGS assigns
+    bselmodel_shrinkage = list(
+      constructor = RoBMA::bselmodel, n_gates = 0L,
+      args = list(yi = quote(yi), vi = quote(vi), mods = ~ year + deltype, data = dat,
+                  prior_mods = list(pool = RoBMA::prior_regularized(
+                    "horseshoe", RoBMA::prior("cauchy", list(0, .2), list(0, Inf)), slab_scale = 1))),
+      blocks = c("mu_intercept", "mu_year", "mu_deltype", "tau", "omega")),
     bselmodel.mv = list(constructor = RoBMA::bselmodel.mv, n_gates = 0L,
                         args = list(yi = quote(yi), V = V, random = ~ 1 | study / esid, data = dat),
                         blocks = c("mu_intercept", allocation, "omega")),
