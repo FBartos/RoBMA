@@ -214,17 +214,19 @@ The available options are:
   ([`bselmodel()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.md),
   [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/dev/reference/bselmodel.mv.md))
   update the effect, moderator, heterogeneity and selection-weight
-  parameters together. Never block members: direct random-effect SDs and
-  correlations
-  ([`prior_random()`](https://fbartos.github.io/RoBMA/dev/reference/prior_random.md)
-  other than the allocation SD and weights), vector (mean-difference and
-  orthonormal) factor terms, the unit-level latent parameters and
+  parameters together, the directly sampled scalar random-effect SDs
+  (the SD of a random intercept, or the one SD shared by the levels of
+  `id()`, `diag(hom = TRUE)`, `cs()`, `ar1()` and `car()`) and the
+  scalar correlations of `cs()`, `hcs()`, `ar1()`, `har()` and `car()`
+  included. Never block members: random-effect SD priors over several
+  levels and unstructured correlation matrices, vector (mean-difference
+  and orthonormal) factor terms, the unit-level latent parameters and
   random-effect coordinates, and every mixture, spike-and-slab, ordered
   and point prior. Model-averaged fits
   ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
-  update the allocation SD and weights of the heterogeneity allocation
-  together. `selection.sampler = "jags.default"` turns both block
-  samplers off. Neither option changes the model or its posterior
+  update only the allocation SD and weights of the heterogeneity
+  allocation together. `selection.sampler = "jags.default"` turns both
+  block samplers off. Neither option changes the model or its posterior
   distribution, only the draws; settings are captured when each model is
   fitted, and [`update()`](https://rdrr.io/r/stats/update.html) keeps
   those of the fit.
