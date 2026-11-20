@@ -33,10 +33,11 @@
 # run without a recorded one makes it 'incomplete'. Otherwise the decision per
 # model is on the Welch statistics of the run means and posterior SDs of every
 # non-degenerate quantity: pass when no |t| > 3.5 and the count of |t| > 2 is
-# at most twice its expectation under the Welch t distribution; a failing model
-# is rerun once ('--part=rerun') with fresh seeds, judged on its failing
-# quantities only (on every quantity when it failed by convergence alone) and
-# on the convergence of all of its runs. The count treats the
+# at most twice its expectation under the Welch t distribution; a model that
+# failed by its Welch statistics is rerun once ('--part=rerun') with fresh
+# seeds, judged on its failing quantities only and on the convergence of all of
+# its runs. A model that failed by a non-converged run is not rerun: its final
+# decision is 'fail' ("non-converged run in the first stage"). The count treats the
 # quantities as independent, though some are one (complementary weights and
 # their prior parameters, strongly correlated run means), so a single deviation
 # can count several times. Every planned run is
@@ -969,16 +970,27 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   # seeds (5000 + i, 6000 + i)
   base <- if (identical(part, "rerun")) c(coarse = 5000L, default = 6000L) else c(coarse = 1000L, default = 2000L)
   failing <- NULL
+  carried <- NULL
   if (identical(part, "rerun")) {
     first     <- utils::read.csv(file.path(dir, "wider.csv"), stringsAsFactors = FALSE)
     failing   <- first[(abs(first[["t"]]) > 2) %in% TRUE, c("model", "quantity")]
     decisions <- utils::read.csv(file.path(dir, "wider-decisions.csv"), stringsAsFactors = FALSE)
-    models    <- intersect(models, decisions[["model"]][decisions[["decision"]] == "fail"])
+    failed    <- decisions[decisions[["decision"]] == "fail" & decisions[["model"]] %in% models, , drop = FALSE]
+    # a failure by a non-converged run is final: such a model is not rerun and
+    # keeps its first-stage decision
+    final     <- failed[["reason"]] %in% "non-converged run"
+    if (any(final)) {
+      carried <- failed[final, , drop = FALSE]
+      carried[["reason"]] <- "non-converged run in the first stage"
+      cat("not rerun, failed by a non-converged run in the first stage:",
+          paste(carried[["model"]], collapse = ", "), "\n")
+    }
+    models <- failed[["model"]][!final]
     cat("rerun models:", paste(models, collapse = ", "), "\n")
     if (length(models) == 0L) {
-      cat("Nothing to rerun: no model failed the first stage.\n")
+      cat("Nothing to rerun: no model failed the first stage by its Welch statistics.\n")
       utils::write.csv(empty_welch_table(), file.path(dir, paste0(part, ".csv")), row.names = FALSE)
-      utils::write.csv(data.frame(model = character(), decision = character()),
+      utils::write.csv(if (is.null(carried)) data.frame(model = character(), decision = character()) else carried,
                        file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
       # no file of an earlier rerun in this directory may contradict that
       utils::write.csv(data.frame(model = character(), arm = character(), seed = integer(),
@@ -1030,10 +1042,8 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   print_convergence(convergence)
 
   welch <- lapply(models, function(model) {
-    # a rerun compares the failing quantities of its model, or every quantity
-    # when the model failed by convergence alone
+    # a rerun compares the failing quantities of its model
     quantities <- if (!is.null(failing)) failing[["quantity"]][failing[["model"]] == model] else NULL
-    if (length(quantities) == 0L) quantities <- NULL
     welch_table(runs, model, quantities)
   })
   tables  <- lapply(welch, `[[`, "table")
@@ -1048,6 +1058,8 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
   decisions <- do.call(rbind, lapply(seq_along(models), function(i) {
     decide(tables[[i]], models[[i]], counts, convergence)
   }))
+  # the models a non-converged run failed in the first stage, not rerun
+  if (!is.null(carried)) decisions <- rbind(decisions, carried[names(decisions)])
   utils::write.csv(decisions, file.path(dir, paste0(part, "-decisions.csv")), row.names = FALSE)
   cat("\nRuns per model and arm (planned, completed, failed, missing):\n"); print(counts, row.names = FALSE)
   cat("\nDecision per model:\n"); print(decisions, row.names = FALSE)
@@ -1057,10 +1069,14 @@ wider_driver <- function(part, models, seeds, workers, specs, dir = out_dir, exe
         "recorded potential scale reduction, a quantity missing from a completed run, or no comparable quantity",
         "in model(s)", paste(incomplete, collapse = ", "), "; the comparison is not a pass.\n")
   }
-  non_converged <- decisions[["model"]][decisions[["reason"]] == "non-converged run"]
+  non_converged <- decisions[["model"]][decisions[["reason"]] %in% "non-converged run"]
   if (length(non_converged) > 0L) {
     cat("FAIL (non-converged run) in model(s)", paste(non_converged, collapse = ", "),
         "whatever the Welch statistics say.\n")
+  }
+  if (!is.null(carried)) {
+    cat("FAIL (non-converged run in the first stage, not rerun) in model(s)",
+        paste(carried[["model"]], collapse = ", "), "\n")
   }
   cat("\nQuantities with |t| > 2:\n")
   print(table[(abs(table[["t"]]) > 2) %in% TRUE, , drop = FALSE], row.names = FALSE)
@@ -1662,17 +1678,21 @@ selftest <- function() {
           any(grepl("RoBMA dll z, BayesTools dll y", x$output)),
         "two builds in one arm: both listed, the arm MIXED")
 
-  # a model that failed by convergence alone is rerun on every quantity; a
-  # rerun judges the convergence of all of its runs
+  # a model that failed by a non-converged run is not rerun: its failure is
+  # final, although its reruns (here converged and in agreement) would pass;
+  # a rerun judges the convergence of all of its runs
   dir <- file.path(root, "rerun_convergence")
   x <- wider_case("rerun_convergence", function(job, i) {
     wider_run(job, c("a", "b"), rhat = if (job$arm == "default" && i == 1L) c(a = 1.5) else NULL)
   }, dir = dir)
-  check(x$decisions$decision == "fail" && nrow(x$table[(abs(x$table$t) > 2) %in% TRUE, ]) == 0L,
+  check(x$decisions$decision == "fail" && x$decisions$reason == "non-converged run" &&
+          nrow(x$table[(abs(x$table$t) > 2) %in% TRUE, ]) == 0L,
         "stage one fails by convergence alone")
   x <- wider_case("rerun_convergence", function(job, i) wider_run(job, c("a", "b", "c")), part = "rerun", dir = dir)
-  check(x$decisions$decision == "pass" && x$decisions$quantities == 3L,
-        "a rerun after a failure by convergence alone: every quantity compared, pass")
+  check(nrow(x$decisions) == 1L && x$decisions$decision == "fail" &&
+          x$decisions$reason == "non-converged run in the first stage" && nrow(x$runs) == 0L &&
+          nrow(x$table) == 0L && any(grepl("not rerun, failed by a non-converged run in the first stage: m", x$output)),
+        "a model failed by a non-converged run: not rerun, final decision fail")
   dir <- file.path(root, "rerun_nonconverged")
   x <- wider_case("rerun_nonconverged", function(job, i) {
     wider_run(job, c("a", "b"), shift = if (job$arm == "coarse") c(0, 1) else 0)

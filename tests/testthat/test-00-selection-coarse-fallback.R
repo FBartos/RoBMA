@@ -412,12 +412,16 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
     expect_true(grepl("A start strictly inside the support of the parameter avoids this error", hinted, fixed = TRUE),
                 info = message)
   }
-  block_error <- "Error in node mu\nCorrected slice (block) requires a finite current full density"
-  expect_identical(.sampler_error_hint(block_error), paste0(
-    block_error, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
-    "Fit the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
-    "the ordinary samplers, and please report the model to the RoBMA developers."
-  ))
+  # the corrected and the exact kernel of the block sampler
+  for (block_error in c("Error in node mu\nCorrected slice (block) requires a finite current full density",
+                        paste0("Error in node mu\nCorrected slice (block, exact kernel): current value of the block ",
+                               "has no finite density"))) {
+    expect_identical(.sampler_error_hint(block_error), paste0(
+      block_error, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(sampler.blocks = FALSE)' to sample these parameters with ",
+      "the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
 })
 
 

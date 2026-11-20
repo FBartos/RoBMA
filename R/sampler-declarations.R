@@ -39,7 +39,7 @@
   } else {
     "Fit"
   }
-  if (grepl("Corrected slice (block)", message, fixed = TRUE) ||
+  if (grepl("Corrected slice (block", message, fixed = TRUE) ||
       grepl("the support bounds of this node are too wide", message, fixed = TRUE)) {
     return(paste0(
       message, "\nThe error was raised by the sampler of a parameter block that RoBMA uses by default. ",

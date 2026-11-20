@@ -488,7 +488,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   adapt to the state it leaves: started where the surrogate is poor, the chain
   would otherwise reject, not move, and learn collapsed axes that freeze it
   after adaptation too. The adaptive phase need not be invariant (its draws are
-  discarded); the rejection still counts for the acceptance statistic. The
+  discarded). The proposal still counts as rejected, but the adaptive chain
+  leaves regions where the surrogate is poor faster than the corrected kernel
+  alone would, so the adaptive rate that the low-acceptance rule (b) reads is
+  optimistic; a block kept on that reading is still exact (the rule guards
+  efficiency only), and the per-fit warning judges the rate after adaptation.
+  The
   fallback rules are the scalar sampler's, judged on acceptance^(1/d) (a block
   move composes d direction moves), the rate exponent that the worst-sampler
   rate and the warning (`sampling_judged`) also use; after a fallback the block
