@@ -287,6 +287,29 @@ test_that("direct random-effect SDs and scalar structured correlations join the 
 })
 
 
+test_that("regularized moderators join the block by coefficient, centered shrinkage factors do not", {
+
+  dat    <- .declaration_data()[["data"]]
+  global <- prior("cauchy", list(0, 0.2), list(0, Inf))
+
+  # a shrinkage slope and a treatment factor join as their coefficients; the
+  # group's global, slab and local scales are not prior-list entries
+  .expect_declarations(
+    bselmodel(yi = yi, vi = vi, mods = ~ x + g, data = dat, measure = "SMD",
+              prior_mods = list(pool = prior_regularized("horseshoe", scale = global, slab_scale = 1)),
+              only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", "mu_x", "mu_g", "tau", "omega")),
+    label = "bselmodel regularized treatment")
+  # a centered factor shrunk as one exchangeable unit is not a member
+  .expect_declarations(
+    bselmodel(yi = yi, vi = vi, mods = ~ x + g, data = dat, measure = "SMD",
+              prior_mods = list(pool = prior_regularized("lasso", scale = global)),
+              set_contrast_factor_predictors = "meandif", only_priors = TRUE),
+    gates = FALSE, blocks = list(c("mu_intercept", "mu_x", "tau", "omega")),
+    label = "bselmodel regularized meandif")
+})
+
+
 test_that("model-averaged fits gate their bias branches and block only allocation parameters", {
 
   setup <- .declaration_data()
