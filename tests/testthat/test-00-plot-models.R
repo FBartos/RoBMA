@@ -1,4 +1,5 @@
-.plot_models_replay <- function(contrast = "treatment", interaction = FALSE) {
+.plot_models_replay <- function(contrast = "treatment", interaction = FALSE,
+                                bias_names = "PET", null_bias_name = "None") {
 
   data <- data.frame(
     yi = seq(-.2, .2, length.out = 9), sei = .2,
@@ -11,7 +12,10 @@
     standardize_continuous_predictors = interaction,
     prior_heterogeneity_null = NULL,
     prior_effect_null = list(None = BayesTools::prior("point", list(0))),
-    prior_bias = list(PET = BayesTools::prior_PET("normal", list(0, 1))),
+    prior_bias = stats::setNames(lapply(bias_names, function(name) {
+      BayesTools::prior_PET("normal", list(0, 1))
+    }), bias_names),
+    prior_bias_null = stats::setNames(list(BayesTools::prior_none()), null_bias_name),
     prior_unit_information_sd = 1, only_priors = TRUE
   ))
   priors <- c(setup[["compiled"]][["mu"]][["prior_list"]],
@@ -141,6 +145,29 @@ test_that("plot_models methods dispatch to both renderers with the displayed row
 })
 
 
+test_that("bias palette keys identify one purpose even when member names collide", {
+
+  fit <- .plot_models_replay(bias_names = c("no_bias", "PET", "bias[PET]"),
+                            null_bias_name = "bias")[["fit"]]
+  binary <- c(bias = "darkgreen", no_bias = "gray80")
+  for (view in c("model", "individual")) {
+    data <- .plot_models_data(fit, "bias", mixture_view = view, col_bias = binary)
+    colors <- stats::setNames(data[["colors"]], data[["state_labels"]])
+    expect_identical(colors[["Publication Bias: bias"]], "gray80")
+    expect_identical(colors[["Publication Bias: no_bias"]], "darkgreen")
+
+    data <- .plot_models_data(fit, "bias", mixture_view = view,
+      col_bias = c(binary, "bias[bias]" = "black", "bias[no_bias]" = "skyblue",
+                   "bias[PET]" = "tomato"))
+    colors <- stats::setNames(data[["colors"]], data[["state_labels"]])
+    expect_identical(colors[["Publication Bias: bias"]], "black")
+    expect_identical(colors[["Publication Bias: no_bias"]], "skyblue")
+    expect_identical(colors[["Publication Bias: PET"]], "tomato")
+    expect_identical(colors[["Publication Bias: bias[PET]"]], "darkgreen")
+  }
+})
+
+
 test_that("directional colors retain the fitted predictor scale with centered interactions", {
 
   replay <- .plot_models_replay(interaction = TRUE)
@@ -178,4 +205,62 @@ test_that("declared, always-included coefficients can accompany model components
   expect_identical(data[["cells"]][["row"]], c("mu", "mu"))
   expect_identical(data[["cells"]][["state"]], c("negative", "positive"))
   expect_identical(unname(data[["probabilities"]]), c(.5, .5))
+})
+
+
+.plot_models_ordered_replay <- function(total, on, spike = FALSE) {
+
+  data <- data.frame(yi = seq(.1, .6, by = .1), sei = .2,
+    f = ordered(rep(c("a", "b", "c"), 2)))
+  setup <- review_compile_object(BMA(yi = yi, sei = sei, data = data,
+    mods = ~ f, measure = "GEN", prior_mods_null = list(f = NULL),
+    prior_mods = list(f = BayesTools::prior_ordered(total, allocation = c(.25, .75))),
+    prior_unit_information_sd = 1, only_priors = TRUE))
+  sums <- 2 * as.numeric(on)
+  samples <- cbind(mu_intercept = rep(.2, length(on)), mu_intercept_indicator = 2L,
+    tau = .2, tau_indicator = 2L, mu_f_ordered_total = sums,
+    `mu_f[1]` = .25 * sums, `mu_f[2]` = sums)
+  if (BayesTools::is.prior.mixture(total)) {
+    samples <- cbind(samples, mu_f_ordered_total_indicator = as.integer(on) + !spike)
+    if (spike) {
+      samples <- cbind(samples, mu_f_ordered_total_variable = 2,
+        mu_f_ordered_total_inclusion = .4)
+    } else {
+      samples <- cbind(samples, mu_f_ordered_total_component_2 = 2)
+    }
+  }
+  review_attach_replay(setup, samples)
+}
+
+
+test_that("ordered totals contribute their actual gate to the full joint model", {
+
+  zero <- BayesTools::prior("point", list(0))
+  slab <- BayesTools::prior("normal", list(0, 1))
+  mixture <- BayesTools::prior_mixture(list(Zero = zero, Diff = slab), is_null = c(TRUE, FALSE))
+  spike <- BayesTools::prior_spike_and_slab(slab, BayesTools::prior("beta", list(2, 3)))
+  on <- c(FALSE, TRUE, FALSE, TRUE, FALSE, FALSE)
+
+  for (total in list(mixture, spike)) {
+    fit <- .plot_models_ordered_replay(total, on, spike = identical(total, spike))
+    marginal <- summary_models(fit, include_mcmc_diagnostics = FALSE)[["marginal"]][["Location: f"]]
+    included <- marginal[["Hypothesis"]] == "Alternative"
+    expect_equal(marginal[["post_prob"]][included], mean(on))
+    expect_equal(marginal[["prior_prob"]][included], if (identical(total, spike)) .4 else .5)
+    individual <- summary_models(fit, type = "individual", include_mcmc_diagnostics = FALSE)
+    data <- .plot_models_data(fit, "f")
+    expected <- individual[["individual"]][["post_prob"]]
+    expect_equal(unname(data[["probabilities"]]), expected[expected > 0])
+    expect_identical(unique(data[["cells"]][["row"]]), c("mu_f[b]", "mu_f[c]"))
+    expect_setequal(data[["cells"]][["state"]], c("positive", "excluded"))
+    displayed <- data[["cells"]][["row"]] == "mu_f[b]" & data[["cells"]][["state"]] == "positive"
+    expect_equal(unname(data[["probabilities"]][data[["cells"]][["model"]][displayed]]), mean(on))
+    hidden <- .plot_models_data(fit, "mu")
+    expect_identical(hidden[["probabilities"]], data[["probabilities"]])
+  }
+
+  fit <- .plot_models_ordered_replay(zero, rep(FALSE, 6L))
+  fixed <- .plot_models_data(fit, "f")
+  expect_identical(unname(fixed[["probabilities"]]), 1)
+  expect_identical(unique(fixed[["cells"]][["state"]]), "excluded")
 })

@@ -13,8 +13,9 @@
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @details Model families include ordinary mixtures, spike-and-slab priors,
-#' and declared Bernoulli inclusion gates of random-effect components. Fixed
-#' components without a model choice are omitted.
+#' mixtures and spike-and-slab priors on ordered factor totals, and declared
+#' Bernoulli inclusion gates of random-effect components. Fixed components
+#' without a model choice are omitted.
 #'
 #' @return A list of class \code{summary_models.RoBMA} with elements
 #' \code{name} and \code{type}. For \code{type = "marginal"}, element
@@ -186,6 +187,11 @@ as.data.frame.summary_models.RoBMA <- function(
     ,
     drop = FALSE
   ]
+  ordered <- intersect(prior_terms[["parameter"]][nzchar(prior_terms[["term"]])],
+    names(prior_list)[vapply(prior_list, BayesTools::is.prior.ordered, logical(1))])
+  ordered_specs <- if (length(ordered) > 0L) {
+    BayesTools::JAGS_ordered_parameter_spec(object[["fit"]], parameters = ordered)
+  }
   location_terms <- prior_terms[
     prior_terms[["formula_parameter"]] == "mu" &
       !prior_terms[["term"]] %in% c("", "intercept"),
@@ -199,7 +205,8 @@ as.data.frame.summary_models.RoBMA <- function(
       components = components,
       prior_list = prior_list,
       component  = component,
-      parameter  = parameter
+      parameter  = parameter,
+      ordered    = ordered_specs[[parameter]]
     )
   }
 
@@ -238,7 +245,8 @@ as.data.frame.summary_models.RoBMA <- function(
       components = components,
       prior_list = prior_list,
       component  = component,
-      parameter  = parameter
+      parameter  = parameter,
+      ordered    = ordered_specs[[parameter]]
     )
   }
 
@@ -281,21 +289,27 @@ as.data.frame.summary_models.RoBMA <- function(
   components
 }
 
-.summary_models_add_component <- function(components, prior_list, component, parameter) {
+.summary_models_add_component <- function(components, prior_list, component, parameter,
+                                          ordered = NULL) {
 
-  if (!parameter %in% names(prior_list)) {
+  prior <- if (is.null(ordered)) prior_list[[parameter]] else ordered[["total_prior"]]
+  if (!BayesTools::is.prior.mixture(prior)) {
     return(components)
   }
-  if (!BayesTools::is.prior.mixture(prior_list[[parameter]])) {
-    return(components)
-  }
 
-  prior <- prior_list[[parameter]]
+  indicator <- NULL
+  if (!is.null(ordered)) {
+    indicator <- ordered[["total_node"]][["spec"]][["indicator"]]
+    if (length(indicator) != 1L) {
+      .stop_refit_required("No fitted ordered total indicator for '", parameter,
+                           "'. Refit the model.")
+    }
+  }
   components[[component]] <- list(
     component        = component,
     parameter        = parameter,
     prior            = prior,
-    indicator        = NULL,
+    indicator        = indicator,
     indicator_offset = 0L,
     names            = .summary_models_prior_names(prior),
     hypothesis       = .summary_models_hypothesis(prior),
@@ -541,6 +555,10 @@ as.data.frame.summary_models.RoBMA <- function(
 
 .summary_models_prior_probs <- function(prior) {
 
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    inclusion <- mean(attr(prior, "inclusion_prior", exact = TRUE))
+    return(ifelse(.summary_models_hypothesis(prior) == "Alternative", inclusion, 1 - inclusion))
+  }
   prior_probs <- attr(prior, "prior_weights")
   prior_probs <- prior_probs / sum(prior_probs)
 
@@ -556,6 +574,15 @@ as.data.frame.summary_models.RoBMA <- function(
     prior             = NULL,
     column            = column
   )
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    if (any(!indicators %in% c(0L, 1L))) {
+      stop("Invalid posterior inclusion indicator range: '",
+           if (is.null(column)) paste0(parameter, "_indicator") else column,
+           "'.", call. = FALSE)
+    }
+    hypotheses <- .summary_models_hypothesis(prior)
+    return(match(c("Null", "Alternative")[indicators + 1L], hypotheses))
+  }
   indicators <- indicators + offset
   if (any(!indicators %in% seq_len(length(prior)))) {
     indicator_name <- if (is.null(column)) {

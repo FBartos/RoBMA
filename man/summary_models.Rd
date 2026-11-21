@@ -41,8 +41,9 @@ RoBMA-class product-space objects.
 }
 \details{
 Model families include ordinary mixtures, spike-and-slab priors,
-and declared Bernoulli inclusion gates of random-effect components. Fixed
-components without a model choice are omitted.
+mixtures and spike-and-slab priors on ordered factor totals, and declared
+Bernoulli inclusion gates of random-effect components. Fixed components
+without a model choice are omitted.
 }
 \examples{
 \dontrun{

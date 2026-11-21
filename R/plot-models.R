@@ -34,6 +34,7 @@
 #'   mixture members, using their names from [summary_models()] or qualified member
 #'   selectors of the form `"bias[PET]"`. Member-specific colors override
 #'   bias and no-bias colors in categorical and individual views.
+#'   Use qualified selectors for members named `bias` or `no_bias`.
 #' @param legend whether to show the color legend.
 #' @param legend_position location of the legend, `"bottom"` or `"top"`.
 #' @param plot_type `"base"` for base graphics or `"ggplot"` for ggplot2.
@@ -226,17 +227,13 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
         BayesTools::is.prior.spike_and_slab(prior)) {
       return(NULL)
     }
-    if (BayesTools::is.prior.ordered(prior) &&
-        (BayesTools::is.prior.spike_and_slab(prior[["total"]]) ||
-         BayesTools::is.prior.mixture(prior[["total"]]))) {
-      return(NULL)
-    }
+    fixed_prior <- if (BayesTools::is.prior.ordered(prior)) prior[["total"]] else prior
     components[[label]] <<- list(
       component = label,
       parameter = parameter,
       prior     = list(prior),
-      fixed     = !BayesTools::is.prior.none(prior) &&
-        !isTRUE(.point_prior_value(prior) == 0)
+      fixed     = !BayesTools::is.prior.none(fixed_prior) &&
+        !isTRUE(.point_prior_value(fixed_prior) == 0)
     )
     invisible(NULL)
   }
@@ -486,7 +483,10 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
       types <- ifelse(info[["hypothesis"]] == "Null", "no_bias", "bias")
       replace <- types %in% names(col_bias)
       palette[replace] <- col_bias[types[replace]]
-      for (aliases in list(members, member_aliases, member_ids)) {
+      qualified <- c(member_aliases, member_ids)
+      bare_members <- ifelse(members %in% c("bias", "no_bias", qualified),
+                              NA_character_, members)
+      for (aliases in list(bare_members, member_aliases, member_ids)) {
         replace <- aliases %in% names(col_bias)
         palette[replace] <- col_bias[aliases[replace]]
       }

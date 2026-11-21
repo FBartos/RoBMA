@@ -64,7 +64,8 @@ probability order.}
 \item{col_bias}{named colors for \code{bias} and \code{no_bias} or for publication-bias
 mixture members, using their names from \code{\link[=summary_models]{summary_models()}} or qualified member
 selectors of the form \code{"bias[PET]"}. Member-specific colors override
-bias and no-bias colors in categorical and individual views.}
+bias and no-bias colors in categorical and individual views.
+Use qualified selectors for members named \code{bias} or \code{no_bias}.}
 
 \item{legend}{whether to show the color legend.}
 
