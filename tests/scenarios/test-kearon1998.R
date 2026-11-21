@@ -128,11 +128,12 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   # How much does estimating the between-study correlation change sensitivity?
-  # Extract its ggplot by name and overlay the same outcome from the diagonal model.
+  # Compare qCMDE densities for the same outcome from both models.
   scenario_plot("sensitivity-by-covariance", {
-    by_outcome <- plot(fit_brma_us, "group", individual = TRUE, plot_type = "ggplot", xlab = "Log odds", legend = FALSE)
+    by_outcome <- plot(fit_brma_us, "group", individual = TRUE, density_method = "qCMDE",
+                       plot_type = "ggplot", xlab = "Log odds", legend = FALSE)
     by_outcome[["sensitivity"]] +
-      lines(fit_brma_diag, "group", level = "sensitivity", plot_type = "ggplot", lty = 2) +
+      lines(fit_brma_diag, "group", level = "sensitivity", density_method = "qCMDE", plot_type = "ggplot", lty = 2) +
       ggplot2::labs(title = "Pooled sensitivity",
         subtitle = "Between-study correlation estimated (solid) or fixed at zero (dashed)")
   })
