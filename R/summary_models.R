@@ -13,9 +13,10 @@
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @details Model families include ordinary mixtures, spike-and-slab priors,
-#' mixtures and spike-and-slab priors on ordered factor totals, and declared
-#' Bernoulli inclusion gates of random-effect components. Fixed components
-#' without a model choice are omitted.
+#' mixtures and spike-and-slab priors on ordered factor totals, mixtures on
+#' the heterogeneity allocation, and declared Bernoulli inclusion gates of
+#' random-effect components. Fixed components without a model choice are
+#' omitted.
 #'
 #' @return A list of class \code{summary_models.RoBMA} with elements
 #' \code{name} and \code{type}. For \code{type = "marginal"}, element
@@ -168,18 +169,22 @@ as.data.frame.summary_models.RoBMA <- function(
 
 
 # Extract top-level model components used by summary_models().
-.summary_models_components <- function(object) {
+.summary_models_components <- function(object, include_fixed = FALSE) {
 
   prior_list <- attr(object[["fit"]], "prior_list")
   components <- list()
 
   effect_parameter <- if ("mu" %in% names(prior_list)) "mu" else "mu_intercept"
-  components <- .summary_models_add_component(
-    components = components,
-    prior_list = prior_list,
-    component  = "Effect",
-    parameter  = effect_parameter
-  )
+  if (effect_parameter == "mu" ||
+      .fitted_formula_has_intercept(object, "mu", required = FALSE)) {
+    components <- .summary_models_add_component(
+      components    = components,
+      prior_list    = prior_list,
+      component     = "Effect",
+      parameter     = effect_parameter,
+      include_fixed = include_fixed
+    )
+  }
 
   prior_terms <- .summary_formula_prior_terms(object, names(prior_list))
   prior_terms <- prior_terms[
@@ -202,21 +207,32 @@ as.data.frame.summary_models.RoBMA <- function(
     parameter <- location_terms[["parameter"]][[i]]
     component <- paste0("Location: ", location_terms[["term"]][[i]])
     components <- .summary_models_add_component(
-      components = components,
-      prior_list = prior_list,
-      component  = component,
-      parameter  = parameter,
-      ordered    = ordered_specs[[parameter]]
+      components    = components,
+      prior_list    = prior_list,
+      component     = component,
+      parameter     = parameter,
+      ordered       = ordered_specs[[parameter]],
+      include_fixed = include_fixed
     )
   }
 
   heterogeneity_parameter <- if ("tau" %in% names(prior_list)) "tau" else "log_tau_intercept"
   components <- .summary_models_add_component(
-    components = components,
-    prior_list = prior_list,
-    component  = "Heterogeneity",
-    parameter  = heterogeneity_parameter
+    components    = components,
+    prior_list    = prior_list,
+    component     = "Heterogeneity",
+    parameter     = heterogeneity_parameter,
+    include_fixed = include_fixed
   )
+  allocation_prior <- prior_list[["rho"]]
+  if (BayesTools::is.prior.mixture(allocation_prior) && length(allocation_prior) > 1L) {
+    components <- .summary_models_add_component(
+      components = components,
+      prior_list = prior_list,
+      component  = "Heterogeneity Allocation",
+      parameter  = "rho"
+    )
+  }
   components <- .summary_models_add_random_slab_components(
     components = components,
     prior_list = prior_list
@@ -242,19 +258,21 @@ as.data.frame.summary_models.RoBMA <- function(
       )
     )
     components <- .summary_models_add_component(
-      components = components,
-      prior_list = prior_list,
-      component  = component,
-      parameter  = parameter,
-      ordered    = ordered_specs[[parameter]]
+      components    = components,
+      prior_list    = prior_list,
+      component     = component,
+      parameter     = parameter,
+      ordered       = ordered_specs[[parameter]],
+      include_fixed = include_fixed
     )
   }
 
   components <- .summary_models_add_component(
-    components = components,
-    prior_list = prior_list,
-    component  = "Publication Bias",
-    parameter  = "bias"
+    components    = components,
+    prior_list    = prior_list,
+    component     = "Publication Bias",
+    parameter     = "bias",
+    include_fixed = include_fixed
   )
   components <- .summary_models_add_random_components(
     components = components,
@@ -284,16 +302,26 @@ as.data.frame.summary_models.RoBMA <- function(
       component  = component,
       parameter  = parameter
     )
+    components[[component]][["aliases"]] <- allocation
   }
 
   components
 }
 
 .summary_models_add_component <- function(components, prior_list, component, parameter,
-                                          ordered = NULL) {
+                                          ordered = NULL, include_fixed = FALSE) {
 
   prior <- if (is.null(ordered)) prior_list[[parameter]] else ordered[["total_prior"]]
   if (!BayesTools::is.prior.mixture(prior)) {
+    if (include_fixed && !is.null(prior)) {
+      components[[component]] <- list(
+        component = component,
+        parameter = parameter,
+        prior     = list(prior_list[[parameter]]),
+        fixed     = !BayesTools::is.prior.none(prior) &&
+          !isTRUE(.point_prior_value(prior) == 0)
+      )
+    }
     return(components)
   }
 
@@ -355,6 +383,8 @@ as.data.frame.summary_models.RoBMA <- function(
       prior            = vector("list", 2L),
       indicator        = indicator,
       indicator_offset = 1L,
+      aliases          = c(component_names, quantities[["canonical_name"]][[i]],
+                           quantities[["owner_name"]][[i]]),
       names            = c("Excluded", "Included"),
       hypothesis       = c("Null", "Alternative"),
       prior_probs      = c(1 - prior_probability, prior_probability)

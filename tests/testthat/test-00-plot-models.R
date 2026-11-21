@@ -168,6 +168,26 @@ test_that("bias palette keys identify one purpose even when member names collide
 })
 
 
+test_that("color keys validate against plotted components and mixture legends track labels", {
+
+  fit <- .plot_models_replay()[["fit"]]
+  expect_error(plot_models(fit, col = c(postive = "green")), "Unknown 'col' key: 'postive'")
+  expect_error(plot_models(fit, col = c(bias = "green")), "Unknown 'col' key: 'bias'")
+  expect_error(plot_models(fit, "bias", col_bias = c(PETT = "green")),
+               "Unknown 'col_bias' key: 'PETT'")
+  expect_error(plot_models(fit, "mu", col_bias = c(PET = "green")),
+               "'col_bias' requires a displayed publication-bias row")
+  category <- .plot_models_data(fit, "bias", labels = c(bias = "Bias mechanism"),
+                                mixture_view = "model")
+  expect_identical(unname(category[["state_labels"]]),
+                   c("Bias mechanism: None", "Bias mechanism: PET"))
+  member <- .plot_models_data(fit, "bias", labels = c("bias[PET]" = "PET fitted"),
+                              mixture_view = "individual")
+  expect_identical(unname(member[["state_labels"]]),
+                   c("Publication Bias: None", "PET fitted"))
+})
+
+
 test_that("directional colors retain the fitted predictor scale with centered interactions", {
 
   replay <- .plot_models_replay(interaction = TRUE)
@@ -205,6 +225,64 @@ test_that("declared, always-included coefficients can accompany model components
   expect_identical(data[["cells"]][["row"]], c("mu", "mu"))
   expect_identical(data[["cells"]][["state"]], c("negative", "positive"))
   expect_identical(unname(data[["probabilities"]]), c(.5, .5))
+})
+
+
+test_that("heterogeneity allocation remains a full joint dimension when heterogeneity is off", {
+
+  data <- data.frame(yi = seq(-.3, .3, length.out = 9), sei = .15, cl = rep(1:3, each = 3))
+  setup <- review_compile_object(BMA(yi = yi, sei = sei, cluster = cl, data = data,
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_heterogeneity_allocation = list(Variable = BayesTools::prior("beta", list(1, 1))),
+    prior_heterogeneity_allocation_null = list(Equal = BayesTools::prior("point", list(.5)))))
+  joint <- rbind(c(1, 2, 1), c(1, 2, 2), c(2, 1, 1), c(2, 1, 2), c(2, 2, 1), c(2, 2, 2))
+  counts <- c(1L, 2L, 3L, 4L, 5L, 6L)
+  observed <- joint[rep(seq_len(nrow(joint)), counts), , drop = FALSE]
+  colnames(observed) <- paste0(c("mu", "tau", "rho"), "_indicator")
+  samples <- cbind(observed, mu = .3 * (observed[, 1L] == 2),
+    tau = .3 * (observed[, 2L] == 2), rho = ifelse(observed[, 3L] == 2, .4, .5),
+    `gamma[1]` = 0, `gamma[2]` = 0, `gamma[3]` = 0)
+  fit <- review_attach_replay(setup, samples)
+  data <- .plot_models_data(fit)
+  chosen <- .plot_models_data(fit, "heterogeneity_allocation", component = "scale")
+  expect_identical(unique(data[["cells"]][["row"]]), c("mu", "tau", "rho"))
+  expect_identical(chosen[["probabilities"]], data[["probabilities"]])
+  expect_identical(unique(chosen[["cells"]][["label"]]), "Heterogeneity Allocation")
+  expect_error(.plot_models_data(fit, "rho", component = "mods"), "unavailable")
+
+  expected <- stats::setNames(counts / sum(counts), apply(joint, 1L, paste, collapse = ":"))
+  expect_equal(data[["probabilities"]][names(expected)], expected)
+  model_summary <- summary_models(fit, type = "individual", include_mcmc_diagnostics = FALSE)
+  weights <- model_summary[["individual"]][["post_prob"]]
+  expect_equal(unname(data[["probabilities"]]), weights[weights > 0])
+  expect_identical(chosen[["cells"]][["state"]][
+    match(c("2:1:1", "2:1:2"), chosen[["cells"]][["model"]])], c("excluded", "included"))
+
+  member <- .plot_models_data(fit, "rho", mixture_view = "individual")
+  expect_identical(unique(member[["cells"]][["row"]]), c("rho{Equal}", "rho{Variable}"))
+  expect_true(all(table(member[["cells"]][["model"]][
+    member[["cells"]][["state"]] != "excluded"]) == 1L))
+})
+
+
+test_that("the effect row follows the presence of the fitted intercept", {
+
+  data <- data.frame(yi = seq(-.2, .2, length.out = 6), sei = .2,
+    g = factor(rep(c("a", "b"), 3)))
+  for (intercept in c(FALSE, TRUE)) {
+    setup <- review_compile_object(BMA(yi = yi, sei = sei, data = data, measure = "GEN",
+      mods = if (intercept) ~ g else ~ 0 + g,
+      prior_mods = if (intercept) list(intercept = BayesTools::prior("point", list(0))) else NULL,
+      set_contrast_factor_predictors = if (intercept) "treatment" else "independent",
+      prior_unit_information_sd = 1, only_priors = TRUE))
+    prior <- setup[["compiled"]][["mu"]][["prior_list"]][["mu_g"]]
+    columns <- review_prior_columns(list(mu_g = prior))
+    samples <- cbind(mu_intercept = c(0, 0), tau = .2, tau_indicator = 2L,
+      mu_g_indicator = c(1L, 2L),
+      matrix(c(0, .3), nrow = 2L, ncol = length(columns), dimnames = list(NULL, columns)))
+    out <- .plot_models_data(review_attach_replay(setup, samples))
+    expect_identical("mu" %in% out[["cells"]][["row"]], intercept)
+  }
 })
 
 

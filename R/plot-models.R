@@ -26,6 +26,7 @@
 #' @param labels named character vector of row label overrides. Use stable
 #'   selectors such as `"mu"`, `"mu_year"`, `"mu_delivery[online]"`, or
 #'   `"bias[PET]"` (when the mixture member is named `PET`).
+#'   Overrides also update the mixture labels in the legend.
 #' @param decreasing whether to draw models in decreasing posterior
 #'   probability order.
 #' @param col named colors for `positive`, `negative`, `included`, and
@@ -35,6 +36,7 @@
 #'   selectors of the form `"bias[PET]"`. Member-specific colors override
 #'   bias and no-bias colors in categorical and individual views.
 #'   Use qualified selectors for members named `bias` or `no_bias`.
+#'   This argument requires a displayed publication-bias component.
 #' @param legend whether to show the color legend.
 #' @param legend_position location of the legend, `"bottom"` or `"top"`.
 #' @param plot_type `"base"` for base graphics or `"ggplot"` for ggplot2.
@@ -44,15 +46,19 @@
 #' `summary_models(x, type = "individual")`. Choosing rows changes the
 #' displayed information while keeping the fitted models and their widths.
 #' Ungated coefficients can appear alongside the model components.
+#' Select the main components by `"mu"`, `"tau"`, `"bias"`, and `"rho"`
+#' for an available heterogeneity allocation mixture. Use qualified selectors
+#' for moderators with those names.
 #'
 #' Inclusion uses the null or alternative assignment of the active prior
 #' member, or the fitted inclusion gate. In the inclusion view, directional
 #' colors indicate the sign of the posterior median within that full model on
 #' the fitted predictor scale. If the predictors were centered or standardized
 #' during fitting, intercept and moderator directions refer to that
-#' parameterization. Heterogeneity, publication bias, random-effect gates,
-#' whole factors, and coefficients with a median of zero use neutral inclusion
-#' colors. Factor level rows share the factor's inclusion gate.
+#' parameterization. Heterogeneity, heterogeneity allocation, publication
+#' bias, random-effect gates, whole factors, and coefficients with a median of
+#' zero use neutral inclusion colors. Factor level rows share the factor's
+#' inclusion gate.
 #' Treatment contrasts show coefficients relative to the reference level and
 #' omit the reference row. Mean-difference and orthonormal contrasts show
 #' deviations from the equally weighted mean of the factor levels.
@@ -96,7 +102,10 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
 
   .check_unused_dots(list(...), allowed = character(), caller = "plot_models()")
   BayesTools::check_bool(group_labels, "group_labels", allow_NA = FALSE)
-  if (!is.null(col)) .plot_models_check_named(col, "col")
+  if (!is.null(col)) {
+    .plot_models_check_named(col, "col")
+    .plot_models_check_keys(col, c("positive", "negative", "included", "excluded"), "col")
+  }
   data <- .plot_models_data(x, parameter, component, factor_view, mixture_view,
                            group_labels, labels, col_bias)
   BayesTools::plot_model_probabilities(
@@ -120,13 +129,13 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
   if (!.is_RoBMA(x) || is.null(x[["fit"]]) || length(x[["fit"]]) == 0L) {
     stop("'plot_models' requires a fitted model-averaged RoBMA object.", call. = FALSE)
   }
-  if (!is.null(col_bias)) .plot_models_check_named(col_bias, "col_bias")
   component  <- .parameter_component_normalize(component)
-  components <- .summary_models_components(x)
+  available_components <- .summary_models_components(x, include_fixed = TRUE)
+  components <- Filter(function(info) is.null(info[["fixed"]]), available_components)
   if (length(components) == 0L) {
     stop("No mixture-prior model components found.", call. = FALSE)
   }
-  terms <- .plot_models_terms(x, .plot_models_display_components(x, components))
+  terms <- .plot_models_terms(x, available_components)
   if (!identical(component, "auto")) {
     terms <- Filter(function(term) term[["component"]] == component, terms)
   }
@@ -163,6 +172,17 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
     stats::setNames(rep(term[["id"]], length(ids)), ids)
   })))
   owners <- ifelse(selected %in% names(terms), selected, level_owners[selected])
+  if (!is.null(col_bias)) {
+    .plot_models_check_named(col_bias, "col_bias")
+    if (!"bias" %in% owners) {
+      stop("'col_bias' requires a displayed publication-bias row.", call. = FALSE)
+    }
+    members <- terms[["bias"]][["info"]][["names"]]
+    allowed <- c("bias", "no_bias", members,
+      paste0("bias[", members, "]", recycle0 = TRUE),
+      paste0("bias{", members, "}", recycle0 = TRUE))
+    .plot_models_check_keys(col_bias, allowed, "col_bias")
+  }
   groups <- vapply(terms[unique(owners)], `[[`, character(1), "group")
   draw_groups <- length(unique(groups)) > 1L && !group_labels
 
@@ -194,7 +214,15 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
     .plot_models_check_named(labels, "labels")
     label_rows <- .plot_models_match(names(labels), lapply(rows, `[[`, "aliases"), "labels")
     for (i in seq_along(labels)) {
-      rows[[label_rows[[i]]]][["label"]] <- labels[[i]]
+      id <- label_rows[[i]]
+      row <- rows[[id]]
+      row[["label"]] <- labels[[i]]
+      if (!is.null(row[["members"]])) {
+        row[["state_labels"]][] <- paste0(row[["label"]], ": ", row[["members"]])
+      } else if (isTRUE(row[["individual"]])) {
+        row[["state_labels"]][] <- row[["label"]]
+      }
+      rows[[id]] <- row
     }
   }
   row_cells <- lapply(rows, function(row) {
@@ -218,55 +246,11 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
 }
 
 
-.plot_models_display_components <- function(x, components) {
-
-  priors <- attr(x[["fit"]], "prior_list", exact = TRUE)
-  add <- function(label, parameter) {
-    prior <- priors[[parameter]]
-    if (label %in% names(components) || is.null(prior) ||
-        BayesTools::is.prior.spike_and_slab(prior)) {
-      return(NULL)
-    }
-    fixed_prior <- if (BayesTools::is.prior.ordered(prior)) prior[["total"]] else prior
-    components[[label]] <<- list(
-      component = label,
-      parameter = parameter,
-      prior     = list(prior),
-      fixed     = !BayesTools::is.prior.none(fixed_prior) &&
-        !isTRUE(.point_prior_value(fixed_prior) == 0)
-    )
-    invisible(NULL)
-  }
-  add("Effect", if ("mu" %in% names(priors)) "mu" else "mu_intercept")
-  add("Heterogeneity", if ("tau" %in% names(priors)) "tau" else "log_tau_intercept")
-  add("Publication Bias", "bias")
-  formula_terms <- .summary_formula_prior_terms(x, names(priors))
-  scale <- .summary_scale_formula_parameters(x)
-  for (i in which(nzchar(formula_terms[["term"]]))) {
-    term <- formula_terms[["term"]][[i]]
-    parameter <- formula_terms[["parameter"]][[i]]
-    formula <- formula_terms[["formula_parameter"]][[i]]
-    if (formula == "mu" && term != "intercept") {
-      add(paste0("Location: ", term), parameter)
-    } else if (formula %in% scale && !(formula == "log_tau" && term == "intercept")) {
-      add(paste0("Scale: ", .summary_formula_term_label(x, formula, term)), parameter)
-    }
-  }
-  components
-}
-
-
 .plot_models_terms <- function(x, components) {
 
-  main <- c("Effect", "Heterogeneity", "Publication Bias")
-  declared <- names(attr(x[["fit"]], "prior_list", exact = TRUE))
-  formula_order <- function(prefix) {
-    entries <- components[startsWith(names(components), prefix)]
-    parameters <- vapply(entries, `[[`, character(1), "parameter")
-    names(entries)[order(match(parameters, declared))]
-  }
-  location <- formula_order("Location: ")
-  scale <- formula_order("Scale: ")
+  main <- c("Effect", "Heterogeneity", "Publication Bias", "Heterogeneity Allocation")
+  location <- names(components)[startsWith(names(components), "Location: ")]
+  scale <- names(components)[startsWith(names(components), "Scale: ")]
   order <- unique(c(intersect(main, names(components)), location, scale, names(components)))
   metadata <- if (length(c(location, scale))) .brma_parameter_catalog_metadata(x) else NULL
   catalog <- metadata[["catalog"]]
@@ -278,15 +262,17 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
     label <- info[["component"]]
     parameter <- info[["parameter"]]
     component <- switch(label, Effect = "mods", Heterogeneity = "scale",
-                        "Publication Bias" = "bias", "random")
+                        "Publication Bias" = "bias", "Heterogeneity Allocation" = "scale",
+                        "random")
     term <- list(
       id        = switch(label, Effect = "mu", Heterogeneity = "tau",
                          "Publication Bias" = "bias", parameter),
       label     = label,
       group     = if (label %in% main) "Components" else "Random",
       component = component,
-      aliases   = unique(c(parameter, label, switch(label,
+      aliases   = unique(c(parameter, label, info[["aliases"]], switch(label,
         Effect = "effect", Heterogeneity = "heterogeneity",
+        "Heterogeneity Allocation" = "heterogeneity_allocation",
         "Publication Bias" = "publication_bias"))),
       signed    = identical(label, "Effect"),
       estimate  = if (parameter == "mu_intercept") "(mu) intercept" else parameter,
@@ -358,6 +344,16 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
                          any(!nzchar(values)))) {
     stop("'", argument, "' must be a named character vector with unique ",
          "non-empty names and values.", call. = FALSE)
+  }
+}
+
+
+.plot_models_check_keys <- function(values, allowed, argument) {
+
+  unknown <- setdiff(names(values), allowed)
+  if (length(unknown) > 0L) {
+    stop("Unknown '", argument, "' ", if (length(unknown) == 1L) "key" else "keys",
+         ": ", paste(sprintf("'%s'", unknown), collapse = ", "), ".", call. = FALSE)
   }
 }
 
@@ -461,10 +457,11 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
   is_bias <- identical(term[["id"]], "bias")
   prefix <- if (draw_groups || isTRUE(term[["keep_prefix"]])) term[["prefix"]]
   row <- function(id, label, aliases, state, colors = NULL, state_labels = NULL,
-                  estimate = NULL) {
+                  estimate = NULL, members = NULL, individual = FALSE) {
     list(id = id, label = label, aliases = aliases, group = term[["group"]],
          state = state, colors = colors, state_labels = state_labels,
-         estimate = estimate, parameter = info[["parameter"]])
+         estimate = estimate, parameter = info[["parameter"]],
+         members = members, individual = individual)
   }
   term_label <- if (is.null(prefix)) term[["label"]] else paste0("(", prefix, ") ", term[["label"]])
   direct_level <- selected %in% names(term[["levels"]])
@@ -495,13 +492,13 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
     legend_labels <- stats::setNames(paste0(term_label, ": ", members), keys)
     if (mixture_view == "model") {
       return(list(row(term[["id"]], term_label, term[["aliases"]],
-                      keys[indicator], palette, legend_labels)))
+                      keys[indicator], palette, legend_labels, members = members)))
     }
     return(lapply(seq_along(members), function(i) {
       row(member_ids[[i]], paste0(term_label, ": ", members[[i]]),
           c(member_aliases[[i]], paste0(term_label, ": ", members[[i]])),
           ifelse(indicator == i, keys[[i]], "excluded"),
-          palette[i], legend_labels[i])
+          palette[i], legend_labels[i], individual = TRUE)
     }))
   }
 

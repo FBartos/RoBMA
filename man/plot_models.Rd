@@ -53,7 +53,8 @@ Unspecified terms use \code{"inclusion"}.}
 
 \item{labels}{named character vector of row label overrides. Use stable
 selectors such as \code{"mu"}, \code{"mu_year"}, \code{"mu_delivery[online]"}, or
-\code{"bias[PET]"} (when the mixture member is named \code{PET}).}
+\code{"bias[PET]"} (when the mixture member is named \code{PET}).
+Overrides also update the mixture labels in the legend.}
 
 \item{decreasing}{whether to draw models in decreasing posterior
 probability order.}
@@ -65,7 +66,8 @@ probability order.}
 mixture members, using their names from \code{\link[=summary_models]{summary_models()}} or qualified member
 selectors of the form \code{"bias[PET]"}. Member-specific colors override
 bias and no-bias colors in categorical and individual views.
-Use qualified selectors for members named \code{bias} or \code{no_bias}.}
+Use qualified selectors for members named \code{bias} or \code{no_bias}.
+This argument requires a displayed publication-bias component.}
 
 \item{legend}{whether to show the color legend.}
 
@@ -89,15 +91,19 @@ The column widths come from the same joint indicator draws as
 \code{summary_models(x, type = "individual")}. Choosing rows changes the
 displayed information while keeping the fitted models and their widths.
 Ungated coefficients can appear alongside the model components.
+Select the main components by \code{"mu"}, \code{"tau"}, \code{"bias"}, and \code{"rho"}
+for an available heterogeneity allocation mixture. Use qualified selectors
+for moderators with those names.
 
 Inclusion uses the null or alternative assignment of the active prior
 member, or the fitted inclusion gate. In the inclusion view, directional
 colors indicate the sign of the posterior median within that full model on
 the fitted predictor scale. If the predictors were centered or standardized
 during fitting, intercept and moderator directions refer to that
-parameterization. Heterogeneity, publication bias, random-effect gates,
-whole factors, and coefficients with a median of zero use neutral inclusion
-colors. Factor level rows share the factor's inclusion gate.
+parameterization. Heterogeneity, heterogeneity allocation, publication
+bias, random-effect gates, whole factors, and coefficients with a median of
+zero use neutral inclusion colors. Factor level rows share the factor's
+inclusion gate.
 Treatment contrasts show coefficients relative to the reference level and
 omit the reference row. Mean-difference and orthonormal contrasts show
 deviations from the equally weighted mean of the factor levels.

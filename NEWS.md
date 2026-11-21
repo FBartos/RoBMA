@@ -4,7 +4,7 @@
 
 ### Features
 - `plot_models()` displays posterior probabilities of individual models and their component inclusion, coefficient directions, or mixture members
-- `summary_models()` includes model weights for mixture and spike-and-slab priors on ordered factor totals
+- `summary_models()` includes model weights for ordered factor total gates and heterogeneity allocation mixtures
 - `hypothesis()` supports interval and unconstrained comparisons and can report prior and posterior densities, region probabilities, and the Bayes factor method
 - moderator and scale regressions accept ridge, lasso, and horseshoe priors through `prior_regularized()`, with joint shrinkage for centered factors
 - `plot_diagnostic()` and `plot_diagnostic_trace()` gain `statistic` and `batch_size` to trace batched inclusion probabilities, mixture-component probabilities, and switching rates
