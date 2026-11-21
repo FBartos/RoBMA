@@ -111,7 +111,8 @@ an error of class \code{RoBMA_component_mismatch}.}
 
 \item{statistic}{trace statistic. \code{"value"} shows the sampled parameter.
 \code{"inclusion"} shows the fraction of each batch spent in the alternative
-components and needs both null and alternative components.
+components and needs every component declared null or alternative,
+with both present.
 \code{"component"} shows the fraction spent in each mixture
 component in separate plots (one plot for a binary null/alternative
 choice). \code{"switching"} shows the fraction of adjacent draws within
@@ -122,7 +123,8 @@ allocation gate. Otherwise the diagnostic raises
 \code{RoBMA_indicator_unavailable} (also a \code{BayesTools_plot_condition}).}
 
 \item{batch_size}{optional positive integer giving the number of retained
-draws per batch for indicator traces (at least 2 for \code{"switching"}).
+draws per batch for indicator traces. Switching needs at least two
+retained draws per batch and chain; a final one-draw batch is not drawn.
 By default the shortest chain
 supplies approximately its square root in batches. Each chain is
 batched separately and plotted at the batches' midpoint iterations.}
