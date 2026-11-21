@@ -31,8 +31,19 @@
 #' \code{\link{random_effect_prior_specification}}.
 #' @param prior_mods prior distribution for the moderators (\eqn{\beta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
-#' priors. If omitted or `NULL`, default priors are used. This argument can be
-#' specified only when `mods` is specified. A formula without an intercept
+#' priors. A named [prior_regularized()] group, such as
+#' `list(shrinkage = prior_regularized("horseshoe", scale = global))`, shares
+#' a positive prior `global` on the shrinkage scale across otherwise
+#' unassigned slopes. Use `terms` to select slopes or give separate groups to
+#' learn separate scales. Treatment and independent contrasts shrink individual
+#' coefficients. Mean-difference and orthonormal contrasts shrink the centered
+#' factor contrasts jointly. For a factor main effect, the group uses
+#' `set_contrast_factor_predictors` unless its `contrast` is specified.
+#' Interaction terms use their factors' fitted codings. If a group supplies
+#' only the interaction, its explicit contrast must match each constituent
+#' fitted with contrasts. Omit `contrast` to inherit a mixed design.
+#' Omitting `prior_mods` or setting it
+#' to `NULL` uses the default priors. This argument requires `mods`. A formula without an intercept
 #' (`~ 0 + x`) fixes the location intercept at zero, so an `intercept` entry of
 #' the list is accepted only as a point prior at zero; any other `intercept`
 #' prior stops with an error of class `RoBMA_prior_intercept_conflict` (also of
@@ -44,7 +55,8 @@
 #' @param prior_scale prior distribution for the scale (\eqn{\delta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' priors. If omitted or `NULL`, default priors are used. This argument can be
-#' specified only when `scale` is specified.
+#' specified only when `scale` is specified. Named [prior_regularized()]
+#' groups apply to the log-scale slopes in the same way as in `prior_mods`.
 #' A named `intercept` entry supplies the complete positive SD prior used by
 #' `log(intercept)`. Global heterogeneity declarations remain meaningful when
 #' they supply another random root or its model-inclusion weights; declarations
@@ -686,7 +698,15 @@ NULL
 #' the complete intercept prior and replaces the global effect mixture. Specify
 #' it in one place: null-list intercepts and explicit global effect declarations
 #' left without a consumer are refused. Ordinary term entries replace only their
-#' alternative component.
+#' alternative component. A named [prior_regularized()] group shares its
+#' shrinkage scale across the selected moderator alternatives. The terms keep
+#' their individual null components and inclusion weights. The default
+#' mean-difference coding regularizes the factor's centered contrasts jointly
+#' and uses one inclusion indicator for the entire term. Set the group's
+#' `contrast` to choose the coding of a factor main effect. Interactions use
+#' their factors' fitted codings. If the group supplies only the interaction,
+#' an explicit contrast must match each constituent fitted with contrasts.
+#' Omit `contrast` to inherit a mixed design.
 #' @param prior_scale prior distribution(s) for alternative scale-regression
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `scale`
@@ -695,6 +715,7 @@ NULL
 #' Global heterogeneity declarations remain meaningful when they supply another
 #' random root or its inclusion weights; declarations replaced without a
 #' consumer are refused. Null-list intercept declarations are unavailable.
+#' Use a named [prior_regularized()] group to shrink selected log-scale slopes.
 #' @param prior_heterogeneity_allocation prior distribution(s) for the
 #' alternative cluster-level heterogeneity allocation component(s). This
 #' argument can be specified only when `cluster` is specified.

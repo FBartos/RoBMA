@@ -214,12 +214,12 @@ test_that("generic QMC z projections retain their design across draw partitions"
   native <- get(".Call", envir = environment(.zplot_joint_block))
   project <- .zplot_joint_block
   environment(project) <- new.env(parent = environment(project))
-  environment(project)$.Call <- function(.NAME, ..., PACKAGE = NULL){
+  environment(project)$.Call <- .native_call_mock(function(.NAME, ..., PACKAGE = NULL){
 
     arguments <- list(...)
     arguments[[1L]] <- rep(1e8, length(arguments[[1L]]))
     do.call(native, c(list(.NAME), arguments, list(PACKAGE = PACKAGE)))
-  }
+  })
   shifted <- project(z, mean, packed, sei, context, FALSE, control)
   expect_identical(shifted, full)
   expect_identical(.Random.seed, seed)

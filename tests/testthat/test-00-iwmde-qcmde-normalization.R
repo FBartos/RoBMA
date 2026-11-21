@@ -398,7 +398,7 @@ test_that("the engine finds the density backends again after a reload of BayesTo
   backends  <- .hypothesis_density_backend_names()
   registered <- function() backends %in% BayesTools::hypothesis_density_backends()$name
   call <- function() {
-    hypothesis(object, statement, density_method = "qCMDE", seed = 1, columns = "all")
+    hypothesis(object, statement, density_method = "qCMDE", seed = 1, include_densities = TRUE)
   }
   withr::defer({
     .hypothesis_density_backends_register()

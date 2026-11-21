@@ -55,6 +55,38 @@ prior_none <- BayesTools::prior_none
 #' @export
 prior_factor <- BayesTools::prior_factor
 
+#' @title Regularized Regression Priors
+#'
+#' @description Set ridge, lasso, or horseshoe priors for moderator or scale
+#' regression coefficients. A named group in `prior_mods` or `prior_scale`
+#' can share one shrinkage scale across its terms. The intercept retains its
+#' own prior. For a centered factor, lasso shrinks the length of the fitted
+#' contrast vector and horseshoe assigns one local scale to that vector.
+#' Treatment and independent contrasts have coordinate-wise shrinkage. The
+#' scale is in fitted coefficient units, so the same scale can give different
+#' prior spreads for factor-level effects under different contrasts.
+#' An interaction inherits its factors' fitted codings. To change the coding
+#' of a factor in the interaction, specify it on that factor's main effect.
+#'
+#' @inheritParams BayesTools::prior_regularized
+#' @inherit BayesTools::prior_regularized return
+#'
+#' @examples
+#' global <- prior("cauchy", list(0, 0.2), list(0, Inf))
+#' moderator_priors <- list(
+#'   shrinkage = prior_regularized("horseshoe", terms = c("age", "dose"),
+#'                                scale = global, slab_scale = 2, slab_df = 4)
+#' )
+#' # Jointly shrink the contrasts of a design factor in a meta-regression.
+#' design_priors <- list(
+#'   design_group = prior_regularized("lasso", terms = "design", scale = 0.3,
+#'                                    contrast = "meandif")
+#' )
+#'
+#' @seealso [prior_specification()], [BayesTools::prior_regularized()]
+#' @export
+prior_regularized <- BayesTools::prior_regularized
+
 #' @title Ordered Factor Prior
 #'
 #' @description Create priors on ordered factor effects by separating a scalar

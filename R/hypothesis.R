@@ -91,6 +91,8 @@
 #' hypothesis(fit, "mu != 0 vs mu = 0")
 #' hypothesis(fit, "mu > 0 vs mu = 0")
 #' hypothesis(fit, "mu > 0 vs mu < 0")
+#' hypothesis(fit, "-0.1 <= mu <= 0.1", include_probabilities = TRUE)
+#' hypothesis(fit, "mu = 0", include_densities = TRUE, include_method = TRUE)
 #'
 #' # Heterogeneity hypothesis
 #' hypothesis(fit, "tau = 0 vs tau > 0", component = "scale")
@@ -111,6 +113,8 @@
 #' # Marginal-mean hypothesis for a factor level
 #' emm <- marginal_means(fit_mod, density_method = "qCMDE")
 #' hypothesis(emm, "group[B] > 0 vs group[B] = 0")
+#' hypothesis(emm, "unconstrained vs -0.1 <= group[B] <= 0.1",
+#'            include_probabilities = TRUE)
 #' }
 #'
 #' @references
@@ -219,12 +223,17 @@ hypothesis.default <- function(object, hypothesis, ...) {
 #' @param logBF whether to display the Bayes factor on the log scale.
 #' @param BF01 whether to display the inverse Bayes factor.
 #' @param seed optional seed used by BayesTools for sampled prior quantities.
-#' @param columns output columns passed to \code{BayesTools::hypothesis_BF()}.
-#' \code{"default"} returns the compact BayesTools table with
-#' \code{Alternative}, \code{Null}, \code{BF}, and \code{error\%(BF)}
-#' columns. \code{"all"} also returns \code{prior}, \code{posterior}, and
-#' \code{method} columns. The \code{prior} and \code{posterior} columns are
-#' diagnostics rather than probabilities for all hypothesis types.
+#' @param include_densities whether to show the prior and posterior densities at
+#' the tested point. Defaults to \code{FALSE}.
+#' @param include_probabilities whether to show the prior and posterior
+#' probabilities of the alternative and null regions. Defaults to \code{FALSE}.
+#' For example, \code{"-0.1 <= mu <= 0.1"} compares the interval with its
+#' complement. Use \code{"-0.1 <= mu <= 0.1 vs unconstrained"} to compare the
+#' interval with the full model under the selected conditioning, or reverse the
+#' two sides to report the reciprocal Bayes factor.
+#' @param include_method whether to show the Bayes factor method for each
+#' hypothesis, including the posterior density estimator for point tests.
+#' Defaults to \code{FALSE}.
 #' @param density_method posterior density method. Defaults to \code{"qCMDE"}
 #' for fitted \code{brma} objects. \code{"KDE"} uses the standard BayesTools
 #' kernel density estimate. \code{"normal"} uses the
@@ -434,7 +443,9 @@ hypothesis.brma <- function(object, hypothesis,
                             density_method = "qCMDE",
                             density_control = NULL,
                             n_samples = 10000,
-                            columns = "default", ...) {
+                            include_densities = FALSE,
+                            include_probabilities = FALSE,
+                            include_method = FALSE, ...) {
 
   conditional_omitted <- missing(conditional)
 
@@ -448,7 +459,9 @@ hypothesis.brma <- function(object, hypothesis,
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(BF01, "BF01")
   BayesTools::check_real(seed, "seed", check_length = 1, allow_NULL = TRUE, allow_NA = FALSE)
-  BayesTools::check_char(columns, "columns", check_length = 0, allow_NA = FALSE)
+  BayesTools::check_bool(include_densities, "include_densities", allow_NA = FALSE)
+  BayesTools::check_bool(include_probabilities, "include_probabilities", allow_NA = FALSE)
+  BayesTools::check_bool(include_method, "include_method", allow_NA = FALSE)
   BayesTools::check_int(n_samples, "n_samples", lower = 2)
   .warn_unused_dots(
     dots    = list(...),
@@ -478,19 +491,21 @@ hypothesis.brma <- function(object, hypothesis,
   BayesTools::check_char(component, "component", check_length = 1, allow_NULL = TRUE, allow_NA = FALSE)
 
   BayesTools::hypothesis_BF_model(
-    object              = object,
-    hypothesis          = hypothesis,
-    namespace           = component,
-    transform_scaled    = !standardized_coefficients,
-    conditional         = conditional,
-    logBF               = logBF,
-    BF01                = BF01,
-    seed                = seed,
-    density_method      = density_method,
-    density_control     = density_control,
-    n_samples           = n_samples,
-    columns             = columns,
-    conditional_omitted = conditional_omitted
+    object                = object,
+    hypothesis            = hypothesis,
+    namespace             = component,
+    transform_scaled      = !standardized_coefficients,
+    conditional           = conditional,
+    logBF                 = logBF,
+    BF01                  = BF01,
+    seed                  = seed,
+    density_method        = density_method,
+    density_control       = density_control,
+    n_samples             = n_samples,
+    include_densities     = include_densities,
+    include_probabilities = include_probabilities,
+    include_method        = include_method,
+    conditional_omitted   = conditional_omitted
   )
 }
 
@@ -547,14 +562,18 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
                                            seed = NULL,
                                            density_method = NULL,
                                            density_control = NULL,
-                                           columns = "default",
+                                           include_densities = FALSE,
+                                           include_probabilities = FALSE,
+                                           include_method = FALSE,
                                            ...) {
 
   BayesTools::check_char(hypothesis, "hypothesis", check_length = 0, allow_NA = FALSE)
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(BF01, "BF01")
   BayesTools::check_real(seed, "seed", check_length = 1, allow_NULL = TRUE, allow_NA = FALSE)
-  BayesTools::check_char(columns, "columns", check_length = 0, allow_NA = FALSE)
+  BayesTools::check_bool(include_densities, "include_densities", allow_NA = FALSE)
+  BayesTools::check_bool(include_probabilities, "include_probabilities", allow_NA = FALSE)
+  BayesTools::check_bool(include_method, "include_method", allow_NA = FALSE)
   .warn_unused_dots(
     dots    = list(...),
     allowed = character(),
@@ -562,15 +581,17 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   )
 
   BayesTools::hypothesis_BF_model(
-    object          = object,
-    hypothesis      = hypothesis,
-    parameter       = parameter,
-    logBF           = logBF,
-    BF01            = BF01,
-    seed            = seed,
-    density_method  = density_method,
-    density_control = density_control,
-    columns         = columns
+    object                = object,
+    hypothesis            = hypothesis,
+    parameter             = parameter,
+    logBF                 = logBF,
+    BF01                  = BF01,
+    seed                  = seed,
+    density_method        = density_method,
+    density_control       = density_control,
+    include_densities     = include_densities,
+    include_probabilities = include_probabilities,
+    include_method        = include_method
   )
 }
 

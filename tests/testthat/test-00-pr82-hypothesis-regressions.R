@@ -3,7 +3,7 @@ test_that("cross-level hypotheses keep all rows and build one shared context", {
   calls    <- 0L
   attached <- NULL
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(...) data.frame(BF = c(2, 3)),
+    .hypothesis_BF_draws = function(...) data.frame(BF = c(2, 3)),
     .hypothesis_model_append_ordinate_warnings = function(table, ...) table,
     .package = "BayesTools"
   )

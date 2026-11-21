@@ -32,7 +32,7 @@ context("qCMDE/IWMDE classify inclusion indicators by their declared role")
 .review_indicator_bf <- function(object, statement) {
 
   hypothesis(
-    object, statement, columns = "all", density_method = "qCMDE",
+    object, statement, include_densities = TRUE, density_method = "qCMDE",
     density_control = list(n_points = 20, samples = 100), seed = 1
   )
 }

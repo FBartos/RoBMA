@@ -282,8 +282,10 @@ test_that("IWMDE of a difference of factor coefficients succeeds and agrees with
   posterior <- stats::dnorm(.1, -.12, sqrt(.02))
   exact_bf  <- ((2 - .1) / 4) / posterior
 
-  iwmde <- hypothesis(object, statement, density_method = "IWMDE", columns = "all")
-  qcmde <- hypothesis(object, statement, density_method = "qCMDE", columns = "all")
+  iwmde <- hypothesis(object, statement, density_method = "IWMDE", include_method = TRUE)
+  qcmde <- hypothesis(object, statement, density_method = "qCMDE", include_method = TRUE)
+  expect_identical(iwmde[["method"]], "Savage-Dickey (IWMDE)")
+  expect_identical(qcmde[["method"]], "Savage-Dickey (qCMDE)")
   expect_equal(unname(attr(iwmde, "raw_BF")), exact_bf, tolerance = .01)
   expect_equal(unname(attr(qcmde, "raw_BF")), exact_bf, tolerance = .01)
   expect_equal(unname(attr(iwmde, "raw_BF")), unname(attr(qcmde, "raw_BF")),

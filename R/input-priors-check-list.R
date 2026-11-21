@@ -112,6 +112,8 @@
   # check object type
   if (!BayesTools::is.prior(prior))
     stop("The 'prior_mods' / 'prior_scale' arguments must be a prior distribution.", call. = FALSE)
+  if (BayesTools::is.prior.regularized(prior))
+    return(invisible(TRUE))
   if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior) || BayesTools::is.prior.factor(prior)))
     stop("The 'prior_mods' / 'prior_scale' arguments for predictors must be a either a simple, factor, or point prior distribution.", call. = FALSE)
   .check_prior.not_bias(prior, "prior_mods' / 'prior_scale")
@@ -324,9 +326,16 @@
   if (BayesTools::is.prior.point(prior) || BayesTools::is.prior.none(prior))
     return(prior)
 
+  # Rescaling a group applies to its coefficient after all its scale draws.
+  # This preserves the declared global prior, including finite truncation.
+  if (BayesTools::is.prior.regularized(prior) && !BayesTools::is.prior.simple(prior)) {
+    attr(prior, "regularized_scale_multiplier") <- rescale_priors
+    return(prior)
+  }
+
   # only specific prior distributions can be rescaled
   # (UPGRADE: once BayesTools incorporates direct scaling, extend to all kinds of priors)
-  can_be_rescaled <- c("normal", "mnormal", "cauchy", "mcauchy", "t", "mt", "invgamma")
+  can_be_rescaled <- c("normal", "mnormal", "laplace", "cauchy", "mcauchy", "t", "mt", "invgamma")
   if (!is.element(prior[["distribution"]], can_be_rescaled))
     stop(sprintf(
       paste0("The '%1$s' prior distribution cannot be rescaled using the 'rescale_priors' argument. ",
@@ -337,8 +346,15 @@
 
   if (prior[["distribution"]] %in% c("normal", "mnormal")) {
     prior[["parameters"]][["sd"]] <- prior[["parameters"]][["sd"]] * rescale_priors
-  } else if (prior[["distribution"]] %in% c("cauchy", "mcauchy", "t", "mt", "invgamma")) {
+  } else if (prior[["distribution"]] %in% c("laplace", "cauchy", "mcauchy", "t", "mt", "invgamma")) {
     prior[["parameters"]][["scale"]] <- prior[["parameters"]][["scale"]] * rescale_priors
+  }
+
+  # A fixed ridge/lasso can also be the unnamed-term default of a named group.
+  spec <- attr(prior, "regularized_spec", exact = TRUE)
+  if (!is.null(spec)) {
+    spec[["scale"]] <- spec[["scale"]] * rescale_priors
+    attr(prior, "regularized_spec") <- spec
   }
 
   return(prior)
