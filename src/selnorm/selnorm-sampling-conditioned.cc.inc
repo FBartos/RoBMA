@@ -3,6 +3,47 @@
 // the finite Gaussian event algebra in selnorm-mv.cc.
 namespace {
 
+// At a changing step, rounding the reconstructed mean can move appreciable
+// probability when even the entire integrated SD is below its resolution.
+void check_conditioned_cutoff_resolution(int row, double location, double reconstruction_scale,
+    const double *diagonal, const double *loading, int dimension, int rank,
+    const double *x, const double *se, const double *omega, const double *z_lower,
+    int n_bins, int sign, int rule, const int *group, const int *obs_bin,
+    const std::vector<bool> &integrated)
+{
+  const double minimum_sd = 1e-12 * reconstruction_scale;
+  double sd = std::sqrt(diagonal[row]);
+  for (int factor = 0; factor < rank && sd < minimum_sd; ++factor)
+    sd = std::hypot(sd, loading[row + dimension * factor]);
+  if (sd >= minimum_sd) return;
+
+  const bool absolute = rule == SELVECTOR_BEST_TWO_SIDED;
+  const double value = absolute ? std::fabs(location) : sign * location;
+  for (int bin = 0; bin + 1 < n_bins; ++bin) {
+    const double cut = z_lower[bin];
+    if (omega[bin] == omega[bin + 1] || !std::isfinite(cut) || (absolute && cut <= 0.0) ||
+        std::fabs(value - se[row] * cut) > 1e-10 * reconstruction_scale) continue;
+
+    // A fixed eligible outcome already at or above this cut wins over
+    // either neighboring bin in its publication.
+    if (rule != SELVECTOR_PRODUCT) {
+      bool dominated = false;
+      for (int other = 0; other < dimension; ++other) {
+        if (group[other] != group[row] || !obs_bin[other] || integrated[other]) continue;
+        const double observed = absolute ? std::fabs(x[other]) : sign * x[other];
+        if (observed >= se[other] * cut) { dominated = true; break; }
+      }
+      if (dominated) continue;
+    }
+    char message[384];
+    std::snprintf(message, sizeof(message),
+      "Sampling-conditioned selection is unavailable at working precision for row %d in its likelihood block: "
+      "integrated SD %.6g at z cutoff %.6g, reconstructed mean term magnitudes sum to %.6g. "
+      "Check the random-effect scales and loadings for this row.", row + 1, sd, cut, reconstruction_scale);
+    throw std::runtime_error(message);
+  }
+}
+
 int sampling_conditioned_bin(double x, double se,
     const SelNormKernelData &selection, int vector_rule)
 {
@@ -571,8 +612,16 @@ double cpp_selnorm_sampling_conditioned_lpdf(
     sampling_effect[row] = x[row] - mean[row];
     if (!fixed) {
       sampling_effect[row] = sampling_auxiliary[row];
+      double magnitude = std::fabs(mean[row]) + std::fabs(sampling_auxiliary[row]);
       for (int column = 0; column < dimension; ++column) {
-        sampling_effect[row] += sampling[row + dimension * column] * delta[column];
+        const double correction = sampling[row + dimension * column] * delta[column];
+        sampling_effect[row] += correction;
+        magnitude += std::fabs(correction);
+      }
+      if (kernel_mode == SELKERNEL_STEP && obs_bin[row]) {
+        check_conditioned_cutoff_resolution(row, mean[row] + sampling_effect[row], magnitude,
+          diagonal, loading, dimension, rank, x, selection_se, omega, z_lower,
+          n_bins, effect_sign, vector_rule, group_index, obs_bin, integrated);
       }
     }
     // With no integrated source this coordinate is exactly the observed

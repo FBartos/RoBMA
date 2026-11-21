@@ -1,6 +1,6 @@
-.sampling_selection_evidence_fixture <- function(estimate = "integrate") {
+.sampling_selection_evidence_fixture <- function(estimate = "integrate", yi = c(.4, -.2)) {
 
-  dat <- data.frame(yi = c(.4, -.2), sei = c(.8, 1.1), paper = c("a", "a"))
+  dat <- data.frame(yi = yi, sei = c(.8, 1.1), paper = c("a", "a"))
   object <- bselmodel(
     yi = yi, sei = sei, data = dat, measure = "GEN", effect_direction = "positive",
     prior_unit_information_sd = 1, only_priors = TRUE,
@@ -68,6 +68,29 @@ test_that("sampling-conditioned joint evidence replays Gaussian augmentation at 
   expect_equal(grid, reference, tolerance = 1e-12)
 })
 
+
+test_that("joint scoring and scalar bridge replay report the same unresolved cutoff", {
+
+  fixture <- .sampling_selection_evidence_fixture(yi = c(0, -.2))
+  object <- fixture$object
+  samples <- fixture$samples[1L, , drop = FALSE]
+  samples[, "tau"] <- 1e-20
+  setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
+  fit_data <- .marglik_add_selection_bridge_data(.create_fit_data(object$data, object$priors),
+    object$priors, "positive", object$data)
+  parameters <- list(mu = samples[1L, "mu"], tau = samples[1L, "tau"],
+    theta = unname(samples[1L, 3:4]), sampling_z = unname(samples[1L, 5:6]))
+  plan <- .marglik_conditioned_sampling_plan(object$data)
+  expect_false(is.null(plan))
+  err <- tryCatch(.selection_conditioned_sampling_state(setup), error = identity)
+  expect_match(conditionMessage(err), "integrated SD")
+  expect_error(.log_posterior(parameters, fit_data, is_scale = FALSE, is_multilevel = FALSE,
+    is_weights = FALSE, is_known_v = FALSE, is_PET = FALSE, is_PEESE = FALSE,
+    is_weightfunction = TRUE, effect_direction = "positive", outcome_type = "norm",
+    model_data = object$data, bridge_context = list(nodes = samples[1L, ]),
+    selection_fit = object$fit, selection_priors = object$priors, sampling_conditioned_plan = plan),
+    conditionMessage(err), fixed = TRUE)
+})
 
 test_that("sampling-conditioned row deletion integrates the deleted sampling error", {
 

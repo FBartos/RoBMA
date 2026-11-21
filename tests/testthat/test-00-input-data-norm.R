@@ -156,12 +156,12 @@ test_that("normal input requires representable and consistent sampling variances
     )
   }
 
-  expect_silent(brma.norm(
+  expect_error(brma.norm(
     yi        = c(-1, 0, 1),
     vi        = c(1e-300, .04, 1e300),
     sei       = sqrt(c(1e-300, .04, 1e300)),
     only_data = TRUE
-  ))
+  ), class = "RoBMA_data_outside_numerical_domain")
   expect_error(
     brma.norm(
       yi        = 0,
@@ -171,6 +171,51 @@ test_that("normal input requires representable and consistent sampling variances
     ),
     "inconsistent"
   )
+})
+
+
+test_that("retained Gaussian effects and marginal standard errors use the public data domain", {
+
+  for (measure in c("SMD", "OR", "RR", "HR", "IRR", "RD", "ZCOR", "GEN")) {
+    maximum <- if (measure == "GEN") 1e9 else 1000
+    yi <- c(-maximum, -1e-12, 0, 1e-12, maximum)
+    se <- c(1e-6, .1, maximum, .1, 1)
+    fit_data <- brma(yi = yi, sei = se, measure = measure, only_data = TRUE)$data
+    expect_equal(fit_data$outcome$yi, yi, tolerance = 0)
+    expect_equal(fit_data$outcome$sei, se, tolerance = 0)
+    for (direction in c(-1, 1)) {
+      bad <- direction * maximum * (1 + .Machine$double.eps)
+      e <- tryCatch(brma(yi = c(0, bad), sei = c(1, 1), subset = 2L, measure = measure,
+                        only_data = TRUE), RoBMA_data_error = identity)
+      expect_s3_class(e, "RoBMA_data_outside_numerical_domain")
+      expect_identical(e$row, 2L)
+      expect_identical(e$quantity, "yi")
+      expect_identical(e$value, bad)
+    }
+    for (bad in c(1e-6 * (1 - .Machine$double.eps), maximum * (1 + .Machine$double.eps))) {
+      e <- tryCatch(brma(yi = c(0, 0), vi = c(1, bad^2), measure = measure,
+                        only_data = TRUE), RoBMA_data_error = identity)
+      expect_s3_class(e, "RoBMA_data_outside_numerical_domain")
+      expect_identical(e$row, 2L)
+      expect_identical(e$quantity, "sei")
+    }
+  }
+
+  dat <- data.frame(y = c(1e12, 0, 1e-12), x = c(NA, 1, 2), se = c(1e-9, .2, .3))
+  expect_warning(retained <- brma(yi = y ~ x, sei = se, data = dat, measure = "SMD", only_data = TRUE),
+                 "1 observation(s) removed", fixed = TRUE)
+  expect_equal(retained$data$outcome$yi, dat$y[2:3])
+  bad_vi <- c(1001^2, .04, .09)
+  for (V in list(bad_vi, diag(bad_vi), list(diag(bad_vi[1:2]), matrix(bad_vi[3])),
+                 known_v_factor(c(0, .04, .09), matrix(c(1001, 0, 0))))) {
+    e <- tryCatch(brma.mv(yi = rep(0, 3), V = V, measure = "SMD", only_data = TRUE),
+                  RoBMA_data_error = identity)
+    expect_s3_class(e, "RoBMA_data_outside_numerical_domain")
+    expect_identical(e$row, 1L)
+    expect_identical(e$value, 1001)
+    expect_equal(brma.mv(yi = y, V = V, subset = c(2, 3), data = dat,
+                         measure = "SMD", only_data = TRUE)$data$outcome$sei, c(.2, .3))
+  }
 })
 
 
@@ -1788,7 +1833,7 @@ test_that("retained normal outcomes and optional sample sizes must be finite", {
       expect_equal(nrow(result[["data"]][["outcome"]]), 2L)
     }
     valid <- args
-    valid[["yi"]][1L] <- -.Machine$double.xmax
+    valid[["yi"]][1L] <- -1000
     valid[["ni"]] <- c(NA, .Machine$double.xmin, .Machine$double.xmax)
     expect_silent(do.call(constructor, valid))
   }

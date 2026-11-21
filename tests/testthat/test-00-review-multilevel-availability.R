@@ -23,13 +23,16 @@ test_that("multilevel total conditional means use the stable weighted expression
   cluster_mean <- (1 - 2^55) / 2.5
   expected <- 1 + 1e-20 * cluster_mean
   expect_lt(abs(positive$total[1L, 1L] - expected), 1e-14)
-  object <- brma(yi = c(1, -2^56), vi = c(1e-20, 1), cluster = c("a", "a"),
+  yi <- c(1, -2^27)
+  vi <- c(1e-12, 1)
+  object <- brma(yi = yi, vi = vi, cluster = c("a", "a"),
     measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE,
     prior_effect = BayesTools::prior("point", list(location = 0)),
     prior_heterogeneity = BayesTools::prior("point", list(location = 1 / sqrt(.5))),
     prior_heterogeneity_allocation = BayesTools::prior("point", list(location = .5)))
-  # This genuine constructor admits positive sampling variance. Zero sampling
-  # noise is an internal conditional boundary control above, not public admission.
+  # Exercise the public calculation at the smallest supported sampling SE.
+  cluster_mean <- sum(yi / (1 + vi)) / (1 + sum(1 / (1 + vi)))
+  expected <- (yi[1L] + vi[1L] * cluster_mean) / (1 + vi[1L])
   public <- predict(object, type = "blup", quiet = TRUE,
     .posterior_samples = cbind(mu = 0, tau = 1 / sqrt(.5), rho = .5))
   expect_lt(abs(public[1L, 1L] - expected), 1e-14)

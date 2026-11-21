@@ -1,5 +1,6 @@
 ## development version
 ### Breaking changes
+- Gaussian models check retained effects and sampling standard errors against measure-specific input limits
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
 
 ### Features
@@ -17,6 +18,7 @@
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
+- sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
 - multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions

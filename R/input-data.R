@@ -8,9 +8,25 @@
 #' arguments for binomial (`measure = "OR"`) or Poisson (`measure = "IRR"`)
 #' outcomes.
 #'
+#' @section Supported numerical range:
+#' For retained Gaussian observations, the absolute effect estimate and the
+#' sampling standard error can be at most 1,000 for named effect measures and
+#' \eqn{10^9} for `"GEN"`. Positive sampling standard errors must be at least
+#' \eqn{10^{-6}}. These inclusive limits apply on the analysis scale, including
+#' the log scale for ratio measures, and use the marginal SE for covariance
+#' input. Zero and arbitrarily small effect estimates are valid. Predictions
+#' that admit exactly zero sampling variance retain that boundary.
+#' An out-of-range observation raises `RoBMA_data_outside_numerical_domain`
+#' (a `RoBMA_data_error`) with the original row, quantity and value.
+#' For general effects, change units consistently for estimates, SEs,
+#' covariances and outcome-scale priors. For named measures, verify the
+#' measure, transformation and sampling uncertainty. These are practical
+#' input limits. Priors retain their specified support.
+#'
 #' @param yi a vector of effect sizes, or a formula with the effect size on the
 #' left-hand side and location moderators on the right-hand side (for example
 #' `yi ~ x1 + x2`). If a formula is supplied, `mods` must not be specified.
+#' See [data_input] for the supported ranges of effects and sampling SEs.
 #' @param vi a vector of sampling variances. Either `vi` or `sei` must be
 #' supplied for normal models.
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
@@ -476,6 +492,11 @@ NULL
     effect_direction <- if (stats::median(data_outcome[["yi"]], na.rm = TRUE) >= 0) "positive" else "negative"
   }
 
+  if (outcome_type == "norm") {
+    .check_gaussian_data_domain(data_outcome[["yi"]], data_outcome[["sei"]],
+                                measure, which(keep_rows))
+  }
+
   # Validate predictor variables (after subsetting and NA dropping)
   # Skip validation when processing newdata (skip_validation = TRUE)
   .check_and_list_data.validate_predictors(data_mods, "mods", skip_validation)
@@ -656,6 +677,35 @@ NULL
   rhs_index <- if (length(formula) == 3L) 3L else 2L
   validate_expression(formula[[rhs_index]])
   invisible(TRUE)
+}
+
+
+.check_gaussian_data_domain <- function(yi, sei, measure, rows) {
+
+  maximum <- if (measure == "GEN") 1e9 else 1000
+  minimum_se <- 1e-6
+  outside_yi <- abs(yi) > maximum
+  # Zero sampling variance has its own rules for fitting and prediction.
+  outside_se <- is.finite(sei) & sei > 0 & (sei < minimum_se | sei > maximum)
+  outside <- which(outside_yi | outside_se)
+  if (!length(outside)) return(invisible(NULL))
+
+  i <- outside[[1L]]
+  effect <- outside_yi[[i]]
+  quantity <- if (effect) "yi" else "sei"
+  value <- if (effect) yi[[i]] else sei[[i]]
+  lower <- if (effect) -maximum else minimum_se
+  remedy <- if (measure == "GEN") {
+    "Rescale the effects and their SEs, covariances, and outcome-scale priors consistently."
+  } else {
+    "Check the effect measure, its analysis scale, and the sampling uncertainty."
+  }
+  stop(structure(list(
+    message = sprintf("Input row %d has '%s' = %.17g outside the supported range [%g, %g] for measure '%s'. %s",
+                      rows[[i]], quantity, value, lower, maximum, measure, remedy),
+    call = NULL, row = rows[[i]], quantity = quantity, value = value,
+    measure = measure, lower = lower, upper = maximum
+  ), class = c("RoBMA_data_outside_numerical_domain", "RoBMA_data_error", "error", "condition")))
 }
 
 
@@ -855,6 +905,11 @@ NULL
   }
   missing_for_na <- known_V_input[["missing_for_na"]]
   sei            <- numeric(k)
+  # Use the marginal variance for the retained-row domain check, before
+  # decomposing V. Invalid diagonals still reach the covariance validator.
+  diagonal       <- known_V_input[["diagonal"]]
+  positive       <- which(diagonal > 0)
+  sei[positive]  <- sqrt(diagonal[positive])
   sei[missing_for_na] <- NA_real_
 
   if (!is.null(ni))
@@ -915,9 +970,11 @@ NULL
          call. = FALSE)
   }
   if (has_V) {
+    diagonal <- .known_v_input_diagonal(V)
     return(list(
       V              = V,
-      missing_for_na = is.na(.known_v_input_diagonal(V)),
+      diagonal       = diagonal,
+      missing_for_na = is.na(diagonal),
       hidden         = NULL
     ))
   }
@@ -948,8 +1005,10 @@ NULL
     missing_for_na <- if (has_vi) is.na(vi) else is.na(sei)
   }
 
+  diagonal <- if (has_vi) vi else sei^2
   return(list(
-    V              = if (has_vi) vi else sei^2,
+    V              = diagonal,
+    diagonal       = diagonal,
     missing_for_na = missing_for_na,
     hidden         = list(
       vi  = if (has_vi)  vi  else NULL,
