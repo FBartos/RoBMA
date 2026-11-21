@@ -2,9 +2,12 @@
 % Please edit documentation in R/plot-models.R
 \name{plot_models}
 \alias{plot_models}
+\alias{plot_models.RoBMA}
 \title{Plot posterior model probabilities}
 \usage{
-plot_models(
+plot_models(x, ...)
+
+\method{plot_models}{RoBMA}(
   x,
   parameter = NULL,
   component = "auto",
@@ -17,12 +20,15 @@ plot_models(
   col_bias = NULL,
   legend = FALSE,
   legend_position = "bottom",
-  plot_type = "base"
+  plot_type = "base",
+  ...
 )
 }
 \arguments{
 \item{x}{a fitted model-averaged object, such as a fit from \code{\link[=RoBMA]{RoBMA()}} or
 \code{\link[=BMA]{BMA()}}.}
+
+\item{...}{additional arguments for methods.}
 
 \item{parameter}{an ordered character vector of model component, term, or
 factor-level selectors. Use \code{NULL} to show all available components.
@@ -68,6 +74,9 @@ bias and no-bias colors in categorical and individual views.}
 }
 \value{
 Invisibly \code{NULL} for base graphics or a ggplot object for ggplot2.
+The ggplot object has an integer \code{n_rows} attribute giving the number of
+displayed rows after selection and expansion, excluding the group headings
+and legend.
 }
 \description{
 Display the posterior probabilities of the individual models in a fitted
@@ -91,6 +100,15 @@ colors. Factor level rows share the factor's inclusion gate.
 Treatment contrasts show coefficients relative to the reference level and
 omit the reference row. Mean-difference and orthonormal contrasts show
 deviations from the equally weighted mean of the factor levels.
+}
+\examples{
+\dontrun{
+fit <- RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1)
+p <- plot_models(fit, parameter = c("mu", "bias"),
+                 mixture_view = c(bias = "individual"), plot_type = "ggplot")
+attr(p, "n_rows")
+p
+}
 }
 \seealso{
 \code{\link[=summary_models]{summary_models()}}, \code{\link[=plot.brma]{plot.brma()}}

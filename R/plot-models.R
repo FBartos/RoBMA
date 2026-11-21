@@ -6,6 +6,7 @@
 #'
 #' @param x a fitted model-averaged object, such as a fit from [RoBMA()] or
 #'   [BMA()].
+#' @param ... additional arguments for methods.
 #' @param parameter an ordered character vector of model component, term, or
 #'   factor-level selectors. Use `NULL` to show all available components.
 #'   Use qualified selectors such as `"mu_year"`, `"log_tau_year"`, or
@@ -56,15 +57,43 @@
 #' deviations from the equally weighted mean of the factor levels.
 #'
 #' @return Invisibly `NULL` for base graphics or a ggplot object for ggplot2.
+#'   The ggplot object has an integer `n_rows` attribute giving the number of
+#'   displayed rows after selection and expansion, excluding the group headings
+#'   and legend.
+#'
+#' @examples
+#' \dontrun{
+#' fit <- RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1)
+#' p <- plot_models(fit, parameter = c("mu", "bias"),
+#'                  mixture_view = c(bias = "individual"), plot_type = "ggplot")
+#' attr(p, "n_rows")
+#' p
+#' }
 #' @seealso [summary_models()], [plot.brma()]
 #' @md
 #' @export
-plot_models <- function(x, parameter = NULL, component = "auto",
-                        factor_view = "levels", mixture_view = "inclusion",
-                        group_labels = FALSE, labels = NULL, decreasing = TRUE,
-                        col = NULL, col_bias = NULL, legend = FALSE,
-                        legend_position = "bottom", plot_type = "base") {
+plot_models <- function(x, ...) {
 
+  UseMethod("plot_models")
+}
+
+
+#' @export
+plot_models.default <- function(x, ...) {
+
+  stop("'plot_models' requires a fitted model-averaged RoBMA object.", call. = FALSE)
+}
+
+
+#' @rdname plot_models
+#' @export
+plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
+                              factor_view = "levels", mixture_view = "inclusion",
+                              group_labels = FALSE, labels = NULL, decreasing = TRUE,
+                              col = NULL, col_bias = NULL, legend = FALSE,
+                              legend_position = "bottom", plot_type = "base", ...) {
+
+  .check_unused_dots(list(...), allowed = character(), caller = "plot_models()")
   BayesTools::check_bool(group_labels, "group_labels", allow_NA = FALSE)
   if (!is.null(col)) .plot_models_check_named(col, "col")
   data <- .plot_models_data(x, parameter, component, factor_view, mixture_view,

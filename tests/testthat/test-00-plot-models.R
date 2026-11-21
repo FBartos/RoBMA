@@ -121,7 +121,23 @@ test_that("mixture rows use declared members and publication-bias colors are sco
   expect_identical(unique(categories[["cells"]][["row"]]), c("mu", "bias"))
   expect_false(any(categories[["colors"]][startsWith(names(categories[["colors"]]), "mu ")] %in%
                      c("gray80", "darkgreen")))
-  expect_s3_class(plot_models(fit, "bias", legend = TRUE, plot_type = "ggplot"), "ggplot")
+})
+
+
+test_that("plot_models methods dispatch to both renderers with the displayed row count", {
+
+  expect_error(plot_models(NULL), "requires a fitted model-averaged RoBMA object")
+  fit <- .plot_models_replay()[["fit"]]
+  expect_error(plot_models(fit, unused_setting = TRUE), "Unused argument")
+  options <- list(x = fit, parameter = c("mu", "g", "bias"), group_labels = TRUE,
+                  mixture_view = c(bias = "individual"), legend = TRUE)
+  ggplot <- do.call(plot_models, c(options, list(plot_type = "ggplot")))
+  expect_s3_class(ggplot, "ggplot")
+  expect_identical(attr(ggplot, "n_rows"), 5L)
+
+  withr::local_pdf(NULL)
+  base <- withVisible(do.call(plot_models, options))
+  expect_identical(base, list(value = NULL, visible = FALSE))
 })
 
 
