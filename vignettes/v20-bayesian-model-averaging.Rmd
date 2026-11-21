@@ -259,7 +259,8 @@ par(mar = c(4, 4, 1, 1))
 regplot(fit_BMA_mod, mod = "tailor")
 ```
 
-Alternatively, we can directly compute the estimated marginal means via the `marginal_means()` function and visualize the prior and posterior distributions at each moderator level.
+Alternatively, we can compute the marginal means via `marginal_means()` and visualize the prior and posterior distributions at each moderator level.
+The posterior draws for the intercept and the `tailor[1]` marginal mean all lie on one side of zero. Their very large Savage-Dickey Bayes factors depend on extrapolating the posterior density into that tail.
 
 ```{r regplot-BMA-emm, fig.width = 5, fig.height = 3.5, fig.align = "center"}
 par(mar = c(4, 4, 1, 1))
