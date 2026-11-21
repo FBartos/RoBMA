@@ -155,6 +155,13 @@ test_that("normal input requires representable and consistent sampling variances
     kept <- constructor(yi = c(0, .1), sei = c(sei, .2), subset = 2L, only_data = TRUE)
     expect_equal(kept$data$outcome$sei, .2)
   }
+  for (scale in c("vi", "sei")) {
+    arguments <- list(yi = c(0, .1), only_data = TRUE)
+    arguments[[scale]] <- c(Inf, .5)
+    expect_error(do.call(brma.norm, arguments), "positive finite squared sampling variances", fixed = TRUE)
+    arguments$subset <- 2L
+    expect_equal(do.call(brma.norm, arguments)$data$outcome$yi, .1)
+  }
 
   expect_error(brma.norm(
     yi        = c(-1, 0, 1),

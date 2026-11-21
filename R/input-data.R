@@ -16,12 +16,12 @@
 #' the log scale for ratio measures, and use the marginal SE for covariance
 #' input. Zero and arbitrarily small effect estimates are valid. Predictions
 #' that admit exactly zero sampling variance retain that boundary.
-#' An out-of-range observation raises `RoBMA_data_outside_numerical_domain`
+#' An out-of-range finite value raises `RoBMA_data_outside_numerical_domain`
 #' (a `RoBMA_data_error`) with the original row, quantity and value.
 #' For general effects, change units consistently for estimates, SEs,
 #' covariances, outcome-scale priors and any supplied `prior_unit_information_sd`.
-#' For named measures, verify the
-#' measure, transformation and sampling uncertainty. These are practical
+#' For named measures, verify the measure, transformation and sampling
+#' uncertainty. These are practical
 #' input limits. Priors retain their specified support.
 #'
 #' @param yi a vector of effect sizes, or a formula with the effect size on the
@@ -494,6 +494,10 @@ NULL
   }
 
   if (outcome_type == "norm") {
+    if (is.null(known_V_input) && any(is.infinite(data_outcome[["sei"]]))) {
+      stop("Positive 'sei' values must have positive finite squared sampling variances.",
+           call. = FALSE)
+    }
     .check_gaussian_data_domain(data_outcome[["yi"]], data_outcome[["sei"]],
                                 measure, which(keep_rows))
   }
@@ -805,13 +809,6 @@ NULL
       stop("The provided 'vi' and 'sei' values are inconsistent.", call. = FALSE)
     missing_sei <- is.na(sei)
     sei[missing_sei] <- sqrt(vi[missing_sei])
-  }
-
-  if (any(is.infinite(sei))) {
-    stop(
-      "Positive 'sei' values must have positive finite squared sampling variances.",
-      call. = FALSE
-    )
   }
 
   # Validate ni (sample sizes)

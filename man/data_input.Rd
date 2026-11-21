@@ -163,12 +163,12 @@ sampling standard error can be at most 1,000 for named effect measures and
 the log scale for ratio measures, and use the marginal SE for covariance
 input. Zero and arbitrarily small effect estimates are valid. Predictions
 that admit exactly zero sampling variance retain that boundary.
-An out-of-range observation raises \code{RoBMA_data_outside_numerical_domain}
+An out-of-range finite value raises \code{RoBMA_data_outside_numerical_domain}
 (a \code{RoBMA_data_error}) with the original row, quantity and value.
 For general effects, change units consistently for estimates, SEs,
 covariances, outcome-scale priors and any supplied \code{prior_unit_information_sd}.
-For named measures, verify the
-measure, transformation and sampling uncertainty. These are practical
+For named measures, verify the measure, transformation and sampling
+uncertainty. These are practical
 input limits. Priors retain their specified support.
 }
 

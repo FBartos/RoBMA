@@ -125,6 +125,8 @@ test_that("block-MVN fitting preflight checks the actual fixed integrated covari
   # With supported marginal SEs, a fixed random source can still complete
   # a singular sampling covariance.
   covariance <- matrix(.04, 2L, 2L)
+  expect_warning(expect_error(fit(1e-9), "Fixed integrated variance does not make", fixed = TRUE),
+                 "rank-deficient correlation", fixed = TRUE)
   expect_warning(rescued <- fit(.2), "rank-deficient correlation", fixed = TRUE)
   expect_s3_class(rescued, "brma.mv")
   expect_equal(.brma_mv_fixed_integrated_variance(rescued, 2L), rep(.2^2, 2L), tolerance = 0)
