@@ -78,20 +78,20 @@ test_that("fitted standardized ridge hypotheses and prior overlay use the shared
   sd_x <- stats::sd(dat$x)
   for (method in c("qCMDE", "IWMDE")) {
     result <- hypothesis(fit, "x = 0", standardized_coefficients = TRUE,
-                         density_method = method, columns = "all", seed = 23)
+                         density_method = method, include_densities = TRUE, seed = 23)
     row <- as.data.frame(result)
-    expect_equal(row$prior, prior_at_zero, tolerance = 1e-6, info = method)
-    log_error <- abs(log(row$posterior / posterior_at_zero))
+    expect_equal(row$prior_density, prior_at_zero, tolerance = 1e-6, info = method)
+    log_error <- abs(log(row$posterior_density / posterior_at_zero))
     log_mcse <- sqrt(log1p((row$BF_error / 100)^2))
     expect_lte(log_error, 4 * log_mcse, label = method)
     expect_lt(log_error, .10, label = method)
-    expect_equal(row$BF10, row$prior / row$posterior, info = method)
+    expect_equal(row$BF10, row$prior_density / row$posterior_density, info = method)
     # On the default reporting scale, beta_x = beta_standardized / sd(x).
     # The same Jacobian multiplies both ordinates, cancelling in the BF.
     original <- as.data.frame(hypothesis(fit, "x = 0", density_method = method,
-                                         columns = "all", seed = 23))
-    expect_equal(original$prior, sd_x * prior_at_zero, tolerance = 1e-6, info = method)
-    expect_equal(original$posterior, sd_x * row$posterior, tolerance = 1e-5, info = method)
+                                         include_densities = TRUE, seed = 23))
+    expect_equal(original$prior_density, sd_x * prior_at_zero, tolerance = 1e-6, info = method)
+    expect_equal(original$posterior_density, sd_x * row$posterior_density, tolerance = 1e-5, info = method)
     expect_equal(original$BF10, row$BF10, tolerance = 1e-5, info = method)
   }
 
@@ -158,18 +158,18 @@ test_that("centered shrinkage factor hypotheses use the fitted contrasts and ter
       # Symmetry gives prior odds 1. The empirical posterior odds use the
       # two factor-level effects computed independently from the JAGS columns.
       res <- hypothesis(fit, "f[B] > f[A]", component = "mods", conditional = averaged,
-                        columns = "all", seed = 1704)
+                        seed = 1704)
       row <- as.data.frame(res)
       expect_equal(row$BF10, posterior_probability / (1 - posterior_probability),
                    tolerance = 1e-5)
       if (!averaged) {
         # A projection of the two-dimensional radial lasso has ordinate
         # 1/(pi*s*||C[B,]-C[A,]||) at zero given its global scale s.
-        point <- hypothesis(fit, "f[B] = f[A]", component = "mods", columns = "all",
+        point <- hypothesis(fit, "f[B] = f[A]", component = "mods", include_densities = TRUE,
                             density_method = "qCMDE", seed = 1705)
         expected_prior <- log(.55/.15) / (.55 - .15) / (pi * sqrt(sum((C[2L, ] - C[1L, ])^2)))
         point_row <- as.data.frame(point)
-        expect_equal(point_row$prior, expected_prior, tolerance = 1e-5)
+        expect_equal(point_row$prior_density, expected_prior, tolerance = 1e-5)
         expect_true(is.finite(point_row$BF10))
       }
       expect_equal(nrow(posterior::as_draws_matrix(fit)), nrow(sampled))
