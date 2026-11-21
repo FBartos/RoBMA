@@ -501,6 +501,16 @@ testthat::test_that("Assink brma and brma.mv models", {
     qqnorm(fit_BMA.mv_bycomp, main = "BMA factored")
   })
 
+  ### MCMC traces and random-effect inclusion ----
+  # each random-effect SD next to the batched inclusion of its gate
+  scenario_plot("trace_random_gates_BMA_mv_bycomp", {
+    par(mfrow = c(2, 2))
+    for (parameter in c("study: tau", "study:esid: tau")) {
+      plot_diagnostic_trace(fit_BMA.mv_bycomp, parameter = parameter, component = "random")
+      plot_diagnostic_trace(fit_BMA.mv_bycomp, parameter = parameter, component = "random", statistic = "inclusion")
+    }
+  })
+
 })
 
 testthat::test_that("Assink bPET and bPET.mv models", {
@@ -1320,6 +1330,10 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
     tmp <- add_loo(tmp)
     return(tmp)
   })
+  # model-averaged moderator, for the indicator traces below
+  fit_RoBMA_mv_diag_reg_cond <- scenario_fit("fit_RoBMA_mv_diag_reg_cond", {
+    RoBMA.mv(yi = yi, V = vi, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
+  })
 
   ### Priors and summaries ----
   scenario_text("print-prior-fit_RoBMA_cond",         print_prior(fit_RoBMA_cond))
@@ -1422,4 +1436,37 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   scenario_plot("RoBMA-funnel-mv-V-cond", funnel(fit_RoBMA_mv_V_cond, main = "default"))
   scenario_plot("RoBMA-qqnorm-mv-V-cond", qqnorm(fit_RoBMA_mv_V_cond, main = "default"))
   scenario_plot("RoBMA-zplot-mv-V-cond", zplot(fit_RoBMA_mv_V_cond, to = 10, main = "default", max_samples = 250))
+
+  ### MCMC traces and indicators ----
+  # Indicator traces split each chain's retained draws into batches and show,
+  # per batch, the share of draws in the alternative (inclusion), in each
+  # mixture component (component), and the share of adjacent draws that
+  # changed component (switching).
+  scenario_text("summary-fit_RoBMA_mv_diag_reg_cond", summary(fit_RoBMA_mv_diag_reg_cond))
+  scenario_plot("RoBMA-trace-effect-mv-diag-reg", {
+    par(mfrow = c(1, 3))
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "intercept")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "intercept", statistic = "inclusion")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "intercept", statistic = "switching")
+  })
+  scenario_plot("RoBMA-trace-effect-mv-diag-reg-ggplot", {
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "intercept", statistic = "inclusion", plot_type = "ggplot")
+  })
+  scenario_plot("RoBMA-trace-moderator-mv-diag-reg", {
+    par(mfrow = c(2, 3))
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "deltype")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "deltype", statistic = "inclusion")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter_mods = "deltype", statistic = "switching")
+  })
+  scenario_plot("RoBMA-trace-bias-mv-diag-reg", {
+    par(mfrow = c(2, 2))
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter = "bias", statistic = "inclusion")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter = "bias", statistic = "switching")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter = "PET")
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter = "PEESE")
+  })
+  scenario_plot("RoBMA-trace-bias-components-mv-diag-reg", {
+    par(mfrow = c(3, 3))
+    plot_diagnostic_trace(fit_RoBMA_mv_diag_reg_cond, parameter = "bias", statistic = "component")
+  })
 })

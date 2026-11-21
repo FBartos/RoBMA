@@ -22,7 +22,9 @@ plot_diagnostic(x, ...)
   plot_type = "base",
   lags = 30,
   component = "auto",
-  ...
+  ...,
+  statistic = "value",
+  batch_size = NULL
 )
 
 plot_diagnostic_autocorrelation(x, ...)
@@ -50,7 +52,9 @@ plot_diagnostic_trace(x, ...)
   plot_type = "base",
   lags = 30,
   component = "auto",
-  ...
+  ...,
+  statistic = "value",
+  batch_size = NULL
 )
 
 plot_diagnostic_density(x, ...)
@@ -104,6 +108,26 @@ selects semantic standard deviation, correlation, and allocation parameters
 from \code{brma.mv()} random formulas. A \code{parameter_mods} or
 \code{parameter_scale} selection with another \code{component} stops with
 an error of class \code{RoBMA_component_mismatch}.}
+
+\item{statistic}{trace statistic. \code{"value"} shows the sampled parameter.
+\code{"inclusion"} shows the fraction of each batch spent in the alternative
+components and needs every component declared null or alternative,
+with both present.
+\code{"component"} shows the fraction spent in each mixture
+component in separate plots (one plot for a binary null/alternative
+choice). \code{"switching"} shows the fraction of adjacent draws within
+each batch that changed component. Use \code{parameter = "bias"} for the
+publication-bias mixture or select a whole moderator term.
+A random-effect quantity must have a unique indicator from its prior or
+allocation gate. Otherwise the diagnostic raises
+\code{RoBMA_indicator_unavailable} (also a \code{BayesTools_plot_condition}).}
+
+\item{batch_size}{optional positive integer giving the number of retained
+draws per batch for indicator traces. Switching needs at least two
+retained draws per batch and chain; a final one-draw batch is not drawn.
+By default the shortest chain
+supplies approximately its square root in batches. Each chain is
+batched separately and plotted at the batches' midpoint iterations.}
 }
 \value{
 \code{plot_diagnostic} returns the object returned by
@@ -114,6 +138,19 @@ coordinate plots are produced, invisibly for base graphics.
 \code{plot_diagnostic} creates visual MCMC diagnostics for a
 fitted brma object. Convenience wrappers are available for trace, density,
 and autocorrelation plots.
+}
+\examples{
+\dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+
+  plot_diagnostic_trace(fit, parameter = "mu", statistic = "inclusion")
+  plot_diagnostic_trace(fit, parameter = "bias", statistic = "component")
+  plot_diagnostic(fit, parameter = "bias", type = "trace", statistic = "switching")
+}
+}
+
 }
 \seealso{
 \code{\link[=summary.brma]{summary.brma()}}

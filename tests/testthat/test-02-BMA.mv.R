@@ -568,6 +568,37 @@ test_that("BMA.mv formula and ensemble post-processing remains available", {
 })
 
 
+test_that("BMA.mv indicator traces use the gate or allocation-SD prior of each SD", {
+
+  chains <- coda::as.mcmc.list(fit_bma_mv[["fit"]])
+  batch_values <- function(indicator, statistic) lapply(chains, function(chain) {
+    states <- as.numeric(chain[, indicator])
+    as.numeric(tapply(states, (seq_along(states) - 1L) %/% 25L, statistic))
+  })
+  plotted_values <- function(plot) lapply(ggplot2::ggplot_build(plot)$data, `[[`, "y")
+  trace <- function(parameter, statistic) plot_diagnostic_trace(
+    fit_bma_mv, parameter = parameter, component = "random",
+    statistic = statistic, batch_size = 25L, plot_type = "ggplot"
+  )
+
+  gates <- RoBMA:::.random_inclusion_sd_names(fit_bma_mv)
+  expect_length(gates, 2L)
+  for (indicator in names(gates)) {
+    expect_equal(plotted_values(trace(gates[[indicator]], "inclusion")),
+                 batch_values(indicator, mean), info = gates[[indicator]])
+  }
+  # The aggregate SD is owned by its allocation-SD mixture prior.
+  slab <- RoBMA:::.random_slab_sd_names(fit_bma_mv)
+  expect_identical(unname(slab), "tau_total")
+  components <- trace("tau_total", "component")
+  expect_length(components, 2L)
+  for (k in seq_along(components)) {
+    expect_equal(plotted_values(components[[k]]),
+                 batch_values(names(slab), function(state) mean(state == k)))
+  }
+})
+
+
 test_that("BMA.mv LOO and WAIC use the model-averaged predictive density", {
 
   log_likelihood <- log_lik(fit_bma_mv)

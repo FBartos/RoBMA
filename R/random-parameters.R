@@ -571,6 +571,40 @@
   BayesTools::JAGS_with_draws(fit, samples)
 }
 
+# The original fit retains the indicator and its declaring prior. The
+# derived-draw view used for ordinary SD traces contains only the SD draws.
+.brma_random_trace_prior_parameter <- function(object, entry) {
+
+  priors   <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  quantity <- entry[["selection"]][["quantities"]]
+  key      <- quantity[["extraction_key"]][[1L]]
+  owners   <- character()
+  if (quantity[["source_type"]] %in% c("identity", "one_to_one_transform")) {
+    source <- key[["source_prior"]]
+    if (length(source) == 1L && source %in% names(priors) &&
+        (BayesTools::is.prior.mixture(priors[[source]]) ||
+         BayesTools::is.prior.spike_and_slab(priors[[source]]))) {
+      owners <- source
+    }
+  }
+  gates <- .random_inclusion_sd_names(object, quantity_ids = TRUE)
+  gate_indicators <- names(gates)[gates == entry[["quantity_id"]]]
+  probabilities <- .random_allocation_inclusion_indicators(priors)
+  slab <- .random_slab_sd_names(object, quantity_ids = TRUE)
+  slab_indicators <- names(slab)[slab == entry[["quantity_id"]]]
+  owners <- unique(c(owners, names(probabilities)[probabilities %in% gate_indicators],
+                     sub("_indicator$", "", slab_indicators)))
+  if (length(owners) != 1L) {
+    stop(structure(list(
+      message = paste0("Random-effect parameter '", entry[["parameter"]],
+                       "' has no unique sampled model indicator."),
+      call = NULL, parameter = entry[["parameter"]]
+    ), class = c("RoBMA_indicator_unavailable", "BayesTools_plot_condition",
+                 "error", "condition")))
+  }
+  owners
+}
+
 .brma_random_parameter_diagnostic_fit <- function(
     object, parameter, standardized_coefficients = FALSE) {
 
