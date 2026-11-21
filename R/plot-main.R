@@ -21,6 +21,15 @@
 #' \code{BayesTools_hypothesis_unavailable}, with which [hypothesis()] refuses it.
 #' Ordered level cells retain their semantic marginal draws and prior metadata
 #' on the requested predictor scale, including conditional row alignment.
+#' @param level optional character vector of fitted level labels for a whole
+#' factor term. For example, \code{plot(fit, "Month", level = "Jul")} draws
+#' July's contribution to the whole-factor plot, including its prior when
+#' requested. With mean-difference or orthonormal coding this is July's
+#' deviation from the grand mean. \code{lines(other_fit, "Month", level = "Jul")}
+#' adds the corresponding posterior from a second fit. Legend relabelling
+#' does not change the fitted labels used for selection.
+#' @param individual whether \code{plot()} draws a separate figure for each
+#' selected factor level. By default, all selected levels share one figure.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -35,6 +44,10 @@
 #' from `brma.mv()` random formulas. A \code{parameter_mods} or
 #' \code{parameter_scale} selection with another \code{component} stops with
 #' an error of class `RoBMA_component_mismatch`.
+#' For study-specific deviations, extract the fitted random-effect block with
+#' [ranef.brma()] and select its named column. With \code{expand = FALSE},
+#' random intercepts have one column per grouping level and indicator-coded
+#' slopes have one per observed group and coefficient combination.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
@@ -207,8 +220,9 @@
 #' estimate plans that could retain the fitted object.
 #'
 #' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-#' or a \code{ggplot2} object (a named list of plots for a whole factor term)
-#' if \code{plot_type = "ggplot"}.
+#' or a \code{ggplot2} object if \code{plot_type = "ggplot"}. Individual
+#' factor ggplots form a list named by the fitted level labels, including
+#' when one level is selected.
 #' \code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
 #' ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 #'
@@ -221,7 +235,7 @@ plot.brma <- function(
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, component = "auto", ...) {
+    density_control = NULL, component = "auto", ..., level = NULL, individual = FALSE) {
 
   .plot_brma(
     x                         = x,
@@ -238,6 +252,8 @@ plot.brma <- function(
     density_method            = density_method,
     density_control           = density_control,
     component                 = component,
+    level                     = level,
+    individual                = individual,
     add                       = FALSE,
     ...
   )
@@ -261,7 +277,7 @@ lines.brma <- function(
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, component = "auto", ...) {
+    density_control = NULL, component = "auto", ..., level = NULL) {
 
   if ("add" %in% names(match.call(expand.dots = FALSE)[["..."]])) {
     stop("'lines()' always adds to an existing plot. Omit 'add'; use 'plot()' to create a new plot.",
@@ -291,6 +307,7 @@ lines.brma <- function(
     density_method            = density_method,
     density_control           = density_control,
     component                 = component,
+    level                     = level,
     add                       = TRUE,
     ...
   )
@@ -303,7 +320,8 @@ lines.brma <- function(
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, component = "auto", add = FALSE, ...) {
+    density_control = NULL, component = "auto", add = FALSE, ...,
+    level = NULL, individual = FALSE) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -311,6 +329,11 @@ lines.brma <- function(
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(add, "add")
+  BayesTools::check_bool(individual, "individual")
+  if (add && individual) {
+    stop("'lines()' adds to one plot. Use 'level' to select the overlay or 'plot(..., individual = TRUE)' for separate figures.",
+      call. = FALSE)
+  }
   dots_raw <- list(...)
   .warn_unused_dots(
     dots    = dots_raw,
@@ -368,6 +391,10 @@ lines.brma <- function(
   structural_cell <- FALSE
   random_label    <- NULL
   if (is_factor_cell) {
+    if (!is.null(level) || individual) {
+      stop("Select the whole factor term in 'parameter' to use 'level' or 'individual'.",
+        call. = FALSE)
+    }
     cell <- .plot_brma_factor_cell_samples(
       object = x, entry = parameter_entry,
       standardized_coefficients = standardized_coefficients,
@@ -406,6 +433,7 @@ lines.brma <- function(
       standardized_coefficients = standardized_coefficients,
       conditional               = conditional
     )
+    .plot_brma_check_factor_layout(samples[[sample_parameter]], level, individual)
     density_sample_parameter <- parameter
     random_label <- attr(samples, "random_parameter_label", exact = TRUE)
     # A quantity without a prior density (e.g. an original-scale correlation
@@ -439,10 +467,6 @@ lines.brma <- function(
       )
     }
   } else {
-    parameter_spec <- if (.density_method_uses_precomputed(density_method)) {
-      .plot_brma_formula_parameter_spec(x, parameter, parameter_entry,
-        standardized_coefficients)
-    } else NULL
     sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
     samples <- .brma_as_mixed_posteriors(
       object           = x,
@@ -454,12 +478,15 @@ lines.brma <- function(
       samples <- BayesTools::simplify_as_mixed_posterior_bias(samples, parameter)
       sample_parameter <- parameter
     }
+    .plot_brma_check_factor_layout(samples[[sample_parameter]], level, individual)
     density_sample_parameter <- .plot_brma_density_sample_parameter(
       samples          = samples,
       parameter        = parameter,
       sample_parameter = sample_parameter
     )
     if (.density_method_uses_precomputed(density_method)) {
+      parameter_spec <- .plot_brma_formula_parameter_spec(x, parameter, parameter_entry,
+        standardized_coefficients)
       samples <- .plot_brma_attach_iwmde(
         object                  = x,
         samples                 = samples,
@@ -473,7 +500,8 @@ lines.brma <- function(
         integration_control     = density_control[["integration_control"]],
         density_method          = density_method,
         display_grid            = density_control[["display_grid"]],
-        parameter_spec          = parameter_spec
+        parameter_spec          = parameter_spec,
+        level                   = level
       )
     }
   }
@@ -515,11 +543,16 @@ lines.brma <- function(
   args$n_samples                <- 10000
   args$force_samples            <- FALSE
   args$dots_prior               <- dots_prior
-  args$individual               <- TRUE
+  # Here omega, PET and PEESE always plot coefficient densities. Their full curves
+  # belong to plot_weightfunction() and plot_pet_peese(), which pass individual = FALSE.
+  # Only a whole factor uses the caller's choice between an overlay and separate figures.
+  args$individual               <- individual || parameter %in% c("omega", "PET", "PEESE")
+  args$level                    <- level
   args$show_figures             <- NULL
   args$add                      <- add
   args$density_method           <- if (
-    .plot_brma_has_posterior_density(samples, density_sample_parameter)
+    .plot_brma_has_posterior_density(samples, density_sample_parameter,
+      allow_atoms_only = .density_method_uses_precomputed(density_method))
   ) {
     "precomputed"
   } else {
@@ -555,6 +588,13 @@ lines.brma <- function(
 }
 
 
+.plot_brma_check_factor_layout <- function(sample, level, individual) {
+
+  if (inherits(sample, "mixed_posteriors.factor")) return(invisible(NULL))
+  if (individual) stop("'individual = TRUE' requires a whole factor term.", call. = FALSE)
+  if (!is.null(level)) stop("'level' requires a factor-valued posterior.", call. = FALSE)
+}
+
 .plot_brma_attach_iwmde <- function(object, samples, parameter, sample_parameter,
                                     conditional,
                                     n_points, sample_budget,
@@ -562,7 +602,7 @@ lines.brma <- function(
                                     normalization_prob, density_method,
                                     display_grid, parameter_spec = NULL,
                                     display_transform = NULL,
-                                    integration_control = NULL) {
+                                    integration_control = NULL, level = NULL) {
 
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
@@ -589,7 +629,8 @@ lines.brma <- function(
       density_method       = density_method,
       display_grid         = display_grid,
       context              = context,
-      estimate_cache       = estimate_cache
+      estimate_cache       = estimate_cache,
+      level                = level
     ))
   }
 
@@ -791,7 +832,7 @@ lines.brma <- function(
                                            normalization_prob,
                                            density_method, display_grid,
                                            context, estimate_cache,
-                                           integration_control = NULL) {
+                                           integration_control = NULL, level = NULL) {
 
   sample <- samples[[sample_parameter]]
   if (is.null(colnames(sample))) {
@@ -802,6 +843,8 @@ lines.brma <- function(
   if (is.null(plot_sample) || is.null(colnames(plot_sample))) {
     return(samples)
   }
+  expected_columns <- if (is.null(level)) colnames(plot_sample) else
+    BayesTools::posterior_factor_columns(plot_samples, sample_parameter, level = level)
 
   raw_samples <- .brma_as_mixed_posteriors(
     object           = object,
@@ -827,31 +870,36 @@ lines.brma <- function(
 
   posterior_densities <- list()
   diagnostics         <- list()
-  expected_columns    <- colnames(plot_sample)
   density_columns     <- character()
 
   # Each plotted column is the level cell of its label parts; its density is
   # stored under the column name, which BayesTools matches for the column.
-  for (column_i in seq_len(ncol(plot_sample))) {
-    column <- colnames(plot_sample)[[column_i]]
-    level  <- .plot_brma_factor_column_level(
+  for (column in expected_columns) {
+    cell <- .plot_brma_factor_column_level(
       sample            = plot_sample,
       column            = column,
       display_posterior = display_posterior
     )
-    if (is.null(level) ||
-        !level %in% names(raw_posterior) ||
-        !level %in% names(display_posterior)) {
+    if (is.null(cell) ||
+        !cell %in% names(raw_posterior) ||
+        !cell %in% names(display_posterior)) {
       next
     }
 
+    # A scalar marginal with unit declared atomic mass needs no density curve.
+    atoms <- BayesTools::posterior_metadata(display_posterior[[cell]], "atoms")
+    if (inherits(atoms, "BayesTools_posterior_atoms") && isTRUE(atoms[["declared"]]) &&
+        isTRUE(atoms[["joint_declared"]]) && sum(atoms[["mass"]]) == 1) {
+      density_columns <- c(density_columns, column)
+      next
+    }
     weights        <- BayesTools::posterior_metadata(
-      raw_posterior[[level]],
+      raw_posterior[[cell]],
       "linear_weights"
     )
     linear_weights <- .iwmde_linear_weights(weights)
     if (is.null(linear_weights) || length(linear_weights) == 0L) {
-      if (.plot_brma_declared_zero_cell(raw_posterior[[level]], weights)) {
+      if (.plot_brma_declared_zero_cell(raw_posterior[[cell]], weights)) {
         density_columns <- c(density_columns, column)
       }
       next
@@ -871,15 +919,15 @@ lines.brma <- function(
       ),
       outputs        = "density",
       parameter_spec = .plot_brma_iwmde_parameter_spec(
-        samples     = raw_posterior[[level]],
+        samples     = raw_posterior[[cell]],
         conditional = conditional,
         type        = "linear",
         weights     = weights
       ),
       metadata       = .iwmde_posterior_metadata(
-        samples   = raw_posterior[[level]],
+        samples   = raw_posterior[[cell]],
         parameter = column,
-        level     = level
+        level     = cell
       ),
       cache          = estimate_cache
     )
@@ -895,7 +943,7 @@ lines.brma <- function(
     posterior_density <- .plot_brma_align_iwmde_density(
       posterior_density = posterior_density,
       raw_samples       = diagnostic[["samples"]],
-      plotted_samples   = as.numeric(plot_sample[, column_i])
+      plotted_samples   = as.numeric(plot_sample[, column])
     )
     if (!is.null(posterior_density)) {
       posterior_densities[[column]] <- posterior_density
@@ -903,7 +951,8 @@ lines.brma <- function(
     }
   }
 
-  if (length(diagnostics) == 0L && ncol(sample) == 1L) {
+  if (length(diagnostics) == 0L && length(density_columns) == 0L && ncol(sample) == 1L &&
+      (is.null(level) || identical(unname(expected_columns), colnames(sample)))) {
     column  <- colnames(sample)[[1L]]
     expected_columns <- column
     estimate <- .iwmde_estimate_density(
@@ -1102,22 +1151,18 @@ lines.brma <- function(
 }
 
 
-.plot_brma_has_posterior_density <- function(samples, sample_parameter) {
+.plot_brma_has_posterior_density <- function(samples, sample_parameter, allow_atoms_only = FALSE) {
 
   if (is.null(samples[[sample_parameter]])) {
     return(FALSE)
   }
 
-  return(
-    !is.null(BayesTools::posterior_metadata(
-      samples[[sample_parameter]],
-      "posterior_density"
-    )) ||
-      length(BayesTools::posterior_metadata(
-        samples[[sample_parameter]],
-        "posterior_densities"
-      )) > 0L
-  )
+  sample <- samples[[sample_parameter]]
+  densities <- BayesTools::posterior_metadata(sample, "posterior_densities")
+  # A completed factor estimate stores list() when every selected level is
+  # atomic. An incomplete estimate clears the entry to NULL.
+  !is.null(BayesTools::posterior_metadata(sample, "posterior_density")) ||
+    length(densities) > 0L || (allow_atoms_only && is.list(densities))
 }
 
 

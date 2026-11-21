@@ -30,6 +30,7 @@ text	summary-fit_brma_hcs0	0.000000000	0.355176	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_us	0.060000000	0.376856	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-het-hcs	0.250000000	0.554102	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-het-us	0.270000000	0.563770	4.6.0	Windows/x86_64-w64-mingw32
+plot	accuracy-density-by-outcome	4.820000000	0.562598	4.6.0	Windows/x86_64-w64-mingw32
 plot	cor	1.570000000	0.650293	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel	0.860000000	0.662500	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_diagnostics_diag	3.000000000	0.660937	4.6.0	Windows/x86_64-w64-mingw32

@@ -1610,12 +1610,17 @@
 .get_samples_n_levels <- function(samples, parameter) {
 
   if (inherits(samples[[parameter]], "mixed_posteriors.factor")) {
+    level_names <- attr(samples[[parameter]], "level_names", exact = TRUE)
+    if (is.list(level_names)) {
+      # Interaction palettes index plotted joint cells in fitted contrast order.
+      return(length(BayesTools::posterior_factor_columns(samples, parameter)))
+    }
     if (isTRUE(attr(samples[[parameter]], "orthonormal")) ||
         isTRUE(attr(samples[[parameter]], "meandif")) ||
         isTRUE(attr(samples[[parameter]], "independent"))) {
-      n_levels <- length(attr(samples[[parameter]], "level_names"))
+      n_levels <- length(level_names)
     } else if (isTRUE(attr(samples[[parameter]], "treatment"))) {
-      n_levels <- length(attr(samples[[parameter]], "level_names")) - 1
+      n_levels <- length(level_names) - 1
     } else if (isTRUE(attr(samples[[parameter]], "ordered"))) {
       # ordered terms are plotted as their level effects, without the levels
       # that the contrast design fixes at zero
