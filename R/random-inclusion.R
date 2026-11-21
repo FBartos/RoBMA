@@ -118,7 +118,7 @@
 # Pair each random-inclusion gate with the SD quantity it switches on, keyed by
 # the gate's backend indicator parameter and valued by the public SD draw name.
 # Summaries and `as_draws()` both report gates through this one mapping.
-.random_inclusion_sd_names <- function(object) {
+.random_inclusion_sd_names <- function(object, quantity_ids = FALSE) {
 
   quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
   keys       <- quantities[["extraction_key"]]
@@ -163,6 +163,7 @@
     if (length(candidates) != 1L) {
       return(NA_character_)
     }
+    if (quantity_ids) return(quantities[["quantity_id"]][[candidates]])
     .brma_random_parameter_io_labels(
       quantities[candidates, , drop = FALSE],
       "label"
@@ -239,7 +240,7 @@
 # sits on the shared SD budget rather than on a single random-effect component,
 # so it is not a `random_inclusion` catalog row and is resolved separately from
 # `.random_inclusion_sd_names()`.
-.random_slab_sd_names <- function(object) {
+.random_slab_sd_names <- function(object, quantity_ids = FALSE) {
 
   prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
   slab       <- .random_slab_prior_parameters(prior_list)
@@ -271,6 +272,7 @@
     if (is.na(row)) {
       return(NA_character_)
     }
+    if (quantity_ids) return(quantities[["quantity_id"]][[row]])
     .brma_random_parameter_io_labels(
       quantities[row, , drop = FALSE],
       "label"
