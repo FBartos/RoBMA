@@ -377,14 +377,15 @@ as.data.frame.summary_models.RoBMA <- function(
     } else {
       paste0("Random: ", paste(component_names, collapse = ", "))
     }
+    aliases <- c(component_names, quantities[["canonical_name"]][[i]],
+                 quantities[["owner_name"]][[i]])
     components[[component]] <- list(
       component        = component,
       parameter        = sub("_indicator$", "", indicator),
       prior            = vector("list", 2L),
       indicator        = indicator,
       indicator_offset = 1L,
-      aliases          = c(component_names, quantities[["canonical_name"]][[i]],
-                           quantities[["owner_name"]][[i]]),
+      aliases          = aliases[!is.na(aliases) & nzchar(aliases)],
       names            = c("Excluded", "Included"),
       hypothesis       = c("Null", "Alternative"),
       prior_probs      = c(1 - prior_probability, prior_probability)

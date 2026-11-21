@@ -360,6 +360,9 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
 
 .plot_models_match <- function(selectors, aliases, argument) {
 
+  if (any(!nzchar(selectors))) {
+    stop("'", argument, "' selectors must be non-empty.", call. = FALSE)
+  }
   vapply(selectors, function(selector) {
     if (selector %in% names(aliases)) {
       return(selector)

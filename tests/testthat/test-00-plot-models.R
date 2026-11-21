@@ -62,6 +62,7 @@ test_that("posterior model plot retains the full individual-model weights", {
     "(mu) g[b]", "(mu) g[c]", "(tau) x"
   ))
   expect_error(plot_models(fit, "x"), "ambiguous")
+  expect_error(plot_models(fit, c("bias", "")), "'parameter' selectors must be non-empty")
   subset <- .plot_models_data(fit, c("(log_tau) x", "g[c]", "mu"),
     labels = c("mu_g[c]" = "Delivery C"))
   expect_identical(subset[["probabilities"]], plot_data[["probabilities"]])
