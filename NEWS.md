@@ -4,6 +4,7 @@
 
 ### Features
 - `hypothesis()` supports interval and unconstrained comparisons and can report prior and posterior densities, region probabilities, and the Bayes factor method
+- moderator and scale regressions accept ridge, lasso, and horseshoe priors through `prior_regularized()`, with joint shrinkage for centered factors
 - `update()` gains `adapt` to set the adaptation of one extension
 
 ### Changes

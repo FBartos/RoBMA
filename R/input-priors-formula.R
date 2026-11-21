@@ -36,6 +36,12 @@
   }
 
   distribution <- prior[["distribution"]]
+  if (identical(distribution, "laplace") && !contrast %in% c("treatment", "independent")) {
+    stop("A scalar Laplace prior for factor coefficients requires treatment or independent contrasts. ",
+         "For a centered factor, use prior_regularized(\"lasso\", scale = ...). ",
+         "To shrink individual coefficients, set 'set_contrast_factor_predictors' to 'treatment' or 'independent'.",
+         call. = FALSE)
+  }
   if (!contrast %in% c("treatment", "independent") &&
       !distribution %in% c("spike", "mnormal", "mcauchy", "mt")) {
     distribution <- paste0("m", distribution)
@@ -173,6 +179,26 @@
       if (orthonormal) "orthonormal" else "meandif")
   }
 }
+# The terms among 'remaining' that the regularization groups of a named
+# formula prior list supply (BayesTools binds them): the group's 'terms', or
+# every remaining term for a group without 'terms'. Entries named by a term
+# are that term's own prior, not a group.
+.regularized_group_members <- function(prior_list, remaining, terms) {
+
+  key <- function(labels) vapply(strsplit(labels, ":", fixed = TRUE), function(parts) {
+    paste(sort(parts), collapse = ":")
+  }, character(1))
+  members <- lapply(names(prior_list), function(name) {
+    prior <- prior_list[[name]]
+    spec  <- if (BayesTools::is.prior.regularized(prior)) prior else attr(prior, "regularized_spec", exact = TRUE)
+    if (is.null(spec) || name %in% c("intercept", terms)) {
+      return(character())
+    }
+    if (is.null(spec[["terms"]])) remaining else remaining[key(remaining) %in% key(spec[["terms"]])]
+  })
+
+  return(unique(unlist(members, use.names = FALSE)))
+}
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield, rescale_priors,
@@ -192,6 +218,15 @@
 
   ### check the user-specified priors
   user_default_prior <- NULL
+  if (!missing(prior_list) && (BayesTools::is.prior.regularized(prior_list) ||
+      !is.null(attr(prior_list, "regularized_spec", exact = TRUE)))) {
+    # A bare group supplies all slopes. The null side names its group apart,
+    # so that both sides of a term's mixture keep their own scales.
+    term_labels <- attr(stats::terms(attr(data[[parameter]], "formula")), "term.labels")
+    group_name <- if (set_default_spike) "shrinkage_null" else "shrinkage"
+    group_name <- utils::tail(make.unique(c(term_labels, group_name), sep = "_"), 1L)
+    prior_list <- stats::setNames(list(prior_list), group_name)
+  }
   if (!missing(prior_list) && BayesTools::is.prior(prior_list)) {
     .check_prior.term(prior_list)
     user_default_prior <- prior_list
@@ -205,6 +240,10 @@
         prior_list[[i]] <- .check_prior.formula_intercept(prior_list[[i]], parameter)
       } else {
         .check_prior.term(prior_list[[i]])
+      }
+      if (BayesTools::is.prior.regularized(prior_list[[i]]) ||
+          !is.null(attr(prior_list[[i]], "regularized_spec", exact = TRUE))) {
+        attr(prior_list[[i]], "regularized_contrast") <- attr(data, "set_contrast_factor_predictors")
       }
       prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
     }
@@ -786,6 +825,27 @@
     par_null_omit <- NULL
   }
 
+  # A bare shrinkage group supplies the slopes of its side. Name it apart from
+  # the formula terms and from the entries named on both sides, so that both
+  # sides of a term mixture keep their own groups.
+  bare_group <- function(prior) {
+    BayesTools::is.prior(prior) && (BayesTools::is.prior.regularized(prior) ||
+      !is.null(attr(prior, "regularized_spec", exact = TRUE)))
+  }
+  named <- function(prior) if (is.list(prior) && !BayesTools::is.prior(prior)) names(prior)
+  taken <- c(attr(stats::terms(attr(data[[parameter]], "formula")), "term.labels"),
+             if (!missing(prior_list)) named(prior_list),
+             if (!missing(prior_list_null)) named(prior_list_null))
+  if (!missing(prior_list) && bare_group(prior_list)) {
+    group    <- utils::tail(make.unique(c(taken, "shrinkage"), sep = "_"), 1L)
+    taken    <- c(taken, group)
+    prior_list <- stats::setNames(list(prior_list), group)
+  }
+  if (!missing(prior_list_null) && bare_group(prior_list_null)) {
+    group <- utils::tail(make.unique(c(taken, "shrinkage_null"), sep = "_"), 1L)
+    prior_list_null <- stats::setNames(list(prior_list_null), group)
+  }
+
 
   if (parameter == "scale") {
     # in the case of scale moderation, spike at zero prior (i.e., fixed-effect model) is not possible since the intercept
@@ -832,6 +892,9 @@
       (length(prior_list_null) == 0L || !is.null(names(prior_list_null)))) {
     unspecified_null <- setdiff(names(prior_list_alt),
       c("intercept", names(prior_list_null), par_null_omit, par_alt_omit))
+    # Terms that a regularization group of the null list supplies are specified.
+    unspecified_null <- setdiff(unspecified_null,
+      .regularized_group_members(prior_list_null, unspecified_null, names(prior_list_alt)))
     for (term in unspecified_null) {
       contrast <- .prior_factor_contrast(prior_list_alt[[term]])
       if (!is.na(contrast)) {

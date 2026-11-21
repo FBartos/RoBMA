@@ -662,7 +662,7 @@ test_that("rescale_priors reports unsupported prior distributions once", {
   )
 
   expect_match(message, "The 'gamma' prior distribution cannot be rescaled", fixed = TRUE)
-  expect_match(message, "'normal', 'mnormal', 'cauchy', 'mcauchy', 't', 'mt', 'invgamma'", fixed = TRUE)
+  expect_match(message, "'normal', 'mnormal', 'laplace', 'cauchy', 'mcauchy', 't', 'mt', 'invgamma'", fixed = TRUE)
   expect_equal(length(gregexpr("prior distribution cannot be rescaled", message, fixed = TRUE)[[1]]), 1L)
 })
 

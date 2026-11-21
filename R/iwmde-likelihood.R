@@ -430,7 +430,7 @@
 .iwmde_focal_log_prior_values_fast <- function(prior, values,
                                                parameter = NULL) {
 
-  if (inherits(prior, "prior.simple") &&
+  if (BayesTools::is.prior.simple(prior) &&
       identical(prior[["distribution"]], "normal")) {
     parameters <- prior[["parameters"]]
     out <- stats::dnorm(
@@ -464,7 +464,7 @@
     return(out)
   }
 
-  if (inherits(prior, "prior.vector") &&
+  if (BayesTools::is.prior.vector(prior) &&
       identical(prior[["distribution"]], "mnormal") &&
       .iwmde_prior_has_default_truncation(prior)) {
     parameters <- prior[["parameters"]]
@@ -496,11 +496,13 @@
   if (is.null(prior) || BayesTools::is.prior.none(prior)) {
     return(TRUE)
   }
-  if (.iwmde_prior_is_invgamma(prior)) {
+  # A regularized coefficient's density is conditional on the shrinkage
+  # scales of this posterior row. Its marginal density cannot give the delta.
+  if (.iwmde_prior_is_invgamma(prior) || BayesTools::is.prior.regularized_term(prior)) {
     return(FALSE)
   }
 
-  return(inherits(prior, "prior.simple"))
+  return(BayesTools::is.prior.simple(prior))
 }
 
 
