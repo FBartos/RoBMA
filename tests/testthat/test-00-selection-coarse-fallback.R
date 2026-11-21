@@ -530,7 +530,7 @@ test_that("stress fixtures fall back at the default threshold and are exact with
   # 200 effective draws of the mean in 20,000), so it draws more.
   rates <- c(
     cluster = .fallback_expect_stress_fixture(.fallback_cluster_fixture("cluster"), below = .9)$rate,
-    strong  = .fallback_expect_stress_fixture(.fallback_cluster_fixture("cluster", omega = .01), below = .5,
+    strong  = .fallback_expect_stress_fixture(.fallback_cluster_fixture("cluster", omega = .005), below = .5,
                                               draws = 80000L)$rate,
     factor  = .fallback_expect_stress_fixture(.fallback_cluster_fixture("factor"), below = .9)$rate,
     dense   = .fallback_expect_stress_fixture(.fallback_dense_fixture(), below = .9)$rate

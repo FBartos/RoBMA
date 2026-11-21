@@ -40,27 +40,27 @@ r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTE
 glmm-aghq.o: glmm-binomial-loglik.h
 glmm-aghq.o init.o: glmm-aghq.h
 
-R_GLMM_INC = r-glmm-common.cc.inc \
-			 r-glmm-marginal.cc.inc
+R_GLMM_INC = r-native/r-glmm-common.cc.inc \
+			 r-native/r-glmm-marginal.cc.inc
 
 r-glmm.o: $(R_GLMM_INC) glmm-binomial-loglik.h
 
-R_KNOWN_V_INC = r-known-v-common.cc.inc \
-				r-known-v-plan.cc.inc \
-				r-known-v-low-rank.cc.inc \
-				r-known-v-structured.cc.inc \
-				r-known-v-evaluate.cc.inc
+R_KNOWN_V_INC = r-native/r-known-v-common.cc.inc \
+				r-native/r-known-v-plan.cc.inc \
+				r-native/r-known-v-low-rank.cc.inc \
+				r-native/r-known-v-structured.cc.inc \
+				r-native/r-known-v-evaluate.cc.inc
 
 r-known-v.o: $(R_KNOWN_V_INC) selnorm/selnorm-mv.h
 
-R_SELNORM_INC = r-selnorm-common.cc.inc \
-				r-selnorm-funnel-common.cc.inc \
-				r-selnorm-cluster.cc.inc \
-				r-selnorm-loglik.cc.inc \
-				r-selnorm-mv.cc.inc \
-				r-selnorm-sampling-conditioned.cc.inc \
-				r-selnorm-kernel.cc.inc \
-				r-selnorm-funnel-zcurve.cc.inc
+R_SELNORM_INC = r-native/r-selnorm-common.cc.inc \
+				r-native/r-selnorm-funnel-common.cc.inc \
+				r-native/r-selnorm-cluster.cc.inc \
+				r-native/r-selnorm-loglik.cc.inc \
+				r-native/r-selnorm-mv.cc.inc \
+				r-native/r-selnorm-sampling-conditioned.cc.inc \
+				r-native/r-selnorm-kernel.cc.inc \
+				r-native/r-selnorm-funnel-zcurve.cc.inc
 
 SELNORM_INC = selnorm/selnorm-probability.cc.inc \
 			  selnorm/selnorm-step.cc.inc \
@@ -92,4 +92,4 @@ selnorm/selnorm-mv.o r-selnorm.o $(filter distributions/DSELNORM%.o,$(OBJECTS)):
 
 # R API calls and entry boundaries must be rebuilt together.
 r-glmm.o r-known-v.o r-regplot.o r-selnorm.o glmm-aghq.o: r-native-api.h r-native-boundary.h
-r-selnorm.o: r-native-probe.cc.inc
+r-selnorm.o: r-native/r-native-probe.cc.inc

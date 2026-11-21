@@ -130,29 +130,17 @@ test_that("JAGS selection controls reject fractional modes and bins", {
   fixtures <- .native_selection_jags_fixtures()
   base <- fixtures$base
   cases <- fixtures$cases
-  compile <- function(specification, data) {
-
-    used <- unique(c("y", specification$arguments))
-    data <- data[used]
-    syntax <- paste0("model { y[1:2] ~ ", specification$distribution, "(",
-      paste(specification$arguments, collapse = ", "), ") }")
-    connection <- textConnection(syntax)
-    on.exit(close(connection), add = TRUE)
-    model <- rjags::jags.model(connection, data = data,
-      n.chains = 1L, n.adapt = 0L, quiet = TRUE)
-    invisible(TRUE)
-  }
   for (name in names(cases)) {
     specification <- cases[[name]]
     data <- utils::modifyList(base, specification$extra)
-    expect_true(isTRUE(compile(specification, data)))
+    expect_true(isTRUE(.compile_selection_jags_fixture(specification, data)))
     for (field in intersect(c("mode", "bins"), specification$bad)) {
       changed <- data
       # mode0.5 would formerly have been silently interpreted as NORMAL0.
       changed[[field]][1L] <- changed[[field]][1L] + .5
-      error <- tryCatch(compile(specification, changed), error = identity)
+      error <- tryCatch(.compile_selection_jags_fixture(specification, changed), error = identity)
       expect_s3_class(error, "error")
-      expect_match(conditionMessage(error), "Invalid parent values", fixed = TRUE)
+      expect_match(conditionMessage(error), "Node inconsistent with parents", fixed = TRUE)
     }
   }
   invisible(TRUE)

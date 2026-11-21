@@ -27,7 +27,7 @@ test_that("scalar step kernels require finite means in every mode", {
     expect_no_error(compile(mode))
     for (mean in c(Inf, -Inf)) {
       expect_error(compile(mode, list(offset = mean)),
-        "Invalid parent values", fixed = TRUE)
+        "Node inconsistent with parents", fixed = TRUE)
     }
   }
   # The normal branch still ignores inactive step weights and observed bins.
@@ -465,7 +465,7 @@ test_that("dwpois has discrete nonnegative support and can sample", {
   expect_true(all(draws >= 0))
   expect_true(all(draws == floor(draws)))
 
-  con_bad <- textConnection("model{\n  y ~ dwpois(lambda, weight)\n}\n")
+  con_bad <- textConnection("model{\n  theta ~ dnorm(0,1)\n  y ~ dwpois(lambda * exp(theta), weight)\n}\n")
   on.exit(close(con_bad), add = TRUE)
   expect_error(
     rjags::jags.model(
@@ -474,6 +474,6 @@ test_that("dwpois has discrete nonnegative support and can sample", {
       quiet   = TRUE,
       n.adapt = 0
     ),
-    "Invalid parent values"
+    "Node inconsistent with parents", fixed = TRUE
   )
 })

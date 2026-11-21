@@ -43,17 +43,17 @@ extern "C" double Rf_dnorm4(double, double, double, int);
 // Private implementation fragments share one anonymous namespace and are kept in
 // this order so helper symbols stay internal to this translation unit.
 namespace {
-#include "r-selnorm-common.cc.inc"
-#include "r-selnorm-funnel-common.cc.inc"
-#include "r-selnorm-cluster.cc.inc"
+#include "r-native/r-selnorm-common.cc.inc"
+#include "r-native/r-selnorm-funnel-common.cc.inc"
+#include "r-native/r-selnorm-cluster.cc.inc"
 }
 
-#include "r-selnorm-loglik.cc.inc"
-#include "r-selnorm-mv.cc.inc"
-#include "r-selnorm-sampling-conditioned.cc.inc"
-#include "r-selnorm-kernel.cc.inc"
-#include "r-selnorm-funnel-zcurve.cc.inc"
-#include "r-native-probe.cc.inc"
+#include "r-native/r-selnorm-loglik.cc.inc"
+#include "r-native/r-selnorm-mv.cc.inc"
+#include "r-native/r-selnorm-sampling-conditioned.cc.inc"
+#include "r-native/r-selnorm-kernel.cc.inc"
+#include "r-native/r-selnorm-funnel-zcurve.cc.inc"
+#include "r-native/r-native-probe.cc.inc"
 
 // Standard-normal upper tail as the selection kernels evaluate it, exposed so
 // the package tests can certify the batched approximation against pnorm over a
