@@ -174,6 +174,14 @@ Posterior plots pass explicit limits in display coordinates with
 `transformation_settings = TRUE`; prior-facing plots keep their source-coordinate
 contract with `FALSE`. Automatic prior windows remain BayesTools-owned.
 
+Forward whole-factor posterior `level` and `individual` selections to
+BayesTools with the complete mixed posterior and palette. The default factor
+layout overlays levels. Preserve individual coefficient plots for PET, PEESE
+and omega. Catalog selectors such as `group[level]` still use the semantic
+cell's marginal, including structural reference cells.
+qCMDE and IWMDE use `posterior_factor_columns()` to estimate and check the
+selected columns. A declared atom-only marginal requires no continuous curve.
+
 Test computed plot data and dispatch separately, then retain representative
 human-reviewed visual snapshots for both backends. Structural or render-only
 checks do not replace visual regression. See `testing.md`.
