@@ -1,6 +1,7 @@
 ## development version
 ### Breaking changes
 - RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools
+- The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
 
 ### Features

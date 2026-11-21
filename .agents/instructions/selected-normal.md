@@ -3,6 +3,11 @@
 Use this guide when changing posterior evaluation, publication-bias selection
 kernels, PIT/CDF/PDF/RNG paths, or effect-direction handling.
 
+JAGS 5's deviance monitor can evaluate an observed likelihood directly. A DIC
+penalty that simulates replicate outcomes requires a distribution with a
+sampling law. For likelihood-only nodes, verify observed deviance with
+`rjags::jags.samples(..., stat = "deviance", summary = "mean")`.
+
 See [maintainer decisions](decision-rationale.md) for why loose requests retain
 the deterministic calibration cap and why this does not certify QMC accuracy.
 
