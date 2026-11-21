@@ -336,7 +336,7 @@ test_that("the split validators refuse every invalid dynamic and control value a
     list("lower",    "not below upper",     "control", replace(c(1, -1e300))),
     list("upper",    "not above lower",     "control", replace(c(0, 0))),
     list("lower",    "ascending partition", "control", replace(c(-1e300, 0))),
-    list("bins",     "zero",                "control", at_first(0)),
+    list("bins",     "negative",            "control", at_first(-1)),
     list("bins",     "beyond the weights",  "control", at_second(3)),
     list("bins",     "fractional",          "control", at_first(1.5)),
     list("sign",     "not plus or minus one", "control", at_first(2)),

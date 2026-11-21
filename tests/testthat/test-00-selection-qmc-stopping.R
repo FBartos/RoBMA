@@ -405,7 +405,7 @@ test_that("the dense covariance JAGS wrapper judges the scaled error of its fixe
 .test_qmc_conditioned_native <- function(arguments) {
 
   do.call(.Call, c(list("RoBMA_selnorm_conditioned_normalizer_batch"),
-                   unname(arguments), list(PACKAGE = "RoBMA")))
+                   unname(arguments), list(NULL, PACKAGE = "RoBMA")))
 }
 
 test_that("the conditioned-sampling JAGS wrapper and loop judge the scaled error", {

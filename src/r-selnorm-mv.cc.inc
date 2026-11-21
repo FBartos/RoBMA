@@ -88,9 +88,9 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
   SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
   SEXP points, SEXP scrambles, SEXP rank_one_loading,
-  SEXP normalizer_quadrature, SEXP relative_tolerance)
+  SEXP normalizer_quadrature, SEXP relative_tolerance, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(means, covariance_lower, sei, omega, z_lower, z_upper, sign, kernel_mode, vector_rule, lower, upper, qmc, points, scrambles, rank_one_loading, normalizer_quadrature, relative_tolerance)
+  ROBMA_NATIVE_BEGIN(means, covariance_lower, sei, omega, z_lower, z_upper, sign, kernel_mode, vector_rule, lower, upper, qmc, points, scrambles, rank_one_loading, normalizer_quadrature, relative_tolerance, bias_exempt)
   check_real(means, "means");
   if (rank_one_loading == R_NilValue) {
     check_real(covariance_lower, "covariance_lower");
@@ -114,6 +114,17 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   const int S = matrix_nrow(means, "means");
   const int K = matrix_ncol(means, "means");
   const int B = matrix_ncol(omega, "omega");
+  std::vector<int> routing_bins;
+  if (bias_exempt != R_NilValue) {
+    if (TYPEOF(bias_exempt) != LGLSXP || Rf_length(bias_exempt) != K) {
+      Rf_error("'bias_exempt' must have one logical value per outcome.");
+    }
+    routing_bins.resize(K);
+    for (int k = 0; k < K; ++k) {
+      if (LOGICAL(bias_exempt)[k] == NA_LOGICAL) Rf_error("'bias_exempt' must not contain missing values.");
+      routing_bins[k] = LOGICAL(bias_exempt)[k] ? 0 : 1;
+    }
+  }
   const R_xlen_t packed = static_cast<R_xlen_t>(K) *
     (static_cast<R_xlen_t>(K) + 1) / 2;
   if (packed > std::numeric_limits<int>::max() ||
@@ -229,7 +240,8 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
       scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
       row_lo.data(), row_hi.data(), REAL(qmc), n_points, n_scrambles, REAL(mcse) + s,
       rank_one_loading == R_NilValue ? nullptr : row_loading.data(),
-      normalizer_quadrature == R_NilValue ? nullptr : &integration);
+      normalizer_quadrature == R_NilValue ? nullptr : &integration,
+      routing_bins.empty() ? nullptr : routing_bins.data());
     // This combines covariance/exterior bounds with estimated interior error;
     // it is not a Monte Carlo standard error or a rigorous total error bound.
     REAL(quadrature_error)[s] = integration.used_envelope ?
@@ -407,7 +419,7 @@ static SEXP selnorm_mnorm_step_batch(
   validate_omega_matrix(REAL(omega), S, B);
   for (int k = 0; k < K; ++k) {
     if (!std::isfinite(REAL(yi)[k]) || !std::isfinite(REAL(sei)[k]) ||
-        REAL(sei)[k] <= 0.0 || INTEGER(obs_bin)[k] < 1 ||
+        REAL(sei)[k] <= 0.0 || INTEGER(obs_bin)[k] < (z == R_NilValue ? 0 : 1) ||
         INTEGER(obs_bin)[k] > B) {
       Rf_error("Observed selection inputs are invalid.");
     }
@@ -787,7 +799,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   validate_omega_matrix(REAL(omega), S, B);
   for (int k = 0; k < K; ++k) {
     if (!std::isfinite(REAL(yi)[k]) || !std::isfinite(REAL(sei)[k]) ||
-        !(REAL(sei)[k] > 0.0) || INTEGER(obs_bin)[k] < 1 ||
+        !(REAL(sei)[k] > 0.0) || INTEGER(obs_bin)[k] < 0 ||
         INTEGER(obs_bin)[k] > B) {
       Rf_error("Observed selection inputs are invalid.");
     }
@@ -976,7 +988,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   validate_omega_matrix(REAL(omega), S, B);
   for (int i = 0; i < K; ++i) {
     if (!std::isfinite(REAL(yi)[i]) || !std::isfinite(REAL(sei)[i]) ||
-        REAL(sei)[i] <= 0.0 || INTEGER(obs_bin)[i] < 1 ||
+        REAL(sei)[i] <= 0.0 || INTEGER(obs_bin)[i] < 0 ||
         INTEGER(obs_bin)[i] > B) {
       Rf_error("Observed selection inputs are invalid.");
     }

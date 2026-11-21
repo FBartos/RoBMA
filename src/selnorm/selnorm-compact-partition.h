@@ -35,7 +35,7 @@ struct CompactStepPartition {
     if (observed != nullptr) {
       obs_bin.resize(observations);
       for (int row = 0; row < observations; ++row)
-        obs_bin[row] = bin_map[observed[row] - 1];
+        obs_bin[row] = observed[row] == 0 ? 0 : bin_map[observed[row] - 1];
     }
     return true;
   }

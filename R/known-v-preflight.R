@@ -125,12 +125,15 @@
     }
   }
   plan <- .data_selection_execution_plan(data)
+  exempt <- data[["outcome"]][["bias_exempt"]]
   for (branch in branches) {
     prior  <- priors[[branch]]
     groups <- if (identical(model[["branches"]][[branch]][["weight_rule"]], "best")) {
       model[["groups"]][["row_blocks"]]
     } else plan[["row_blocks"]]
     for (rows in groups) {
+      if (!is.null(exempt)) rows <- rows[!exempt[rows]]
+      if (!length(rows)) next
       result <- BayesTools::selection_event_support(prior, support[rows, , drop = FALSE])
       if (!isTRUE(result[["feasible"]])) {
         stop("Selection with zero weights is unavailable for retained rows {",

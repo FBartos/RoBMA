@@ -7,16 +7,21 @@ double vector_observed_log_weight(const double *x, int dimension,
 {
   if (vector_rule == SELVECTOR_PRODUCT) {
     double out = 0.0;
-    for (int i = 0; i < dimension; ++i) out += std::log(omega[obs_bin[i] - 1]);
+    for (int i = 0; i < dimension; ++i) {
+      if (obs_bin[i] != 0) out += std::log(omega[obs_bin[i] - 1]);
+    }
     return out;
   }
   for (int bin = 0; bin < n_bins; ++bin) {
     for (int i = 0; i < dimension; ++i) {
+      if (obs_bin != nullptr && obs_bin[i] == 0) continue;
       const double value = vector_rule == SELVECTOR_BEST_TWO_SIDED ?
         std::fabs(x[i]) : effect_sign * x[i];
       if (value >= selection_se[i] * z_lower[bin]) return std::log(omega[bin]);
     }
   }
+  if (obs_bin != nullptr && std::all_of(obs_bin, obs_bin + dimension,
+      [](int bin) { return bin == 0; })) return 0.0;
   return std::numeric_limits<double>::quiet_NaN();
 }
 
@@ -32,7 +37,7 @@ struct EventInterval {
 double rank_one_event_log_mass(const double *mean, const double *loading,
     int dimension, const double *selection_se, const double *omega,
     const SelNormKernelData &selection, int kernel_mode, int vector_rule,
-    const double *lower, const double *upper)
+    const double *lower, const double *upper, const int *routing_bin = nullptr)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   double lo = -infinity, hi = infinity;
@@ -56,7 +61,7 @@ double rank_one_event_log_mass(const double *mean, const double *loading,
   const int sign = vector_rule == SELVECTOR_BEST_TWO_SIDED ? 1 : selection.effect_sign;
   if (kernel_mode != SELKERNEL_NORMAL) {
     for (int i = 0; i < dimension; ++i) {
-      if (loading[i] == 0.0) continue;
+      if (loading[i] == 0.0 || (routing_bin != nullptr && routing_bin[i] == 0)) continue;
       for (int bin = 0; bin < selection.n_bins - 1; ++bin) {
         const double cut = (sign * selection_se[i] * selection.z_lower[bin] -
           mean[i]) / loading[i];
@@ -85,6 +90,7 @@ double rank_one_event_log_mass(const double *mean, const double *loading,
       for (int i = 0; i < dimension; ++i) {
         outcome[i] = mean[i] + loading[i] * latent;
         bins[i] = 0;
+        if (routing_bin != nullptr && routing_bin[i] == 0) continue;
         for (int bin = 0; bin < selection.n_bins; ++bin) {
           if (selection.effect_sign * outcome[i] / selection_se[i] >=
               selection.z_lower[bin]) { bins[i] = bin + 1; break; }
@@ -266,7 +272,7 @@ struct GaussianEventRectangle {
 std::vector<GaussianEventRectangle> best_event_rectangles(int dimension,
     const double *selection_se, const double *omega,
     const SelNormKernelData &selection, int vector_rule,
-    const double *box_lower, const double *box_upper)
+    const double *box_lower, const double *box_upper, const int *routing_bin = nullptr)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   const bool two_sided = vector_rule == SELVECTOR_BEST_TWO_SIDED;
@@ -280,6 +286,7 @@ std::vector<GaussianEventRectangle> best_event_rectangles(int dimension,
       lo = std::max(lo, 0.0);
     }
     for (int winner = 0; winner < dimension; ++winner) {
+      if (routing_bin != nullptr && routing_bin[winner] == 0) continue;
       for (int side = 0; side < (two_sided ? 2 : 1); ++side) {
         GaussianEventRectangle rectangle;
         rectangle.lower.resize(dimension);
@@ -287,6 +294,12 @@ std::vector<GaussianEventRectangle> best_event_rectangles(int dimension,
         rectangle.log_weight = std::log(omega[bin]);
         bool nonempty = true;
         for (int i = 0; i < dimension; ++i) {
+          if (routing_bin != nullptr && routing_bin[i] == 0) {
+            rectangle.lower[i] = box_lower == nullptr ? -infinity : box_lower[i];
+            rectangle.upper[i] = box_upper == nullptr ? infinity : box_upper[i];
+            nonempty = nonempty && rectangle.lower[i] < rectangle.upper[i];
+            continue;
+          }
           double lower = two_sided ? -(i < winner ? lo : hi) : -infinity;
           double upper = i < winner ? lo : hi;
           if (i == winner) {
@@ -313,10 +326,13 @@ double gaussian_event_log_mass(const double *mean,
     const double *selection_se, const double *omega,
     const SelNormKernelData &selection, int kernel_mode, int vector_rule,
     const double *box_lower, const double *box_upper, const double *qmc,
-    int points, int scrambles, double *relative_mcse)
+    int points, int scrambles, double *relative_mcse, const int *routing_bin = nullptr)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
+  const int eligible = routing_bin == nullptr ? dimension :
+    dimension - static_cast<int>(std::count(routing_bin, routing_bin + dimension, 0));
+  if (eligible == 0) kernel_mode = SELKERNEL_NORMAL;
   std::vector<double> sd(dimension);
   bool diagonal = true;
   for (int i = 0; i < dimension; ++i) {
@@ -342,10 +358,10 @@ double gaussian_event_log_mass(const double *mean,
     }
     if (unrestricted) {
       return std::log(heights[0]) *
-        (vector_rule == SELVECTOR_PRODUCT ? dimension : 1);
+        (vector_rule == SELVECTOR_PRODUCT ? eligible : 1);
     }
   }
-  if (diagonal && vector_rule != SELVECTOR_PRODUCT && !constant) {
+  if (diagonal && vector_rule != SELVECTOR_PRODUCT && !constant && eligible == dimension) {
     return independent_best_log_mass(mean, sd.data(), dimension, selection_se,
       heights.data(), selection, vector_rule, box_lower, box_upper);
   }
@@ -357,11 +373,11 @@ double gaussian_event_log_mass(const double *mean,
     if (box_lower != nullptr) std::copy_n(box_lower, dimension, rectangle.lower.begin());
     if (box_upper != nullptr) std::copy_n(box_upper, dimension, rectangle.upper.begin());
     rectangle.log_weight = std::log(heights[0]) *
-      (vector_rule == SELVECTOR_PRODUCT ? dimension : 1);
+      (vector_rule == SELVECTOR_PRODUCT ? eligible : 1);
     rectangles.push_back(rectangle);
   } else if (vector_rule != SELVECTOR_PRODUCT) {
     rectangles = best_event_rectangles(dimension, selection_se, heights.data(),
-      selection, vector_rule, box_lower, box_upper);
+      selection, vector_rule, box_lower, box_upper, routing_bin);
   }
   std::vector<double> latent(dimension), log_mass(selection.n_bins);
   std::vector<EventInterval> intervals(selection.n_bins);
@@ -389,12 +405,16 @@ double gaussian_event_log_mass(const double *mean,
           }
           double local = -infinity;
           int last_positive = -1;
-          for (int bin = 0; bin < selection.n_bins; ++bin) {
-            intervals[bin] = event_interval(selection.z_lower[bin],
+          const bool exempt = routing_bin != nullptr && routing_bin[i] == 0;
+          const int count = exempt ? 1 : selection.n_bins;
+          for (int bin = 0; bin < count; ++bin) {
+            intervals[bin] = exempt ? EventInterval{
+              box_lower == nullptr ? -infinity : box_lower[i],
+              box_upper == nullptr ? infinity : box_upper[i]} : event_interval(selection.z_lower[bin],
               selection.z_upper[bin], selection_se[i], selection.effect_sign,
               box_lower == nullptr ? -infinity : box_lower[i],
               box_upper == nullptr ? infinity : box_upper[i]);
-            log_mass[bin] = std::log(heights[bin]) +
+            log_mass[bin] = (exempt ? 0.0 : std::log(heights[bin])) +
               event_interval_log_probability(intervals[bin], conditional_mean, sd[i]);
             local = log_add_exp(local, log_mass[bin]);
             if (std::isfinite(log_mass[bin])) last_positive = bin;
@@ -406,7 +426,7 @@ double gaussian_event_log_mass(const double *mean,
               scramble, point, 2 * i);
             double cumulative = 0.0;
             int chosen = last_positive;
-            for (int bin = 0; bin < selection.n_bins; ++bin) {
+            for (int bin = 0; bin < count; ++bin) {
               cumulative += std::exp(log_mass[bin] - local);
               if (u < cumulative) { chosen = bin; break; }
             }

@@ -808,7 +808,8 @@
       predictor <- .bias_regression_predictor(
         sei              = outcome_data[["sei"]],
         parameter        = parameter,
-        effect_direction = effect_direction
+        effect_direction = effect_direction,
+        bias_exempt      = outcome_data[["bias_exempt"]]
       )
       X <- cbind(X, predictor)
       colnames(X)[ncol(X)] <- parameter

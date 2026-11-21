@@ -178,7 +178,7 @@
 bselmodel.mv <- function(
     # input specification
     yi, V, ni,
-    mods, scale, random,
+    mods, scale, random, bias_exempt,
     R = NULL, Rscale = "cor",
     data, slab, subset,
     measure,

@@ -218,7 +218,7 @@ test_that("scalar Gaussian event masses are identical at any thread count", {
         "RoBMA_selnorm_gaussian_event_mass_batch",
         mean, var, .2, omega, c(z_cuts, -Inf), c(Inf, z_cuts),
         1L, SELKERNEL_STEP, 0L, matrix(-Inf, S, 1L), upper,
-        numeric(), 512L, 8L, NULL, NULL, .005, PACKAGE = "RoBMA"
+        numeric(), 512L, 8L, NULL, NULL, .005, NULL, PACKAGE = "RoBMA"
       )
     }, rows = S, work_per_row = ncol(omega))
   })

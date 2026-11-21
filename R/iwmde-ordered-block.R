@@ -452,6 +452,7 @@
     data[["outcome"]][["sei"]], .data_effect_direction(data), signed_data = FALSE)
   if (is.null(selection_spec) || !identical(selection_spec[["mode"]], "step") ||
       isTRUE(selection_spec[["has_phack"]])) return(NULL)
+  selection_spec[["bias_exempt"]] <- data[["outcome"]][["bias_exempt"]]
   # Row labels and powers remain original identities. Equality uses every
   # persisted observation and mean-operator input, with exact serialized bits.
   row_inputs <- list(outcome = data[["outcome"]][setdiff(names(data[["outcome"]]), c("slab", "weights"))],
@@ -496,7 +497,8 @@
   selection_context <- block[["selection_context"]]
   expected <- partition[["selection_spec"]]
   fixed_fields <- setdiff(names(expected), "native_cache")
-  if (!identical(serialize(selection_context[fixed_fields], NULL, version = 2L),
+  if (!identical(selection_context[["bias_exempt"]], expected[["bias_exempt"]]) ||
+      !identical(serialize(selection_context[fixed_fields], NULL, version = 2L),
       serialize(expected[fixed_fields], NULL, version = 2L)) ||
       !exact(selection_context[["obs_bin"]]) || !exact(selection_context[["sei"]]) ||
       !exact(selection_context[["yi"]]) || !identical(as.numeric(selection_context[["omega"]]),
@@ -519,6 +521,10 @@
 .iwmde_ordered_selection_observed_constant <- function(context, state, setup, selection_context) {
 
   data <- context[["data"]]
+  if (!identical(selection_context[["bias_exempt"]], data[["outcome"]][["bias_exempt"]])) {
+    .iwmde_ordered_stop(state[["ordered_chart"]][["source"]], "selection_route",
+      "the selection exemptions do not match their declared data rows")
+  }
   selection <- state[["active_setup"]][["priors"]][["outcome"]][["bias"]]
   if (!BayesTools::is.prior.weightfunction(selection) ||
       !identical(selection[["weights"]][["type"]], "fixed") ||
@@ -562,6 +568,7 @@
     .iwmde_ordered_numeric_stop("selection_route", "the fixed step-selection covariance is unrepresentable")
   }
   weights <- if (is.null(setup[["weights"]])) rep(1, K) else setup[["weights"]]
+  weights[selection_context[["bias_exempt"]]] <- 0
   sum(weights * log(omega[selection_context[["obs_bin"]]]))
 }
 
@@ -675,8 +682,9 @@
     block[["selection_sei"]] <- setup[["selection_sei"]]
     block[["selection_observed_constant"]] <- observed_constant
     omega <- state[["active_setup"]][["priors"]][["outcome"]][["bias"]][["weights"]][["omega"]]
-    block[["log_correction_lower"]] <- observed_constant - sum(weights) * log(max(omega))
-    block[["log_correction_upper"]] <- observed_constant - sum(weights) * log(min(omega))
+    selection_power <- sum(replace(weights, selection_context[["bias_exempt"]], 0))
+    block[["log_correction_lower"]] <- observed_constant - selection_power * log(max(omega))
+    block[["log_correction_upper"]] <- observed_constant - selection_power * log(min(omega))
     block[["counts"]][["native_nodes"]] <- 2L
     grouping <- .iwmde_ordered_selection_grouping(block, observation_partition)
     block[["selection_grouping"]] <- grouping

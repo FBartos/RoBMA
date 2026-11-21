@@ -11,6 +11,7 @@ RoBMA.mv(
   mods,
   scale,
   random,
+  bias_exempt,
   R = NULL,
   Rscale = "cor",
   data,
@@ -97,6 +98,15 @@ components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()
 Omission or \code{NULL} means a fixed-effect model with no implicit
 heterogeneity term. Known sampling covariance \code{V} remains unchanged.
 Declare \code{random} before supplying heterogeneity priors or scale formulas.}
+
+\item{bias_exempt}{an optional logical vector with one value per original
+outcome row. A \code{TRUE} row stays in the analysis with zero PET/PEESE offset.
+Under product selection, its weight is one. Under best-p-value selection,
+only nonexempt outcomes compete to determine the publication's weight. A
+fully exempt publication has weight one. An exempt outcome can still be
+associated with selection through its correlation with a nonexempt outcome.
+Omission is equivalent to all \code{FALSE}. The indicator must be nonmissing on
+rows retained for analysis.}
 
 \item{R}{optional known random-effect group covariance/correlation matrix,
 or a named list of matrices. Matrix row and column names identify grouping

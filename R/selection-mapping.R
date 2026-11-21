@@ -642,6 +642,22 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   ))
 }
 
+# Native joint likelihoods reserve bin zero for observations outside the
+# selection event. The context keeps its actual p-value bins for other uses.
+.selection_kernel_obs_bin <- function(context, bias_exempt = context[["bias_exempt"]]) {
+
+  bins <- context[["obs_bin"]]
+  if (!is.null(bias_exempt)) {
+    if (!is.logical(bias_exempt) || !is.vector(bias_exempt) || anyNA(bias_exempt) ||
+        length(bias_exempt) != length(bins)) {
+      stop("'bias_exempt' must contain one logical TRUE or FALSE per observed bin.", call. = FALSE)
+    }
+    bins[bias_exempt] <- 0L
+  }
+  bins
+}
+
+
 .selnorm_kernel_loglik_matrix <- function(yi, mu_num, sigma_num,
                                           mu_norm = mu_num,
                                           sigma_norm = sigma_num,
@@ -697,6 +713,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -769,6 +786,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -838,6 +856,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   )
 
@@ -892,6 +911,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -948,6 +968,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_phack_region"]],
     as.logical(lower.tail),
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -1005,6 +1026,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -1058,6 +1080,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -1111,6 +1134,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -1166,6 +1190,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
+    selection_spec[["bias_exempt"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -1389,6 +1414,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   selection_context[["family"]]         <- selection_spec[["mode"]]
   selection_context[["yi"]]             <- yi
   selection_context[["sei"]]            <- sei
+  selection_context[["bias_exempt"]]    <- outcome_data[["bias_exempt"]]
   selection_context[["omega"]]          <- if (has_selection) {
     .extract_selection_omega_samples(posterior_samples, selection_spec, fit)
   } else matrix(1, S, selection_spec[["n_bins"]])

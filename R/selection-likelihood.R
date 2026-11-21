@@ -1251,6 +1251,7 @@ set_selection_likelihood_control <- function(
   if (!all_retained) {
     spec <- .selection_spec(priors = priors, yi = yi, sei = sei,
       effect_direction = .data_effect_direction(data), signed_data = TRUE)
+    spec[["obs_bin"]] <- .selection_kernel_obs_bin(spec, data[["outcome"]][["bias_exempt"]])
     selection_data <- spec[["jags_data"]]
     selection_data[["sel_obs_bin"]] <- NULL
   }
@@ -1729,7 +1730,7 @@ set_selection_likelihood_control <- function(
       integrated[, rows, drop = FALSE],
       as.numeric(context[["sei"]][rows]), context[["omega"]],
       as.numeric(context[["z_lower"]]), as.numeric(context[["z_upper"]]),
-      as.integer(context[["obs_bin"]][rows]), as.integer(context[["sign"]]),
+      as.integer(.selection_kernel_obs_bin(context)[rows]), as.integer(context[["sign"]]),
       as.integer(context[["kernel_mode"]]), isTRUE(context[["telescope_probabilities"]]),
       as.integer(context[["vector_rule"]]), as.integer(match(groups[rows], unique(groups[rows]))),
       plan[["designs"]][[plan[["design_keys"]][[index]]]],
@@ -1832,7 +1833,9 @@ set_selection_likelihood_control <- function(
       as.numeric(plan[["quadrature"]][["orders"]]),
       as.numeric(plan[["factor_quadrature"]][["nodes"]]),
       as.numeric(plan[["factor_quadrature"]][["log_weights"]]),
-      as.numeric(plan[["factor_quadrature"]][["orders"]]), PACKAGE = "RoBMA")
+      as.numeric(plan[["factor_quadrature"]][["orders"]]),
+      if (!is.null(context[["bias_exempt"]])) as.integer(!context[["bias_exempt"]][rows]),
+      PACKAGE = "RoBMA")
     .selection_conditioned_sampling_diagnostics(result, plan)
     value <- value + result[["log_normalizer"]]
     block_log_mass[, index] <- result[["log_normalizer"]]
@@ -2117,6 +2120,7 @@ set_selection_likelihood_control <- function(
     signed_data      = TRUE
   )
   selection_data <- selection_spec[["jags_data"]]
+  selection_spec[["obs_bin"]] <- .selection_kernel_obs_bin(selection_spec, data[["outcome"]][["bias_exempt"]])
   selection_data[["sel_obs_bin"]] <- NULL
   fit_data <- c(list(K = length(yi)), selection_data)
   if (.is_data_multilevel(data) && .selection_retains_other_random(data)) {
@@ -2938,7 +2942,7 @@ set_selection_likelihood_control <- function(
     block_size, return_normalizer = FALSE, normalizer_grid = NULL) {
 
   S <- nrow(means)
-  if (!return_normalizer && !is.null(normalizer_grid)) {
+  if (!return_normalizer && !is.null(normalizer_grid) && !any(selection_context[["bias_exempt"]])) {
     result <- .selection_normalizer_grid_loglik(yi, means, covariance_lower, sei,
       selection_context, execution_plan, block_size, normalizer_grid)
     if (!is.null(result)) return(result)
@@ -2956,7 +2960,7 @@ set_selection_likelihood_control <- function(
     .native_numeric_matrix(selection_context[["omega"]]),
     native_static[["z_lower"]],
     native_static[["z_upper"]],
-    .native_integer_vector(selection_context[["obs_bin"]]),
+    .native_integer_vector(.selection_kernel_obs_bin(selection_context)),
     native_static[["sign"]],
     native_static[["telescope_probabilities"]],
     .native_integer_vector(selection_context[["kernel_mode"]]),
@@ -3041,7 +3045,7 @@ set_selection_likelihood_control <- function(
     plan_native = NULL, block_native = NULL) {
 
   S <- nrow(means)
-  if (!return_normalizer && !is.null(normalizer_grid)) {
+  if (!return_normalizer && !is.null(normalizer_grid) && !any(selection_context[["bias_exempt"]])) {
     result <- .selection_joint_factor_grid_loglik(
       yi = yi, means = means, residual_sd = residual_sd, loading = loading,
       sei = sei, selection_context = selection_context,
@@ -3055,7 +3059,7 @@ set_selection_likelihood_control <- function(
   }
   if (is.null(block_native)) {
     block_native <- .selection_joint_block_native_args(
-      yi = yi, sei = sei, obs_bin = selection_context[["obs_bin"]]
+      yi = yi, sei = sei, obs_bin = .selection_kernel_obs_bin(selection_context)
     )
   }
   result <- .Call(
@@ -3139,7 +3143,7 @@ set_selection_likelihood_control <- function(
     normalizer_grid = NULL, plan_native = NULL, block_native = NULL) {
 
   S <- nrow(means)
-  if (!return_normalizer && !is.null(normalizer_grid)) {
+  if (!return_normalizer && !is.null(normalizer_grid) && !any(selection_context[["bias_exempt"]])) {
     result <- .selection_joint_factor_grid_loglik(
       yi = yi, means = means, residual_sd = residual_sd, loading = loading,
       sei = sei, selection_context = selection_context,
@@ -3162,7 +3166,7 @@ set_selection_likelihood_control <- function(
   }
   if (is.null(block_native)) {
     block_native <- .selection_joint_block_native_args(
-      yi = yi, sei = sei, obs_bin = selection_context[["obs_bin"]]
+      yi = yi, sei = sei, obs_bin = .selection_kernel_obs_bin(selection_context)
     )
   }
   result <- .Call(
@@ -3292,8 +3296,7 @@ set_selection_likelihood_control <- function(
   singleton_blocks <- execution_plan[["singleton_blocks"]]
   if (length(singleton_blocks) > 0L) {
     rows <- execution_plan[["singleton_rows"]]
-    singleton_context <- selection_context
-    singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
+    singleton_context <- BayesTools::selection_context_subset_observations(selection_context, rows)
     variances <- .selection_joint_expand_state_rows(
       parts = .selection_joint_singleton_variances(
         setup                     = parts_setup,
@@ -3324,7 +3327,7 @@ set_selection_likelihood_control <- function(
       static         = static,
       yi             = yi,
       sei            = setup[["selection_sei"]],
-      obs_bin        = selection_context[["obs_bin"]],
+      obs_bin        = .selection_kernel_obs_bin(selection_context),
       execution_plan = execution_plan
     )
   } else {
@@ -3335,12 +3338,7 @@ set_selection_likelihood_control <- function(
     method <- execution_plan[["block_methods"]][[block_index]]
     # The grid subsets the context to its own rows when it evaluates anchors,
     # so the block's observation fields must already be the block's.
-    block_context <- if (is.null(setup[["normalizer_grid"]])) {
-      selection_context
-    } else {
-      BayesTools::selection_context_subset_observations(selection_context, rows)
-    }
-    block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
+    block_context <- BayesTools::selection_context_subset_observations(selection_context, rows)
     if (method %in% c("rank_one", "factor")) {
       components <- .selection_joint_expand_state_rows(
         parts = .selection_joint_factor_block_samples(

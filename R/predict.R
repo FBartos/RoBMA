@@ -37,6 +37,11 @@
 #'   or \code{vi} in explicit \code{newdata}. If an active
 #'   selection branch uses \code{weight_rule = "best"}, its publication groups
 #'   must also be resolvable in the prediction data.
+#'   Fitted-row predictions reuse their publication-bias exemptions. For
+#'   explicit new rows, supply a logical \code{bias_exempt} column when the
+#'   fit contains exempt rows and the requested prediction uses publication
+#'   bias. For fits without exempt rows, omission treats all new rows as
+#'   susceptible to the fitted publication-bias component.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item \code{"terms"} (alias: \code{"marginal"}): fixed location
@@ -404,7 +409,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 
   .warn_unused_dots(
     dots    = dots,
-    allowed = ".posterior_samples",
+    allowed = c(".posterior_samples", ".bias_exempt"),
     caller  = "predict.brma()"
   )
 
@@ -547,7 +552,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       bias_adjusted  = bias_adjusted,
       include_scale  = type != "terms",
       include_random = is_random_object && is_brma_mv_object &&
-        type %in% c("estimate", "response", "terms.scale")
+        type %in% c("estimate", "response", "terms.scale"),
+      bias_exempt    = dots[[".bias_exempt"]]
     )
 
   }

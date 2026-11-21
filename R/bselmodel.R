@@ -84,7 +84,7 @@
 bselmodel <- function(
     # input specification
   yi, vi, sei, weights, ni,
-  mods, scale, cluster,
+  mods, scale, cluster, bias_exempt,
   data, slab, subset,
   measure,
 

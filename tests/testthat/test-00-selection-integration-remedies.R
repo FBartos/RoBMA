@@ -313,7 +313,7 @@ test_that("the conditioned-sampling JAGS node reports a refused rank-one work bu
       as.integer(points), as.integer(scrambles), .005,
       as.double(rules$nodes), as.double(rules$log_weights), as.double(rules$orders),
       as.double(factor_rules$nodes), as.double(factor_rules$log_weights),
-      as.double(factor_rules$orders), PACKAGE = "RoBMA")
+      as.double(factor_rules$orders), NULL, PACKAGE = "RoBMA")
   }
   refused <- native(4L, 2L)
   expect_true(is.nan(refused$log_normalizer))

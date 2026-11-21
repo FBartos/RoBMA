@@ -172,7 +172,8 @@
 .zplot_requires_selection_marginal <- function(object, conditioning_depth) {
 
   .is_weightfunction(object) &&
-    (!identical(conditioning_depth, "marginal") ||
+    (any(object[["data"]][["outcome"]][["bias_exempt"]]) ||
+       !identical(conditioning_depth, "marginal") ||
        .is_multilevel(object) || inherits(object, "brma.mv") ||
        .zplot_vector_selection_target(object))
 }
@@ -321,9 +322,8 @@
       object, posterior_samples, predictive, selection, z, probability, control
     )
     if (!is.null(diagonal)) return(diagonal)
-    streamed <- .zplot_joint_factor_marginal(
-      object, posterior_samples, predictive, selection, z, probability, control
-    )
+    streamed <- if (!any(selection[["bias_exempt"]])) .zplot_joint_factor_marginal(
+      object, posterior_samples, predictive, selection, z, probability, control)
     if (!is.null(streamed)) return(streamed)
   }
   chunks <- .known_v_covariance_chunk_indices(
@@ -401,7 +401,9 @@
     )[["fitted"]]
   }
   active <- setdiff(active, scalar)
-  integrated <- active[rules[active] == 0L & zero_context[active]]
+  integrated <- if (!any(selection[["bias_exempt"]])) {
+    active[rules[active] == 0L & zero_context[active]]
+  } else integer()
   if (length(integrated)) {
     subset_predictive <- predictive
     for (name in c("mu", "mu_extrapolated", "tau_within")) {
@@ -655,7 +657,8 @@
     }
     packed <- matrix(sigma[lower.tri(sigma, diag = TRUE)],
       nrow(means), k * (k + 1L) / 2L, byrow = TRUE)
-    if (all(context_rows[["vector_rule"]] == 0L) && is.null(rank_one)) {
+    if (!any(context_rows[["bias_exempt"]]) &&
+        all(context_rows[["vector_rule"]] == 0L) && is.null(rank_one)) {
       projected <- .zplot_joint_block(z, means, packed, sei,
         context_rows, probability, control, designs, local_factors)
       density <- projected[["density"]]
@@ -678,7 +681,7 @@
         matrix(rank_one, nrow(means), k, byrow = TRUE) else NULL
     )
   }
-  point_projection <- !probability && !factor_projection && k > 1L &&
+  point_projection <- !any(context[["bias_exempt"]]) && !probability && !factor_projection && k > 1L &&
     is.null(rank_one) && context[["vector_rule"]] == 0L &&
     context[["kernel_mode"]] == SELKERNEL_STEP && all(context[["omega"]] > 0)
   project <- function(means, absolute_tolerance = NULL, diagnostics = FALSE,
@@ -854,7 +857,8 @@
   if (any(!is.finite(normalizer))) {
     stop("Zplot selection normalizers must be finite and positive.", call. = FALSE)
   }
-  if (diagonal_best && is.null(rank_one_loading) && nrow(covariance_lower) == 1L &&
+  if (diagonal_best && !any(selection[["bias_exempt"]]) &&
+      is.null(rank_one_loading) && nrow(covariance_lower) == 1L &&
       all(selection[["vector_rule"]] != 0L)) {
     pairs <- which(lower.tri(matrix(0, K, K), diag = TRUE), arr.ind = TRUE)
     diagonal <- pairs[, 1L] == pairs[, 2L]
@@ -1390,6 +1394,25 @@
   # Resolve the default before refinement subsets its source argument.
   force(mean_extrapolated)
   S <- nrow(mean)
+  # Product selection with diagonal candidate covariance factorizes by outcome.
+  # Average the two sets of marginal curves using their original row counts.
+  exempt <- selection[["bias_exempt"]]
+  if (any(exempt)) {
+    result <- list(fitted = matrix(0, S, length(z)), extrapolated = matrix(0, S, length(z)),
+                   weights = numeric(S))
+    for (columns in split(seq_along(exempt), exempt)) {
+      context <- BayesTools::selection_context_subset_observations(selection, columns)
+      if (exempt[columns[1L]]) context[["use_normal"]] <- rep(TRUE, S)
+      context[["bias_exempt"]] <- NULL
+      part <- .zplot_latent_mixture(z, mean[, columns, drop = FALSE], sd[, columns, drop = FALSE],
+        latent_sd[, columns, drop = FALSE], sei[columns], context, probability, control,
+        mean_extrapolated[, columns, drop = FALSE], fitted_only)
+      share <- length(columns) / length(exempt)
+      for (field in names(result)) result[[field]] <- result[[field]] + share * part[[field]]
+    }
+    if (probability && !fitted_only) result[["EDR"]] <- result[["extrapolated"]][, 1L] / result[["weights"]]
+    return(result)
+  }
   normal_rows <- which(selection$use_normal)
   if (length(normal_rows)) {
     total_sd <- .root_sum_squares(sd[normal_rows, , drop = FALSE],

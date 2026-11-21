@@ -1,5 +1,24 @@
 namespace {
 
+// A protected observation uses the Gaussian member on every posterior draw.
+const int *selection_exempt_rows(SEXP bias_exempt, int K)
+{
+  if (bias_exempt == R_NilValue) return nullptr;
+  if (TYPEOF(bias_exempt) != LGLSXP || Rf_length(bias_exempt) != K) {
+    Rf_error("'bias_exempt' must have one logical value per observation.");
+  }
+  const int *values = LOGICAL(bias_exempt);
+  for (int k = 0; k < K; ++k) {
+    if (values[k] == NA_LOGICAL) Rf_error("'bias_exempt' must not contain missing values.");
+  }
+  return values;
+}
+
+inline int selection_cell_mode(const int *exempt, int k, int draw_mode)
+{
+  return exempt && exempt[k] ? SELKERNEL_NORMAL : draw_mode;
+}
+
 // Row-wise selection arguments materialized before a parallel region. The row
 // accessors of SelNormNativeArgs re-check their lengths and can raise an R
 // error, which a worker thread must never do; the lengths are already
@@ -32,9 +51,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
   SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
   SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(mean, sd, basis, current_log_norm, current, values, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(mean, sd, basis, current_log_norm, current, values, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(basis, "basis");
@@ -46,6 +65,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const int G = Rf_length(values);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
@@ -106,7 +126,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
           selnorm.omega_row(s),
           row_args.alpha[row],
           row_args.phack_kind[row],
-          row_args.kernel_mode[row],
+          selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
           selnorm.data,
           S,
           false
@@ -133,9 +153,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
   SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
   SEXP q, SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
   SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(yi, mu_num, sigma_num, mu_norm, sigma_norm, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(yi, mu_num, sigma_num, mu_norm, sigma_norm, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(yi, "yi");
   check_real(mu_num, "mu_num");
   check_real(sigma_num, "sigma_num");
@@ -147,6 +167,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
 
   const int S = matrix_nrow(mu_num, "mu_num");
   const int K = matrix_ncol(mu_num, "mu_num");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -190,7 +211,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
       obs_bin_p[k],
       row_args.alpha[row],
       row_args.phack_kind[row],
-      row_args.kernel_mode[row],
+      selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
       selnorm.data,
       S,
       false
@@ -227,9 +248,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
   SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
   SEXP q, SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
   SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(yi, mu_num, sigma_num, mu_norm, sigma_norm, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(yi, mu_num, sigma_num, mu_norm, sigma_norm, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(yi, "yi");
   check_real(mu_num, "mu_num");
   check_real(sigma_num, "sigma_num");
@@ -241,6 +262,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
 
   const int S = matrix_nrow(mu_num, "mu_num");
   const int K = matrix_ncol(mu_num, "mu_num");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -292,7 +314,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
         obs_bin_p[k],
         row_args.alpha[row],
         row_args.phack_kind[row],
-        row_args.kernel_mode[row],
+        selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
         selnorm.data,
         S,
         false
@@ -313,15 +335,16 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
   SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
   SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
   SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(sei, "sei");
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -352,7 +375,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
       selnorm.omega_row(s),
       row_args.alpha[row],
       row_args.phack_kind[row],
-      row_args.kernel_mode[row],
+      selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
       selnorm.data,
       S,
       false
@@ -385,9 +408,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
   SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
   SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP lower_tail, SEXP telescope_probabilities)
+  SEXP lower_tail, SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(x, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, lower_tail, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(x, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, lower_tail, telescope_probabilities, bias_exempt)
   check_real(x, "q");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -396,6 +419,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -436,7 +460,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
       selnorm.omega_row(s),
       row_args.alpha[row],
       row_args.phack_kind[row],
-      row_args.kernel_mode[row],
+      selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
       selnorm.data,
       S,
       lower_tail_bool,
@@ -474,9 +498,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(
   SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
   SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(x, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(x, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(x, "q");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -484,6 +508,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -529,7 +554,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(
       selnorm.omega_row(s),
       row_args.alpha[row],
       row_args.phack_kind[row],
-      row_args.kernel_mode[row],
+      selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
       selnorm.data,
       out_p[0] + cell,
       out_p[1] + cell,
@@ -565,15 +590,16 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
   SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
   SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
   SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(sei, "sei");
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -618,7 +644,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
       selnorm.omega_row(s),
       row_args.alpha[row],
       row_args.phack_kind[row],
-      row_args.kernel_mode[row],
+      selection_cell_mode(exempt, k, row_args.kernel_mode[row]),
       selnorm.data,
       mean_out_p + cell,
       second_out_p + cell,
@@ -654,15 +680,16 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
   SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
   SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
   SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(sei, "sei");
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -700,7 +727,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
         u_interval,
         selnorm.alpha_at(s),
         selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s),
+        selection_cell_mode(exempt, k, selnorm.kernel_mode_at(s)),
         selnorm.data,
         S,
         false
@@ -745,9 +772,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   SEXP alpha, SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
   SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP telescope_probabilities)
+  SEXP telescope_probabilities, SEXP bias_exempt)
 {
-  ROBMA_NATIVE_BEGIN(yi, mean, sd, sei, psis_weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  ROBMA_NATIVE_BEGIN(yi, mean, sd, sei, psis_weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities, bias_exempt)
   check_real(yi, "yi");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -756,6 +783,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
+  const int *exempt = selection_exempt_rows(bias_exempt, K);
   const SelNormNativeArgs selnorm = validate_selnorm_native_args(
     omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
@@ -843,7 +871,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
         yi_p[k], mean_p[cell], sd_p[cell], sei_p[k], selnorm.omega_row(s),
         row_args.alpha[static_cast<std::size_t>(s)],
         row_args.phack_kind[static_cast<std::size_t>(s)],
-        row_args.kernel_mode[static_cast<std::size_t>(s)], selnorm.data,
+        selection_cell_mode(exempt, k, row_args.kernel_mode[static_cast<std::size_t>(s)]), selnorm.data,
         &log_lower, &log_upper, &moment_mean, &moment_variance, S
       );
       if (!std::isfinite(moment_mean) || !std::isfinite(moment_variance) ||
