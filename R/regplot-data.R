@@ -648,7 +648,8 @@
       object         = x,
       newdata        = location_data,
       type           = "estimate",
-      include_random = TRUE
+      include_random = TRUE,
+      bias_exempt    = rep(FALSE, nrow(location_data))
     )
     prediction <- .brma_mv_random_effects_marginal_vcov(
       object            = x,
@@ -739,7 +740,8 @@
       object         = x,
       newdata        = location_data,
       type           = "estimate",
-      include_random = TRUE
+      include_random = TRUE,
+      bias_exempt    = rep(FALSE, nrow(location_data))
     )
     source_names <- unique(unlist(lapply(terms, function(term) {
       vapply(
@@ -922,11 +924,6 @@
     n_pred  = n_pred,
     sei     = prediction_sei
   )
-  # Grid rows are nonexempt outcomes.
-  if (!is.null(x[["data"]][["outcome"]][["bias_exempt"]]) &&
-      !"bias_exempt" %in% names(newdata)) {
-    newdata[["bias_exempt"]] <- rep(FALSE, n_pred)
-  }
 
   posterior_samples <- .get_posterior_samples(x[["fit"]])
   selected_rows     <- .thin_sample_rows(nrow(posterior_samples), max_samples)
@@ -934,13 +931,15 @@
     posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
   }
 
+  # Grid rows are nonexempt outcomes.
   pred_samples <- predict.brma(
     object             = x,
     newdata            = newdata,
     type               = "terms",
     bias_adjusted      = !sampling_bias,
     quiet              = TRUE,
-    .posterior_samples = posterior_samples
+    .posterior_samples = posterior_samples,
+    .bias_exempt       = rep(FALSE, n_pred)
   )
   pred_samples <- as.matrix(pred_samples)
 
@@ -989,7 +988,8 @@
       scale_data    <- NULL
       scale_formula <- NULL
       if (is_scale) {
-        new_data_prepared <- .prepare_newdata(object = x, newdata = newdata, type = "estimate")
+        new_data_prepared <- .prepare_newdata(object = x, newdata = newdata, type = "estimate",
+                                              bias_exempt = rep(FALSE, n_pred))
         scale_data        <- new_data_prepared[["scale"]]
         scale_formula     <- .create_fit_formula_list(data = new_data_prepared, "scale")
       }

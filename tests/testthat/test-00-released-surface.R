@@ -37,7 +37,7 @@ test_that("selection arguments follow the released RoBMA() and bselmodel() argum
     list(name = "bselmodel", fun = bselmodel, released = released_bselmodel)
   )) {
     arguments <- names(formals(case[["fun"]]))
-    expect_identical(arguments, c(case[["released"]], "selection", "selection_control", "..."),
+    expect_identical(arguments, c(case[["released"]], "selection", "selection_control", "...", "bias_exempt"),
                      info = case[["name"]])
   }
 })

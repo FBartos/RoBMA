@@ -120,10 +120,32 @@ test_that("prediction exemption flags are logical newdata columns, not fitted pr
   masked <- do.call(bPET, c(list(yi = yi ~ bias_exempt, bias_exempt = quote(registered)), common))
   expect_error(.prepare_newdata(masked, newdata, type = "terms"),
     paste0("Publication-bias predictions from this fit need exemption flags for new rows, ",
-           "but 'bias_exempt' names a variable of the fitted formulas. Rename that variable ",
-           "and refit to supply a logical 'bias_exempt' column in 'newdata'."), fixed = TRUE)
+           "but 'bias_exempt' names a variable of the fitted model, so 'newdata' cannot ",
+           "supply them."), fixed = TRUE)
   expect_identical(.prepare_newdata(masked, newdata, type = "terms", bias_adjusted = TRUE)[["mods"]][["bias_exempt"]],
                    newdata$bias_exempt)
+  # Callers that construct rows, such as regplot() grids, pass their flags.
+  grid <- .prepare_newdata(masked, newdata, type = "terms", bias_exempt = c(FALSE, TRUE))
+  expect_identical(grid[["mods"]][["bias_exempt"]], newdata$bias_exempt)
+  expect_identical(grid[["outcome"]][["bias_exempt"]], c(FALSE, TRUE))
+  # Flags enter the parser by value and never stand in for a missing predictor.
+  hidden <- dat
+  names(hidden)[names(hidden) == "bias_exempt"] <- ".RoBMA_newdata_parser_bias_exempt"
+  hidden_fit <- do.call(bPET, c(list(yi = yi ~ .RoBMA_newdata_parser_bias_exempt,
+    bias_exempt = quote(registered)), utils::modifyList(common, list(data = hidden))))
+  expect_error(.prepare_newdata(hidden_fit, data.frame(sei = .4, bias_exempt = TRUE), type = "terms"),
+    ".RoBMA_newdata_parser_bias_exempt", fixed = TRUE)
+  # A best-rule publication-group column of that name is not a flag either.
+  grouped <- data.frame(yi = dat$yi, bias_exempt = c("a", "a", "b"), registered = dat$registered)
+  group_model <- list(yi = quote(yi), V = diag(dat$sei^2), data = grouped,
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, .2)),
+      model = selection_model(weight_rule = "best", group = "bias_exempt")))
+  flags <- data.frame(sei = .4, bias_exempt = TRUE)
+  expect_null(.prepare_newdata_bias_exempt(do.call(bselmodel.mv, group_model)$data, flags))
+  group_model$bias_exempt <- quote(registered)
+  expect_error(.prepare_newdata_bias_exempt(do.call(bselmodel.mv, group_model)$data, flags),
+    "names a variable of the fitted model", fixed = TRUE)
   # A character flag is an error, never the name of another column.
   exempt <- do.call(bPET, c(list(yi = quote(yi), bias_exempt = quote(registered)), common))
   flags <- data.frame(sei = .4, bias_exempt = "registered", registered = TRUE)

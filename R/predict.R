@@ -409,7 +409,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 
   .warn_unused_dots(
     dots    = dots,
-    allowed = ".posterior_samples",
+    allowed = c(".posterior_samples", ".bias_exempt"),
     caller  = "predict.brma()"
   )
 
@@ -552,7 +552,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       bias_adjusted  = bias_adjusted,
       include_scale  = type != "terms",
       include_random = is_random_object && is_brma_mv_object &&
-        type %in% c("estimate", "response", "terms.scale")
+        type %in% c("estimate", "response", "terms.scale"),
+      bias_exempt    = dots[[".bias_exempt"]]
     )
 
   }

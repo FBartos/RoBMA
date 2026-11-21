@@ -35,12 +35,12 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
   for (kind in names(fixtures$cases)) {
     spec <- fixtures$cases[[kind]]
     data <- utils::modifyList(fixtures$base, spec$extra)
-    data$y <- c(.4, 1.7, -.6)
     data$mu <- numeric(3L)
     data$sei <- rep(1, 3L)
     data$mode <- 1L
     data$covariance <- sampling[lower.tri(sampling, diag = TRUE)]
-    data$loading <- c(.25, -.35, .18)
+    # Larger conditioned loadings make a dropped eligible covariance visible.
+    data$loading <- if (kind == "conditioned") c(.55, -.35, .48) else c(.25, -.35, .18)
     data$sd <- c(.6, .9, .73)
     data$factor_loading <- matrix(c(data$loading, .4, .13, -.22), 3L)
     data$residual <- c(.4, .5, .6)
@@ -59,20 +59,23 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
       factor = diag(data$sd^2) + tcrossprod(data$factor_loading),
       conditioned = sampling + diag(data$residual) + tcrossprod(data$loading)
     )
-    gaussian <- mvtnorm::dmvnorm(data$y, sigma = total, log = TRUE)
     candidate <- if (kind == "conditioned") total - sampling else total
-    # Retained sources condition on every observed outcome, including exempt rows.
-    mean <- if (kind == "conditioned") drop(sampling %*% solve(total, data$y)) else data$mu
     for (rule in 0:2) {
       data$rule <- rule
       two_sided <- rule == 2L
+      # Under the two-sided rule the eligible rows' signed and absolute
+      # winners differ, so a signed comparison changes the observed weight.
+      data$y <- c(if (two_sided) .1 else .4, 1.7, -.6)
+      gaussian <- mvtnorm::dmvnorm(data$y, sigma = total, log = TRUE)
+      # Retained sources condition on every observed outcome, including exempt rows.
+      mean <- if (kind == "conditioned") drop(sampling %*% solve(total, data$y)) else data$mu
       data$omega <- if (two_sided) c(1, .2, .8, .2, 1) else c(1, .2, .8)
       data$lower <- if (two_sided) c(1.4, .3, -.3, -1.4, -1e300) else c(1, 0, -1e300)
       data$upper <- if (two_sided) c(1e300, 1.4, .3, -.3, -1.4) else c(1e300, 1, 0)
       # The exempt middle row is the most significant; under the two-sided
       # rule the negative third row is the most significant eligible one.
       bin_sets <- if (two_sided) {
-        list(c(2L, 0L, 4L), c(0L, 0L, 4L), rep(0L, 3L))
+        list(c(3L, 0L, 4L), c(0L, 0L, 4L), rep(0L, 3L))
       } else list(c(2L, 0L, 3L), c(0L, 0L, 3L), rep(0L, 3L))
       for (bins in bin_sets) {
         data$bins <- bins
