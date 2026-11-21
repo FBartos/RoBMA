@@ -101,6 +101,7 @@ test_that("factor posterior levels select the same curve in plots and overlays",
   expect_equal(plotted_curve(overlay, colors[3L]), expected)
   expect_error(plot(first, "g[Jul]", level = "Jul"),
     "Select the whole factor term", fixed = TRUE)
+  expect_error(plot(first, "mu", individual = TRUE), "'individual = TRUE' requires a whole factor term.", fixed = TRUE)
 
   grDevices::pdf(NULL)
   on.exit(grDevices::dev.off(), add = TRUE)

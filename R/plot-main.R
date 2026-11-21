@@ -507,6 +507,9 @@ lines.brma <- function(
   }
 
   ### set up plotting arguments
+  if (individual && !inherits(samples[[sample_parameter]], "mixed_posteriors.factor")) {
+    stop("'individual = TRUE' requires a whole factor term.", call. = FALSE)
+  }
   ordered_target <- isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
   ordered_cell <- ordered_target && is_factor_cell
   if (ordered_cell && !is.null(dots_raw[["linetype"]])) {
@@ -546,8 +549,7 @@ lines.brma <- function(
   # Here omega, PET and PEESE always plot coefficient densities. Their full curves
   # belong to plot_weightfunction() and plot_pet_peese(), which pass individual = FALSE.
   # Only a whole factor uses the caller's choice between an overlay and separate figures.
-  args$individual               <- parameter %in% c("omega", "PET", "PEESE") ||
-    (individual && inherits(samples[[sample_parameter]], "mixed_posteriors.factor"))
+  args$individual               <- individual || parameter %in% c("omega", "PET", "PEESE")
   args$level                    <- level
   args$show_figures             <- NULL
   args$add                      <- add
