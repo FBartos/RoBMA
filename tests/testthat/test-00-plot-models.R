@@ -151,7 +151,10 @@ test_that("random-effect rows are model components and respect explicit order", 
   fit <- review_bma_gate_replay(moderator = TRUE, prior_heterogeneity = list(
     BayesTools::prior("gamma", list(2, 2)), BayesTools::prior("gamma", list(3, 2))
   ))[["object"]]
-  component_labels <- c("Effect", "Heterogeneity Slab", "Random: study", "Random: other")
+  gate_labels <- c("Heterogeneity: study: tau", "Heterogeneity: other: tau")
+  component_labels <- c("Effect", "Heterogeneity Slab", gate_labels)
+  printed <- capture.output(print(summary(fit, include_mcmc_diagnostics = FALSE)))
+  for (label in gate_labels) expect_true(any(grepl(label, printed, fixed = TRUE)))
   for (group_labels in c(FALSE, TRUE)) {
     data <- .plot_models_data(fit, group_labels = group_labels)
     rows <- unique(data[["cells"]][c("row", "label", "group")])
@@ -162,11 +165,33 @@ test_that("random-effect rows are model components and respect explicit order", 
     selected <- .plot_models_data(fit, c("study", "x", "Heterogeneity Slab", "other"),
                                   group_labels = group_labels)
     expect_identical(unique(selected[["cells"]][["label"]]),
-                     c("Random: study", moderator_label, "Heterogeneity Slab", "Random: other"))
+                     c(gate_labels[[1L]], moderator_label, "Heterogeneity Slab", gate_labels[[2L]]))
   }
   random <- .plot_models_data(fit, "study", component = "random")
   expect_identical(unique(random[["cells"]][["group"]]), "Components")
-  expect_identical(unique(random[["cells"]][["row"]]), rows[["row"]][rows[["label"]] == "Random: study"])
+  row_id <- rows[["row"]][rows[["label"]] == gate_labels[[1L]]]
+  expect_identical(unique(random[["cells"]][["row"]]), row_id)
+  expect_identical(.plot_models_data(fit, "Random: study"), random)
+  expect_identical(.plot_models_data(fit, gate_labels[[1L]]), random)
+
+  included_id <- paste0(row_id, "{Included}")
+  members <- .plot_models_data(fit, "study", mixture_view = "individual",
+                               labels = stats::setNames("Study present", included_id))
+  included <- members[["cells"]][members[["cells"]][["row"]] == included_id, ]
+  expect_identical(unique(included[["label"]]), "Study present")
+  expect_identical(included[["state"]] != "excluded", random[["cells"]][["state"]] == "included")
+})
+
+
+test_that("aggregate random gate uses the inclusion label printed by summary", {
+
+  fit <- review_bma_gate_replay(aggregate = TRUE)[["object"]]
+  printed <- capture.output(print(summary(fit, include_mcmc_diagnostics = FALSE)))
+  label <- "Heterogeneity: tau_total"
+  expect_true(any(grepl(label, printed, fixed = TRUE)))
+  plot_data <- .plot_models_data(fit, component = "random")
+  expect_identical(unique(plot_data[["cells"]][["label"]]), label)
+  expect_identical(.plot_models_data(fit, "Random"), plot_data)
 })
 
 

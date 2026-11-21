@@ -33,6 +33,8 @@ plot_models(x, ...)
 \item{parameter}{an ordered character vector of model component, term, or
 factor-level selectors. Use \code{NULL} to show the model components, including
 random-effect rows, followed by the location and scale terms.
+Random-effect inclusion rows use the labels printed by \code{\link[=summary.brma]{summary.brma()}}
+and appear before publication bias.
 Use qualified selectors such as \code{"mu_year"}, \code{"log_tau_year"}, or
 \code{"mu_delivery[online]"} to disambiguate terms or levels.}
 

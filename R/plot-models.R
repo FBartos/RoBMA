@@ -10,6 +10,8 @@
 #' @param parameter an ordered character vector of model component, term, or
 #'   factor-level selectors. Use `NULL` to show the model components, including
 #'   random-effect rows, followed by the location and scale terms.
+#'   Random-effect inclusion rows use the labels printed by [summary.brma()]
+#'   and appear before publication bias.
 #'   Use qualified selectors such as `"mu_year"`, `"log_tau_year"`, or
 #'   `"mu_delivery[online]"` to disambiguate terms or levels.
 #' @param component component to select from: `"auto"`, `"mods"` (also
@@ -249,11 +251,17 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
 
 .plot_models_terms <- function(x, components) {
 
-  main <- c("Effect", "Heterogeneity", "Publication Bias", "Heterogeneity Allocation")
+  main <- c("Effect", "Heterogeneity", "Heterogeneity Allocation")
   location <- names(components)[startsWith(names(components), "Location: ")]
   scale <- names(components)[startsWith(names(components), "Scale: ")]
-  random <- setdiff(names(components), c(main, location, scale))
-  order <- c(intersect(main, names(components)), random, location, scale)
+  random <- setdiff(names(components), c(main, "Publication Bias", location, scale))
+  order <- c(intersect(c(main, random, "Publication Bias"), names(components)), location, scale)
+  gates <- Filter(function(info) !is.null(info[["selector"]]), components[random])
+  gate_labels <- if (length(gates) > 0L) {
+    selectors <- vapply(gates, `[[`, character(1), "selector")
+    labels <- .summary_random_inclusion_labels(x, selectors, names(gates))
+    as.list(stats::setNames(.summary_random_component_labels(labels), names(gates)))
+  }
   metadata <- if (length(c(location, scale))) .brma_parameter_catalog_metadata(x) else NULL
   catalog <- metadata[["catalog"]]
   quantities <- catalog[["quantities"]]
@@ -269,10 +277,10 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
     term <- list(
       id        = switch(label, Effect = "mu", Heterogeneity = "tau",
                          "Publication Bias" = "bias", parameter),
-      label     = label,
+      label     = if (is.null(gate_labels[[label]])) label else gate_labels[[label]],
       group     = "Components",
       component = component,
-      aliases   = unique(c(parameter, label, info[["aliases"]], switch(label,
+      aliases   = unique(c(parameter, label, gate_labels[[label]], info[["aliases"]], switch(label,
         Effect = "effect", Heterogeneity = "heterogeneity",
         "Heterogeneity Allocation" = "heterogeneity_allocation",
         "Publication Bias" = "publication_bias"))),

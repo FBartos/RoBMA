@@ -385,6 +385,7 @@ as.data.frame.summary_models.RoBMA <- function(
       prior            = vector("list", 2L),
       indicator        = indicator,
       indicator_offset = 1L,
+      selector         = quantities[["canonical_name"]][[i]],
       aliases          = aliases[!is.na(aliases) & nzchar(aliases)],
       names            = c("Excluded", "Included"),
       hypothesis       = c("Null", "Alternative"),

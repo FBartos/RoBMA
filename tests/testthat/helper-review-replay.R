@@ -375,12 +375,14 @@ review_allocated_source_replay <- function(kind, constant_weights = FALSE,
     source_parameter = source_parameter, weights = weights)
 }
 
-review_bma_gate_replay <- function(study_label = "study", moderator = FALSE,
+review_bma_gate_replay <- function(study_label = "study", moderator = FALSE, aggregate = FALSE,
     prior_heterogeneity = BayesTools::prior("gamma", list(shape = 2, rate = 2))) {
   dat <- data.frame(yi = c(.1, .2, .3, .4),
     study = factor(c("s1", "s1", "s2", "s2")), other = factor(1:4), x = c(-1, 1, -1, 1))
+  random <- if (aggregate) ~ 1 | study / other else
+    stats::setNames(list(~ 1 | study, ~ 1 | other), c(study_label, "other"))
   args <- list(yi = dat[["yi"]], V = diag(.04, 4L),
-    random = stats::setNames(list(~ 1 | study, ~ 1 | other), c(study_label, "other")), data = dat,
+    random = random, data = dat,
     prior_effect = BayesTools::prior("point", list(location = 0)), prior_effect_null = NULL,
     prior_heterogeneity = prior_heterogeneity,
     measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
@@ -397,8 +399,12 @@ review_bma_gate_replay <- function(study_label = "study", moderator = FALSE,
     index <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
     paste0(base, "[", index$group, ",", index$column, "]")
   }), use.names = FALSE)
-  weight_columns <- paste0(allocation$weight_name, "[", 1:2, "]")
-  auxiliary <- .iwmde_simplex_auxiliary_columns(allocation$weight_name, 2L)
+  weights <- Filter(function(candidate) !is.null(candidate[["weight_name"]]),
+                    design[["random_allocations"]])
+  stopifnot(length(weights) == 1L)
+  weight_name <- weights[[1L]][["weight_name"]]
+  weight_columns <- paste0(weight_name, "[", 1:2, "]")
+  auxiliary <- .iwmde_simplex_auxiliary_columns(weight_name, 2L)
   columns <- unique(c(review_prior_columns(priors), setdiff(additional, latent_bases), latent, auxiliary))
   monitors <- BayesTools::JAGS_to_monitor(priors)
   required <- unlist(lapply(monitors, function(base) {
@@ -416,12 +422,17 @@ review_bma_gate_replay <- function(study_label = "study", moderator = FALSE,
   samples[, weight_columns] <- rep(c(.25, .75), each = 4L)
   samples[, auxiliary] <- 2 * samples[, weight_columns]
   gates <- vapply(allocation$inclusion, `[[`, character(1), "indicator_name")
-  component_index <- match(c(study_label, "other"), allocation$component_names)
-  gate_index <- match(component_index,
-    vapply(allocation$inclusion, `[[`, integer(1), "index"))
-  stopifnot(!anyNA(component_index), !anyNA(gate_index))
-  samples[, gates[[gate_index[[1L]]]]] <- c(0, 1, 0, 1)
-  samples[, gates[[gate_index[[2L]]]]] <- c(0, 0, 1, 1)
+  if (aggregate) {
+    stopifnot(length(gates) == 1L)
+    samples[, gates[[1L]]] <- c(0, 1, 0, 1)
+  } else {
+    component_index <- match(c(study_label, "other"), allocation$component_names)
+    gate_index <- match(component_index,
+      vapply(allocation$inclusion, `[[`, integer(1), "index"))
+    stopifnot(!anyNA(component_index), !anyNA(gate_index))
+    samples[, gates[[gate_index[[1L]]]]] <- c(0, 1, 0, 1)
+    samples[, gates[[gate_index[[2L]]]]] <- c(0, 0, 1, 1)
+  }
   preliminary <- review_attach_replay(setup, samples)
   registry <- BayesTools::JAGS_deterministic_nodes(preliminary$fit)
   nodes <- registry$node[registry$family == "random_sd"]
