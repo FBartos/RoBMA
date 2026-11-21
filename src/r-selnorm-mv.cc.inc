@@ -83,7 +83,7 @@ static int validate_vector_rule(SEXP vector_rule, int samples)
   return length;
 }
 
-extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_masked_batch(
+extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
   SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
   SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
@@ -268,19 +268,6 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_masked_batch(
   UNPROTECT(7);
   return out;
   ROBMA_NATIVE_END
-}
-
-extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
-  SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
-  SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
-  SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
-  SEXP points, SEXP scrambles, SEXP rank_one_loading,
-  SEXP normalizer_quadrature, SEXP relative_tolerance)
-{
-  return RoBMA_selnorm_gaussian_event_mass_masked_batch(means, covariance_lower,
-    sei, omega, z_lower, z_upper, sign, kernel_mode, vector_rule, lower, upper,
-    qmc, points, scrambles, rank_one_loading, normalizer_quadrature,
-    relative_tolerance, R_NilValue);
 }
 
 static SEXP selnorm_mnorm_step_batch(

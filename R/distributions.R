@@ -155,7 +155,7 @@
   quadrature <- execution_plan[["quadrature"]]
   if (!is.null(quadrature)) attr(quadrature, "bounded_cdf") <- TRUE
   result <- .Call(
-    "RoBMA_selnorm_gaussian_event_mass_masked_batch",
+    "RoBMA_selnorm_gaussian_event_mass_batch",
     mean, if (is.null(covariance_lower)) NULL else .native_numeric_matrix(covariance_lower),
     .native_numeric_vector(selection_se),
     .native_numeric_matrix(selection_context[["omega"]]),

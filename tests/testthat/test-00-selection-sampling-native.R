@@ -204,6 +204,47 @@ test_that("Matheron likelihood preserves singular sampling covariance", {
   }
 })
 
+test_that("exempt conditioned blocks keep fixed and integrated eligible outcomes", {
+
+  # Row 1 is exempt, row 2 is eligible without integrated variance and observed
+  # exactly at the z = 0 cut, and row 3 is eligible with integrated variance.
+  V     <- matrix(c(.6, .2, -.15, .2, .5, .1, -.15, .1, .7), 3L)
+  d     <- c(.3, 0, .5)
+  mean  <- c(.15, -.1, .05)
+  e0    <- c(.2, -.25, .1)
+  u0    <- c(-.3, 0, .35)
+  omega <- c(1, .3, .7)
+  args  <- .sampling_native_arguments(mean, d, omega = omega)
+  args$z_lower <- c(1, 0, -Inf)
+  args$z_upper <- c(Inf, 1, 0)
+  total <- V + diag(d)
+  for (y3 in c(-.4, .6, 1.3)) {
+    yi   <- c(1.1, 0, y3)
+    bins <- c(0L, 2L, which(y3 >= args$z_lower)[1L])
+    # Reference: the Matheron update gives row 3's retained mean, row 2 stays
+    # in its observed bin, and row 3's bin masses are univariate normal.
+    e  <- drop(e0 + V %*% solve(total, yi - mean - e0 - u0))
+    at_least <- pnorm(c(1, 0), mean[3L] + e[3L], sqrt(d[3L]), lower.tail = FALSE)
+    p3 <- c(at_least[1L], diff(at_least), 1 - at_least[2L])
+    gaussian <- mvtnorm::dmvnorm(yi, mean, total, log = TRUE)
+    for (rule in 0:1) {
+      args$vector_rule <- rule
+      expected <- gaussian + if (rule == 0L) {
+        log(omega[bins[3L]]) - log(sum(omega * p3))
+      } else {
+        log(omega[min(bins[2:3])]) - log(sum(p3 * omega[pmin(bins[2L], 1:3)]))
+      }
+      out <- do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch",
+        as.double(yi), args$means, as.double(V[lower.tri(V, diag = TRUE)]),
+        args$diagonal, args$loading, args$rank, matrix(e0, 1L), matrix(u0, 1L),
+        args$sei, args$omega, args$z_lower, args$z_upper, bins),
+        unname(args[9:length(args)]), list(PACKAGE = "RoBMA")))
+      expect_equal(out$log_lik, expected, tolerance = 1e-12,
+        label = paste("rule", rule, "y3", y3))
+    }
+  }
+})
+
 test_that("whole-sampling likelihoods use relative nonmonotone selection weights", {
 
   args <- .sampling_native_arguments(c(.1, -.2), c(.25, .49), omega = c(1, .15, 2.5))
@@ -265,7 +306,7 @@ test_that("shared Gaussian events evaluate deterministic laws and event bounds e
   args <- .sampling_native_arguments(c(-1, .5), c(0, 0), points = 8L)
   event_args <- list(args$means, matrix(0, 1L, 3L), args$sei, args$omega,
     args$z_lower, args$z_upper, args$sign, args$kernel_mode, args$vector_rule,
-    matrix(c(-2, .5), 1L), matrix(c(0, 1), 1L), args$qmc, 8L, 8L, NULL, NULL, .005)
+    matrix(c(-2, .5), 1L), matrix(c(0, 1), 1L), args$qmc, 8L, 8L, NULL, NULL, .005, NULL)
   evaluate <- function(values) {
 
     do.call(.Call, c(list("RoBMA_selnorm_gaussian_event_mass_batch"), values,
@@ -598,7 +639,7 @@ test_that("projection diagnostics include denominator uncertainty in every ratio
       list(args$means, packed, args$sei, args$omega, args$z_lower, args$z_upper,
         args$sign, args$kernel_mode, args$vector_rule, lower, upper,
         prefix[[if (points == 8L) "full" else "coarse"]], as.integer(points),
-        8L, NULL, NULL, 1e-8), list(PACKAGE = "RoBMA")))
+        8L, NULL, NULL, 1e-8, NULL), list(PACKAGE = "RoBMA")))
   }
   for (kind in c(1L, 2L)) {
     grid <- if (kind == 1L) c(-.5, .25, 1) else c(.5, 1.5)

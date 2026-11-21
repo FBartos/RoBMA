@@ -23,7 +23,9 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
     }, lo[1], hi[1], rel.tol = 1e-10)$value
   }
   # Three correlated outcomes with the most significant result in the middle.
-  sampling <- matrix(c(.8, .32, -.1, .32, 1.1, .16, -.1, .16, .93), 3L)
+  # The eligible rows' covariance is large enough that dropping it moves every
+  # dense and conditioned reference by more than the tolerance.
+  sampling <- matrix(c(.8, .32, -.4, .32, 1.1, .16, -.4, .16, .93), 3L)
   for (kind in names(fixtures$cases)) {
     spec <- fixtures$cases[[kind]]
     data <- utils::modifyList(fixtures$base, spec$extra)

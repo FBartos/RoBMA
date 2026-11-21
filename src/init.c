@@ -172,12 +172,6 @@ extern SEXP RoBMA_selnorm_gaussian_event_mass_batch(
     SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
     SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
     SEXP points, SEXP scrambles, SEXP rank_one_loading,
-    SEXP normalizer_quadrature, SEXP relative_tolerance);
-extern SEXP RoBMA_selnorm_gaussian_event_mass_masked_batch(
-    SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
-    SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
-    SEXP vector_rule, SEXP lower, SEXP upper, SEXP qmc,
-    SEXP points, SEXP scrambles, SEXP rank_one_loading,
     SEXP normalizer_quadrature, SEXP relative_tolerance, SEXP bias_exempt);
 extern SEXP RoBMA_norm_loglik_row_sum(SEXP yi, SEXP mu_samples,
                                       SEXP tau_within, SEXP sei,
@@ -469,8 +463,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_cluster_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_cluster_step_loglik_batch, 22},
     {"RoBMA_selnorm_factor_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_factor_step_loglik_batch, 22},
     {"RoBMA_selnorm_mnorm_step_rng_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_rng_batch, 11},
-    {"RoBMA_selnorm_gaussian_event_mass_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_batch, 17},
-    {"RoBMA_selnorm_gaussian_event_mass_masked_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_masked_batch, 18},
+    {"RoBMA_selnorm_gaussian_event_mass_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_batch, 18},
     {"RoBMA_norm_loglik_row_sum", (DL_FUNC) &RoBMA_norm_loglik_row_sum, 5},
     {"RoBMA_norm_predictor_grid_loglik", (DL_FUNC) &RoBMA_norm_predictor_grid_loglik, 11},
     {"RoBMA_known_v_covariance_plan_create", (DL_FUNC) &RoBMA_known_v_covariance_plan_create, 4},
