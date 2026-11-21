@@ -464,7 +464,7 @@ test_that("the clustered GLMM route refuses a scale design that varies within a 
   for (item in compiled) priors <- c(priors, item[["prior_list"]])
   fit <- structure(
     list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples)),
-    class = c("runjags", "list")
+    class = "BayesTools_fit"
   )
   attr(fit, "formula_design") <- design
   attr(fit, "formula_scale")  <- lapply(compiled, `[[`, "formula_scale")

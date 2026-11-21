@@ -2,6 +2,7 @@
 
 #include <rng/RNG.h>
 #include <util/nainf.h>
+#include <stdexcept>
 
 #include <cmath>
 
@@ -13,11 +14,11 @@ namespace RoBMA {
 
 DSELNORMSTEP::DSELNORMSTEP() : VectorDist("dselnorm_step", 10) {}
 
-bool DSELNORMSTEP::checkParameterLength(std::vector<unsigned int> const &len) const
+bool DSELNORMSTEP::checkParameterLength(std::vector<unsigned long> const &len) const
 {
   if (len.size() != 10) return false;
   const unsigned int maximum = std::numeric_limits<int>::max();
-  for (unsigned int length : len) if (length > maximum) return false;
+  for (unsigned long length : len) if (length > maximum) return false;
   for (unsigned int i = 0; i < 4; ++i) if (len[i] != 1) return false;
   return len[4] > 0 &&
     len[4] == len[5] &&
@@ -28,7 +29,7 @@ bool DSELNORMSTEP::checkParameterLength(std::vector<unsigned int> const &len) co
 }
 
 bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
-                                       std::vector<unsigned int> const &len) const
+                                       std::vector<unsigned long> const &len) const
 {
   const int n_bins = static_cast<int>(len[4]);
   const SelNormJagsBounds z_lower(par[5], len[5]);
@@ -54,11 +55,10 @@ bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
   );
 }
 
-double DSELNORMSTEP::logDensity(double const *x, unsigned int length,
+double DSELNORMSTEP::logDensity(double const *x,
                                 PDFType type,
                                 std::vector<double const *> const &par,
-                                std::vector<unsigned int> const &len,
-                                double const *lower, double const *upper) const
+                                std::vector<unsigned long> const &len) const
 {
   double phack_z_zero[2] = {0, 0};
   double segment_bounds_zero[1] = {0};
@@ -102,34 +102,25 @@ double DSELNORMSTEP::logDensity(double const *x, unsigned int length,
   );
 }
 
-void DSELNORMSTEP::randomSample(double *x, unsigned int length,
+void DSELNORMSTEP::randomSample(double *x,
                                 std::vector<double const *> const &par,
-                                std::vector<unsigned int> const &len,
-                                double const *lower, double const *upper,
+                                std::vector<unsigned long> const &len,
                                 RNG *rng) const
 {
+  throw std::runtime_error("dselnorm_step supports observed likelihood nodes only.");
 }
 
-void DSELNORMSTEP::support(double *lower, double *upper, unsigned int length,
+void DSELNORMSTEP::support(double *lower, double *upper,
                            std::vector<double const *> const &par,
-                           std::vector<unsigned int> const &len) const
+                           std::vector<unsigned long> const &len) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
-    lower[i] = JAGS_NEGINF;
-    upper[i] = JAGS_POSINF;
-  }
+  *lower = JAGS_NEGINF;
+  *upper = JAGS_POSINF;
 }
 
-unsigned int DSELNORMSTEP::length(std::vector<unsigned int> const &len) const
+unsigned long DSELNORMSTEP::length(std::vector<unsigned long> const &len) const
 {
   return 1;
-}
-
-void DSELNORMSTEP::typicalValue(double *x, unsigned int length,
-                                std::vector<double const *> const &par,
-                                std::vector<unsigned int> const &len,
-                                double const *lower, double const *upper) const
-{
 }
 
 bool DSELNORMSTEP::isSupportFixed(std::vector<bool> const &fixmask) const

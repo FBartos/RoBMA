@@ -383,7 +383,7 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
 })
 
 # A tiny ordinary model fitted with a non-default adaptation, and the
-# arguments that reach runjags::extend.jags() while extending it.
+# settings that reach the direct JAGS driver while extending it.
 .adaptation_fit <- function(...) {
 
   suppressWarnings(brma.norm(
@@ -393,17 +393,17 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
   ))
 }
 
-.record_extend_jags <- function(env = parent.frame()) {
+.record_jags_runs <- function(env = parent.frame()) {
 
   calls <- list()
-  original <- runjags::extend.jags
+  original <- getFromNamespace(".bt_rjags_run", "BayesTools")
   testthat::local_mocked_bindings(
-    extend.jags = function(runjags.object, ...) {
-      arguments <- list(...)
-      calls[[length(calls) + 1L]] <<- arguments[c("adapt", "burnin", "sample", "method")]
-      original(runjags.object, ...)
+    .bt_rjags_run = function(model, data, inits, monitor, adapt, burnin, sample,
+                             thin, cl, silent, live_model = NULL) {
+      calls[[length(calls) + 1L]] <<- list(adapt = adapt, burnin = burnin, parallel = !is.null(cl))
+      original(model, data, inits, monitor, adapt, burnin, sample, thin, cl, silent, live_model)
     },
-    .package = "runjags",
+    .package = "BayesTools",
     .env = env
   )
   function() calls
@@ -418,22 +418,21 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
 
 test_that("extensions inherit the initial adaptation, preserve the draws, and add no burn-in", {
 
-  skip_if_not_installed("runjags")
   fit   <- .adaptation_fit()
-  calls <- .record_extend_jags()
+  calls <- .record_jags_runs()
 
   omitted  <- update(fit, sample_extend = 20)
   explicit <- update(fit, sample_extend = 20, adapt = 300)
   override <- update(fit, sample_extend = 20, adapt = 1000)
   after    <- update(override, sample_extend = 20)
 
-  # the arguments that reached runjags
+  # the arguments that reached the driver
   expect_identical(
     lapply(calls(), `[[`, "adapt"),
     list(300L, 300L, 1000L, 300L)
   )
-  expect_identical(lapply(calls(), `[[`, "burnin"), rep(list(0), 4))
-  expect_identical(lapply(calls(), `[[`, "method"), rep(list("rjags"), 4))
+  expect_identical(lapply(calls(), `[[`, "burnin"), rep(list(0L), 4))
+  expect_identical(lapply(calls(), `[[`, "parallel"), rep(list(FALSE), 4))
 
   # an explicit value equal to the initial one gives identical draws, an
   # override other draws; no extension changes the stored setting
@@ -470,18 +469,16 @@ test_that("extensions inherit the initial adaptation, preserve the draws, and ad
 
 test_that("automatic extensions of a fit use its adaptation", {
 
-  skip_if_not_installed("runjags")
-  calls <- .record_extend_jags()
+  calls <- .record_jags_runs()
   fit <- .adaptation_fit(
     autofit = TRUE,
     autofit_control = set_autofit_control(min_ESS = 1e6, sample_extend = 10, max_extend = 2)
   )
 
-  # runjags::run.jags() runs the initial fit through extend.jags() too
   backend <- calls()
   expect_equal(backend[[1L]][c("adapt", "burnin")], list(adapt = 300, burnin = 100))
   expect_identical(lapply(backend[-1L], `[[`, "adapt"), list(300L, 300L))
-  expect_identical(lapply(backend[-1L], `[[`, "burnin"), list(0, 0))
+  expect_identical(lapply(backend[-1L], `[[`, "burnin"), list(0L, 0L))
   # serial automatic extensions continue the sampler adapted by the initial run
   expect_identical(
     attr(fit[["fit"]], "adaptation"),

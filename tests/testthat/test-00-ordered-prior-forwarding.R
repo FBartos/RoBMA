@@ -93,7 +93,7 @@ test_that("ordered plot ownership validates only selected bound terms", {
   columns <- c("mu_intercept", "mu_f[1]", "mu_f[2]", "mu_h[1]", "mu_h[2]", "mu_x")
   values <- matrix(1, 4L, length(columns), dimnames = list(NULL, columns))
   fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(values)), sample = 4L),
-    class = c("runjags", "BayesTools_fit", "list"))
+    class = "BayesTools_fit")
   attr(fit, "prior_list") <- compiled[["prior_list"]]
   attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
   attr(fit, "parameter_map") <- BayesTools:::.bt_build_parameter_map(

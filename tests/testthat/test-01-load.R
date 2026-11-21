@@ -194,10 +194,9 @@ test_that("general selected-normal JAGS kernel restores protocol sentinels", {
     n.chains = 2,
     n.adapt  = 0
   )
-  dic <- rjags::dic.samples(
-    model,
+  deviance <- rjags::jags.samples(
+    model, "y", stat = "deviance", summary = "mean",
     n.iter       = 2,
-    type         = "pD",
     progress.bar = "none"
   )
 
@@ -221,7 +220,7 @@ test_that("general selected-normal JAGS kernel restores protocol sentinels", {
   )
 
   expect_equal(
-    as.numeric(sum(dic[["deviance"]])),
+    mean(as.numeric(deviance[["y"]])),
     expected_deviance,
     tolerance = 128 * .Machine$double.eps
   )
@@ -260,8 +259,9 @@ test_that("selection bound sentinels decode by magnitude", {
       n.chains = 2,
       n.adapt  = 0
     )
-    dic <- rjags::dic.samples(model, n.iter = 2, type = "pD", progress.bar = "none")
-    as.numeric(sum(dic[["deviance"]]))
+    deviance <- rjags::jags.samples(model, "y", stat = "deviance", summary = "mean",
+      n.iter = 2, progress.bar = "none")
+    mean(as.numeric(deviance[["y"]]))
   }
 
   expect_identical(bound_deviance(inexact), bound_deviance(1e300))

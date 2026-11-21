@@ -16,7 +16,7 @@
   object$formula_design <- lapply(compiled, `[[`, "formula_design")
   samples <- cbind(mu = seq(-.1, .1, length.out = n_rows), tau = rep(.2, n_rows))
   fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = n_rows),
-    class = c("runjags", "list"))
+    class = "BayesTools_fit")
   attr(fit, "formula_design") <- object$formula_design
   priors <- list()
   for (formula in compiled) priors <- c(priors, formula$prior_list)

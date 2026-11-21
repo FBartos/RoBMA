@@ -2,9 +2,11 @@
 // (src/distributions/selnorm-node-memo.h). The test compiles and runs it: it
 // mutates inputs of a recorded call in place, the way JAGS mutates parent
 // values, which no R-level model can do. Each check prints "name 0|1".
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <thread>
 #include <vector>
 
 #include "selnorm-node-memo.h"
@@ -17,7 +19,7 @@ struct Call {
   std::vector<double> data[20];
   std::vector<double> x;
   std::vector<const double *> par;
-  std::vector<unsigned int> len;
+  std::vector<unsigned long> len;
   int type = 0;
   SelNormMemoInput inputs[selnorm_step_memo_inputs];
   double scalars[selnorm_step_memo_scalars];
@@ -49,13 +51,13 @@ struct Call {
     for (unsigned int i = 0; i < rows; ++i) { x[i] += 0.01 * i; data[0][i] += 0.02 * i; }
     for (int i = 0; i < 20; ++i) {
       par.push_back(data[i].data());
-      len.push_back(static_cast<unsigned int>(data[i].size()));
+      len.push_back(data[i].size());
     }
   }
 
   const SelNormMemoInput *collect()
   {
-    selnorm_step_memo_collect(x.data(), static_cast<unsigned int>(x.size()), type,
+    selnorm_step_memo_collect(x.data(), x.size(), type,
                               par, len, inputs, scalars);
     return inputs;
   }
@@ -172,6 +174,29 @@ int main()
            !hit(memo, reinterpret_cast<const void *>(std::size_t(1)), call) &&
            !hit(memo, reinterpret_cast<const void *>(static_cast<std::size_t>(limit)), call) &&
            hit(memo, reinterpret_cast<const void *>(static_cast<std::size_t>(limit + 1)), call));
+  }
+  {
+    SelNormNodeMemo memo;
+    std::atomic<int> ready{0};
+    bool correct[2] = {true, true};
+    auto chain = [&](int id) {
+      Call call;
+      // Distinct nodes, sharing one distribution and its memo across JAGS chains.
+      std::vector<char> keys(128);
+      ++ready;
+      while (ready.load() < 2) std::this_thread::yield();
+      for (int i = 0; i < 1024; ++i) {
+        const void *key = &keys[i % keys.size()];
+        call.x[0] = i + id;
+        store(memo, key, call, call.x[0]);
+        double value;
+        if (!hit(memo, key, call, &value) || value != call.x[0]) correct[id] = false;
+      }
+    };
+    std::thread first(chain, 0), second(chain, 1);
+    first.join();
+    second.join();
+    report("concurrent_chains", correct[0] && correct[1]);
   }
   return 0;
 }

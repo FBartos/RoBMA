@@ -6,22 +6,29 @@ NULL
 
 # The Matrix import loads the registered CHOLMOD C-callables used by r-known-v.
 
+# Saved at installation to check the runtime ABI before loading our module.
+.RoBMA_jags_build <- rjags::pkg.compile.flags("ALL")
+
 .onLoad <- function(libname, pkgname) {
 
   RoBMA.private[["selection_runtime_loading"]] <- TRUE
   RoBMA.private[["selection_runtime_initialized"]] <- FALSE
   on.exit(RoBMA.private[["selection_runtime_loading"]] <- FALSE, add = TRUE)
   requireNamespace("BayesTools")
-  requireNamespace("runjags")
   requireNamespace("mvtnorm")
 
   RoBMA.private$RoBMA_version   <- utils::packageDescription(pkgname, fields = "Version")
   RoBMA.private$module_location <- .RoBMA_module_location(libname, pkgname)
   RoBMA.private$lib_name        <- libname
 
-  .load_RoBMA_module(pkgname = pkgname, warn = TRUE)
-  .load_RoBMA_native_routines(pkgname = pkgname, libname = libname, warn = TRUE)
-  .check_RoBMA_native_routines(pkgname = pkgname)
+  source_only <- is.null(RoBMA.private$module_location) &&
+    dir.exists(file.path(getNamespaceInfo(pkgname, "path"), "src"))
+  if (!source_only) {
+    .load_RoBMA_module(pkgname = pkgname)
+    if (!.check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE)) {
+      stop("The RoBMA native routines are missing from its JAGS module. Reinstall RoBMA.", call. = FALSE)
+    }
+  }
 
   setopts <- mget(".RoBMA.options", envir = .GlobalEnv, ifnotfound = list(.RoBMA.options = NULL))[[1]]
   if (!is.null(setopts)) {
@@ -54,10 +61,12 @@ NULL
 
 .onUnload <- function(libpath) {
 
+  # Run finalizers for unused models while their samplers are still registered.
+  gc()
   tryCatch(
     {
       if ("RoBMA" %in% rjags::list.modules()) {
-        rjags::unload.module("RoBMA")
+        rjags::unload.module("RoBMA", quiet = TRUE)
       }
     },
     error = function(e) NULL
@@ -131,82 +140,30 @@ NULL
 }
 
 .load_RoBMA_module <- function(pkgname = "RoBMA", path = RoBMA.private$module_location,
-                               quiet = TRUE, warn = FALSE) {
+                               quiet = TRUE) {
 
-  loaded <- tryCatch("RoBMA" %in% rjags::list.modules(), error = function(e) FALSE)
-  if (loaded) {
-    return(TRUE)
+  if (pkgname %in% rjags::list.modules()) {
+    return(invisible(TRUE))
+  }
+  if (is.null(path)) {
+    stop("The RoBMA JAGS module is missing. Reinstall RoBMA using JAGS 5 or later.", call. = FALSE)
   }
 
-  if (is.null(path) || !dir.exists(path)) {
-    if (warn) {
-      warning(
-        "RoBMA JAGS module was not found in the installed package library. ",
-        "Model fitting requires this module; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported).",
-        call. = FALSE
-      )
-    }
-    return(FALSE)
+  # RoBMA's factories must be registered after the BayesTools factories.
+  if (!BayesTools::BayesTools_load_JAGS_module(quiet = quiet)) {
+    stop("The BayesTools JAGS module is required to load RoBMA.", call. = FALSE)
   }
-
-  load_error <- NULL
-  tryCatch(
-    rjags::load.module("RoBMA", path = path, quiet = quiet),
-    error = function(e) load_error <<- conditionMessage(e)
-  )
-
-  loaded <- tryCatch("RoBMA" %in% rjags::list.modules(), error = function(e) FALSE)
-  if (!loaded && warn) {
-    message <- paste0(
-      "RoBMA JAGS module failed to load from '", path, "'. ",
-      "Model fitting requires this module; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported)."
-    )
-    if (!is.null(load_error)) {
-      message <- paste0(message, " rjags error: ", load_error)
-    }
-    warning(message, call. = FALSE)
+  libname <- RoBMA.private$lib_name
+  installed_dll <- file.path(libname, pkgname, "libs", .Platform$r_arch,
+                             paste0(pkgname, .Platform$dynlib.ext))
+  if (file.exists(installed_dll)) {
+    rjags::load.pkg.module(pkgname, libname, .RoBMA_jags_build, quiet = quiet)
+  } else {
+    # pkgload places the compiled module under src/.
+    rjags::load.pkg.module(pkgname, libname, .RoBMA_jags_build, check.only = TRUE)
+    rjags::load.module(pkgname, path = path, quiet = quiet)
   }
-
-  return(loaded)
-}
-
-.load_RoBMA_native_routines <- function(pkgname = "RoBMA", libname = RoBMA.private$lib_name,
-                                        warn = FALSE) {
-
-  if (isTRUE(.check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE))) {
-    return(TRUE)
-  }
-
-  load_error <- NULL
-  tryCatch(
-    library.dynam("RoBMA", pkgname, libname),
-    error = function(e) load_error <<- conditionMessage(e)
-  )
-
-  if (!isTRUE(.check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE)) &&
-      !is.null(RoBMA.private$module_location)) {
-    module_file <- file.path(RoBMA.private$module_location, paste0("RoBMA", .Platform$dynlib.ext))
-    if (file.exists(module_file)) {
-      tryCatch(
-        dyn.load(module_file),
-        error = function(e) load_error <<- conditionMessage(e)
-      )
-    }
-  }
-
-  loaded <- .check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE)
-  if (!isTRUE(loaded) && warn) {
-    message <- paste0(
-      "RoBMA native routines failed to load from the package DLL. ",
-      "Compiled likelihood helpers will be unavailable; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported)."
-    )
-    if (!is.null(load_error)) {
-      message <- paste0(message, " R loader error: ", load_error)
-    }
-    warning(message, call. = FALSE)
-  }
-
-  return(isTRUE(loaded))
+  invisible(TRUE)
 }
 
 .check_RoBMA_native_routines <- function(pkgname = "RoBMA", warn = TRUE) {

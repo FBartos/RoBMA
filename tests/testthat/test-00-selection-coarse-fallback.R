@@ -737,7 +737,7 @@ test_that("the worst-sampler rate is the rate of one sampler over its whole run"
 }
 
 # Every post-adaptation update of a sampler that stayed corrected is counted:
-# burn-in, retained draws and runjags' two closing draws per backend run.
+# burn-in and sampling iterations.
 .fallback_expect_identity <- function(counts, iterations, label) {
 
   expect_identical(counts[["sampling_proposed"]],
@@ -779,7 +779,7 @@ test_that("serial and parallel fits record their corrected samplers, and update(
     expect_identical(record[["samplers"]], 3 * (sum(fit[["fit"]][["samplers"]][["Sampler"]] == coarse) + 1),
                      info = label)
     expect_gt(record[["samplers"]], 0)
-    .fallback_expect_identity(record, 50 + 1000 + 2, label)
+    .fallback_expect_identity(record, 50 + 1000, label)
     # the worst-sampler rate is the lowest of the processes' rates
     process_rates <- vapply(values[[1L]], `[[`, numeric(1L), "min_sampler_rate")
     expect_false(anyNA(process_rates), info = label)
@@ -801,7 +801,7 @@ test_that("serial and parallel fits record their corrected samplers, and update(
     expect_length(values, 1L)
     expect_length(values[[1L]], if (label == "serial") 1L else 2L)
     added <- .fallback_value_sums(values)
-    .fallback_expect_identity(added, 60 + 2, label)
+    .fallback_expect_identity(added, 60, label)
     record <- .fallback_record(extended)
     expect_identical(unlist(record[.fallback_count_names]),
                      unlist(.fallback_record(input)[.fallback_count_names]) + added[.fallback_count_names],
@@ -822,14 +822,13 @@ test_that("the JASP path, alternating fits and leftover counts keep each fit's r
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
 
   # the JASP path draws in several backend runs of one compiled model: adaptation
-  # and burn-in with one draw, then five runs of a fifth of the draws, each run
-  # with its two closing draws
+  # and burn-in with one draw, then five runs of a fifth of the draws
   jasp   <- .fallback_fit(is_JASP = TRUE)
   values <- .fallback_values(jasp)
   record <- .fallback_record(jasp)
   expect_length(values, 6L)
   expect_identical(unlist(record[.fallback_count_names]), .fallback_value_sums(values)[.fallback_count_names])
-  .fallback_expect_identity(record, 50 + (1 + 2) + 5 * (100 / 5 + 2), "JASP")
+  .fallback_expect_identity(record, 50 + 1 + 100, "JASP")
 
   # counts that a model left in the process (an earlier fit or a failed attempt)
   # do not enter the record of the next fit
@@ -928,7 +927,7 @@ test_that("a failed extension keeps the input record and a fit saved before the 
                      list(sampler = "coarse_corrected", min_acceptance = 0, fallback_samplers = 0, complete = FALSE),
                      info = label)
     expect_true(any(corrected[["fit"]][["samplers"]][["Sampler"]] == coarse), info = label)
-    .fallback_expect_identity(record, 60 + 2, label)
+    .fallback_expect_identity(record, 60, label)
 
     ordinary <- .fallback_quiet(stats::update(legacy_fit("default"), sample_extend = 60L, parallel = parallel))
     expect_identical(.fallback_record(ordinary)[c("sampler", "min_acceptance", "samplers", "complete")],

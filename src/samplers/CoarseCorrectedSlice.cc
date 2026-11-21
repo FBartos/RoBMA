@@ -286,8 +286,8 @@ std::vector<Sampler *> CoarseCorrectedSliceFactory::makeSamplers(
   try {
     for (StochasticNode *node : nodes) {
       // Multivariate, discrete, and structural nodes retain their stock sampler.
-      if (node->length() != 1 || node->isDiscreteValued() || node->df() == 0 ||
-          isObserved(node) || hasSamplerDeclaration(node)) continue;
+      if (node->length() != 1 || node->isDiscreteValued() || !node->fullRank() ||
+          hasSamplerDeclaration(node)) continue;
       std::unique_ptr<SingletonGraphView> view(new SingletonGraphView(node, graph));
       if (!hasSelectionChild(*view, config.settings)) continue;
       std::vector<std::unique_ptr<MutableSampleMethod> > owned_methods;

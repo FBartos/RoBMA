@@ -101,12 +101,11 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
   return(get(name, envir = .surface_fit_env, inherits = FALSE))
 }
 
-# The surface fits adapt for only 50 iterations, so runjags reports incomplete
-# adaptation for their extensions as for the fits themselves.
+# The short surface fits can reach their adaptation budget before convergence.
 .surface_update <- function(...) {
 
   withCallingHandlers(update(...), warning = function(condition) {
-    if (grepl("adaptation phase", conditionMessage(condition), fixed = TRUE)) {
+    if (inherits(condition, "BayesTools_adaptation_incomplete")) {
       invokeRestart("muffleWarning")
     }
   })

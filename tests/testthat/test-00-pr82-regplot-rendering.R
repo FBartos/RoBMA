@@ -65,7 +65,7 @@ test_that("new regplot bands refuse fitted known-R multipliers at every grid siz
   samples <- matrix(0.2, 24, length(columns), dimnames = list(NULL, columns))
   samples[, "mu_intercept"] <- seq(-0.1, 0.1, length.out = 24)
   samples[, "mu_x"] <- seq(0.05, 0.15, length.out = 24)
-  fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = 24L), class = c("runjags", "list"))
+  fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = 24L), class = "BayesTools_fit")
   attr(fit, "formula_design") <- list(mu = compiled$formula_design)
   attr(fit, "formula_scale") <- list(mu = compiled$formula_scale)
   attr(fit, "prior_list") <- c(compiled$prior_list, .create_fit_priors(object$data, object$priors))

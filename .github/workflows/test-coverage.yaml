@@ -30,17 +30,19 @@ jobs:
         uses: r-lib/actions/setup-pandoc@v2
 
       - name: Set up JAGS
-        uses: FBartos/BayesTools/.github/actions/setup-jags@development
+        uses: FBartos/BayesTools/.github/actions/setup-jags5@cc5c8f38c0b246c6cd5a21c5e60d8284cae94aad
 
       - name: Resolve BayesTools source
         id: bayestools
         uses: FBartos/BayesTools/.github/actions/bayestools-source@development
+        with:
+          development-spec: github::FBartos/BayesTools@5942d38714ca551452d0e99fcc8c5a1ee91db24f
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           dependencies: '"all"'
-          cache-version: 3
+          cache-version: 4
           install-pandoc: false
           extra-packages: |
             ${{ steps.bayestools.outputs.pak-spec }}

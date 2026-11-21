@@ -21,7 +21,7 @@ namespace RoBMA {
 DSELNORMMVSTEP::DSELNORMMVSTEP() : VectorDist("dselnorm_mnorm_step", 18) {}
 
 bool DSELNORMMVSTEP::checkParameterLength(
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   const unsigned int maximum = std::numeric_limits<int>::max();
   // Dense matrices, QMC offsets and quadrature offsets use signed int indices.
@@ -46,14 +46,14 @@ bool DSELNORMMVSTEP::checkParameterLength(
 
 bool DSELNORMMVSTEP::checkParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   return checkDynamicParameterValue(par, len) && checkControlParameterValue(par, len);
 }
 
 bool DSELNORMMVSTEP::checkDynamicParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[3]);
@@ -74,7 +74,7 @@ bool DSELNORMMVSTEP::checkDynamicParameterValue(
 
 bool DSELNORMMVSTEP::checkControlParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[3]);
@@ -131,12 +131,11 @@ bool DSELNORMMVSTEP::checkControlParameterValue(
 }
 
 double DSELNORMMVSTEP::logDensity(
-    double const *x, unsigned int length, PDFType type,
+    double const *x, PDFType type,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const
+    std::vector<unsigned long> const &len) const
 {
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[3]);
   const int kernel_mode = static_cast<int>(*par[9]);
   const int points = static_cast<int>(*par[11]);
@@ -188,13 +187,12 @@ double DSELNORMMVSTEP::logDensity(
 }
 
 double DSELNORMMVSTEP::surrogateLogDensity(
-    double const *x, unsigned int length, PDFType type,
+    double const *x, PDFType type,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper,
+    std::vector<unsigned long> const &len,
     SelNormCoarseSettings const &settings, bool *surrogate_not_exact) const
 {
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[3]);
   const SelNormJagsBounds z_lower(par[4], len[4]);
   const SelNormJagsBounds z_upper(par[5], len[5]);
@@ -222,10 +220,9 @@ double DSELNORMMVSTEP::surrogateLogDensity(
 }
 
 void DSELNORMMVSTEP::randomSample(
-    double *x, unsigned int length,
+    double *x,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper, RNG *rng) const
+    std::vector<unsigned long> const &len, RNG *rng) const
 {
   throw std::runtime_error(
     "'dselnorm_mnorm_step' supports observed nodes only; sampling unobserved selected nodes is unsupported."
@@ -233,29 +230,20 @@ void DSELNORMMVSTEP::randomSample(
 }
 
 void DSELNORMMVSTEP::support(
-    double *lower, double *upper, unsigned int length,
+    double *lower, double *upper,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
+  for (unsigned long i = 0; i < len[0]; ++i) {
     lower[i] = JAGS_NEGINF;
     upper[i] = JAGS_POSINF;
   }
 }
 
-unsigned int DSELNORMMVSTEP::length(
-    std::vector<unsigned int> const &len) const
+unsigned long DSELNORMMVSTEP::length(
+    std::vector<unsigned long> const &len) const
 {
   return len[0];
-}
-
-void DSELNORMMVSTEP::typicalValue(
-    double *x, unsigned int length,
-    std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const
-{
-  for (unsigned int i = 0; i < length; ++i) x[i] = par[0][i];
 }
 
 bool DSELNORMMVSTEP::isSupportFixed(

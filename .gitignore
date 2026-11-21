@@ -15,9 +15,6 @@ RoBMA.Rcheck
 .Rhistory
 /doc/
 /Meta/
-config.log
-config.status
-src/Makevars
 models/MetaRegression/*
 .RData
 Rplots.pdf

@@ -1218,8 +1218,8 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/zzz.R"
   )
   src_files <- c(
-    "src/Makevars.in",
-    "src/Makevars.ucrt",
+    "src/Makevars",
+    "src/Makevars.common",
     "src/Makevars.win",
     "src/RoBMA.cc",
     "src/init.c",
@@ -1410,7 +1410,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "h", "hh", "hpp", "hxx", "inc", "in"
   )
   text_basenames <- c(
-    "NAMESPACE", "Makevars", "Makevars.in", "Makevars.ucrt", "Makevars.win",
+    "NAMESPACE", "Makevars", "Makevars.common", "Makevars.win",
     "configure", "configure.win", "cleanup", "cleanup.win"
   )
   if (extension %in% text_extensions || basename(path) %in% text_basenames) {

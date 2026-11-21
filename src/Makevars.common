@@ -1,40 +1,8 @@
-CXX_STD = CXX17
-PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
+PKG_CPPFLAGS = $(JAGS_CPPFLAGS) -DR_NO_REMAP
+PKG_CXXFLAGS = $(JAGS_CXXFLAGS) $(SHLIB_OPENMP_CXXFLAGS)
+PKG_LIBS = $(JAGS_LIBS) $(JRMATH_LIB) $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CXXFLAGS)
 
-######################################################################################################
-###  This file is based on file in the runjags package (version 2.0)
-###  The previous version of the file is Copyright (C) Matthew Denwood, licensed under GPL-2.
-###
-###  The previous file is based on that in the rjags package (version 4-10)
-###  Original file is Copyright (C) Martyn Plummer, licensed under GPL-2
-###
-###  This file allows compilation with JAGS 4 without modifying RoBMA.
-###  To force the package to compile assuming a given JAGS version is installed, use the
-###  JAGS_MAJOR_FORCED environmental variable.  This should not be necessary on unix.
-###
-######################################################################################################
-
-
-###############
-###  Flags
-###  Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
-###  JAGS_MAJOR_ASSUMED is not needed (always 0) on unix
-###############
-LAPACK_LIBS=`"${R_HOME}/bin/R" CMD config LAPACK_LIBS`
-BLAS_LIBS=`"${R_HOME}/bin/R" CMD config BLAS_LIBS`
-FLIBS=`"${R_HOME}/bin/R" CMD config FLIBS`
-
-PKG_CPPFLAGS=@JAGS_CFLAGS@ -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -D JAGS_MAJOR_ASSUMED=0 -DR_NO_REMAP
-PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CXXFLAGS)
-
-###############
-
-
-###############
-###  LIBS and objects to be compiled
-###############
-
-OBJECTS = glmm-aghq.o \
+ROBMA_OBJECTS = glmm-aghq.o \
 		  distributions/DWN.o \
 		  distributions/DWB.o \
 		  distributions/DWP.o \
@@ -71,7 +39,6 @@ r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTE
 
 glmm-aghq.o: glmm-binomial-loglik.h
 glmm-aghq.o init.o: glmm-aghq.h
-testRoBMA.o: jagsversions.h
 
 R_GLMM_INC = r-glmm-common.cc.inc \
 			 r-glmm-marginal.cc.inc

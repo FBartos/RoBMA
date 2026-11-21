@@ -64,7 +64,7 @@ inline ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings c
   if (!orders->isFixed() || orders->length() < 1) return ChildKind::other;
   if (factor) {
     const unsigned int rank = parents[2]->length() / parents[0]->length();
-    const unsigned int rung = std::min(settings.max_rules, orders->length());
+    const unsigned int rung = std::min<unsigned long>(settings.max_rules, orders->length());
     if (rung < 1 || !selnorm_factor_rule_affordable(
           static_cast<int>(orders->value(0)[rung - 1]), static_cast<int>(rank))) {
       return ChildKind::other;
@@ -79,7 +79,7 @@ struct SelectedChild {
   // The distribution of the child, of the class the kind names (checked once).
   Distribution const *distribution;
   std::vector<Node const *> parents;
-  std::vector<unsigned int> lengths;
+  std::vector<unsigned long> lengths;
   mutable std::vector<double const *> parameters;
   bool controls_fixed = true;
   mutable bool controls_checked = false;
@@ -150,20 +150,18 @@ struct SelectedChild {
                    bool *not_exact) const
   {
     double const *x = node->value(chain);
-    double const *lower = node->lowerLimit(chain);
-    double const *upper = node->upperLimit(chain);
     switch (kind) {
     case ChildKind::mv:
       return static_cast<DSELNORMMVSTEP const *>(distribution)->surrogateLogDensity(
-        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings,
+        x, PDF_LIKELIHOOD, parameters, lengths, settings,
         not_exact);
     case ChildKind::cluster:
       return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->surrogateLogDensity(
-        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings,
+        x, PDF_LIKELIHOOD, parameters, lengths, settings,
         not_exact);
     default:
       return static_cast<DSELNORMFACTORSTEP const *>(distribution)->surrogateLogDensity(
-        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings,
+        x, PDF_LIKELIHOOD, parameters, lengths, settings,
         not_exact);
     }
   }

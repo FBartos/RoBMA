@@ -56,7 +56,7 @@ source(testthat::test_path("common-functions.R"))
     draws <- cbind(draws, coefficients)
   }
   fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(draws)), sample = 40L),
-    class = c("runjags", "BayesTools_fit", "list"))
+    class = "BayesTools_fit")
   attr(fit, "prior_list") <- compiled[["prior_list"]]
   compiled[["formula_design"]] <- BayesTools:::.bt_formula_point_finalize(
     compiled[["formula_design"]], compiled[["prior_list"]], data, parameter_names = colnames(draws))
@@ -1773,7 +1773,7 @@ test_that("actual selected source normalizers retain the anchored prior constant
 .ordered_review_attach_replay <- function(setup, samples) {
   object <- setup[["object"]]
   fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples)),
-                   class = c("BayesTools_fit", "runjags", "list"))
+                   class = "BayesTools_fit")
   attr(fit, "formula_design") <- object[["formula_design"]]
   scale_info <- lapply(setup[["compiled"]], `[[`, "formula_scale")
   if (any(lengths(scale_info) > 0L)) attr(fit, "formula_scale") <- scale_info

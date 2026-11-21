@@ -1,0 +1,11 @@
+CXX_STD = CXX17
+OBJECTS = $(ROBMA_OBJECTS)
+
+# rjags provides the flags for the JAGS installation used by this R process.
+JAGS_RSCRIPT = "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" --vanilla
+JAGS_CPPFLAGS = `$(JAGS_RSCRIPT) -e "rjags::pkg.compile.flags('CPPFLAGS')"`
+JAGS_CXXFLAGS = `$(JAGS_RSCRIPT) -e "rjags::pkg.compile.flags('CXXFLAGS')"`
+JAGS_LIBS = `$(JAGS_RSCRIPT) -e "rjags::pkg.compile.flags('LIBS')"`
+JRMATH_LIB = -ljrmath
+
+include Makevars.common

@@ -20,11 +20,11 @@ DSELNORMSAMPLINGCONDITIONED::DSELNORMSAMPLINGCONDITIONED() :
   VectorDist("dselnorm_sampling_conditioned", 28) {}
 
 bool DSELNORMSAMPLINGCONDITIONED::checkParameterLength(
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   if (len.size() != 28) return false;
   const unsigned int maximum = std::numeric_limits<int>::max();
-  for (unsigned int length : len) if (length > maximum) return false;
+  for (unsigned long length : len) if (length > maximum) return false;
   if (len[0] == 0 || len[0] > maximum / len[0]) return false;
   if (len[1] != static_cast<std::uint64_t>(len[0]) * (len[0] + 1) / 2 ||
       len[2] != len[0] || len[3] == 0 || len[4] != 1 ||
@@ -40,7 +40,7 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterLength(
 
 bool DSELNORMSAMPLINGCONDITIONED::checkParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   const int k = static_cast<int>(len[0]);
   const int limit = std::numeric_limits<int>::max();
@@ -95,11 +95,10 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterValue(
 }
 
 double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
-    unsigned int length, PDFType type, std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len, double const *lower,
-    double const *upper) const
+    PDFType type, std::vector<double const *> const &par,
+    std::vector<unsigned long> const &len) const
 {
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   const SelNormJagsBounds z_lower(par[9], len[9]), z_upper(par[10], len[10]);
   std::vector<int> bins(k), groups(k);
   std::vector<double> e(k), delta(k);
@@ -134,33 +133,25 @@ double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
   return std::isfinite(value) ? value : JAGS_NEGINF;
 }
 
-void DSELNORMSAMPLINGCONDITIONED::randomSample(double *x, unsigned int length,
-    std::vector<double const *> const &par, std::vector<unsigned int> const &len,
-    double const *lower, double const *upper, RNG *rng) const
+void DSELNORMSAMPLINGCONDITIONED::randomSample(double *x,
+    std::vector<double const *> const &par, std::vector<unsigned long> const &len, RNG *rng) const
 {
   throw std::runtime_error(
     "'dselnorm_sampling_conditioned' supports observed nodes only; sampling unobserved selected nodes is unsupported."
   );
 }
 
-void DSELNORMSAMPLINGCONDITIONED::typicalValue(double *x, unsigned int length,
-    std::vector<double const *> const &par, std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const
-{
-  std::copy_n(par[0], length, x);
-}
-
-unsigned int DSELNORMSAMPLINGCONDITIONED::length(std::vector<unsigned int> const &len) const
+unsigned long DSELNORMSAMPLINGCONDITIONED::length(std::vector<unsigned long> const &len) const
 {
   return len[0];
 }
 
 void DSELNORMSAMPLINGCONDITIONED::support(double *lower, double *upper,
-    unsigned int length, std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<double const *> const &par,
+    std::vector<unsigned long> const &len) const
 {
-  std::fill_n(lower, length, JAGS_NEGINF);
-  std::fill_n(upper, length, JAGS_POSINF);
+  std::fill_n(lower, length(len), JAGS_NEGINF);
+  std::fill_n(upper, length(len), JAGS_POSINF);
 }
 
 bool DSELNORMSAMPLINGCONDITIONED::isSupportFixed(std::vector<bool> const &fixmask) const
