@@ -246,7 +246,8 @@ test_that("retained Gaussian effects and marginal standard errors use the public
                         only_data = TRUE), RoBMA_data_error = identity)
       expect_s3_class(e, "RoBMA_data_outside_numerical_domain")
       expect_identical(e$row, 2L)
-      expect_identical(e$quantity, "sei")
+      expect_identical(e$quantity, "vi")
+      expect_identical(e$value, bad^2)
     }
   }
 
@@ -261,7 +262,8 @@ test_that("retained Gaussian effects and marginal standard errors use the public
                   RoBMA_data_error = identity)
     expect_s3_class(e, "RoBMA_data_outside_numerical_domain")
     expect_identical(e$row, 1L)
-    expect_identical(e$value, 1001)
+    expect_identical(e$quantity, "diag(V)")
+    expect_identical(e$value, 1001^2)
     expect_equal(brma.mv(yi = y, V = V, subset = c(2, 3), data = dat,
                          measure = "SMD", only_data = TRUE)$data$outcome$sei, c(.2, .3))
   }

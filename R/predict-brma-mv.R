@@ -10,6 +10,9 @@
 .predict_known_v_newdata_add_vi <- function(newdata, V_new, measure) {
 
   diag_v <- as.numeric(V_new)
+  rows <- seq_along(diag_v)
+  .check_gaussian_data_domain(numeric(length(rows)), NULL, measure, rows,
+                              vi = diag_v, variance_name = "diag(V_new)")
   if ("vi" %in% names(newdata)) {
     .predict_known_v_newdata_check_variance(
       supplied = newdata[["vi"]],
@@ -28,7 +31,7 @@
   # Check supplied scales before replacing them with the validated V_new diagonal.
   if (any(c("vi", "sei") %in% names(newdata))) {
     .retained_sampling_se(list(vi = newdata[["vi"]], sei = newdata[["sei"]]),
-                          seq_along(diag_v), numeric(length(diag_v)), measure,
+                          rows, numeric(length(rows)), measure,
                           multivariate = FALSE, allow_zero = TRUE)
   }
   newdata[["vi"]] <- diag_v

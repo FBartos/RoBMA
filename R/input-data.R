@@ -500,8 +500,8 @@ NULL
   if (outcome_type == "norm") {
     rows <- which(keep_rows)
     if (is.null(sampling_inputs)) {
-      .check_gaussian_data_domain(data_outcome[["yi"]], data_outcome[["sei"]], measure, rows,
-                                  vi = outcome_result$known_V_diagonal[rows])
+      .check_gaussian_data_domain(data_outcome[["yi"]], NULL, measure, rows,
+                                  vi = outcome_result$known_V_diagonal[rows], variance_name = "diag(V)")
     } else {
       data_outcome[["sei"]] <- .retained_sampling_se(
         sampling_inputs, rows, data_outcome[["yi"]], measure,
@@ -690,13 +690,14 @@ NULL
 }
 
 
-.check_gaussian_data_domain <- function(yi, sei, measure, rows, vi = NULL) {
+.check_gaussian_data_domain <- function(yi, sei, measure, rows, vi = NULL, variance_name = "vi") {
 
   maximum <- if (measure == "GEN") 1e9 else 1000
   minimum_se <- 1e-6
   outside_yi <- abs(yi) > maximum
   # Zero sampling variance has its own rules for fitting and prediction.
-  outside_se <- is.finite(sei) & sei > 0 & (sei < minimum_se | sei > maximum)
+  outside_se <- if (is.null(sei)) rep(FALSE, length(rows)) else
+    is.finite(sei) & sei > 0 & (sei < minimum_se | sei > maximum)
   outside <- outside_yi | outside_se
   if (!is.null(vi)) {
     outside <- outside | (is.finite(vi) & vi > 0 & (vi < minimum_se^2 | vi > maximum^2))
@@ -709,6 +710,7 @@ NULL
   value <- switch(quantity, yi = yi[[i]], sei = sei[[i]], vi = vi[[i]])
   lower <- switch(quantity, yi = -maximum, sei = minimum_se, vi = minimum_se^2)
   upper <- if (quantity == "vi") maximum^2 else maximum
+  if (quantity == "vi") quantity <- variance_name
   remedy <- if (measure == "GEN") {
     paste("Rescale the effects, SEs, covariances, outcome-scale priors,",
           "and any supplied 'prior_unit_information_sd' consistently.")
@@ -902,11 +904,6 @@ NULL
   }
   missing_for_na <- known_V_input[["missing_for_na"]]
   sei <- numeric(k)
-  if (!is.null(V)) {
-    diagonal <- known_V_input[["diagonal"]]
-    positive <- which(diagonal > 0)
-    sei[positive] <- sqrt(diagonal[positive])
-  }
   sei[missing_for_na] <- NA_real_
 
   if (!is.null(ni))
@@ -1032,16 +1029,15 @@ NULL
       }
       BayesTools::check_real(value, name, check_length = 0, allow_NA = TRUE, lower = 0, allow_bound = allow_zero)
       if (!is.null(vi) && !is.null(sei)) {
-        stop("The '", name, "' argument must contain only finite non-missing values.", call. = FALSE)
+        stop("Non-missing '", name, "' values must be finite.", call. = FALSE)
       }
       stop("Positive 'sei' values must have positive finite squared sampling variances.", call. = FALSE)
     }
   }
 
-  has_pair <- !is.null(vi) && !is.null(sei)
-  if (is.null(sei)) sei <- sqrt(vi)
   .check_gaussian_data_domain(yi, sei, measure, rows, vi = vi)
-  if (!has_pair) return(sei)
+  if (is.null(sei)) return(sqrt(vi))
+  if (is.null(vi)) return(sei)
   paired <- !is.na(vi) & !is.na(sei)
   if (any(!.sampling_variance_matches_se(vi[paired], sei[paired]))) {
     if (multivariate) stop("brma.mv() inputs 'vi' and 'sei' must be consistent.", call. = FALSE)

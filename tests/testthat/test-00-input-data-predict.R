@@ -222,6 +222,7 @@ test_that(".prepare_newdata inserts dummy outcomes only when the response is unu
   expect_error(.prepare_newdata(response_fit, data.frame(sei = 1e-8), type = "response"),
                class = "RoBMA_data_outside_numerical_domain")
   expect_identical(.prepare_newdata(response_fit, data.frame(sei = 0), type = "response")$outcome$sei, 0)
+  expect_identical(.prepare_newdata(response_fit, data.frame(vi = 0, sei = 0), type = "response")$outcome$sei, 0)
 })
 
 

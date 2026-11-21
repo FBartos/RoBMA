@@ -270,6 +270,7 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
   )
   expect_identical(actual[["vi"]], c(1e-12, 1e18))
   expect_identical(actual[["sei"]], sqrt(c(1e-12, 1e18)))
+  expect_identical(.predict_known_v_newdata_add_vi(data.frame(vi = 0, sei = 0), 0, "SMD")$sei, 0)
   expect_error(.predict_known_v_newdata_add_vi(data.frame(vi = 1000^2, sei = 1000 + 2^-43),
     V_new = 1000^2, measure = "SMD"), class = "RoBMA_data_outside_numerical_domain")
   expect_error(.predict_known_v_newdata_add_vi(data.frame(vi = 1000^2 + 2^-33, sei = 1000),

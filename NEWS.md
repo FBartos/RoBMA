@@ -1,6 +1,6 @@
 ## development version
 ### Breaking changes
-- Gaussian models check retained effects and sampling standard errors against measure-specific input limits
+- Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
 
 ### Features
