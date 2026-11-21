@@ -13,10 +13,8 @@ context("Marginal-means hypotheses compare variable levels with a fixed level")
 # The posterior probability of the event of a region statement.
 .review_event_probability <- function(object, statement) {
 
-  result <- hypothesis(object, statement, density_method = "KDE", columns = "all")
-  odds <- as.numeric(result[["posterior"]])
-
-  odds / (1 + odds)
+  result <- hypothesis(object, statement, density_method = "KDE", include_probabilities = TRUE)
+  as.numeric(result[["posterior_prob_alt"]])
 }
 
 test_that("a comparison with a fixed marginal mean is evaluated like on the fitted object", {

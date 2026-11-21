@@ -24,7 +24,7 @@ test_that("repeated expanded factor hypotheses retain original statement positio
   fit <- .plan_fits()[["meandif"]]
   original <- serialize(fit, NULL, version = 2)
   call <- function(statements) hypothesis(fit, statements, density_method = "KDE",
-    columns = "all", seed = 1, standardized_coefficients = TRUE)
+    include_probabilities = TRUE, seed = 1, standardized_coefficients = TRUE)
   first <- call("g1 > 0")
   middle <- call("mu > 0")
   combined <- call(c("g1 > 0", "mu > 0", "g1 > 0"))
@@ -798,30 +798,30 @@ test_that("display labels of parameters are evaluable with and without 'componen
     inside <- mean(values > value)
     reference <- hypothesis(
       fit, paste0(case[["parameter"]], " > ", value),
-      density_method = "KDE", columns = "all", seed = 1
+      density_method = "KDE", include_probabilities = TRUE, seed = 1
     )
     for (component in c("auto", case[["component"]])) {
       info <- paste(case[["label"]], component)
       out  <- hypothesis(
         fit, paste0("`", case[["label"]], "` > ", value), component = component,
-        density_method = "KDE", columns = "all", seed = 1
+        density_method = "KDE", include_probabilities = TRUE, seed = 1
       )
-      # The posterior odds of the region are those of the labelled draws.
-      expect_equal(out[["posterior"]], inside / (1 - inside), tolerance = 1e-12,
+      # The posterior region probability is the fraction inside among the labelled draws.
+      expect_equal(out[["posterior_prob_alt"]], inside, tolerance = 1e-12,
                    info = info)
-      for (column in c("BF", "prior", "posterior")) {
+      for (column in c("BF", "prior_prob_alt", "posterior_prob_alt", "prior_prob_null", "posterior_prob_null")) {
         expect_identical(unclass(out[[column]]), unclass(reference[[column]]),
                          info = paste(info, column))
       }
       expect_identical(out[["Alternative"]],
-                       paste0(case[["label"]], " > ", value), info = info)
+                       paste0("`", case[["label"]], "` > ", value), info = info)
     }
   }
   # The labels of the scale factor term evaluate its levels too.
   out <- hypothesis(fit, "`(log_tau) g1[10]` > 0", component = "scale",
-                    density_method = "KDE", columns = "all", seed = 1)
+                    density_method = "KDE", include_probabilities = TRUE, seed = 1)
   inside <- mean(quantity_draws("log_tau_g1[10]") > 0)
-  expect_equal(out[["posterior"]], inside / (1 - inside), tolerance = 1e-12)
+  expect_equal(out[["posterior_prob_alt"]], inside, tolerance = 1e-12)
   # A display label of the component next to a name of another component's
   # parameter is a component mismatch in either order, as a name known only
   # outside the component is.
@@ -1126,17 +1126,17 @@ test_that("mean-difference level point hypotheses follow the exact Savage-Dickey
   bandwidth <- stats::bw.nrd0(draws)
   kernel    <- stats::dnorm(0, mean = draws, sd = bandwidth)
   kde <- suppressWarnings(hypothesis(fit, "g1[10] = 0", density_method = "KDE",
-                                     columns = "all"))
-  expect_equal(as.numeric(kde[["prior"]]), prior_ordinate, tolerance = 1e-10)
+                                     include_densities = TRUE))
+  expect_equal(as.numeric(kde[["prior_density"]]), prior_ordinate, tolerance = 1e-10)
   expect_equal(attr(kde, "raw_BF"), prior_ordinate / mean(kernel), tolerance = 1e-10)
 
   # The normal approximation: the prior ordinate over the normal density of
   # the level draws.
   normal <- suppressWarnings(hypothesis(fit, "g1[10] = 0", density_method = "normal",
-                                        columns = "all"))
-  expect_equal(as.numeric(normal[["prior"]]), prior_ordinate, tolerance = 1e-10)
+                                        include_densities = TRUE))
+  expect_equal(as.numeric(normal[["prior_density"]]), prior_ordinate, tolerance = 1e-10)
   expect_equal(
-    as.numeric(normal[["posterior"]]),
+    as.numeric(normal[["posterior_density"]]),
     stats::dnorm(0, mean(draws), stats::sd(draws)),
     tolerance = 1e-6
   )
@@ -1192,8 +1192,8 @@ test_that("levels of mean-difference multivariate t factors have exact point tes
   draws     <- as.numeric(mcmc[, c("mu_g1[1]", "mu_g1[2]")] %*% weights)
   kernel    <- stats::dnorm(0, mean = draws, sd = stats::bw.nrd0(draws))
   kde <- suppressWarnings(hypothesis(fit, "g1[10] = 0", density_method = "KDE",
-                                     columns = "all"))
-  expect_equal(as.numeric(kde[["prior"]]), expected, tolerance = 1e-10)
+                                     include_densities = TRUE))
+  expect_equal(as.numeric(kde[["prior_density"]]), expected, tolerance = 1e-10)
   expect_equal(attr(kde, "raw_BF"), expected / mean(kernel), tolerance = 1e-10)
 })
 
@@ -1207,12 +1207,12 @@ test_that("a two-level ordered factor tests its level and the level contrast ali
   for (method in c("KDE", "qCMDE")) {
     results <- lapply(statements, function(statement) {
       suppressWarnings(hypothesis(
-        fit, statement, density_method = method, columns = "all", seed = 1,
+        fit, statement, density_method = method, include_densities = TRUE, seed = 1,
         density_control = if (identical(method, "qCMDE")) list(n_points = 20, samples = 100)
       ))
     })
     for (result in results) {
-      expect_equal(as.numeric(result[["prior"]]), stats::dnorm(0), tolerance = 1e-10, info = method)
+      expect_equal(as.numeric(result[["prior_density"]]), stats::dnorm(0), tolerance = 1e-10, info = method)
       expect_equal(attr(result, "raw_BF"), attr(results[[1L]], "raw_BF"),
                    tolerance = 1e-8, info = method)
     }
@@ -1236,7 +1236,7 @@ test_that("ordered levels with a Beta share have an infinite prior ordinate at z
   for (method in c("KDE", "qCMDE", "IWMDE")) {
     expect_error(
       suppressWarnings(hypothesis(fit, "g[b] = g[a]", density_method = method)),
-      "Prior density at point hypothesis 'g[b] - g[a] = 0' is infinite, so the Savage-Dickey density ratio is undefined.",
+      "Prior density at point hypothesis 'g[b] = g[a]' is infinite, so the Savage-Dickey density ratio is undefined.",
       fixed = TRUE,
       class = "BayesTools_infinite_ordinate",
       info  = method
@@ -1246,12 +1246,12 @@ test_that("ordered levels with a Beta share have an infinite prior ordinate at z
     function(t) stats::dnorm(t) / t, lower = 0.1, upper = Inf, rel.tol = 1e-12
   )[["value"]]
   off_null <- suppressWarnings(hypothesis(fit, "g[b] - g[a] = 0.1",
-                                          density_method = "KDE", columns = "all"))
-  expect_equal(as.numeric(off_null[["prior"]]), density_01, tolerance = 1e-6)
+                                          density_method = "KDE", include_densities = TRUE))
+  expect_equal(as.numeric(off_null[["prior_density"]]), density_01, tolerance = 1e-6)
   # 'g[c]' is the total itself: an exact normal ordinate.
   total <- suppressWarnings(hypothesis(fit, "g[c] = g[a]", density_method = "KDE",
-                                       columns = "all"))
-  expect_equal(as.numeric(total[["prior"]]), stats::dnorm(0), tolerance = 1e-10)
+                                       include_densities = TRUE))
+  expect_equal(as.numeric(total[["prior_density"]]), stats::dnorm(0), tolerance = 1e-10)
 })
 
 
@@ -1260,16 +1260,16 @@ test_that("a random-effect variance and its standard deviation give the same Bay
   object <- gated_random_object()
   for (value in c(0.3, 0.5)) {
     sd  <- hypothesis(object, paste0("`(mu) study: tau(intercept)` = ", value),
-                      density_method = "KDE", columns = "all", seed = 1)
+                      density_method = "KDE", include_densities = TRUE, seed = 1)
     var <- hypothesis(object, paste0("`(mu) study: tau2(intercept)` = ", value^2),
-                      density_method = "KDE", columns = "all", seed = 1)
+                      density_method = "KDE", include_densities = TRUE, seed = 1)
     expect_equal(attr(var, "raw_BF"), attr(sd, "raw_BF"), tolerance = 1e-12)
     # The variance densities are the SD densities over the derivative 2 * sd.
-    expect_equal(as.numeric(var[["prior"]]), as.numeric(sd[["prior"]]) / (2 * value),
+    expect_equal(as.numeric(var[["prior_density"]]), as.numeric(sd[["prior_density"]]) / (2 * value),
                  tolerance = 1e-12)
-    expect_equal(as.numeric(var[["posterior"]]), as.numeric(sd[["posterior"]]) / (2 * value),
+    expect_equal(as.numeric(var[["posterior_density"]]), as.numeric(sd[["posterior_density"]]) / (2 * value),
                  tolerance = 1e-12)
-    expect_identical(var[["Null"]], paste0("(mu) study: tau2(intercept) = ", value^2))
+    expect_identical(var[["Null"]], paste0("`(mu) study: tau2(intercept)` = ", value^2))
   }
   # A statement comparing a variance point with a region has the Bayes factor
   # of the point against the encompassing model (evaluated through the SD, as
@@ -1278,7 +1278,7 @@ test_that("a random-effect variance and its standard deviation give the same Bay
   # the region on the left.
   tau2 <- "`(mu) study: tau2(intercept)`"
   run <- function(statement) {
-    hypothesis(object, statement, density_method = "KDE", columns = "all", seed = 1)
+    hypothesis(object, statement, density_method = "KDE", include_method = TRUE, seed = 1)
   }
   point    <- run(paste0(tau2, " = 0.09 vs ", tau2, " != 0.09"))
   region   <- run(paste0(tau2, " > 0.09 vs ", tau2, " >= 0"))
@@ -1288,9 +1288,9 @@ test_that("a random-effect variance and its standard deviation give the same Bay
                tolerance = 1e-12)
   expect_equal(attr(reversed, "raw_BF"), attr(region, "raw_BF") / attr(point, "raw_BF"),
                tolerance = 1e-12)
-  expect_identical(mixed[["Alternative"]], "(mu) study: tau2(intercept) = 0.09")
-  expect_identical(mixed[["Null"]], "(mu) study: tau2(intercept) > 0.09")
-  expect_identical(mixed[["method"]], "transitive Savage-Dickey")
+  expect_identical(mixed[["Alternative"]], "`(mu) study: tau2(intercept)` = 0.09")
+  expect_identical(mixed[["Null"]], "`(mu) study: tau2(intercept)` > 0.09")
+  expect_identical(mixed[["method"]], "transitive Savage-Dickey (KDE)")
   # The variance draws are the squared SD draws, so the statement equals the
   # same statement on the SD.
   sd_mixed <- run("`(mu) study: tau(intercept)` = 0.3 vs `(mu) study: tau(intercept)` > 0.3")
@@ -1310,7 +1310,7 @@ test_that("a random-effect variance and its standard deviation give the same Bay
   # Draws conditional on the inclusion of the gated component: the same
   # identity on the conditional draws.
   run_conditional <- function(statement) {
-    hypothesis(object, statement, density_method = "KDE", columns = "all",
+    hypothesis(object, statement, density_method = "KDE", include_densities = TRUE,
                seed = 1, conditional = TRUE)
   }
   expect_equal(
@@ -1444,19 +1444,19 @@ test_that("levels of model-averaged mean-difference factors have exact point tes
         cases[["value"]][[i]], included, stats::bw.nrd0(included)
       ))
       kde <- suppressWarnings(hypothesis(fit, statement, density_method = "KDE",
-                                         columns = "all"))
-      expect_equal(as.numeric(kde[["prior"]]), prior_ordinate, tolerance = 1e-10, info = info)
-      expect_equal(as.numeric(kde[["posterior"]]), posterior_ordinate, tolerance = 1e-10,
+                                         include_densities = TRUE))
+      expect_equal(as.numeric(kde[["prior_density"]]), prior_ordinate, tolerance = 1e-10, info = info)
+      expect_equal(as.numeric(kde[["posterior_density"]]), posterior_ordinate, tolerance = 1e-10,
                    info = info)
       expect_equal(attr(kde, "raw_BF"), prior_ordinate / posterior_ordinate,
                    tolerance = 1e-10, info = info)
     }
     # qCMDE uses the same exact prior ordinate for the single-coordinate level.
     qcmde <- suppressWarnings(hypothesis(
-      fit, "g1[5] = -0.2", density_method = "qCMDE", columns = "all", seed = 1,
+      fit, "g1[5] = -0.2", density_method = "qCMDE", include_densities = TRUE, seed = 1,
       density_control = list(n_points = 20, samples = 50)
     ))
-    expect_equal(as.numeric(qcmde[["prior"]]), 0.5 * stats::dnorm(-0.2, 0, sd),
+    expect_equal(as.numeric(qcmde[["prior_density"]]), 0.5 * stats::dnorm(-0.2, 0, sd),
                  tolerance = 1e-10, info = name)
     expect_true(is.finite(attr(qcmde, "raw_BF")), info = name)
   }

@@ -47,8 +47,6 @@ context("Random-slope correlation routes")
   )
 }
 
-.random_correlation_odds <- function(p) p / (1 - p)
-
 
 test_that("correlation hypotheses use the correlation draws", {
 
@@ -88,14 +86,13 @@ test_that("correlation hypotheses use the correlation draws", {
   )
   for (hypothesis in names(regions)) {
     region <- regions[[hypothesis]]
-    result <- suppressWarnings(hypothesis(fit, hypothesis, columns = "all", seed = 1))
-    # Region tests report odds.
+    result <- suppressWarnings(hypothesis(fit, hypothesis, include_probabilities = TRUE, seed = 1))
     expect_equal(
-      result[["posterior"]], .random_correlation_odds(mean(region(posterior))),
+      result[["posterior_prob_alt"]], mean(region(posterior)),
       tolerance = 1e-12, info = hypothesis
     )
     expect_equal(
-      result[["prior"]], .random_correlation_odds(mean(region(prior))),
+      result[["prior_prob_alt"]], mean(region(prior)),
       tolerance = 1e-12, info = hypothesis
     )
   }
@@ -105,10 +102,10 @@ test_that("correlation hypotheses use the correlation draws", {
   # with 10,000 prior draws; tolerance 4 SE).
   for (hypothesis in names(regions)) {
     result <- suppressWarnings(hypothesis(
-      fit, hypothesis, columns = "all", seed = 1,
+      fit, hypothesis, include_probabilities = TRUE, seed = 1,
       standardized_coefficients = TRUE
     ))
-    prior_probability <- result[["prior"]] / (1 + result[["prior"]])
+    prior_probability <- result[["prior_prob_alt"]]
     expect_lt(abs(prior_probability - 0.5), 0.02)
   }
 })
@@ -133,10 +130,10 @@ test_that("correlation hypotheses use the defined draws of a declared quantity",
   expect_length(defined, 298L)
 
   result <- suppressWarnings(hypothesis(
-    fit, "rho(intercept,x) > 0", columns = "all", seed = 1
+    fit, "rho(intercept,x) > 0", include_probabilities = TRUE, seed = 1
   ))
   expect_equal(
-    result[["posterior"]], .random_correlation_odds(mean(defined > 0)),
+    result[["posterior_prob_alt"]], mean(defined > 0),
     tolerance = 1e-12
   )
   expect_true(paste0(
@@ -316,11 +313,11 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
     # for every method because the prior density is unavailable (not for an
     # atom status), as hypothesis_quantities() renders.
     region <- suppressWarnings(hypothesis(
-      fit, "rho(intercept,x) > 0", columns = "all", seed = 1
+      fit, "rho(intercept,x) > 0", include_probabilities = TRUE, seed = 1
     ))
     expect_equal(
-      region[["posterior"]],
-      .random_correlation_odds(mean(as.numeric(samples) > 0)),
+      region[["posterior_prob_alt"]],
+      mean(as.numeric(samples) > 0),
       tolerance = 1e-12, info = name
     )
     no_prior_density <- "because its prior density is unavailable"
@@ -347,10 +344,10 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
     # On the fitted scale the correlation is the LKJ(1) correlation of the
     # 2 x 2 block, uniform on (-1, 1): its exact prior ordinate is 1/2.
     point <- suppressWarnings(hypothesis(
-      fit, "rho(intercept,x) = 0", density_method = "KDE", columns = "all",
+      fit, "rho(intercept,x) = 0", density_method = "KDE", include_densities = TRUE,
       seed = 1, standardized_coefficients = TRUE
     ))
-    expect_equal(point[["prior"]], 0.5, tolerance = 1e-10, info = name)
+    expect_equal(point[["prior_density"]], 0.5, tolerance = 1e-10, info = name)
   }
 })
 

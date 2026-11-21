@@ -319,7 +319,7 @@ test_that("qCMDE matches GLMM and both estimators match selection bridge factors
       result <- hypothesis(
         full,
         "mu = 0",
-        columns         = "all",
+        include_densities = TRUE,
         density_method  = density_method,
         density_control = list(
           n_points             = 40,
@@ -429,7 +429,7 @@ test_that("qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
       full,
       "tau = 0",
       component       = "random",
-      columns         = "all",
+      include_densities = TRUE,
       density_method  = density_method,
       density_control = list(
         n_points             = 60,

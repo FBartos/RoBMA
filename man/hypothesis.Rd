@@ -25,7 +25,9 @@ hypothesis(object, ...)
   density_method = "qCMDE",
   density_control = NULL,
   n_samples = 10000,
-  columns = "default",
+  include_densities = FALSE,
+  include_probabilities = FALSE,
+  include_method = FALSE,
   ...
 )
 
@@ -38,7 +40,9 @@ hypothesis(object, ...)
   seed = NULL,
   density_method = NULL,
   density_control = NULL,
-  columns = "default",
+  include_densities = FALSE,
+  include_probabilities = FALSE,
+  include_method = FALSE,
   ...
 )
 
@@ -345,12 +349,19 @@ adaptive-quadrature sensitivity warns above 2.5 percent and is rejected above 5 
 \item{n_samples}{number of prior samples/grid points used by BayesTools for
 deterministic marginal prior densities.}
 
-\item{columns}{output columns passed to \code{BayesTools::hypothesis_BF()}.
-\code{"default"} returns the compact BayesTools table with
-\code{Alternative}, \code{Null}, \code{BF}, and \code{error\%(BF)}
-columns. \code{"all"} also returns \code{prior}, \code{posterior}, and
-\code{method} columns. The \code{prior} and \code{posterior} columns are
-diagnostics rather than probabilities for all hypothesis types.}
+\item{include_densities}{whether to show the prior and posterior densities at
+the tested point. Defaults to \code{FALSE}.}
+
+\item{include_probabilities}{whether to show the prior and posterior
+probabilities of the alternative and null regions. Defaults to \code{FALSE}.
+For example, \code{"-0.1 <= mu <= 0.1"} compares the interval with its
+complement. Use \code{"-0.1 <= mu <= 0.1 vs unconstrained"} to compare the
+interval with the full model under the selected conditioning, or reverse the
+two sides to report the reciprocal Bayes factor.}
+
+\item{include_method}{whether to show the Bayes factor method for each
+hypothesis, including the posterior density estimator for point tests.
+Defaults to \code{FALSE}.}
 
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
 the hypothesis expression. Without it, each statement is tested on the
@@ -471,6 +482,8 @@ fit <- brma(
 hypothesis(fit, "mu != 0 vs mu = 0")
 hypothesis(fit, "mu > 0 vs mu = 0")
 hypothesis(fit, "mu > 0 vs mu < 0")
+hypothesis(fit, "-0.1 <= mu <= 0.1", include_probabilities = TRUE)
+hypothesis(fit, "mu = 0", include_densities = TRUE, include_method = TRUE)
 
 # Heterogeneity hypothesis
 hypothesis(fit, "tau = 0 vs tau > 0", component = "scale")
@@ -491,6 +504,8 @@ fit_mod <- brma(
 # Marginal-mean hypothesis for a factor level
 emm <- marginal_means(fit_mod, density_method = "qCMDE")
 hypothesis(emm, "group[B] > 0 vs group[B] = 0")
+hypothesis(emm, "unconstrained vs -0.1 <= group[B] <= 0.1",
+           include_probabilities = TRUE)
 }
 
 }

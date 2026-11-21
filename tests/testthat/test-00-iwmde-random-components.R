@@ -914,7 +914,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     .package = "RoBMA"
   )
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(..., density_method) {
+    .hypothesis_BF_draws = function(..., density_method) {
       used_density_method <<- density_method
       structure(data.frame(BF = c(1, 1)), class = c(
         "BayesTools_hypothesis_BF",
@@ -940,7 +940,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
       normalization_points = 50L,
       normalization_prob   = 0.999
     ),
-    columns         = "default"
+    columns         = c("Alternative", "Null", "BF", "BF_error")
   )
 
   expect_s3_class(out, "BayesTools_hypothesis_BF")

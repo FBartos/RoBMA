@@ -587,7 +587,7 @@ test_that("narrow exact rows beside a broad one are not lost between lattice nod
   # BF10 = N(value; 0, 1) / ordinate.
   .iwmde_qcmde_cache_clear()
   out <- hypothesis(seed$object, paste0("mu = ", sprintf("%.17g", value)),
-    standardized_coefficients = TRUE, density_method = "qCMDE", columns = "all")
+    standardized_coefficients = TRUE, density_method = "qCMDE", include_densities = TRUE)
   expect_equal(unname(attr(out, "raw_BF")), 0.00208063860833742663616681819896,
                tolerance = 1e-6)
 })

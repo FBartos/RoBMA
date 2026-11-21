@@ -136,6 +136,91 @@
   review_attach_replay(setup, samples)
 }
 
+test_that("unconstrained intervals distinguish factor coefficients and marginal means", {
+
+  object <- review_factor_replay(c("A", "B"), "treatment", distribution = "normal")
+  means <- marginal_means(object, bf = FALSE, density_method = "KDE", n_samples = 1000)
+  draws <- as.matrix(object$fit$mcmc)
+  region <- "-.20  <=  g[B] <   .4"
+  label <- "-.20 <= g[B] < .4"
+  statements <- c(paste(region, "vs unconstrained"), paste("unconstrained vs", region))
+
+  # At level B the marginal mean adds the intercept to the treatment coefficient.
+  for (target in list(
+    list(object = object, values = draws[, "mu_g"], prior_sd = 1),
+    list(object = means, values = draws[, "mu_g"] + draws[, "mu_intercept"], prior_sd = sqrt(2))
+  )) {
+    result <- as.data.frame(hypothesis(target$object, statements, include_probabilities = TRUE, seed = 19))
+    prior_mass <- stats::pnorm(0.4, sd = target$prior_sd) - stats::pnorm(-0.2, sd = target$prior_sd)
+    posterior_mass <- mean(target$values >= -0.2 & target$values < 0.4)
+    expect_identical(result$Alternative, c(label, "unconstrained"))
+    expect_identical(result$Null, c("unconstrained", label))
+    expect_equal(result$prior_prob_alt, c(prior_mass, 1))
+    expect_equal(result$prior_prob_null, c(1, prior_mass))
+    expect_equal(result$posterior_prob_alt, c(posterior_mass, 1))
+    expect_equal(result$posterior_prob_null, c(1, posterior_mass))
+    expect_equal(result$BF10, c(posterior_mass / prior_mass, prior_mass / posterior_mass))
+  }
+
+  # The default qCMDE ordinate carries warnings, which attach to the point rows
+  # of a batch whose other sides are unconstrained or regions.
+  statements <- c("g[B] = .2 vs unconstrained", "unconstrained vs g[B] = .2", paste(region, "vs unconstrained"))
+  result <- hypothesis(object, statements, seed = 19)
+  expect_equal(attr(result, "raw_log_BF")[[2L]], -attr(result, "raw_log_BF")[[1L]])
+  expect_setequal(unique(names(attr(result, "warnings"))), rownames(result)[1:2])
+})
+
+
+test_that("unconstrained comparisons keep the conditioning, variance, and scale of their side", {
+
+  # The model-averaged prior adds the spike at zero (prior probability 1/2) to
+  # the slab mass that the conditional comparison uses.
+  object <- .review_h_empty_condition()
+  slope  <- as.matrix(object$fit$mcmc)[, "mu_x"]
+  region <- "-.025 <= x < .075 vs unconstrained"
+  result <- lapply(c(averaged = FALSE, conditional = TRUE), function(conditional) {
+    as.data.frame(hypothesis(object, region, conditional = conditional, density_method = "KDE",
+                             include_probabilities = TRUE, seed = 19))
+  })
+  kept <- list(averaged = slope, conditional = slope[slope != 0])
+  for (type in names(result)) {
+    expect_equal(result[[type]]$posterior_prob_alt, mean(kept[[type]] >= -.025 & kept[[type]] < .075),
+                 info = type)
+    expect_equal(result[[type]]$BF10, result[[type]]$posterior_prob_alt / result[[type]]$prior_prob_alt,
+                 info = type)
+  }
+  expect_equal(result$averaged$prior_prob_alt, .5 + .5 * result$conditional$prior_prob_alt)
+
+  # Variance statements use the half-normal(0, .5) SD prior with the SD Jacobian.
+  object <- .review_h_random("fisher")
+  variance <- as.data.frame(hypothesis(object,
+    c("tau2 = .09 vs unconstrained", "unconstrained vs tau2 = .09", ".04 < tau2 < .12 vs unconstrained"),
+    component = "random", density_method = "KDE", include_densities = TRUE,
+    include_probabilities = TRUE, seed = 19))
+  sd <- as.data.frame(hypothesis(object, "tau = .3 vs unconstrained", component = "random",
+                                 density_method = "KDE", include_densities = TRUE, seed = 19))
+  expect_equal(variance$prior_density[1:2], rep(2 * stats::dnorm(.3, sd = .5) / .6, 2))
+  expect_equal(variance$posterior_density[1:2], rep(sd$posterior_density / .6, 2))
+  expect_equal(variance$BF10[2], 1 / variance$BF10[1])
+  expect_equal(variance$prior_prob_alt[3],
+               2 * (stats::pnorm(sqrt(.12), sd = .5) - stats::pnorm(.2, sd = .5)))
+  expect_equal(variance$prior_prob_null, c(1, NA, 1))
+
+  # Scale statements reconstruct their BFs from the reported evidence.
+  object <- .review_h_random("scale")
+  log_tau <- as.matrix(object$fit$mcmc)[, "log_tau_intercept"]
+  scale <- as.data.frame(hypothesis(object,
+    c("log_tau_intercept = .2 vs unconstrained", "unconstrained vs -.2 <= log_tau_intercept < .25"),
+    component = "scale", density_method = "KDE", include_densities = TRUE,
+    include_probabilities = TRUE, seed = 19))
+  expect_identical(scale$Null, c("unconstrained", "-.2 <= log_tau_intercept < .25"))
+  expect_equal(scale$BF10[1], scale$posterior_density[1] / scale$prior_density[1])
+  expect_equal(scale$posterior_prob_alt[2], 1)
+  expect_equal(scale$posterior_prob_null[2], mean(log_tau >= -.2 & log_tau < .25))
+  expect_equal(scale$BF10[2], scale$prior_prob_null[2] / scale$posterior_prob_null[2])
+})
+
+
 test_that("E2-1 declared empty marginal cells retain their actual event", {
 
   object <- .review_h_empty_condition()
@@ -192,9 +277,9 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
     .iwmde_diagnostics_density_failure_reason(record$diagnostics), character(1L))
   expect_true(all(grepl("120 estimator rows across.*2 active states", failures)))
   captured <- NULL
-  compute <- BayesTools:::hypothesis_BF.default
+  compute <- BayesTools:::.hypothesis_BF_draws
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, ...) {
+    .hypothesis_BF_draws = function(posterior, ...) {
       captured <<- posterior
       compute(posterior = posterior, ...)
     },

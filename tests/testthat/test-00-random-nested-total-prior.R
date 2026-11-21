@@ -112,13 +112,13 @@ test_that("point hypotheses on the total of a nested gated allocation use its ex
   # scale prior (the variance's by the Jacobian 1 / (2 y)).
   value <- 0.2
   total <- hypothesis(fit, "`tau_total` = 0.2", density_method = "KDE",
-                      seed = 1, columns = "all")
+                      seed = 1, include_densities = TRUE)
   expect_s3_class(total, "BayesTools_hypothesis_BF")
-  expect_equal(as.numeric(total[["prior"]]), priors[["density"]](value),
+  expect_equal(as.numeric(total[["prior_density"]]), priors[["density"]](value),
                tolerance = 1e-8)
   variance <- hypothesis(fit, "`tau2_total` = 0.04", density_method = "KDE",
-                         seed = 1, columns = "all")
-  expect_equal(as.numeric(variance[["prior"]]),
+                         seed = 1, include_densities = TRUE)
+  expect_equal(as.numeric(variance[["prior_density"]]),
                priors[["density"]](value) / (2 * value), tolerance = 1e-8)
 
   # At the atom the point test is refused: the prior has a point mass at 0.

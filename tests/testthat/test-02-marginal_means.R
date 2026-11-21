@@ -1262,14 +1262,14 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     posterior      = mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     hypothesis     = paste0("mu_alloc = ", mm[["null_hypothesis"]]),
     parameter      = "mu_alloc",
-    columns        = "all",
+    include_method = TRUE,
     density_method = "precomputed"
   )
   level_bf <- BayesTools::hypothesis_BF(
     posterior  = mm[["inference"]][["averaged"]][["mu_alloc"]],
     hypothesis = "mu_alloc[alternate] > mu_alloc[random]",
     parameter  = "mu_alloc",
-    columns    = "all",
+    include_method = TRUE,
     seed       = 11
   )
 
@@ -1283,7 +1283,7 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
   expect_equal(as.numeric(hypothesis_bf[["BF_error"]]),
                attr(expected[["alternate"]], "BF_error_percent"),
                tolerance = 1e-12)
-  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (qCMDE)")
   expect_equal(level_bf[["method"]], "prior-posterior odds")
   expect_true(is.finite(attr(level_bf, "raw_BF")))
 })
@@ -1546,7 +1546,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     posterior      = mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     hypothesis     = paste0("mu_alloc = ", mm[["null_hypothesis"]]),
     parameter      = "mu_alloc",
-    columns        = "all",
+    include_method = TRUE,
     density_method = "precomputed"
   )
 
@@ -1571,7 +1571,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
   expect_equal(as.numeric(hypothesis_bf[["BF_error"]]),
                attr(expected[["alternate"]], "BF_error_percent"),
                tolerance = 1e-12)
-  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (IWMDE)")
 })
 
 
