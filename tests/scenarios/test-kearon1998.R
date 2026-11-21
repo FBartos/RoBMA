@@ -120,6 +120,23 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     lines(fit_brma_hcs, "group", col = c("green", "blue"), lty = 2, density_method = "qCMDE")
   })
 
+  # With no intercept, the two group coefficients are the pooled logit sensitivity
+  # and logit specificity. Compare the KDE and qCMDE for each outcome against
+  # its prior. Draw the dashed curve before moving to the next base panel.
+  scenario_plot("accuracy-density-by-outcome", {
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    for (outcome in c("sensitivity", "specificity")) {
+      plot(fit_brma_us, "group", level = outcome, individual = TRUE, prior = TRUE, density_method = "KDE",
+           main = outcome, xlab = "Log odds", xlim = c(-2, 5), ylim = c(0, 2.2), legend = FALSE,
+           col = "#2166AC", lwd = 2, dots_prior = list(col = "grey55", lwd = 2))
+      lines(fit_brma_us, "group", level = outcome, density_method = "qCMDE", col = "#B24724", lty = 2, lwd = 2, legend = FALSE)
+      if (outcome == "sensitivity") {
+        legend("topright", c("Prior", "Posterior KDE", "Posterior qCMDE"), bty = "n",
+               col = c("grey55", "#2166AC", "#B24724"), lty = c(1, 1, 2), lwd = 2, cex = .85)
+      }
+    }
+  })
+
   scenario_plot("sd_common", {
     plot(fit_brma_us, "tau_common", prior = TRUE)
     lines(fit_brma_us, "tau_common", density_method = "qCMDE", lty = 2)
