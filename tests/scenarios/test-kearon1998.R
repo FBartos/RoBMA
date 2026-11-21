@@ -120,6 +120,23 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     lines(fit_brma_hcs, "group", col = c("green", "blue"), lty = 2, density_method = "qCMDE")
   })
 
+  # With no intercept, the two group coefficients are the pooled logit sensitivity
+  # and logit specificity. Show their posteriors on the same horizontal scale.
+  scenario_plot("accuracy-by-outcome", {
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    plot(fit_brma_us, "group", individual = TRUE, xlim = c(-2, 5), ylim = c(0, 2.2), xlab = "Log odds", lwd = 2)
+  })
+
+  # How much does estimating the between-study correlation change sensitivity?
+  # Extract its ggplot by name and overlay the same outcome from the diagonal model.
+  scenario_plot("sensitivity-by-covariance", {
+    by_outcome <- plot(fit_brma_us, "group", individual = TRUE, plot_type = "ggplot", xlab = "Log odds", legend = FALSE)
+    by_outcome[["sensitivity"]] +
+      lines(fit_brma_diag, "group", level = "sensitivity", plot_type = "ggplot", lty = 2) +
+      ggplot2::labs(title = "Pooled sensitivity",
+        subtitle = "Between-study correlation estimated (solid) or fixed at zero (dashed)")
+  })
+
   scenario_plot("sd_common", {
     plot(fit_brma_us, "tau_common", prior = TRUE)
     lines(fit_brma_us, "tau_common", density_method = "qCMDE", lty = 2)
