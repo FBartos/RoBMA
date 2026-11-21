@@ -2,7 +2,6 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
 
   skip_if_not_installed("rjags")
   .load_RoBMA_module()
-  rjags::load.module("dic", quiet = TRUE)
   fixtures <- .native_selection_jags_fixtures()
   cluster_rules <- .selection_joint_cluster_quadrature_rules(c(7L, 15L, 31L, 63L))
   factor_rules <- .selection_joint_factor_quadrature_rules()
@@ -107,8 +106,9 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
         model <- tryCatch(rjags::jags.model(con,
           data = data[unique(c("y", spec$arguments))], n.chains = 1L,
           n.adapt = 0L, quiet = TRUE), finally = close(con))
-        ll <- -as.numeric(rjags::jags.samples(model, "deviance", n.iter = 1L,
-          progress.bar = "none")$deviance) / 2
+        deviance <- rjags::jags.samples(model, "y", stat = "deviance",
+          summary = "mean", n.iter = 1L, progress.bar = "none")
+        ll <- -as.numeric(deviance[["y"]]) / 2
         expect_equal(ll, expected, tolerance = if (length(active) <= 1L) 1e-11 else 1e-4,
           label = paste(kind, rule, paste(bins, collapse = ",")))
       }
@@ -120,7 +120,6 @@ test_that("conditioning cancels selection at a fixed eligible outcome's threshol
 
   skip_if_not_installed("rjags")
   .load_RoBMA_module()
-  rjags::load.module("dic", quiet = TRUE)
   fixtures <- .native_selection_jags_fixtures()
   spec <- fixtures$cases$conditioned
   data <- utils::modifyList(fixtures$base, spec$extra)
@@ -147,8 +146,9 @@ test_that("conditioning cancels selection at a fixed eligible outcome's threshol
     model <- tryCatch(rjags::jags.model(con,
       data = data[unique(c("y", spec$arguments))], n.chains = 1L,
       n.adapt = 0L, quiet = TRUE), finally = close(con))
-    ll <- -as.numeric(rjags::jags.samples(model, "deviance", n.iter = 1L,
-      progress.bar = "none")$deviance) / 2
+    deviance <- rjags::jags.samples(model, "y", stat = "deviance",
+      summary = "mean", n.iter = 1L, progress.bar = "none")
+    ll <- -as.numeric(deviance[["y"]]) / 2
     expect_equal(ll, expected, tolerance = 1e-12)
   }
 })
