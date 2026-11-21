@@ -1690,8 +1690,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     state <- .selection_conditioned_sampling_posterior(setup)
     sources <- state[["sources"]]
     source_means <- state[["source_means"]]
-    latent_mean <- matrix(data[["outcome"]][["yi"]], S, K, byrow = TRUE) -
-      state[["e"]] - bias_offset
+    observed <- matrix(data[["outcome"]][["yi"]], S, K, byrow = TRUE)
+    latent_mean <- observed - state[["e"]] - bias_offset
     estimate_mean <- zero
     for (source in model[["sources"]][["random"]]) {
       if (identical(source[["role"]], "estimate")) {
@@ -1701,7 +1701,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     singleton_blocks <- .block_covariance_singleton_blocks(K)
     covariance <- .block_covariance_zero(S, K, singleton_blocks)
     return(list(
-      means = latent_mean + state[["e"]] + bias_offset,
+      means = observed,
       latent_means = latent_mean, random_mean = latent_mean - fixed_mu,
       estimate_mean = estimate_mean, sampling_mean = state[["e"]],
       random_covariance = covariance, sampling_covariance = covariance,

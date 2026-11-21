@@ -23,7 +23,7 @@
 .selection_joint_event_numerator <- function(
     mean, covariance_lower = NULL, selection_se, selection_context, execution_plan,
     observed, values, lower = NULL, upper = NULL, qmc = NULL,
-    rank_one_loading = NULL) {
+    rank_one_loading = NULL, observed_product_bins = NULL) {
 
   mean <- as.matrix(mean)
   S <- nrow(mean)
@@ -145,7 +145,7 @@
   if (!length(missing)) {
     return(list(
       log_numerator = gaussian_log_density + .selection_joint_log_weight(
-        values, selection_se[observed], observed_context
+        values, selection_se[observed], observed_context, observed_product_bins
       ), relative_mcse = numeric(S)
     ))
   }
@@ -169,7 +169,7 @@
   observed_weight <- numeric(S)
   if (any(observed_factor)) {
     observed_weight[observed_factor] <- .selection_joint_log_weight(
-      values, selection_se[observed], observed_context
+      values, selection_se[observed], observed_context, observed_product_bins
     )[observed_factor]
   }
   result[["log_numerator"]] <- gaussian_log_density + observed_weight + result[["log_mass"]]
@@ -177,7 +177,7 @@
 }
 
 
-.selection_joint_log_weight <- function(y, sei, context) {
+.selection_joint_log_weight <- function(y, sei, context, product_bins = NULL) {
 
   .selection_joint_check_event_geometry(context)
   y <- as.matrix(y)
@@ -188,6 +188,7 @@
     if (all(exempt)) return(numeric(S))
     y <- y[, !exempt, drop = FALSE]
     sei <- sei[!exempt]
+    product_bins <- product_bins[!exempt]
   }
   rule <- context[["vector_rule"]]
   if (!length(rule) || !length(rule) %in% c(1L, S) || anyNA(rule) ||
@@ -196,13 +197,15 @@
   }
   rule <- rep_len(rule, S)
   mode <- rep_len(context[["kernel_mode"]], S)
-  z <- sweep(y * context[["sign"]], 2L, sei, "/")
+  if (is.null(product_bins)) z <- sweep(y * context[["sign"]], 2L, sei, "/")
   out <- numeric(S)
   for (s in which(mode != SELKERNEL_NORMAL)) {
-    bins <- if (rule[s] == 0L) {
+    bins <- if (rule[s] != 0L) {
+      .selection_joint_best_bin(y[s, ], sei, context, rule[s])
+    } else if (is.null(product_bins)) {
       .selection_step_bin_from_z(z[s, ], context[["p_cuts"]])
     } else {
-      .selection_joint_best_bin(y[s, ], sei, context, rule[s])
+      product_bins
     }
     out[s] <- sum(log(context[["omega"]][s, bins]))
   }

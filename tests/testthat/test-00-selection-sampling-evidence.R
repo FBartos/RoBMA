@@ -448,6 +448,7 @@ test_that("multi-row sampling deletion keeps both variance shares of its conditi
   setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
   V <- matrix(.3, 3L, 3L) + diag(c(.34, .91, .7))
   state <- list(e = matrix(c(0, 0, 2^80), 1L), baseline_mu = matrix(0, 1L, 3L),
+    fixed_outcome = matrix(FALSE, 1L, 3L),
     sampling_covariance = V, integrated_covariance = array(diag(2^-60, 3L), c(1L, 3L, 3L)),
     log_normalizer = matrix(0, 1L, length(.data_selection_execution_plan(setup$data)$row_blocks)))
   centres <- list()
@@ -524,6 +525,7 @@ test_that("native and dependent-block deletion centre their integrals on both va
   setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
   V <- matrix(.3, 3L, 3L) + diag(c(.34, .91, .7))
   state <- list(e = matrix(c(0, 0, 2^80), 1L), baseline_mu = matrix(0, 1L, 3L),
+    fixed_outcome = matrix(FALSE, 1L, 3L),
     sampling_covariance = V, integrated_covariance = array(diag(2^-60, 3L), c(1L, 3L, 3L)),
     total_covariance = array(V + diag(2^-60, 3L), c(1L, 3L, 3L)),
     log_normalizer = matrix(0, 1L, length(.data_selection_execution_plan(setup$data)$row_blocks)))
@@ -672,6 +674,7 @@ test_that("conditioned-sampling deletion distinguishes deterministic and failed 
   attr(setup$data, "selection_execution_plan") <- plan
   candidate <- tcrossprod(c(.5, -.5))
   state <- list(e = matrix(-.1, 1L, 2L), baseline_mu = setup$mu,
+    fixed_outcome = matrix(FALSE, 1L, 2L),
     sampling_covariance = matrix(1, 2L, 2L), integrated_covariance = array(candidate, c(1L, 2L, 2L)),
     total_covariance = array(matrix(1, 2L, 2L) + candidate, c(1L, 2L, 2L)))
   testthat::local_mocked_bindings(.selection_conditioned_sampling_state = function(setup) state,

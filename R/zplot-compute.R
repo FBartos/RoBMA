@@ -830,7 +830,8 @@
   K <- ncol(mean)
   remedy <- paste0("Increase 'max_points_per_scramble' in ",
     "'integration_control = set_selection_likelihood_control()'.")
-  evaluate <- function(observed = integer(), values = numeric(), lower = NULL, upper = NULL) {
+  evaluate <- function(observed = integer(), values = numeric(), lower = NULL, upper = NULL,
+                       product_bin = NULL) {
 
     .selection_joint_checked_event(function(plan, rows) {
       if (is.null(rows)) rows <- seq_len(S)
@@ -850,7 +851,7 @@
       }
       .selection_joint_event_numerator(mean[rows, , drop = FALSE],
         packed, sei, context, plan, observed = observed, values = values,
-        rank_one_loading = loading)
+        rank_one_loading = loading, observed_product_bins = product_bin)
     }, execution_plan, "Zplot selection event integration", remedy)
   }
   normalizer <- evaluate()[["log_mass"]]
@@ -878,6 +879,11 @@
     }
   }
   result <- matrix(0, S, length(z))
+  # The product weight uses the queried z. Recovering z from q / sei can
+  # select the other side of a step. Best rules use their physical cutoff.
+  product_bins <- if (!probability && any(selection[["vector_rule"]] == 0L)) {
+    .selection_step_bin_from_z(selection[["sign"]] * z, selection[["p_cuts"]])
+  }
   for (observation in seq_len(K)) {
     for (point in seq_along(z)) {
       q <- z[[point]] * sei[[observation]]
@@ -891,7 +897,7 @@
         right <- evaluate(lower = lower)[["log_mass"]]
         value <- exp(left - normalizer) + exp(right - normalizer)
       } else {
-        numerator <- evaluate(observation, q)[["log_numerator"]]
+        numerator <- evaluate(observation, q, product_bin = product_bins[point])[["log_numerator"]]
         value <- sei[[observation]] * exp(numerator - normalizer)
       }
       result[, point] <- result[, point] + value / K

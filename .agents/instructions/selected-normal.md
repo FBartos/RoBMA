@@ -112,6 +112,13 @@ consume resolved source metadata rather than infer conditioning from monitoring.
 Product normalizers factor only for conditionally independent
 rows. Best uses the weight at the smallest actual p-value, including nonmonotone
 weights; thresholds use original sampling SEs.
+At a cutoff, product weights compare the signed standardized outcome with
+the z cutoff. Best weights compare the signed or absolute outcome with the
+cutoff in outcome units. Use the supplied z for a product density queried
+on the z scale. In sampling-conditioned likelihoods, a row with zero
+integrated diagonal and zero integrated loadings takes its observed value
+exactly when that outcome is given. During deletion, a proposed outcome or
+sampling error still varies under its conditional law.
 Both rules omit exempt outcomes from the publication event. Product uses only
 eligible factors; best takes the smallest eligible p-value in each publication.
 An empty event has weight and normalizer one. Preserve the Gaussian density

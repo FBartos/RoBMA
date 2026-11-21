@@ -93,6 +93,31 @@ test_that("fitted source reconstruction assigns each covariance correction to it
 })
 
 
+test_that("fitted sampling contexts preserve observed responses exactly at a cutoff", {
+
+  dat <- data.frame(yi = c(stats::qnorm(.25, lower.tail = FALSE), -.1), sei = c(1, 1))
+  object <- bselmodel(
+    yi = yi, sei = sei, data = dat, measure = "GEN", effect_direction = "positive",
+    prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .25,
+      BayesTools::wf_fixed(c(1, .2)),
+      model = BayesTools::selection_model(known_sampling_variance = "condition"))
+  )
+  draws <- cbind(mu = c(.5, 1), tau = .5,
+    "theta[1]" = c(.5, -.25), "theta[2]" = c(-.75, 1),
+    "sampling_z[1]" = c(.25, -1), "sampling_z[2]" = c(-.5, .75))
+  offset <- matrix(c(.3, .25), 2L, 2L, byrow = TRUE)
+  parts <- .predict_joint_selection_gaussian_parts(
+    object, object$data, draws, fixed_mu = matrix(draws[, "mu"], 2L, 2L),
+    within = matrix(.5, 2L, 2L), between = matrix(0, 2L, 2L),
+    fitted_context = TRUE, bias_offset = offset
+  )
+  observed <- matrix(dat$yi, 2L, 2L, byrow = TRUE)
+  expect_identical(parts$means, observed)
+  expect_identical(parts$latent_means, observed - parts$sampling_mean - offset)
+})
+
+
 test_that("a retained complete sampling error identifies total truth with singular random variation", {
 
   Q <- matrix(c(1, 2, 2, 4), 2L)

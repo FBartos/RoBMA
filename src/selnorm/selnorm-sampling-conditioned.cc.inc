@@ -6,10 +6,14 @@ namespace {
 int sampling_conditioned_bin(double x, double se,
     const SelNormKernelData &selection, int vector_rule)
 {
-  const double z = vector_rule == SELVECTOR_BEST_TWO_SIDED ?
-    std::fabs(x) / se : selection.effect_sign * x / se;
+  // Match the observed event at equality: product uses signed z, while
+  // best compares the outcome with the cutoff in outcome units.
+  const double value = vector_rule == SELVECTOR_BEST_TWO_SIDED ?
+    std::fabs(x) : selection.effect_sign * x;
+  const double score = vector_rule == SELVECTOR_PRODUCT ? value / se : value;
+  const double scale = vector_rule == SELVECTOR_PRODUCT ? 1.0 : se;
   for (int bin = 0; bin < selection.n_bins; ++bin) {
-    if (z >= selection.z_lower[bin]) return bin;
+    if (score >= scale * selection.z_lower[bin]) return bin;
   }
   return -1;
 }
@@ -753,7 +757,13 @@ void cpp_selnorm_factor_projection(
       // outer mixture caller adds this row's ordinary retained Gaussian law.
       if (sd == 0.0) continue;
       std::vector<double> conditional_loading, slope(k), conditional_mean(k), zero(k, 0.0);
+      std::vector<double> conditional_se;
       if (kind == 0 && !unselected) {
+        conditional_se = se;
+        // A product density is queried in z units. The focal coordinate has
+        // zero conditional variance, so express it directly on that scale.
+        // Best selection compares the physical outcome with se * cutoff.
+        if (vector_rule == SELVECTOR_PRODUCT) conditional_se[focal] = 1.0;
         std::vector<int> columns;
         columns.push_back(pivot);
         for (int column = 0; column < coordinates; ++column) if (column != pivot) columns.push_back(column);
@@ -793,10 +803,10 @@ void cpp_selnorm_factor_projection(
         } else if (kind == 0) {
           ratio = true;
           for (int row = 0; row < k; ++row) conditional_mean[row] = m[row] + slope[row] * (q - m[focal]);
-          conditional_mean[focal] = q;
+          conditional_mean[focal] = vector_rule == SELVECTOR_PRODUCT ? z[index] : q;
           const double numerator = cpp_selnorm_conditioned_log_normalizer(
             conditional_mean.data(), zero.data(), conditional_loading.data(), k,
-            coordinates - 1, se.data(), omega, n_bins, z_lower, z_upper,
+            coordinates - 1, conditional_se.data(), omega, n_bins, z_lower, z_upper,
             effect_sign, kernel_mode, telescope_probabilities, vector_rule,
             one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
             &error, &change, quadrature, nullptr, nullptr, group_bins);
