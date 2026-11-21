@@ -330,6 +330,10 @@ lines.brma <- function(
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(add, "add")
   BayesTools::check_bool(individual, "individual")
+  if (add && individual) {
+    stop("'lines()' adds to one plot. Use 'level' to select the overlay or 'plot(..., individual = TRUE)' for separate figures.",
+      call. = FALSE)
+  }
   dots_raw <- list(...)
   .warn_unused_dots(
     dots    = dots_raw,

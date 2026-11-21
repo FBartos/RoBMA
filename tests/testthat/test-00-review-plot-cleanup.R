@@ -89,8 +89,11 @@ test_that("factor posterior levels select the same curve in plots and overlays",
   expect_identical(plotted_curve(separate[["Jul"]], colors[3L]), july)
   expect_equal(nrow(plotted_curve(one, colors[1L])), 0L)
 
-  overlay <- one + lines(second, "g", level = "Jul", plot_type = "ggplot",
-    lty = 2)
+  expect_error(lines(second, "g", level = c("Jun", "Jul"), individual = TRUE, plot_type = "ggplot"),
+    "'lines()' adds to one plot. Use 'level' to select the overlay or 'plot(..., individual = TRUE)' for separate figures.",
+    fixed = TRUE)
+  overlay <- one + lines(second, "g", level = "Jul", individual = FALSE,
+    plot_type = "ggplot", lty = 2)
   line_types <- unique(unlist(lapply(ggplot2::ggplot_build(overlay)$data, `[[`, "linetype")))
   expect_length(line_types, 2L)
   second_plot <- plot(second, "g", level = "Jul", plot_type = "ggplot")
