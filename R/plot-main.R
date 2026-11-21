@@ -21,6 +21,15 @@
 #' \code{BayesTools_hypothesis_unavailable}, with which [hypothesis()] refuses it.
 #' Ordered level cells retain their semantic marginal draws and prior metadata
 #' on the requested predictor scale, including conditional row alignment.
+#' @param level optional character vector of fitted level labels for a whole
+#' factor term. For example, \code{plot(fit, "Month", level = "Jul")} draws
+#' July's contribution to the whole-factor plot, including its prior when
+#' requested. With mean-difference or orthonormal coding this is July's
+#' deviation from the grand mean. \code{lines(other_fit, "Month", level = "Jul")}
+#' adds the corresponding posterior from a second fit. Legend relabelling
+#' does not change the fitted labels used for selection.
+#' @param individual whether \code{plot()} draws a separate figure for each
+#' selected factor level. By default, all selected levels share one figure.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -35,6 +44,10 @@
 #' from `brma.mv()` random formulas. A \code{parameter_mods} or
 #' \code{parameter_scale} selection with another \code{component} stops with
 #' an error of class `RoBMA_component_mismatch`.
+#' For study-specific deviations, extract the fitted random-effect block with
+#' [ranef.brma()] and select its named column. With \code{expand = FALSE},
+#' random intercepts have one column per grouping level and indicator-coded
+#' slopes have one per observed group and coefficient combination.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
@@ -207,8 +220,9 @@
 #' estimate plans that could retain the fitted object.
 #'
 #' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-#' or a \code{ggplot2} object (a named list of plots for a whole factor term)
-#' if \code{plot_type = "ggplot"}.
+#' or a \code{ggplot2} object if \code{plot_type = "ggplot"}. Individual
+#' factor ggplots form a list named by the fitted level labels, including
+#' when one level is selected.
 #' \code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
 #' ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 #'
@@ -221,7 +235,7 @@ plot.brma <- function(
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, component = "auto", ...) {
+    density_control = NULL, component = "auto", ..., level = NULL, individual = FALSE) {
 
   .plot_brma(
     x                         = x,
@@ -238,6 +252,8 @@ plot.brma <- function(
     density_method            = density_method,
     density_control           = density_control,
     component                 = component,
+    level                     = level,
+    individual                = individual,
     add                       = FALSE,
     ...
   )
@@ -261,7 +277,7 @@ lines.brma <- function(
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, component = "auto", ...) {
+    density_control = NULL, component = "auto", ..., level = NULL) {
 
   if ("add" %in% names(match.call(expand.dots = FALSE)[["..."]])) {
     stop("'lines()' always adds to an existing plot. Omit 'add'; use 'plot()' to create a new plot.",
@@ -291,6 +307,7 @@ lines.brma <- function(
     density_method            = density_method,
     density_control           = density_control,
     component                 = component,
+    level                     = level,
     add                       = TRUE,
     ...
   )
@@ -303,7 +320,8 @@ lines.brma <- function(
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, component = "auto", add = FALSE, ...) {
+    density_control = NULL, component = "auto", add = FALSE, ...,
+    level = NULL, individual = FALSE) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -311,6 +329,7 @@ lines.brma <- function(
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(add, "add")
+  BayesTools::check_bool(individual, "individual")
   dots_raw <- list(...)
   .warn_unused_dots(
     dots    = dots_raw,
@@ -368,6 +387,10 @@ lines.brma <- function(
   structural_cell <- FALSE
   random_label    <- NULL
   if (is_factor_cell) {
+    if (!is.null(level) || individual) {
+      stop("Select the whole factor term in 'parameter' to use 'level' or 'individual'.",
+        call. = FALSE)
+    }
     cell <- .plot_brma_factor_cell_samples(
       object = x, entry = parameter_entry,
       standardized_coefficients = standardized_coefficients,
@@ -515,7 +538,9 @@ lines.brma <- function(
   args$n_samples                <- 10000
   args$force_samples            <- FALSE
   args$dots_prior               <- dots_prior
-  args$individual               <- TRUE
+  # PET/PEESE and omega use BayesTools' individual coefficient displays.
+  args$individual               <- individual || !inherits(samples[[sample_parameter]], "mixed_posteriors.factor")
+  args$level                    <- level
   args$show_figures             <- NULL
   args$add                      <- add
   args$density_method           <- if (

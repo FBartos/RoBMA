@@ -20,7 +20,9 @@
   density_method = c("KDE", "qCMDE", "IWMDE"),
   density_control = NULL,
   component = "auto",
-  ...
+  ...,
+  level = NULL,
+  individual = FALSE
 )
 
 \method{lines}{brma}(
@@ -38,7 +40,8 @@
   density_method = c("KDE", "qCMDE", "IWMDE"),
   density_control = NULL,
   component = "auto",
-  ...
+  ...,
+  level = NULL
 )
 }
 \arguments{
@@ -198,7 +201,11 @@ disambiguate terms used in multiple model components. The random component
 selects semantic standard deviation, correlation, and allocation parameters
 from \code{brma.mv()} random formulas. A \code{parameter_mods} or
 \code{parameter_scale} selection with another \code{component} stops with
-an error of class \code{RoBMA_component_mismatch}.}
+an error of class \code{RoBMA_component_mismatch}.
+For study-specific deviations, extract the fitted random-effect block with
+\code{\link[=ranef.brma]{ranef.brma()}} and select its named column. With \code{expand = FALSE},
+random intercepts have one column per grouping level and indicator-coded
+slopes have one per observed group and coefficient combination.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments
@@ -210,11 +217,23 @@ x-label, density-axis label, probability-axis label, title, x-axis range,
 density-axis range, and probability-axis range respectively. Set
 \code{ylim2} on the initial \code{plot()} call; subsequent base
 \code{lines()} calls reuse that probability mapping.}
+
+\item{level}{optional character vector of fitted level labels for a whole
+factor term. For example, \code{plot(fit, "Month", level = "Jul")} draws
+July's contribution to the whole-factor plot, including its prior when
+requested. With mean-difference or orthonormal coding this is July's
+deviation from the grand mean. \code{lines(other_fit, "Month", level = "Jul")}
+adds the corresponding posterior from a second fit. Legend relabelling
+does not change the fitted labels used for selection.}
+
+\item{individual}{whether \code{plot()} draws a separate figure for each
+selected factor level. By default, all selected levels share one figure.}
 }
 \value{
 \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-or a \code{ggplot2} object (a named list of plots for a whole factor term)
-if \code{plot_type = "ggplot"}.
+or a \code{ggplot2} object if \code{plot_type = "ggplot"}. Individual
+factor ggplots form a list named by the fitted level labels, including
+when one level is selected.
 \code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
 ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 }

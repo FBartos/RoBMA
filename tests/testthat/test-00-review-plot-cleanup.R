@@ -57,3 +57,50 @@ test_that("categorical regplot admission precedes numeric evaluation validation"
   expect_error(regplot(object, mod = "g", at = "b", as_data = TRUE),
     "'at' is only available for continuous moderators.", fixed = TRUE)
 })
+
+test_that("factor posterior levels select the same curve in plots and overlays", {
+
+  levels <- c("May", "Jun", "Jul")
+  first  <- review_factor_replay(levels, "orthonormal")
+  second <- review_factor_replay(levels, "orthonormal", independent = TRUE)
+  class(first)  <- setdiff(class(first), "only_priors.brma")
+  class(second) <- setdiff(class(second), "only_priors.brma")
+  colors <- c("firebrick", "navy", "forestgreen")
+  full <- plot(first, "g", plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+  one  <- plot(first, "g", level = "Jul", plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+  separate <- plot(first, "g", level = "Jul", individual = TRUE,
+    plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+  expect_s3_class(full, "ggplot")
+  expect_s3_class(one, "ggplot")
+  expect_named(separate, "Jul")
+
+  plotted_curve <- function(plot, color) {
+    rows <- ggplot2::ggplot_build(plot)$data
+    curves <- lapply(rows, function(layer) {
+      layer[layer$colour == color, c("x", "y"), drop = FALSE]
+    })
+    result <- do.call(rbind, curves)
+    rownames(result) <- NULL
+    result
+  }
+  july <- plotted_curve(full, colors[3L])
+  expect_gt(nrow(july), 1L)
+  expect_identical(plotted_curve(one, colors[3L]), july)
+  expect_identical(plotted_curve(separate[["Jul"]], colors[3L]), july)
+  expect_equal(nrow(plotted_curve(one, colors[1L])), 0L)
+
+  overlay <- one + lines(second, "g", level = "Jul", plot_type = "ggplot",
+    col = colors, lty = 2)
+  second_plot <- plot(second, "g", level = "Jul", plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+  expected <- rbind(july, plotted_curve(second_plot, colors[3L]))
+  expect_equal(plotted_curve(overlay, colors[3L]), expected)
+  expect_error(plot(first, "g[Jul]", level = "Jul"),
+    "Select the whole factor term", fixed = TRUE)
+
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  plot(first, "g", level = "Jul", prior = TRUE)
+  axes <- graphics::par("usr")
+  lines(second, "g", level = "Jul", lty = 2)
+  expect_identical(graphics::par("usr"), axes)
+})
