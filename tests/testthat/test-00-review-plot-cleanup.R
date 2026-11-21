@@ -106,3 +106,51 @@ test_that("factor posterior levels select the same curve in plots and overlays",
   lines(second, "g", level = "Jul", lty = 2)
   expect_identical(graphics::par("usr"), axes)
 })
+
+test_that("precomputed posterior plots estimate only selected factor levels", {
+
+  fit <- review_factor_replay(c("May", "Jun", "Jul"), "orthonormal")
+  class(fit) <- setdiff(class(fit), "only_priors.brma")
+  estimate <- .mock_iwmde_estimate_success()
+  visited <- character()
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(..., metadata) {
+      cell <- metadata[["level"]]
+      visited <<- c(visited, cell)
+      if (identical(cell, "May")) {
+        return(list(diagnostics = list(density = list(status = "unavailable",
+          reason = "May has no eligible rows."))))
+      }
+      estimate(..., metadata = metadata)
+    }, .package = "RoBMA")
+
+  for (method in c("qCMDE", "IWMDE")) {
+    visited <- character()
+    selected <- plot(fit, "g", level = "Jul", density_method = method, plot_type = "ggplot")
+    expect_s3_class(selected, "ggplot")
+    expect_identical(visited, "Jul")
+    expect_error(plot(fit, "g", level = c("Jul", "May"), density_method = method),
+      class = "RoBMA_density_plot_error")
+  }
+})
+
+test_that("a selected level with unit atomic mass needs no density estimate", {
+
+  dat <- data.frame(yi = (1:6) / 10, sei = .1, g = factor(rep(c("a", "b", "c"), 2)))
+  setup <- review_compile_object(brma(
+    yi = yi, sei = sei, mods = ~ g, data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    prior_mods = list(g = BayesTools::prior_factor("point", list(.2), contrast = "treatment")),
+    prior_heterogeneity = BayesTools::prior("point", list(.1)), only_priors = TRUE, silent = TRUE
+  ))
+  fit <- review_attach_replay(setup, cbind(mu_intercept = seq(-.5, .5, length.out = 30),
+    "mu_g[1]" = .2, "mu_g[2]" = .2, tau = .1))
+  class(fit) <- setdiff(class(fit), "only_priors.brma")
+  testthat::local_mocked_bindings(.iwmde_estimate_density = function(...) {
+    stop("An atomic level has no continuous component to estimate.")
+  }, .package = "RoBMA")
+  reference <- ggplot2::ggplot_build(plot(fit, "g", level = "c", plot_type = "ggplot"))$data
+  for (method in c("qCMDE", "IWMDE")) {
+    plotted <- plot(fit, "g", level = "c", density_method = method, plot_type = "ggplot")
+    expect_equal(ggplot2::ggplot_build(plotted)$data, reference)
+  }
+})
