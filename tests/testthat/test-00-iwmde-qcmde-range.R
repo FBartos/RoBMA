@@ -228,6 +228,30 @@ test_that("a bound row at a finite support boundary ends where its side bound me
 })
 
 
+test_that("the 50-point positive-support lattice normalizes a fixed PET row", {
+
+  # With the former symmetric interval clamped near zero, this log-spaced
+  # grid missed the integral by 2.8%. The reference integrates on the original
+  # scale over the entire positive support.
+  center <- 1
+  scale <- .2
+  prior <- BayesTools::prior("cauchy", list(location = 0, scale = .5),
+    truncation = list(lower = 0, upper = Inf))
+  laws <- .iwmde_qcmde_row_laws(list(), list(.qcmde_range_state(prior)), list(type = "scalar"),
+    .qcmde_range_kernel(center, scale))
+  bounds <- .iwmde_qcmde_law_intervals(laws, 1 - 1e-8)[["intervals"]][1L, ]
+  transform <- .iwmde_parameter_transform(c(0, Inf))
+  lattice <- .iwmde_qcmde_lattice(log(bounds), 50L, transform)
+  nodes <- .iwmde_qcmde_lattice_points(lattice, 0:49)
+  density <- function(x) {
+    2 * stats::dcauchy(x, 0, .5) * exp(-((x - center) / scale)^2 / 2)
+  }
+  reference <- stats::integrate(density, 0, Inf, rel.tol = 1e-12)$value
+  log_density <- cbind(log(density(nodes$x)) + nodes$log_jacobian)
+  estimate <- exp(.iwmde_log_trapz_columns(nodes$z, log_density))
+  expect_lt(abs(estimate / reference - 1), .001)
+})
+
 test_that("rows without a Gaussian kernel or a supported prior are estimates", {
 
   normal <- BayesTools::prior("normal", list(mean = 0, sd = 1))
