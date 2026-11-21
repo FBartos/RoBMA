@@ -32,6 +32,24 @@
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
 #'   \code{"ggplot"} for plotting. Defaults to \code{"base"}.
 #' @param lags number of lags for autocorrelation plots. Defaults to 30.
+#' @param statistic trace statistic. `"value"` shows the sampled parameter.
+#'   `"inclusion"` shows the fraction of each batch spent in the alternative
+#'   components and needs every component declared null or alternative,
+#'   with both present.
+#'   `"component"` shows the fraction spent in each mixture
+#'   component in separate plots (one plot for a binary null/alternative
+#'   choice). `"switching"` shows the fraction of adjacent draws within
+#'   each batch that changed component. Use `parameter = "bias"` for the
+#'   publication-bias mixture or select a whole moderator term.
+#'   A random-effect quantity must have a unique indicator from its prior or
+#'   allocation gate. Otherwise the diagnostic raises
+#'   `RoBMA_indicator_unavailable` (also a `BayesTools_plot_condition`).
+#' @param batch_size optional positive integer giving the number of retained
+#'   draws per batch for indicator traces. Switching needs at least two
+#'   retained draws per batch and chain; a final one-draw batch is not drawn.
+#'   By default the shortest chain
+#'   supplies approximately its square root in batches. Each chain is
+#'   batched separately and plotted at the batches' midpoint iterations.
 #' @param ... additional graphical arguments passed through RoBMA's diagnostic
 #'   setup to \code{BayesTools::JAGS_diagnostics()}.
 #'
@@ -41,6 +59,17 @@
 #'
 #' @seealso [summary.brma()]
 #'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   plot_diagnostic_trace(fit, parameter = "mu", statistic = "inclusion")
+#'   plot_diagnostic_trace(fit, parameter = "bias", statistic = "component")
+#'   plot_diagnostic(fit, parameter = "bias", type = "trace", statistic = "switching")
+#' }
+#' }
+#'
 #' @export
 plot_diagnostic <- function(x, ...) UseMethod("plot_diagnostic")
 
@@ -48,11 +77,14 @@ plot_diagnostic <- function(x, ...) UseMethod("plot_diagnostic")
 #' @rdname plot_diagnostic
 plot_diagnostic.brma <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
-    type, plot_type = "base", lags = 30, component = "auto", ...) {
+    type, plot_type = "base", lags = 30, component = "auto", ...,
+    statistic = "value", batch_size = NULL) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_char(type, "type", allow_values = c("autocorrelation", "trace", "density"))
+  BayesTools::check_char(statistic, "statistic", allow_NA = FALSE,
+                         allow_values = c("value", "inclusion", "component", "switching"))
 
   ### select and validate the parameter to be plotted
   parameter_entry <- .check_and_select_plot_parameter(
@@ -74,7 +106,7 @@ plot_diagnostic.brma <- function(
   dots  <- .set_dots_diagnostics(..., type = type, chains = x[["fit_control"]][["chains"]])
 
   # get the parameter name
-  if (is_random) {
+  if (is_random && statistic == "value") {
     random_diagnostic <- .brma_random_parameter_diagnostic_fit(
       object    = x,
       parameter = parameter
@@ -86,13 +118,19 @@ plot_diagnostic.brma <- function(
     }
   } else {
     diagnostic_fit       <- x[["fit"]]
-    diagnostic_parameter <- parameter
+    diagnostic_parameter <- if (is_random) {
+      .brma_random_trace_prior_parameter(x, parameter_entry)
+    } else {
+      parameter
+    }
   }
 
   args                   <- dots
   args$fit               <- diagnostic_fit
   args$parameter         <- diagnostic_parameter
   args$type              <- type
+  args$statistic         <- statistic
+  args$batch_size        <- batch_size
   args$plot_type         <- plot_type
   args$lags              <- lags
   args$transform_factors <- TRUE
@@ -143,7 +181,7 @@ plot_diagnostic_trace <- function(x, ...) UseMethod("plot_diagnostic_trace")
 plot_diagnostic_trace.brma           <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
     type = "trace", plot_type = "base", lags = 30,
-    component = "auto", ...) {
+    component = "auto", ..., statistic = "value", batch_size = NULL) {
 
   plot_diagnostic(
     x               = x,
@@ -152,6 +190,8 @@ plot_diagnostic_trace.brma           <- function(
     parameter_scale  = parameter_scale,
     component        = component,
     type             = type,
+    statistic        = statistic,
+    batch_size       = batch_size,
     plot_type        = plot_type,
     lags             = lags,
     ...
