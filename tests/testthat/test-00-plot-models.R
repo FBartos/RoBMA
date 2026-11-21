@@ -146,6 +146,30 @@ test_that("plot_models methods dispatch to both renderers with the displayed row
 })
 
 
+test_that("random-effect rows are model components and respect explicit order", {
+
+  fit <- review_bma_gate_replay(moderator = TRUE, prior_heterogeneity = list(
+    BayesTools::prior("gamma", list(2, 2)), BayesTools::prior("gamma", list(3, 2))
+  ))[["object"]]
+  component_labels <- c("Effect", "Heterogeneity Slab", "Random: study", "Random: other")
+  for (group_labels in c(FALSE, TRUE)) {
+    data <- .plot_models_data(fit, group_labels = group_labels)
+    rows <- unique(data[["cells"]][c("row", "label", "group")])
+    moderator_label <- if (group_labels) "x" else "(mu) x"
+    expect_identical(rows[["label"]], c(component_labels, moderator_label))
+    expect_identical(rows[["group"]], c(rep("Components", length(component_labels)), "Location"))
+
+    selected <- .plot_models_data(fit, c("study", "x", "Heterogeneity Slab", "other"),
+                                  group_labels = group_labels)
+    expect_identical(unique(selected[["cells"]][["label"]]),
+                     c("Random: study", moderator_label, "Heterogeneity Slab", "Random: other"))
+  }
+  random <- .plot_models_data(fit, "study", component = "random")
+  expect_identical(unique(random[["cells"]][["group"]]), "Components")
+  expect_identical(unique(random[["cells"]][["row"]]), rows[["row"]][rows[["label"]] == "Random: study"])
+})
+
+
 test_that("bias palette keys identify one purpose even when member names collide", {
 
   fit <- .plot_models_replay(bias_names = c("no_bias", "PET", "bias[PET]"),

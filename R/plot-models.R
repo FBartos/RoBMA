@@ -8,7 +8,8 @@
 #'   [BMA()].
 #' @param ... additional arguments for methods.
 #' @param parameter an ordered character vector of model component, term, or
-#'   factor-level selectors. Use `NULL` to show all available components.
+#'   factor-level selectors. Use `NULL` to show the model components, including
+#'   random-effect rows, followed by the location and scale terms.
 #'   Use qualified selectors such as `"mu_year"`, `"log_tau_year"`, or
 #'   `"mu_delivery[online]"` to disambiguate terms or levels.
 #' @param component component to select from: `"auto"`, `"mods"` (also
@@ -251,7 +252,8 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
   main <- c("Effect", "Heterogeneity", "Publication Bias", "Heterogeneity Allocation")
   location <- names(components)[startsWith(names(components), "Location: ")]
   scale <- names(components)[startsWith(names(components), "Scale: ")]
-  order <- unique(c(intersect(main, names(components)), location, scale, names(components)))
+  random <- setdiff(names(components), c(main, location, scale))
+  order <- c(intersect(main, names(components)), random, location, scale)
   metadata <- if (length(c(location, scale))) .brma_parameter_catalog_metadata(x) else NULL
   catalog <- metadata[["catalog"]]
   quantities <- catalog[["quantities"]]
@@ -268,7 +270,7 @@ plot_models.RoBMA <- function(x, parameter = NULL, component = "auto",
       id        = switch(label, Effect = "mu", Heterogeneity = "tau",
                          "Publication Bias" = "bias", parameter),
       label     = label,
-      group     = if (label %in% main) "Components" else "Random",
+      group     = "Components",
       component = component,
       aliases   = unique(c(parameter, label, info[["aliases"]], switch(label,
         Effect = "effect", Heterogeneity = "heterogeneity",

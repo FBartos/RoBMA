@@ -375,13 +375,15 @@ review_allocated_source_replay <- function(kind, constant_weights = FALSE,
     source_parameter = source_parameter, weights = weights)
 }
 
-review_bma_gate_replay <- function(study_label = "study") {
+review_bma_gate_replay <- function(study_label = "study", moderator = FALSE,
+    prior_heterogeneity = BayesTools::prior("gamma", list(shape = 2, rate = 2))) {
   dat <- data.frame(yi = c(.1, .2, .3, .4),
-    study = factor(c("s1", "s1", "s2", "s2")), other = factor(1:4))
+    study = factor(c("s1", "s1", "s2", "s2")), other = factor(1:4), x = c(-1, 1, -1, 1))
   setup <- review_compile_object(BMA.mv(yi = yi, V = diag(.04, 4L),
+    mods = if (moderator) ~ x else NULL,
     random = stats::setNames(list(~ 1 | study, ~ 1 | other), c(study_label, "other")), data = dat,
     prior_effect = BayesTools::prior("point", list(location = 0)), prior_effect_null = NULL,
-    prior_heterogeneity = BayesTools::prior("gamma", list(shape = 2, rate = 2)),
+    prior_heterogeneity = prior_heterogeneity,
     measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
   design <- setup$compiled$mu$formula_design
   allocation <- design$random_allocations[[1L]]
