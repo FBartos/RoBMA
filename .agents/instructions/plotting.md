@@ -12,6 +12,11 @@ rendering:
 2. a data function computes backend-neutral plot data;
 3. base and ggplot renderers consume that data.
 
+Trace diagnostics delegate batching and rendering to BayesTools. Resolve the
+selected mixture prior or allocation gate on the original fit. For a random
+SD, use the same declared indicator ownership as the model summaries and
+exported draws. The derived-draw view is for value diagnostics.
+
 Do not introduce this layering for a trivial plot that has only one backend, and
 do not force unrelated plot families into one abstraction.
 
