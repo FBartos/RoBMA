@@ -2819,6 +2819,41 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 
 
 # Internal helper to construct outcome arguments for `.check_and_list_data`.
+# Exemption flags of new rows come from a logical 'bias_exempt' column, which
+# is passed by value so that a character entry is never read as a column name.
+# A fitted formula variable of that name stays a predictor and is not a flag.
+.prepare_newdata_bias_exempt <- function(original_data, newdata) {
+
+  fitted_exempt <- !is.null(original_data[["outcome"]][["bias_exempt"]])
+  fitted_variables <- c(
+    if (.is_data_mods(original_data)) all.vars(attr(original_data[["mods"]], "formula")),
+    .prepare_newdata_formula_arg_variables(.prepare_newdata_scale_formula_arg(original_data)),
+    .prepare_newdata_formula_arg_variables(.prepare_newdata_random_formula_arg(original_data))
+  )
+  if ("bias_exempt" %in% fitted_variables) {
+    if (fitted_exempt) {
+      stop("Publication-bias predictions from this fit need exemption flags for new rows, ",
+           "but 'bias_exempt' names a variable of the fitted formulas. Rename that variable ",
+           "and refit to supply a logical 'bias_exempt' column in 'newdata'.", call. = FALSE)
+    }
+    return(NULL)
+  }
+  if (!"bias_exempt" %in% names(newdata)) {
+    if (fitted_exempt) {
+      stop("Supply a logical 'bias_exempt' column in 'newdata' for this publication-bias prediction.",
+           call. = FALSE)
+    }
+    return(NULL)
+  }
+  bias_exempt <- newdata[["bias_exempt"]]
+  if (!is.logical(bias_exempt) || !is.null(dim(bias_exempt))) {
+    stop("The 'bias_exempt' column in 'newdata' must be logical.", call. = FALSE)
+  }
+
+  return(bias_exempt)
+}
+
+
 .prepare_newdata_outcome_call_args <- function(outcome_type, newdata,
                                                prefer_vi = FALSE) {
 
@@ -3051,11 +3086,12 @@ print.RoBMA_data <- function(x, n = 6, ...) {
       .is_selected_latent_prediction(object, type, bias_adjusted)
   )
   if (uses_bias) {
-    if ("bias_exempt" %in% names(newdata)) {
-      call_args[["bias_exempt"]] <- quote(bias_exempt)
-    } else if (!is.null(original_data[["outcome"]][["bias_exempt"]])) {
-      stop("Supply a logical 'bias_exempt' column in 'newdata' for this publication-bias prediction.",
-           call. = FALSE)
+    bias_exempt <- .prepare_newdata_bias_exempt(original_data, newdata)
+    if (!is.null(bias_exempt)) {
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata, name = "bias_exempt", value = bias_exempt, n = nrow(newdata)
+      )
+      call_args[["bias_exempt"]] <- as.name(.prepare_newdata_parser_column(newdata, "bias_exempt"))
     }
   }
 

@@ -6,14 +6,11 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
   fixtures <- .native_selection_jags_fixtures()
   cluster_rules <- .selection_joint_cluster_quadrature_rules(c(7L, 15L, 31L, 63L))
   factor_rules <- .selection_joint_factor_quadrature_rules()
-  # Integrate the Gaussian in each eligible p-bin rectangle, conditioning the
-  # second coordinate on the first. This reference uses no selection kernels.
-  bounds <- c(Inf, 1, 0, -Inf)
-  cell_mass <- function(bins, mean, covariance) {
-    lo <- bounds[bins + 1L]
-    hi <- bounds[bins]
+  # Integrate the Gaussian over an eligible rectangle, conditioning the second
+  # coordinate on the first. This reference uses no selection kernels.
+  rectangle_mass <- function(lo, hi, mean, covariance) {
     sd <- sqrt(diag(covariance))
-    if (length(bins) == 1L) return(pnorm(hi, mean, sd) - pnorm(lo, mean, sd))
+    if (length(lo) == 1L) return(pnorm(hi, mean, sd) - pnorm(lo, mean, sd))
     slope <- covariance[2, 1] / covariance[1, 1]
     conditional_sd <- sqrt(covariance[2, 2] - slope * covariance[1, 2])
     integrate(function(x) {
@@ -22,6 +19,15 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
         (pnorm(hi[2], center, conditional_sd) - pnorm(lo[2], center, conditional_sd))
     }, lo[1], hi[1], rel.tol = 1e-10)$value
   }
+  # One-sided p-bins for the product (0) and best (1) rules.
+  bounds <- c(Inf, 1, 0, -Inf)
+  cell_mass <- function(bins, mean, covariance) {
+    rectangle_mass(bounds[bins + 1L], bounds[bins], mean, covariance)
+  }
+  # Two-sided best (2): the largest eligible |z| falls below .3, between .3
+  # and 1.4, or above 1.4, with weights .8, .2 and 1.
+  two_sided_limits <- c(.3, 1.4)
+  two_sided_omega <- c(.8, .2, 1)
   # Three correlated outcomes with the most significant result in the middle.
   # The eligible rows' covariance is large enough that dropping it moves every
   # dense and conditioned reference by more than the tolerance.
@@ -30,9 +36,6 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
     spec <- fixtures$cases[[kind]]
     data <- utils::modifyList(fixtures$base, spec$extra)
     data$y <- c(.4, 1.7, -.6)
-    data$omega <- c(1, .2, .8)
-    data$lower <- c(1, 0, -1e300)
-    data$upper <- c(1e300, 1, 0)
     data$mu <- numeric(3L)
     data$sei <- rep(1, 3L)
     data$mode <- 1L
@@ -60,13 +63,31 @@ test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcom
     candidate <- if (kind == "conditioned") total - sampling else total
     # Retained sources condition on every observed outcome, including exempt rows.
     mean <- if (kind == "conditioned") drop(sampling %*% solve(total, data$y)) else data$mu
-    for (rule in 0:1) {
+    for (rule in 0:2) {
       data$rule <- rule
-      for (bins in list(c(2L, 0L, 3L), c(0L, 0L, 3L), rep(0L, 3L))) {
+      two_sided <- rule == 2L
+      data$omega <- if (two_sided) c(1, .2, .8, .2, 1) else c(1, .2, .8)
+      data$lower <- if (two_sided) c(1.4, .3, -.3, -1.4, -1e300) else c(1, 0, -1e300)
+      data$upper <- if (two_sided) c(1e300, 1.4, .3, -.3, -1.4) else c(1e300, 1, 0)
+      # The exempt middle row is the most significant; under the two-sided
+      # rule the negative third row is the most significant eligible one.
+      bin_sets <- if (two_sided) {
+        list(c(2L, 0L, 4L), c(0L, 0L, 4L), rep(0L, 3L))
+      } else list(c(2L, 0L, 3L), c(0L, 0L, 3L), rep(0L, 3L))
+      for (bins in bin_sets) {
         data$bins <- bins
         active <- which(bins > 0)
         expected <- gaussian
-        if (length(active)) {
+        if (length(active) && two_sided) {
+          eligible_mean <- mean[active]
+          eligible_covariance <- candidate[active, active, drop = FALSE]
+          below <- vapply(two_sided_limits, function(limit) rectangle_mass(
+            rep(-limit, length(active)), rep(limit, length(active)),
+            eligible_mean, eligible_covariance), numeric(1L))
+          normalizer <- sum(diff(c(0, below, 1)) * two_sided_omega)
+          numerator <- two_sided_omega[findInterval(max(abs(data$y[active])), two_sided_limits) + 1L]
+          expected <- expected + log(numerator / normalizer)
+        } else if (length(active)) {
           weight <- function(cell) {
             if (rule == 1L) data$omega[min(cell)] else prod(data$omega[cell])
           }

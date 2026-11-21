@@ -922,6 +922,7 @@
     n_pred  = n_pred,
     sei     = prediction_sei
   )
+  # Grid rows are nonexempt outcomes.
   if (!is.null(x[["data"]][["outcome"]][["bias_exempt"]]) &&
       !"bias_exempt" %in% names(newdata)) {
     newdata[["bias_exempt"]] <- rep(FALSE, n_pred)
@@ -1040,7 +1041,6 @@
         mean_samples      = pred_samples,
         sd_samples        = sd_si,
         se                = grid_sei,
-        bias_exempt       = newdata[["bias_exempt"]],
         probs             = probs,
         posterior_samples = posterior_samples
       )

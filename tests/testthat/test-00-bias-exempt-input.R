@@ -103,3 +103,32 @@ test_that("ordered selection ordinates retain only eligible observed weight fact
   expect_error(.iwmde_ordered_selection_observed_constant(list(data = data), state, setup, selection),
                class = "RoBMA_ordered_selection_route")
 })
+
+test_that("prediction exemption flags are logical newdata columns, not fitted predictors", {
+
+  dat <- data.frame(yi = c(.1, -.2, .4), sei = c(.5, .7, .9), bias_exempt = c(-2, 0, 3),
+                    registered = c(FALSE, TRUE, FALSE))
+  common <- list(sei = quote(sei), data = dat, measure = "GEN",
+                 prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  # A fitted moderator named 'bias_exempt' keeps its values and flags nothing.
+  newdata <- data.frame(sei = c(.4, .6), bias_exempt = c(1.5, -1))
+  plain <- do.call(bPET, c(list(yi = yi ~ bias_exempt), common))
+  prepared <- .prepare_newdata(plain, newdata, type = "terms")
+  expect_identical(prepared[["mods"]][["bias_exempt"]], newdata$bias_exempt)
+  expect_null(prepared[["outcome"]][["bias_exempt"]])
+  # With exempt fitted rows, that column cannot also supply new rows' flags.
+  masked <- do.call(bPET, c(list(yi = yi ~ bias_exempt, bias_exempt = quote(registered)), common))
+  expect_error(.prepare_newdata(masked, newdata, type = "terms"),
+    paste0("Publication-bias predictions from this fit need exemption flags for new rows, ",
+           "but 'bias_exempt' names a variable of the fitted formulas. Rename that variable ",
+           "and refit to supply a logical 'bias_exempt' column in 'newdata'."), fixed = TRUE)
+  expect_identical(.prepare_newdata(masked, newdata, type = "terms", bias_adjusted = TRUE)[["mods"]][["bias_exempt"]],
+                   newdata$bias_exempt)
+  # A character flag is an error, never the name of another column.
+  exempt <- do.call(bPET, c(list(yi = quote(yi), bias_exempt = quote(registered)), common))
+  flags <- data.frame(sei = .4, bias_exempt = "registered", registered = TRUE)
+  expect_error(.prepare_newdata(exempt, flags, type = "terms"),
+    "The 'bias_exempt' column in 'newdata' must be logical.", fixed = TRUE)
+  flags$bias_exempt <- TRUE
+  expect_identical(.prepare_newdata(exempt, flags, type = "terms")[["outcome"]][["bias_exempt"]], TRUE)
+})

@@ -71,21 +71,10 @@
 
 
 .regplot_selection_mixture_interval_quantiles <- function(
-    x, mean_samples, sd_samples, se, probs, posterior_samples = NULL, bias_exempt = NULL) {
+    x, mean_samples, sd_samples, se, probs, posterior_samples = NULL) {
 
   mean_samples <- as.matrix(mean_samples)
   sd_samples   <- as.matrix(sd_samples)
-  if (any(bias_exempt)) {
-    intervals <- .regplot_mixture_interval_quantiles(mean_samples, sd_samples, probs)
-    eligible <- which(!bias_exempt)
-    if (length(eligible)) {
-      selected <- .regplot_selection_mixture_interval_quantiles(
-        x, mean_samples[, eligible, drop = FALSE], sd_samples[, eligible, drop = FALSE],
-        rep_len(se, ncol(mean_samples))[eligible], probs, posterior_samples)
-      for (field in names(intervals)) intervals[[field]][eligible] <- selected[[field]]
-    }
-    return(intervals)
-  }
   setup        <- .regplot_selection_setup(
     x                 = x,
     posterior_samples = posterior_samples
@@ -136,7 +125,7 @@
     object            = x,
     posterior_samples = posterior_samples
   )
-  # Grid rows have their own exemption flags in the interval calculation.
+  # Grid rows describe nonexempt outcomes, whatever the fitted rows' flags.
   if (!is.null(selection)) selection[["bias_exempt"]] <- NULL
   .plot_check_scalar_selection_target(x, selection, "regplot")
   use_normal     <- if (is.null(selection)) {
