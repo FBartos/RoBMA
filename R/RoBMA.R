@@ -67,7 +67,7 @@
 RoBMA <- function(
   # input specification
   yi, vi, sei, weights, ni,
-  mods, scale, cluster,
+  mods, scale, cluster, bias_exempt,
   data, slab, subset,
   measure, effect_direction = "detect",
 
@@ -91,7 +91,7 @@ RoBMA <- function(
 
   # selection likelihood
   selection = BayesTools::selection_model(),
-  selection_control = set_selection_likelihood_control(), ..., bias_exempt = NULL) {
+  selection_control = set_selection_likelihood_control(), ...) {
 
   BayesTools::check_selection_model(selection, name = "selection")
 

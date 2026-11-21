@@ -38,7 +38,7 @@
 bPET <- function(
   # input specification
   yi, vi, sei, weights, ni,
-  mods, scale, cluster,
+  mods, scale, cluster, bias_exempt,
   data, slab, subset,
   measure,
 
@@ -58,7 +58,7 @@ bPET <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent, ..., bias_exempt = NULL
+  seed = NULL, silent, ...
 ) {
 
   ### create the output object

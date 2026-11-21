@@ -43,7 +43,7 @@
 bPET.mv <- function(
     # input specification
     yi, V, ni,
-    mods, scale, random,
+    mods, scale, random, bias_exempt,
     R = NULL, Rscale = "cor",
     data, slab, subset,
     measure,
@@ -65,7 +65,7 @@ bPET.mv <- function(
 
     # additional settings
     seed = NULL, silent, ...,
-    vi = NULL, sei = NULL, bias_exempt = NULL) {
+    vi = NULL, sei = NULL) {
 
   .fit_bias_regression_mv(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),
@@ -154,7 +154,7 @@ bPET.mv <- function(
 bPEESE.mv <- function(
     # input specification
     yi, V, ni,
-    mods, scale, random,
+    mods, scale, random, bias_exempt,
     R = NULL, Rscale = "cor",
     data, slab, subset,
     measure,
@@ -176,7 +176,7 @@ bPEESE.mv <- function(
 
     # additional settings
     seed = NULL, silent, ...,
-    vi = NULL, sei = NULL, bias_exempt = NULL) {
+    vi = NULL, sei = NULL) {
 
   .fit_bias_regression_mv(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),

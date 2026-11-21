@@ -16,8 +16,11 @@ test_that("bias_exempt is a strict logical input aligned to retained outcome row
   )
   for (constructor in list(bPET, bPEESE, bselmodel, RoBMA,
                            bPET.mv, bPEESE.mv, bselmodel.mv, RoBMA.mv)) {
-    expect_true(match("bias_exempt", names(formals(constructor))) >
-                match("...", names(formals(constructor))))
+    # It follows cluster (random for .mv) and, like other data inputs, has no default.
+    arguments <- formals(constructor)
+    anchor <- if ("cluster" %in% names(arguments)) "cluster" else "random"
+    expect_identical(match("bias_exempt", names(arguments)), match(anchor, names(arguments)) + 1L)
+    expect_identical(deparse(arguments[["bias_exempt"]]), "")
     expect_warning(
       fit <- constructor(yi = yi, sei = sei, data = dat, subset = 2:5,
                          bias_exempt = registered, only_data = TRUE),
