@@ -113,7 +113,9 @@ bfunnel(
   Ignored in residual mode. When `TRUE` and the model includes selection
   models (weightfunction), uses selected-normal quantiles where the
   fitted source and publication structure admit a scalar calculation.
-  Unsupported joint-selection configurations fail explicitly; use
+  With `sampling_bias = TRUE`, the contours describe a hypothetical
+  nonexempt outcome at each standard error on the grid. Unsupported
+  joint-selection configurations fail explicitly; use
   `sampling_bias = FALSE` for bias-adjusted contours. Exact-zero
   integrated selected cells require an existing positive-weight
   cancellation certificate; otherwise the selected contour is

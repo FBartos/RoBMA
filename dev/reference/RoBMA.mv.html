@@ -11,7 +11,7 @@ random effects."><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9010</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9011</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -81,6 +81,7 @@ random effects.</p>
 <span>  <span class="va">mods</span>,</span>
 <span>  <span class="va">scale</span>,</span>
 <span>  <span class="va">random</span>,</span>
+<span>  <span class="va">bias_exempt</span>,</span>
 <span>  R <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Rscale <span class="op">=</span> <span class="st">"cor"</span>,</span>
 <span>  <span class="va">data</span>,</span>
@@ -182,6 +183,17 @@ components or concrete random-effect blocks; see <code><a href="brma.mv.html">br
 Omission or <code>NULL</code> means a fixed-effect model with no implicit
 heterogeneity term. Known sampling covariance <code>V</code> remains unchanged.
 Declare <code>random</code> before supplying heterogeneity priors or scale formulas.</p></dd>
+
+
+<dt id="arg-bias-exempt">bias_exempt<a class="anchor" aria-label="anchor" href="#arg-bias-exempt"></a></dt>
+<dd><p>an optional logical vector with one value per original
+outcome row. A <code>TRUE</code> row stays in the analysis with zero PET/PEESE offset.
+Under product selection, its weight is one. Under best-p-value selection,
+only nonexempt outcomes compete to determine the publication's weight. A
+fully exempt publication has weight one. An exempt outcome can still be
+associated with selection through its correlation with a nonexempt outcome.
+Omission is equivalent to all <code>FALSE</code>. The indicator must be nonmissing on
+rows retained for analysis.</p></dd>
 
 
 <dt id="arg-r">R<a class="anchor" aria-label="anchor" href="#arg-r"></a></dt>

@@ -306,10 +306,11 @@ over the observed predictor values, and the prediction and sampling
 bands are pointwise rather than a joint band for one random regression
 curve. For PET/PEESE models with `sampling_bias = TRUE`, the line and
 its credible band include the expected bias at the reference standard
-error (`sei`); `sampling_bias = FALSE` shows the bias-adjusted line. A
-moderator that appears only in the scale formula produces a constant
-mean prediction while prediction and sampling intervals reflect its
-effect on heterogeneity.
+error (`sei`); `sampling_bias = FALSE` shows the bias-adjusted line. The
+sampling-bias curve describes a nonexempt prediction row. A moderator
+that appears only in the scale formula produces a constant mean
+prediction while prediction and sampling intervals reflect its effect on
+heterogeneity.
 
 The credible interval band of a continuous moderator (`ci = TRUE`) is
 formed by pointwise Harrell-Davis quantiles (at the probabilities

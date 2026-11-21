@@ -66,6 +66,11 @@ predict(
   predictions (`type = "estimate"`) require `sei` or `vi` in explicit
   `newdata`. If an active selection branch uses `weight_rule = "best"`,
   its publication groups must also be resolvable in the prediction data.
+  Fitted-row predictions reuse their publication-bias exemptions. For
+  explicit new rows, supply a logical `bias_exempt` column when the fit
+  contains exempt rows and the requested prediction uses publication
+  bias. For fits without exempt rows, omission treats all new rows as
+  susceptible to the fitted publication-bias component.
 
 - type:
 

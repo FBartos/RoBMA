@@ -141,7 +141,9 @@ contexts. A best rule still selects the full original event when
 displaying one estimate. Supported full-covariance product blocks reuse
 numerator and normalizer calculations while refining their quadrature
 separately. Computation by posterior row and covariance block preserves
-the full publication event.
+the full publication event. When `bias_exempt` is supplied, only
+nonexempt outcomes determine that event. Correlation with a nonexempt
+outcome can still affect the fitted marginal curve of an exempt outcome.
 
 Numerical diagnostics distinguish raw normalizer-mass ratios from bounds
 on omitted contributions. A raw mass ratio does not certify that the
@@ -153,18 +155,20 @@ hide omissions.
 Independent univariate product-weight models and the released
 conditional cluster display retain their reference-bin-normalized
 inverse-weight extrapolation convention and corresponding `Missing N`
-summary. Product selection does not use publication groups; its
-covariance dependencies and source settings determine the reference
-distribution and diagnostic. Best-p-value selection preserves the
-resolved publication groups. A literal count interpretation additionally
-treats the reference bin as fully observed and requires a
-reporting/stopping design relating attempted to observed estimates.
-These assumptions are not supplied by the fitted relative-weight
-likelihood, which conditions on the reported vector and does not
-identify an absolute publication probability or finite missing pool.
-Valid above-one relative weights can give a negative diagnostic; such a
-value is not a literal missing count. Restricting a plot with `from` or
-`to` does not restrict the summary integrals.
+summary. An independent exempt outcome has an inverse normalizing weight
+of one in the extrapolated curve and EDR calculation. Product selection
+does not use publication groups; its covariance dependencies and source
+settings determine the reference distribution and diagnostic.
+Best-p-value selection preserves the resolved publication groups. A
+literal count interpretation additionally treats the reference bin as
+fully observed and requires a reporting/stopping design relating
+attempted to observed estimates. These assumptions are not supplied by
+the fitted relative-weight likelihood, which conditions on the reported
+vector and does not identify an absolute publication probability or
+finite missing pool. Valid above-one relative weights can give a
+negative diagnostic; such a value is not a literal missing count.
+Restricting a plot with `from` or `to` does not restrict the summary
+integrals.
 
 Zplot diagnostics are available only for normal outcome models. GLMM
 objects are rejected because their raw likelihood is on a count scale

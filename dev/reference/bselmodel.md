@@ -15,6 +15,7 @@ bselmodel(
   mods,
   scale,
   cluster,
+  bias_exempt,
   data,
   slab,
   subset,
@@ -110,6 +111,17 @@ bselmodel(
 
   an optional vector of cluster identifiers for multilevel
   meta-analysis.
+
+- bias_exempt:
+
+  an optional logical vector with one value per original outcome row. A
+  `TRUE` row stays in the analysis with zero PET/PEESE offset. Under
+  product selection, its weight is one. Under best-p-value selection,
+  only nonexempt outcomes compete to determine the publication's weight.
+  A fully exempt publication has weight one. An exempt outcome can still
+  be associated with selection through its correlation with a nonexempt
+  outcome. Omission is equivalent to all `FALSE`. The indicator must be
+  nonmissing on rows retained for analysis.
 
 - data:
 

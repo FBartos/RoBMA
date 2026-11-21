@@ -28,8 +28,10 @@ pooled_effect(
 
   whether to adjust for publication bias. Defaults to `TRUE`. For
   PET/PEESE models this removes the regression bias term from the pooled
-  location effect. This reference declares no new-publication standard
-  error or selection event; explicit unadjusted
+  location effect. With `bias_adjusted = FALSE`, the pooled PET/PEESE
+  offset averages over all fitted rows, with zero offset for each exempt
+  row. This reference declares no new-publication standard error or
+  selection event; explicit unadjusted
   [`predict()`](https://rdrr.io/r/stats/predict.html) rows instead
   target a selected new publication. Selection-model weighting affects
   response predictions, not this fixed-location posterior summary.

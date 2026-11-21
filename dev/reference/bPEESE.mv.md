@@ -14,6 +14,7 @@ bPEESE.mv(
   mods,
   scale,
   random,
+  bias_exempt,
   R = NULL,
   Rscale = "cor",
   data,
@@ -117,6 +118,17 @@ bPEESE.mv(
   heterogeneity term. Known sampling covariance `V` remains unchanged.
   Declare `random` before supplying heterogeneity priors or scale
   formulas.
+
+- bias_exempt:
+
+  an optional logical vector with one value per original outcome row. A
+  `TRUE` row stays in the analysis with zero PET/PEESE offset. Under
+  product selection, its weight is one. Under best-p-value selection,
+  only nonexempt outcomes compete to determine the publication's weight.
+  A fully exempt publication has weight one. An exempt outcome can still
+  be associated with selection through its correlation with a nonexempt
+  outcome. Omission is equivalent to all `FALSE`. The indicator must be
+  nonmissing on rows retained for analysis.
 
 - R:
 
