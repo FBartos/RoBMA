@@ -17,6 +17,13 @@ selected mixture prior or allocation gate on the original fit. For a random
 SD, use the same declared indicator ownership as the model summaries and
 exported draws. The derived-draw view is for value diagnostics.
 
+`plot_models()` indexes occupied full models from the indicators used by
+`summary_models(type = "individual")` before selecting displayed rows.
+Factor levels share the term's inclusion indicator and their signs use the
+median after converting each draw to its displayed coefficient. Mixture views
+retain the declared member order and include null members in categorical and
+individual displays. BayesTools renders the resulting probabilities and cells.
+
 Do not introduce this layering for a trivial plot that has only one backend, and
 do not force unrelated plot families into one abstraction.
 
