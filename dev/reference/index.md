@@ -71,6 +71,8 @@
   : Empty Prior
 - [`prior_factor()`](https://fbartos.github.io/RoBMA/dev/reference/prior_factor.md)
   : Factor Prior
+- [`prior_regularized()`](https://fbartos.github.io/RoBMA/dev/reference/prior_regularized.md)
+  : Regularized Regression Priors
 - [`prior_ordered()`](https://fbartos.github.io/RoBMA/dev/reference/prior_ordered.md)
   : Ordered Factor Prior
 - [`prior_informed()`](https://fbartos.github.io/RoBMA/dev/reference/prior_informed.md)

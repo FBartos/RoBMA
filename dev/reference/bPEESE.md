@@ -167,11 +167,25 @@ bPEESE(
 
   prior distribution for the moderators (\\\beta\\) parameters. A single
   prior applies to all terms; a named list can specify term-specific
-  priors. If omitted or `NULL`, default priors are used. This argument
-  can be specified only when `mods` is specified. A formula without an
-  intercept (`~ 0 + x`) fixes the location intercept at zero, so an
-  `intercept` entry of the list is accepted only as a point prior at
-  zero; any other `intercept` prior stops with an error of class
+  priors. A named
+  [`prior_regularized()`](https://fbartos.github.io/RoBMA/dev/reference/prior_regularized.md)
+  group, such as
+  `list(shrinkage = prior_regularized("horseshoe", scale = global))`,
+  shares a positive prior `global` on the shrinkage scale across
+  otherwise unassigned slopes. Use `terms` to select slopes or give
+  separate groups to learn separate scales. Treatment and independent
+  contrasts shrink individual coefficients. Mean-difference and
+  orthonormal contrasts shrink the centered factor contrasts jointly.
+  For a factor main effect, the group uses
+  `set_contrast_factor_predictors` unless its `contrast` is specified.
+  Interaction terms use their factors' fitted codings. If a group
+  supplies only the interaction, its explicit contrast must match each
+  constituent fitted with contrasts. Omit `contrast` to inherit a mixed
+  design. Omitting `prior_mods` or setting it to `NULL` uses the default
+  priors. This argument requires `mods`. A formula without an intercept
+  (`~ 0 + x`) fixes the location intercept at zero, so an `intercept`
+  entry of the list is accepted only as a point prior at zero; any other
+  `intercept` prior stops with an error of class
   `RoBMA_prior_intercept_conflict` (also of class `RoBMA_prior_error`).
   A named `intercept` entry supplies the complete intercept prior.
   Explicit competing global effect declarations are refused when this
@@ -183,12 +197,14 @@ bPEESE(
   prior distribution for the scale (\\\delta\\) parameters. A single
   prior applies to all terms; a named list can specify term-specific
   priors. If omitted or `NULL`, default priors are used. This argument
-  can be specified only when `scale` is specified. A named `intercept`
-  entry supplies the complete positive SD prior used by
-  `log(intercept)`. Global heterogeneity declarations remain meaningful
-  when they supply another random root or its model-inclusion weights;
-  declarations fully replaced without a consumer raise
-  `RoBMA_prior_intercept_conflict`.
+  can be specified only when `scale` is specified. Named
+  [`prior_regularized()`](https://fbartos.github.io/RoBMA/dev/reference/prior_regularized.md)
+  groups apply to the log-scale slopes in the same way as in
+  `prior_mods`. A named `intercept` entry supplies the complete positive
+  SD prior used by `log(intercept)`. Global heterogeneity declarations
+  remain meaningful when they supply another random root or its
+  model-inclusion weights; declarations fully replaced without a
+  consumer raise `RoBMA_prior_intercept_conflict`.
 
 - prior_heterogeneity_allocation:
 

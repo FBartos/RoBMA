@@ -15,7 +15,7 @@ methods are not available for GLMM outcomes."><meta name="robots" content="noind
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9007</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9008</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -273,7 +273,15 @@ A named alternative <code>intercept</code> must be a single simple or point prio
 the complete intercept prior and replaces the global effect mixture. Specify
 it in one place: null-list intercepts and explicit global effect declarations
 left without a consumer are refused. Ordinary term entries replace only their
-alternative component.</p></dd>
+alternative component. A named <code><a href="prior_regularized.html">prior_regularized()</a></code> group shares its
+shrinkage scale across the selected moderator alternatives. The terms keep
+their individual null components and inclusion weights. The default
+mean-difference coding regularizes the factor's centered contrasts jointly
+and uses one inclusion indicator for the entire term. Set the group's
+<code>contrast</code> to choose the coding of a factor main effect. Interactions use
+their factors' fitted codings. If the group supplies only the interaction,
+an explicit contrast must match each constituent fitted with contrasts.
+Omit <code>contrast</code> to inherit a mixed design.</p></dd>
 
 
 <dt id="arg-prior-scale">prior_scale<a class="anchor" aria-label="anchor" href="#arg-prior-scale"></a></dt>
@@ -284,7 +292,8 @@ is specified. A named alternative <code>intercept</code> must be a single positi
 simple or point prior; it is the complete SD prior used by <code>log(intercept)</code>.
 Global heterogeneity declarations remain meaningful when they supply another
 random root or its inclusion weights; declarations replaced without a
-consumer are refused. Null-list intercept declarations are unavailable.</p></dd>
+consumer are refused. Null-list intercept declarations are unavailable.
+Use a named <code><a href="prior_regularized.html">prior_regularized()</a></code> group to shrink selected log-scale slopes.</p></dd>
 
 
 <dt id="arg-prior-heterogeneity-allocation">prior_heterogeneity_allocation<a class="anchor" aria-label="anchor" href="#arg-prior-heterogeneity-allocation"></a></dt>

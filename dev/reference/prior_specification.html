@@ -35,7 +35,7 @@ support is an error.'><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9007</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9008</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -131,8 +131,19 @@ complete <code><a href="prior_random.html">prior_random</a></code> object; see
 <dt id="arg-prior-mods">prior_mods<a class="anchor" aria-label="anchor" href="#arg-prior-mods"></a></dt>
 <dd><p>prior distribution for the moderators (\(\beta\)) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or <code>NULL</code>, default priors are used. This argument can be
-specified only when <code>mods</code> is specified. A formula without an intercept
+priors. A named <code><a href="prior_regularized.html">prior_regularized()</a></code> group, such as
+<code>list(shrinkage = prior_regularized("horseshoe", scale = global))</code>, shares
+a positive prior <code>global</code> on the shrinkage scale across otherwise
+unassigned slopes. Use <code>terms</code> to select slopes or give separate groups to
+learn separate scales. Treatment and independent contrasts shrink individual
+coefficients. Mean-difference and orthonormal contrasts shrink the centered
+factor contrasts jointly. For a factor main effect, the group uses
+<code>set_contrast_factor_predictors</code> unless its <code>contrast</code> is specified.
+Interaction terms use their factors' fitted codings. If a group supplies
+only the interaction, its explicit contrast must match each constituent
+fitted with contrasts. Omit <code>contrast</code> to inherit a mixed design.
+Omitting <code>prior_mods</code> or setting it
+to <code>NULL</code> uses the default priors. This argument requires <code>mods</code>. A formula without an intercept
 (<code>~ 0 + x</code>) fixes the location intercept at zero, so an <code>intercept</code> entry of
 the list is accepted only as a point prior at zero; any other <code>intercept</code>
 prior stops with an error of class <code>RoBMA_prior_intercept_conflict</code> (also of
@@ -147,7 +158,8 @@ complete prior in one place.</p></dd>
 <dd><p>prior distribution for the scale (\(\delta\)) parameters.
 A single prior applies to all terms; a named list can specify term-specific
 priors. If omitted or <code>NULL</code>, default priors are used. This argument can be
-specified only when <code>scale</code> is specified.
+specified only when <code>scale</code> is specified. Named <code><a href="prior_regularized.html">prior_regularized()</a></code>
+groups apply to the log-scale slopes in the same way as in <code>prior_mods</code>.
 A named <code>intercept</code> entry supplies the complete positive SD prior used by
 <code>log(intercept)</code>. Global heterogeneity declarations remain meaningful when
 they supply another random root or its model-inclusion weights; declarations

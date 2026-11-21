@@ -195,7 +195,17 @@ BMA.mv(
   the global effect mixture. Specify it in one place: null-list
   intercepts and explicit global effect declarations left without a
   consumer are refused. Ordinary term entries replace only their
-  alternative component.
+  alternative component. A named
+  [`prior_regularized()`](https://fbartos.github.io/RoBMA/dev/reference/prior_regularized.md)
+  group shares its shrinkage scale across the selected moderator
+  alternatives. The terms keep their individual null components and
+  inclusion weights. The default mean-difference coding regularizes the
+  factor's centered contrasts jointly and uses one inclusion indicator
+  for the entire term. Set the group's `contrast` to choose the coding
+  of a factor main effect. Interactions use their factors' fitted
+  codings. If the group supplies only the interaction, an explicit
+  contrast must match each constituent fitted with contrasts. Omit
+  `contrast` to inherit a mixed design.
 
 - prior_scale:
 
@@ -207,7 +217,9 @@ BMA.mv(
   `log(intercept)`. Global heterogeneity declarations remain meaningful
   when they supply another random root or its inclusion weights;
   declarations replaced without a consumer are refused. Null-list
-  intercept declarations are unavailable.
+  intercept declarations are unavailable. Use a named
+  [`prior_regularized()`](https://fbartos.github.io/RoBMA/dev/reference/prior_regularized.md)
+  group to shrink selected log-scale slopes.
 
 - prior_effect_null:
 
