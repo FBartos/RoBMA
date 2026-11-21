@@ -1,20 +1,22 @@
-.sampling_selection_evidence_fixture <- function(estimate = "integrate", yi = c(.4, -.2)) {
+.sampling_selection_evidence_fixture <- function(estimate = "integrate", yi = c(.4, -.2),
+                                                units = 1, rule = "product") {
 
-  dat <- data.frame(yi = yi, sei = c(.8, 1.1), paper = c("a", "a"))
+  dat <- data.frame(yi = units * yi, sei = units * c(.8, 1.1), paper = c("a", "a"))
   object <- bselmodel(
     yi = yi, sei = sei, data = dat, measure = "GEN", effect_direction = "positive",
-    prior_unit_information_sd = 1, only_priors = TRUE,
-    prior_effect = BayesTools::prior("normal", list(0, 1)),
-    prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
+    prior_unit_information_sd = units, only_priors = TRUE,
+    prior_effect = BayesTools::prior("normal", list(0, units)),
+    prior_heterogeneity = BayesTools::prior("normal", list(0, units), truncation = list(lower = 0)),
     prior_bias = BayesTools::prior_weightfunction(
       "one-sided", .5, BayesTools::wf_fixed(c(1, .2)),
       model = BayesTools::selection_model(estimate_random_effects = estimate,
-        known_sampling_variance = "condition", group = "paper")
+        known_sampling_variance = "condition", weight_rule = rule, group = "paper")
     ),
     selection_control = set_selection_likelihood_control(relative_tolerance = 1e-6)
   )
   samples <- rbind(c(.2, .4, .5, -1, .3, -.4), c(-.1, .7, -.2, .6, -.5, .2))
   colnames(samples) <- c("mu", "tau", paste0("theta[", 1:2, "]"), paste0("sampling_z[", 1:2, "]"))
+  samples[, c("mu", "tau")] <- units * samples[, c("mu", "tau")]
   context <- .iwmde_context_ensure_caches(structure(list(
     object = object, data = object$data, priors = object$priors, posterior_samples = samples,
     flat_prior_list = .create_fit_priors(object$data, object$priors), formula_fit = object$fit,
@@ -69,6 +71,20 @@ test_that("sampling-conditioned joint evidence replays Gaussian augmentation at 
 })
 
 
+test_that("changing GEN units preserves the conditioned selection model", {
+
+  score <- function(units) {
+    fixture <- .sampling_selection_evidence_fixture(yi = c(0, -.2), units = units)
+    object <- fixture$object
+    setup <- .log_lik_posterior_setup(object$fit, fixture$samples, object$data, object$priors,
+                                      "estimate", NULL)
+    state <- .selection_conditioned_sampling_state(setup)
+    list(log_lik = state$log_lik + nrow(fixture$dat) * log(units), log_mass = state$log_normalizer)
+  }
+  reference <- score(1)
+  for (units in c(1e-4, 1e4)) expect_equal(score(units), reference, tolerance = 1e-12)
+})
+
 test_that("joint scoring and scalar bridge replay report the same unresolved cutoff", {
 
   fixture <- .sampling_selection_evidence_fixture(yi = c(0, -.2))
@@ -90,6 +106,15 @@ test_that("joint scoring and scalar bridge replay report the same unresolved cut
     model_data = object$data, bridge_context = list(nodes = samples[1L, ]),
     selection_fit = object$fit, selection_priors = object$priors, sampling_conditioned_plan = plan),
     conditionMessage(err), fixed = TRUE)
+
+  # With both estimates in one best-rule publication, estimate and group
+  # deletion both require the full-data retained context.
+  best <- .sampling_selection_evidence_fixture(yi = c(0, -.2), rule = "best")$object
+  joint <- .log_lik_posterior_setup(best$fit, samples, best$data, best$priors, "estimate", NULL)
+  expect_error(.selection_conditioned_sampling_estimate_targets(joint, "log_density"),
+               "integrated SD", fixed = TRUE)
+  expect_error(.selection_conditioned_sampling_deletion_loglik(joint, list(1:2)),
+               "integrated SD", fixed = TRUE)
 })
 
 test_that("sampling-conditioned row deletion integrates the deleted sampling error", {

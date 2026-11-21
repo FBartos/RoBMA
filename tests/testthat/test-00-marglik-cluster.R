@@ -164,12 +164,16 @@ test_that("cluster bridge likelihood honors zero powers and row-specific loading
 test_that("the bridge callback marginalizes the cluster effect without cancellation", {
 
   point  <- function(value) BayesTools::prior("point", list(value))
-  object <- brma(yi = c(1, 1), sei = c(1e-8, 1e-8), cluster = c("a", "a"),
+  # Express all outcome scales in GEN units with an admitted SE. The
+  # sampling-to-heterogeneity ratio, and hence the cancellation, is unchanged.
+  unit_multiplier <- 128
+  object <- brma(yi = rep(unit_multiplier, 2), sei = rep(unit_multiplier * 1e-8, 2),
+    cluster = c("a", "a"),
     measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE,
-    prior_effect = point(0), prior_heterogeneity = point(1),
+    prior_effect = point(0), prior_heterogeneity = point(unit_multiplier),
     prior_heterogeneity_allocation = point(1))
   callback <- .log_posterior(
-    parameters = list(mu = 0, tau = 1, rho = 1),
+    parameters = list(mu = 0, tau = unit_multiplier, rho = 1),
     data = .create_fit_data(object$data, object$priors),
     is_scale = FALSE, is_multilevel = TRUE, is_weights = FALSE,
     is_known_v = FALSE, is_PET = FALSE, is_PEESE = FALSE,
@@ -178,5 +182,6 @@ test_that("the bridge callback marginalizes the cluster effect without cancellat
   )
   d <- 1e-16
   expect_equal(callback,
-    -log(2 * pi) - (log(d) + log(2 + d)) / 2 - 1 / (2 + d), tolerance = 1e-14)
+    -log(2 * pi) - (log(d) + log(2 + d)) / 2 - 1 / (2 + d) - 2 * log(unit_multiplier),
+    tolerance = 1e-14)
 })

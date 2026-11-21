@@ -335,6 +335,15 @@ test_that("conditioned selection refuses unresolved positive variation at a chan
   }
   for (rule in 1:2)
     expect_true(is.finite(evaluate(1e-20, .1, rule = rule, fixed_winner = TRUE)))
+
+  # Pin both sides of the SD ratio and the distance band. The reconstruction
+  # scale at these nearby inputs differs from the zero-SD tie only by O(1e-9).
+  delta <- drop(solve(V + diag(c(0, .25)), c(0, -.0625) - c(.3, 0) - c(1, .5) - c(0, .25)))
+  magnitude <- .3 + 1 + sum(abs(V[1L, ] * delta))
+  expect_error(evaluate(.9e-12 * magnitude), "integrated SD")
+  expect_true(is.finite(evaluate(1.1e-12 * magnitude)))
+  expect_error(evaluate(1e-20, y1 = .9e-10 * magnitude), "integrated SD")
+  expect_true(is.finite(evaluate(1e-20, y1 = 1.1e-10 * magnitude)))
 })
 
 test_that("whole-sampling likelihoods use relative nonmonotone selection weights", {

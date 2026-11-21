@@ -166,7 +166,8 @@ that admit exactly zero sampling variance retain that boundary.
 An out-of-range observation raises \code{RoBMA_data_outside_numerical_domain}
 (a \code{RoBMA_data_error}) with the original row, quantity and value.
 For general effects, change units consistently for estimates, SEs,
-covariances and outcome-scale priors. For named measures, verify the
+covariances, outcome-scale priors and any supplied \code{prior_unit_information_sd}.
+For named measures, verify the
 measure, transformation and sampling uncertainty. These are practical
 input limits. Priors retain their specified support.
 }

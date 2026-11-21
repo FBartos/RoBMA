@@ -117,11 +117,15 @@ test_that("block-MVN fitting preflight checks the actual fixed integrated covari
       prior_heterogeneity = BayesTools::prior_random(sd = BayesTools::prior("point", list(sd))),
       measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
   }
-  message <- .covariance_cholesky_unavailable_message(
-    "Known-V block-MVN covariance at retained rows {1, 2}")
-  expect_error(fit(), message, fixed = TRUE)
-  expect_error(fit(0), message, fixed = TRUE)
-  rescued <- fit(.2)
+  # The marginal sampling SE is an input, independently of any added
+  # heterogeneity. Even a positive fixed random SD cannot admit this V.
+  expect_error(fit(), class = "RoBMA_data_outside_numerical_domain")
+  expect_error(fit(0), class = "RoBMA_data_outside_numerical_domain")
+  expect_error(fit(.2), class = "RoBMA_data_outside_numerical_domain")
+  # With supported marginal SEs, a fixed random source can still complete
+  # a singular sampling covariance.
+  covariance <- matrix(.04, 2L, 2L)
+  expect_warning(rescued <- fit(.2), "rank-deficient correlation", fixed = TRUE)
   expect_s3_class(rescued, "brma.mv")
   expect_equal(.brma_mv_fixed_integrated_variance(rescued, 2L), rep(.2^2, 2L), tolerance = 0)
   expect_true(.known_v_is_numerically_positive_definite(covariance + diag(.2^2, 2L)))

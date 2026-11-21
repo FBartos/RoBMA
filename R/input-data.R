@@ -19,7 +19,8 @@
 #' An out-of-range observation raises `RoBMA_data_outside_numerical_domain`
 #' (a `RoBMA_data_error`) with the original row, quantity and value.
 #' For general effects, change units consistently for estimates, SEs,
-#' covariances and outcome-scale priors. For named measures, verify the
+#' covariances, outcome-scale priors and any supplied `prior_unit_information_sd`.
+#' For named measures, verify the
 #' measure, transformation and sampling uncertainty. These are practical
 #' input limits. Priors retain their specified support.
 #'
@@ -696,7 +697,8 @@ NULL
   value <- if (effect) yi[[i]] else sei[[i]]
   lower <- if (effect) -maximum else minimum_se
   remedy <- if (measure == "GEN") {
-    "Rescale the effects and their SEs, covariances, and outcome-scale priors consistently."
+    paste("Rescale the effects, SEs, covariances, outcome-scale priors,",
+          "and any supplied 'prior_unit_information_sd' consistently.")
   } else {
     "Check the effect measure, its analysis scale, and the sampling uncertainty."
   }

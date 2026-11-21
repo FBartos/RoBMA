@@ -52,7 +52,9 @@ known-\code{V} \code{brma.mv()} response prediction, explicit
 \code{newdata} also requires sampling covariance through \code{V_new}. Product-only
 selection models require no publication-group column. Unadjusted normal
 selected latent predictions (\code{type = "estimate"}) require \code{sei}
-or \code{vi} in explicit \code{newdata}. If an active
+or \code{vi} in explicit \code{newdata}. Gaussian sampling SEs used in
+prediction follow the ranges in \code{\link{data_input}}. Exactly zero
+sampling SE is allowed where the prediction admits it. If an active
 selection branch uses \code{weight_rule = "best"}, its publication groups
 must also be resolvable in the prediction data.
 Fitted-row predictions reuse their publication-bias exemptions. For

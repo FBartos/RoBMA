@@ -119,6 +119,12 @@ on the z scale. In sampling-conditioned likelihoods, a row with zero
 integrated diagonal and zero integrated loadings takes its observed value
 exactly when that outcome is given. During deletion, a proposed outcome or
 sampling error still varies under its conditional law.
+For a positive integrated row SD below 1e-12 times the sum of absolute
+reconstruction terms, the full-data likelihood refuses locations within
+1e-10 times that sum of a changing cutoff in outcome units. Exempt rows,
+constant steps and cuts already won by a fixed publication member do not
+trigger the check. JAGS, the post-fit state and bridge replay report a
+calculation error. Preserve the positive source and its prior support.
 Both rules omit exempt outcomes from the publication event. Product uses only
 eligible factors; best takes the smallest eligible p-value in each publication.
 An empty event has weight and normalizer one. Preserve the Gaussian density
