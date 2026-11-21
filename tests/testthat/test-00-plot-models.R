@@ -125,20 +125,24 @@ test_that("mixture rows use declared members and publication-bias colors are sco
 })
 
 
-test_that("directional colors use original-scale factor coefficients with centered interactions", {
+test_that("directional colors retain the fitted predictor scale with centered interactions", {
 
   replay <- .plot_models_replay(interaction = TRUE)
   fit <- replay[["fit"]]
   data <- .plot_models_data(fit, c("g[b]", "mu"))
   group_b <- data[["cells"]][data[["cells"]][["row"]] == "mu_g[b]", ]
-  # The fitted treatment draws are 1 and -1 in the model with bias and
-  # median zero. Expanding the centered x:g term subtracts a positive
-  # contribution from each before computing the original-scale median.
+  # Uncentering would subtract the same positive interaction contribution
+  # from both treatment draws and a positive slope contribution from both
+  # intercept draws. The plot uses the fitted gate and its parameterization.
   joint <- .plot_models_joint(.summary_models_components(fit), replay[["samples"]])
   selected <- which(vapply(joint[["draws"]], function(rows) 2L %in% rows, logical(1)))
-  expect_identical(group_b[["state"]][[selected]], "negative")
+  x <- rep(1:3, each = 3)
+  offset <- mean(x) / stats::sd(x)
+  expect_lt(stats::median(c(1, -1) - 5 * offset), 0)
+  expect_identical(group_b[["state"]][[selected]], "included")
   effect <- data[["cells"]][data[["cells"]][["row"]] == "mu", ]
-  expect_identical(effect[["state"]][[selected]], "negative")
+  expect_lt(stats::median(c(.4, .6) - offset), 0)
+  expect_identical(effect[["state"]][[selected]], "positive")
   excluded <- which(vapply(joint[["draws"]], function(rows) 3L %in% rows, logical(1)))
   expect_identical(effect[["state"]][[excluded]], "excluded")
 })

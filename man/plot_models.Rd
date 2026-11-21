@@ -83,10 +83,11 @@ Ungated coefficients can appear alongside the model components.
 Inclusion uses the null or alternative assignment of the active prior
 member, or the fitted inclusion gate. In the inclusion view, directional
 colors indicate the sign of the posterior median within that full model on
-the original predictor scale, as in \code{\link[=summary.brma]{summary.brma()}}. A median of zero is
-neutral. Heterogeneity, publication bias, random-effect gates, and whole
-factors use neutral inclusion colors. Factor level rows share the factor's
-inclusion gate.
+the fitted predictor scale. If the predictors were centered or standardized
+during fitting, intercept and moderator directions refer to that
+parameterization. Heterogeneity, publication bias, random-effect gates,
+whole factors, and coefficients with a median of zero use neutral inclusion
+colors. Factor level rows share the factor's inclusion gate.
 Treatment contrasts show coefficients relative to the reference level and
 omit the reference row. Mean-difference and orthonormal contrasts show
 deviations from the equally weighted mean of the factor levels.
