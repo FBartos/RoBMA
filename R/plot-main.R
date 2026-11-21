@@ -543,8 +543,11 @@ lines.brma <- function(
   args$n_samples                <- 10000
   args$force_samples            <- FALSE
   args$dots_prior               <- dots_prior
-  # PET/PEESE and omega use BayesTools' individual coefficient displays.
-  args$individual               <- individual || !inherits(samples[[sample_parameter]], "mixed_posteriors.factor")
+  # Here omega, PET and PEESE always plot coefficient densities. Their full curves
+  # belong to plot_weightfunction() and plot_pet_peese(), which pass individual = FALSE.
+  # Only a whole factor uses the caller's choice between an overlay and separate figures.
+  args$individual               <- parameter %in% c("omega", "PET", "PEESE") ||
+    (individual && inherits(samples[[sample_parameter]], "mixed_posteriors.factor"))
   args$level                    <- level
   args$show_figures             <- NULL
   args$add                      <- add
