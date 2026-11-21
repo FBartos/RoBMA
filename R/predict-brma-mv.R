@@ -7,7 +7,7 @@
 # ============================================================================ #
 
 
-.predict_known_v_newdata_add_vi <- function(newdata, V_new) {
+.predict_known_v_newdata_add_vi <- function(newdata, V_new, measure) {
 
   diag_v <- as.numeric(V_new)
   if ("vi" %in% names(newdata)) {
@@ -25,6 +25,12 @@
     )
   }
 
+  # Check supplied scales before replacing them with the validated V_new diagonal.
+  if (any(c("vi", "sei") %in% names(newdata))) {
+    .retained_sampling_se(list(vi = newdata[["vi"]], sei = newdata[["sei"]]),
+                          seq_along(diag_v), numeric(length(diag_v)), measure,
+                          multivariate = FALSE, allow_zero = TRUE)
+  }
   newdata[["vi"]] <- diag_v
   newdata[["sei"]] <- sqrt(diag_v)
 

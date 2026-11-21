@@ -163,6 +163,10 @@ sampling standard error can be at most 1,000 for named effect measures and
 the log scale for ratio measures, and use the marginal SE for covariance
 input. Zero and arbitrarily small effect estimates are valid. Predictions
 that admit exactly zero sampling variance retain that boundary.
+When both \code{vi} and \code{sei} are supplied, each retained value must meet
+its own bounds (squared SE limits for \code{vi}). Where both are present
+they must agree to double precision. The analysis uses the supplied
+variance, completing missing variances from the supplied SEs.
 An out-of-range finite value raises \code{RoBMA_data_outside_numerical_domain}
 (a \code{RoBMA_data_error}) with the original row, quantity and value.
 For general effects, change units consistently for estimates, SEs,

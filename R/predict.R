@@ -504,7 +504,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     )
     newdata <- .predict_known_v_newdata_add_vi(
       newdata = newdata_frame,
-      V_new   = .known_v_diagonal(known_V_new)
+      V_new   = .known_v_diagonal(known_V_new),
+      measure = .measure(object)
     )
   }
 

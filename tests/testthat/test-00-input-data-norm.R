@@ -172,14 +172,56 @@ test_that("normal input requires representable and consistent sampling variances
   expect_error(
     brma.norm(
       yi        = 0,
-      vi        = 1e-300,
-      sei       = 1e-150 * (1 + 1e-10),
+      vi        = .04,
+      sei       = .2 * (1 + 1e-10),
       only_data = TRUE
     ),
     "inconsistent"
   )
 })
 
+
+test_that("paired variance and SE inputs share retained-row bounds and canonical variance", {
+
+  # Exact binary increments exercise both sides of the consistency tolerance.
+  for (constructor in list(brma.norm, brma.mv)) {
+    for (measure in c("SMD", "GEN")) {
+      upper <- if (measure == "SMD") 1000 else 1e9
+      step <- if (measure == "SMD") 2^-43 else 2^-23
+      fit <- function(vi, sei) constructor(yi = 0, vi = vi, sei = sei,
+                                          measure = measure, only_data = TRUE)
+      for (pair in list(c(1e-6, 1e-6 - 2^-72), c(upper, upper + step))) {
+        valid <- pair[1L]
+        outside <- pair[2L]
+        expect_identical(fit(valid^2, valid)$data$outcome$sei, valid)
+        ev <- tryCatch(fit(outside^2, valid), RoBMA_data_error = identity)
+        es <- tryCatch(fit(valid^2, outside), RoBMA_data_error = identity)
+        expect_identical(ev$quantity, "vi")
+        expect_identical(ev$value, outside^2)
+        expect_identical(es$quantity, "sei")
+        expect_identical(es$value, outside)
+      }
+      # The invalid variance can round back onto the SE boundary after sqrt().
+      bad_vi <- upper^2 + if (measure == "SMD") 2^-33 else 128
+      expect_error(fit(bad_vi, upper), class = "RoBMA_data_outside_numerical_domain")
+      expect_identical(fit(1, 1 + .Machine$double.eps)$data$outcome$sei, 1)
+      expect_error(fit(Inf, 1), "finite")
+      expect_error(fit(1, Inf), "finite")
+    }
+
+    dat <- data.frame(y = c(0, NA, .1, .2), v = c(Inf, -1, .04, NA),
+                      se = c(1, -1, NA, .3))
+    expect_warning(model <- constructor(yi = y, vi = v, sei = se, data = dat, subset = 2:4,
+      measure = "SMD", only_data = TRUE), "1 observation(s) removed", fixed = TRUE)
+    expect_equal(model$data$outcome$sei, c(.2, .3), tolerance = 0)
+    dat$v[4] <- (1000 + 2^-43)^2
+    dat$se[4] <- 1000
+    expect_warning(err <- tryCatch(constructor(yi = y, vi = v, sei = se, data = dat, subset = 2:4,
+      measure = "SMD", only_data = TRUE), RoBMA_data_error = identity), "1 observation(s) removed", fixed = TRUE)
+    expect_identical(err$row, 4L)
+    expect_identical(err$quantity, "vi")
+  }
+})
 
 test_that("retained Gaussian effects and marginal standard errors use the public data domain", {
 

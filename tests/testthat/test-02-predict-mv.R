@@ -264,12 +264,16 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
   )
 
   actual <- .predict_known_v_newdata_add_vi(
-    newdata = data.frame(sei = c(1e-150, 1e150)),
-    V_new   = c(1e-300, 1e300)
+    newdata = data.frame(sei = c(1e-6, 1e9)),
+    V_new   = c(1e-12, 1e18),
+    measure = "GEN"
   )
-  expect_identical(actual[["vi"]], c(1e-300, 1e300))
-  # Not the literals 1e-150 and 1e150: R parses those in the precision of long double.
-  expect_identical(actual[["sei"]], sqrt(c(1e-300, 1e300)))
+  expect_identical(actual[["vi"]], c(1e-12, 1e18))
+  expect_identical(actual[["sei"]], sqrt(c(1e-12, 1e18)))
+  expect_error(.predict_known_v_newdata_add_vi(data.frame(vi = 1000^2, sei = 1000 + 2^-43),
+    V_new = 1000^2, measure = "SMD"), class = "RoBMA_data_outside_numerical_domain")
+  expect_error(.predict_known_v_newdata_add_vi(data.frame(vi = 1000^2 + 2^-33, sei = 1000),
+    V_new = 1000^2, measure = "SMD"), class = "RoBMA_data_outside_numerical_domain")
 
   expect_error(
     .predict_known_v_newdata_add_vi(
@@ -277,7 +281,7 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
         vi  = c(.04, .05),
         sei = c(.20, .30)
       ),
-      V_new = c(.04, .05)
+      V_new = c(.04, .05), measure = "GEN"
     ),
     "must match diag\\(V_new\\)"
   )
