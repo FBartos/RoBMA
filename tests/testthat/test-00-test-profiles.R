@@ -601,7 +601,7 @@ test_that("certification case verification filters select their intended files",
         "adaptive", "api", "bound-rows", "chen-boundary-preflight",
         "fallbacks", "fast-paths", "glmm-local", "known-v-tau-fast-path",
         "normal-predictor-grid", "oracles", "provenance", "qcmde-normalization",
-        "scalar-baseline",
+        "regularized", "scalar-baseline",
         "selection-predictor-route", "target-weights"
       )),
       "02-marginal_means", "02-random-parameters", "03-bridgesampling",

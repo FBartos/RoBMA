@@ -92,6 +92,14 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     bselmodel    = list(constructor = RoBMA::bselmodel, n_gates = 0L,
                         args = list(yi = quote(yi), vi = quote(vi), data = dat),
                         blocks = c("mu", "tau", "omega")),
+    # shrinkage coefficients join the block; their global, slab and local
+    # scales keep the samplers JAGS assigns
+    bselmodel_shrinkage = list(
+      constructor = RoBMA::bselmodel, n_gates = 0L,
+      args = list(yi = quote(yi), vi = quote(vi), mods = ~ year + deltype, data = dat,
+                  prior_mods = list(pool = RoBMA::prior_regularized(
+                    "horseshoe", RoBMA::prior("cauchy", list(0, .2), list(0, Inf)), slab_scale = 1))),
+      blocks = c("mu_intercept", "mu_year", "mu_deltype", "tau", "omega")),
     bselmodel.mv = list(constructor = RoBMA::bselmodel.mv, n_gates = 0L,
                         args = list(yi = quote(yi), V = V, random = ~ 1 | study / esid, data = dat),
                         blocks = c("mu_intercept", allocation, "omega")),
@@ -113,7 +121,17 @@ test_that("declared nodes get the BayesTools samplers and the others keep theirs
     gates <- attr(on[["fit"]], "sampler_declarations", exact = TRUE)[["gates"]]
     expect_true(all(gates[["prior"]] == "bias"), info = name)
     expect_true(all(grepl("^equals\\(bias_indicator, [0-9]+\\)$", gates[["active"]])), info = name)
+    if (name == "bselmodel_shrinkage") shrinkage <- on
   }
+
+  # update() of the shrinkage fit replays its block, and its scales keep
+  # their samplers
+  updated <- suppressWarnings(update(shrinkage, sample_extend = 50L, silent = TRUE))
+  expect_null(updated[["fit"]][["errors"]])
+  expect_identical(nrow(updated[["fit"]][["mcmc"]][[1L]]), 150L)
+  expect_identical(attr(updated[["fit"]], "sampler_declarations", exact = TRUE),
+                   attr(shrinkage[["fit"]], "sampler_declarations", exact = TRUE))
+  expect_identical(updated[["fit"]][["samplers"]], shrinkage[["fit"]][["samplers"]])
 
   # with the corrected selection sampler (the default) the ensemble's allocation
   # block and the single model's block are declared and the corrected block

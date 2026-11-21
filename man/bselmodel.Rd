@@ -127,8 +127,19 @@ complete \code{\link{prior_random}} object; see
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{mods} is specified. A formula without an intercept
+priors. A named \code{\link[=prior_regularized]{prior_regularized()}} group, such as
+\code{list(shrinkage = prior_regularized("horseshoe", scale = global))}, shares
+a positive prior \code{global} on the shrinkage scale across otherwise
+unassigned slopes. Use \code{terms} to select slopes or give separate groups to
+learn separate scales. Treatment and independent contrasts shrink individual
+coefficients. Mean-difference and orthonormal contrasts shrink the centered
+factor contrasts jointly. For a factor main effect, the group uses
+\code{set_contrast_factor_predictors} unless its \code{contrast} is specified.
+Interaction terms use their factors' fitted codings. If a group supplies
+only the interaction, its explicit contrast must match each constituent
+fitted with contrasts. Omit \code{contrast} to inherit a mixed design.
+Omitting \code{prior_mods} or setting it
+to \code{NULL} uses the default priors. This argument requires \code{mods}. A formula without an intercept
 (\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
 the list is accepted only as a point prior at zero; any other \code{intercept}
 prior stops with an error of class \code{RoBMA_prior_intercept_conflict} (also of
@@ -141,7 +152,8 @@ complete prior in one place.}
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
 priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{scale} is specified.
+specified only when \code{scale} is specified. Named \code{\link[=prior_regularized]{prior_regularized()}}
+groups apply to the log-scale slopes in the same way as in \code{prior_mods}.
 A named \code{intercept} entry supplies the complete positive SD prior used by
 \code{log(intercept)}. Global heterogeneity declarations remain meaningful when
 they supply another random root or its model-inclusion weights; declarations
