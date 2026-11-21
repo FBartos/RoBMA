@@ -21,7 +21,9 @@ plot(
   density_method = c("KDE", "qCMDE", "IWMDE"),
   density_control = NULL,
   component = "auto",
-  ...
+  ...,
+  level = NULL,
+  individual = FALSE
 )
 
 # S3 method for class 'brma'
@@ -40,7 +42,8 @@ lines(
   density_method = c("KDE", "qCMDE", "IWMDE"),
   density_control = NULL,
   component = "auto",
-  ...
+  ...,
+  level = NULL
 )
 ```
 
@@ -233,7 +236,12 @@ lines(
   [`brma.mv()`](https://fbartos.github.io/RoBMA/dev/reference/brma.mv.md)
   random formulas. A `parameter_mods` or `parameter_scale` selection
   with another `component` stops with an error of class
-  `RoBMA_component_mismatch`.
+  `RoBMA_component_mismatch`. For study-specific deviations, extract the
+  fitted random-effect block with
+  [`ranef.brma()`](https://fbartos.github.io/RoBMA/dev/reference/ranef.brma.md)
+  and select its named column. With `expand = FALSE`, random intercepts
+  have one column per grouping level and indicator-coded slopes have one
+  per observed group and coefficient combination.
 
 - ...:
 
@@ -248,12 +256,30 @@ lines(
   subsequent base [`lines()`](https://rdrr.io/r/graphics/lines.html)
   calls reuse that probability mapping.
 
+- level:
+
+  optional character vector of fitted level labels for a whole factor
+  term. For example, `plot(fit, "Month", level = "Jul")` draws July's
+  contribution to the whole-factor plot, including its prior when
+  requested. With mean-difference or orthonormal coding this is July's
+  deviation from the grand mean.
+  `lines(other_fit, "Month", level = "Jul")` adds the corresponding
+  posterior from a second fit. Legend relabelling does not change the
+  fitted labels used for selection.
+
+- individual:
+
+  whether [`plot()`](https://rdrr.io/r/graphics/plot.default.html) draws
+  a separate figure for each selected factor level. By default, all
+  selected levels share one figure.
+
 ## Value
 
 `plot.brma` returns either `NULL` if `plot_type = "base"` or a `ggplot2`
-object (a named list of plots for a whole factor term) if
-`plot_type = "ggplot"`. `lines.brma` returns `NULL` for
-`plot_type = "base"` and ggplot2 layer(s) for `plot_type = "ggplot"`.
+object if `plot_type = "ggplot"`. Individual factor ggplots form a list
+named by the fitted level labels, including when one level is selected.
+`lines.brma` returns `NULL` for `plot_type = "base"` and ggplot2
+layer(s) for `plot_type = "ggplot"`.
 
 ## Details
 

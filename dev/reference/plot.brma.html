@@ -9,7 +9,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9011</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -87,7 +87,9 @@
 <span>  density_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"KDE"</span>, <span class="st">"qCMDE"</span>, <span class="st">"IWMDE"</span><span class="op">)</span>,</span>
 <span>  density_control <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  component <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  <span class="va">...</span></span>
+<span>  <span class="va">...</span>,</span>
+<span>  level <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  individual <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'brma'</span></span>
@@ -106,7 +108,8 @@
 <span>  density_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"KDE"</span>, <span class="st">"qCMDE"</span>, <span class="st">"IWMDE"</span><span class="op">)</span>,</span>
 <span>  density_control <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  component <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  <span class="va">...</span></span>
+<span>  <span class="va">...</span>,</span>
+<span>  level <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -297,7 +300,11 @@ disambiguate terms used in multiple model components. The random component
 selects semantic standard deviation, correlation, and allocation parameters
 from <code><a href="brma.mv.html">brma.mv()</a></code> random formulas. A <code>parameter_mods</code> or
 <code>parameter_scale</code> selection with another <code>component</code> stops with
-an error of class <code>RoBMA_component_mismatch</code>.</p></dd>
+an error of class <code>RoBMA_component_mismatch</code>.
+For study-specific deviations, extract the fitted random-effect block with
+<code><a href="ranef.brma.html">ranef.brma()</a></code> and select its named column. With <code>expand = FALSE</code>,
+random intercepts have one column per grouping level and indicator-coded
+slopes have one per observed group and coefficient combination.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -312,12 +319,28 @@ density-axis range, and probability-axis range respectively. Set
 <code>ylim2</code> on the initial <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> call; subsequent base
 <code><a href="https://rdrr.io/r/graphics/lines.html" class="external-link">lines()</a></code> calls reuse that probability mapping.</p></dd>
 
+
+<dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
+<dd><p>optional character vector of fitted level labels for a whole
+factor term. For example, <code>plot(fit, "Month", level = "Jul")</code> draws
+July's contribution to the whole-factor plot, including its prior when
+requested. With mean-difference or orthonormal coding this is July's
+deviation from the grand mean. <code>lines(other_fit, "Month", level = "Jul")</code>
+adds the corresponding posterior from a second fit. Legend relabelling
+does not change the fitted labels used for selection.</p></dd>
+
+
+<dt id="arg-individual">individual<a class="anchor" aria-label="anchor" href="#arg-individual"></a></dt>
+<dd><p>whether <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> draws a separate figure for each
+selected factor level. By default, all selected levels share one figure.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>plot.brma</code> returns either <code>NULL</code> if <code>plot_type = "base"</code>
-or a <code>ggplot2</code> object (a named list of plots for a whole factor term)
-if <code>plot_type = "ggplot"</code>.
+or a <code>ggplot2</code> object if <code>plot_type = "ggplot"</code>. Individual
+factor ggplots form a list named by the fitted level labels, including
+when one level is selected.
 <code>lines.brma</code> returns <code>NULL</code> for <code>plot_type = "base"</code> and
 ggplot2 layer(s) for <code>plot_type = "ggplot"</code>.</p>
     </div>
