@@ -723,7 +723,7 @@ testthat::test_that("BCG Meta-Regression", {
   set.seed(1)
   scenario_plot("fit_reg1_ordered_posterior", {
     plot(fit_reg1_ordered, "alloc_ord",  prior = TRUE, ylim = c(0, 4), xlim = c(-1.5, 1.5))
-    lines(fit_reg1_ordered, "alloc_ord", density_method = "qCMDE", lty = 2, density_control = list(samples = 2000))
+    lines(fit_reg1_ordered, "alloc_ord", density_method = "qCMDE", lty = 2, density_control = list(samples = 4000))
   })
 
   scenario_plot("fit_reg1_ordered_emm", {
