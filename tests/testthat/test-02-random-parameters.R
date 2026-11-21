@@ -373,7 +373,10 @@ test_that("random-effect variances are tested through their standard deviations"
   # the same Bayes factor for the gated SD and its variance.
   value <- 0.06
   for (method in c("KDE", "qCMDE", "IWMDE")) {
-    control <- if (!identical(method, "KDE")) list(n_points = 20L, samples = 50L)
+    # Compare the IWMDE change of variables on its full eligible-row census;
+    # a 50-row subsample can fail the active-mass diagnostic before the test.
+    control <- switch(method, IWMDE = list(n_points = 20L, samples = Inf),
+      qCMDE = list(n_points = 20L, samples = 50L))
     run <- function(statement) {
       suppressWarnings(hypothesis(
         fit, statement, density_method = method, density_control = control,

@@ -1,5 +1,5 @@
                model  method         mu      lower       upper       tau     omega
-1             Normal   RoBMA -0.6892259 -1.0568599 -0.32965804 0.5720449        NA
+1             Normal   RoBMA -0.6900487 -1.0592305 -0.32865457 0.5697989        NA
 2             Normal metafor -0.7111991 -1.0481107 -0.37428757 0.5291769        NA
 3       All eligible   RoBMA -0.5468949 -0.9572228 -0.05285895 0.5887162 0.5759896
 4       All eligible metafor -0.6205647 -1.1327484 -0.10838109 0.5396657 0.6355406

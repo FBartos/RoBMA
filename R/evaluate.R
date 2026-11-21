@@ -47,7 +47,7 @@
     )
   }
 
-  return(suppressWarnings(coda::as.mcmc(fit)))
+  return(coda::as.mcmc(fit))
 }
 
 .point_prior_value <- function(prior) {
@@ -447,7 +447,7 @@
 # - Simple models: extracts tau column and replicates to K columns
 # - Multilevel models: splits tau into within/between components via rho
 #
-# @param fit         runjags fit object containing posterior samples
+# @param fit         BayesTools JAGS fit containing posterior samples
 # @param scale_data  data.frame of scale predictors for formula evaluation
 #                    (NULL if not a scale regression model)
 # @param scale_formula formula object for scale regression (from attr(data$scale, "formula"))
@@ -631,7 +631,7 @@
 # effect_direction = "negative", the JAGS likelihood already uses -mu against
 # internally flipped outcomes, so this helper must not flip mu itself.
 #
-# @param fit              runjags fit object containing posterior samples
+# @param fit              BayesTools JAGS fit containing posterior samples
 # @param outcome_data     data.frame with outcome info (must contain 'sei')
 # @param mods_data        data.frame of moderators for formula evaluation
 #                         (NULL if not a meta-regression model)
@@ -1443,7 +1443,7 @@
 # rather than:
 #   yi - mu
 #
-# @param fit              runjags fit object containing posterior samples
+# @param fit              BayesTools JAGS fit containing posterior samples
 # @param outcome_data     data.frame with outcome info (must contain 'sei')
 # @param is_PET           logical; whether model includes PET adjustment
 # @param is_PEESE         logical; whether model includes PEESE adjustment
@@ -1936,7 +1936,7 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # - Same data: extracts fitted gamma samples from posterior
 # - New data: samples new gamma from N(0, 1) (marginalizes over cluster effects)
 #
-# @param fit              runjags fit object (needed to extract gamma if same_data)
+# @param fit              BayesTools JAGS fit (needed to extract gamma if same_data)
 # @param tau_between      S x K matrix of cluster-level heterogeneity samples
 # @param cluster          integer vector of length K; cluster ID for each observation
 # @param same_data        logical; TRUE if predicting on original data (use fitted gamma)
@@ -2298,7 +2298,7 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # cluster-level contribution (gamma * tau_between) before calling this function.
 # This is handled by .evaluate.brma.cluster_effects() in predict.R.
 #
-# @param fit              runjags fit object (needed to extract theta if same_data = TRUE)
+# @param fit              BayesTools JAGS fit (needed to extract theta if same_data = TRUE)
 # @param mu_samples       S x K matrix of location samples (must include
 #                         gamma * tau_between contribution for multilevel models)
 # @param tau_within       S x K matrix of estimate-level heterogeneity
@@ -2336,7 +2336,7 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # For binomial outcomes, logit(pi[i]) is the midpoint of the two arm logits.
 # The log-odds ratio effect size is applied symmetrically around this midpoint.
 #
-# @param fit              runjags fit object containing posterior samples
+# @param fit              BayesTools JAGS fit containing posterior samples
 # @param K                integer; number of observations
 # @param posterior_samples optional posterior sample matrix; avoids repeated
 #                          coda extraction when supplied by callers.
@@ -2388,7 +2388,7 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # rates. The incidence rate ratio effect size is applied symmetrically around
 # this midpoint.
 #
-# @param fit              runjags fit object containing posterior samples
+# @param fit              BayesTools JAGS fit containing posterior samples
 # @param K                integer; number of observations
 # @param posterior_samples optional posterior sample matrix; avoids repeated
 #                          coda extraction when supplied by callers.
@@ -2475,7 +2475,7 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # theta[i] represents the standardized estimate-level random effect
 # (i.e., theta ~ N(0, 1)). The actual random effect is theta * tau_within.
 #
-# @param fit              runjags fit object (needed to extract theta if same_data)
+# @param fit              BayesTools JAGS fit (needed to extract theta if same_data)
 # @param tau_within       S x K matrix of estimate-level heterogeneity samples
 # @param same_data        logical; TRUE if predicting on original data
 # @param K                integer; number of observations

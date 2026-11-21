@@ -3,12 +3,12 @@ Bayesian Multivariate Mixed-Effect Model (k = 28)
 
 Common Estimates
                                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau_common                    0.713 0.172 0.419 0.697 1.088     0.00337          0.020 2617 1.001
-tau2_mult(group[sensitivity]) 0.977 0.373 0.314 0.963 1.719     0.00748          0.020 2541 1.003
-tau2_mult(group[specificity]) 1.023 0.373 0.281 1.037 1.686     0.00748          0.020 2541 1.003
+tau_common                    0.715 0.180 0.418 0.697 1.118     0.00373          0.021 2319 1.000
+tau2_mult(group[sensitivity]) 0.972 0.377 0.297 0.958 1.722     0.00724          0.019 2723 1.001
+tau2_mult(group[specificity]) 1.028 0.377 0.278 1.042 1.703     0.00724          0.019 2723 1.001
 
 Meta-Regression
                      Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-group[sensitivity] -0.049 0.208 -0.454 -0.055 0.381     0.00484          0.023 1873 1.001
-group[specificity]  2.758 0.250  2.253  2.760 3.245     0.00481          0.019 2700 1.001
+group[sensitivity] -0.043 0.204 -0.438 -0.046 0.366     0.00463          0.023 1932 1.000
+group[specificity]  2.753 0.259  2.215  2.759 3.245     0.00546          0.021 2285 1.001
 

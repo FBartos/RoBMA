@@ -138,7 +138,7 @@ testthat::test_that("Bem simple models", {
   BFs_3PSM_qCMDE  <- scenario_time("BFs_3PSM_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "qCMDE", density_control = list(samples = Inf))))
   BFs_3PSM_normal <- scenario_time("BFs_3PSM_normal",  sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
-  BFs_PET_IWMDE   <- scenario_time("BFs_PET_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "IWMDE")))
+  BFs_PET_IWMDE   <- scenario_time("BFs_PET_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "IWMDE", density_control = list(samples = Inf))))
   BFs_PET_qCMDE   <- scenario_time("BFs_PET_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "qCMDE")))
   BFs_PET_normal  <- scenario_time("BFs_PET_normal",  sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
@@ -158,6 +158,43 @@ testthat::test_that("Bem simple models", {
     row.names = NULL
   ))
 
+  # Direct evidence for the Bem PET model. Gauss-Legendre nodes on (0, 1)
+  # integrate the half-Cauchy(0, 1) slope and half-normal(0, sqrt(1/8)) tau priors.
+  BFs_PET_quadrature <- local({
+    rule <- statmod::gauss.quad.prob(256, dist = "uniform")
+    slope <- qcauchy((1 + rule$nodes) / 2)
+    tau <- qnorm((1 + rule$nodes) / 2, sd = sqrt(1 / 8))
+    y <- Bem2011$d
+    se <- Bem2011$se
+    residuals <- matrix(y, nrow = length(slope), ncol = length(y), byrow = TRUE) - outer(slope, se)
+
+    # Integrating the common normal mean adds its variance to every covariance entry.
+    # A point null has zero prior variance and a fixed mean mu0.
+    evidence <- function(mu0, prior_variance) {
+      conditional <- vapply(tau, function(t) {
+        covariance <- diag(se^2 + t^2) + prior_variance
+        sum(rule$weights * mvtnorm::dmvnorm(residuals - mu0, sigma = covariance))
+      }, numeric(1))
+      sum(rule$weights * conditional)
+    }
+    evidence(0, prior_variance = 1 / 2) / vapply(mu0_seq, evidence, numeric(1), prior_variance = 0)
+  })
+
+  PET_BF10 <- cbind(
+    Quadrature = BFs_PET_quadrature,
+    Bridge     = unlist(BFs_PET_marglik["bf", ]),
+    IWMDE      = unlist(BFs_PET_IWMDE["BF", ]),
+    qCMDE      = unlist(BFs_PET_qCMDE["BF", ]),
+    Normal     = unlist(BFs_PET_normal["BF", ])
+  )
+  scenario_text("mu_BF_PET_uncertainty", {
+    cat("BF10 compares the unrestricted mean with each point null.\n")
+    print(data.frame(mu0 = mu0_seq, PET_BF10,
+                     IWMDE_nominal_error_percent = unlist(BFs_PET_IWMDE["BF_error", ]), row.names = NULL))
+    cat("IWMDE uses all eligible draws. At small tau the fitted Gaussian proposal gives importance weights with infinite variance.\n",
+        "The nominal IWMDE error percentages are unreliable for these Bayes factors.\n", sep = "")
+  })
+
   # compare
   scenario_plot("mu_BF_3PSM_comparison", {
     # Inspect the reported errors, especially for the distant null at -0.25.
@@ -167,10 +204,14 @@ testthat::test_that("Bem simple models", {
     lines(mu0_seq + 0.03, log(unlist(BFs_3PSM_normal[3,])), lty = 4)
   })
   scenario_plot("mu_BF_PET_comparison", {
-    plot(mu0_seq, log(unlist(BFs_PET_marglik[1,])), type = "b", ylab = "logBF")
-    lines(mu0_seq + 0.01, log(unlist(BFs_PET_IWMDE[3,])),  lty = 2)
-    lines(mu0_seq + 0.02, log(unlist(BFs_PET_qCMDE[3,])),  lty = 3)
-    lines(mu0_seq + 0.03, log(unlist(BFs_PET_normal[3,])), lty = 4)
+    log_bf <- log(PET_BF10)
+    limits <- range(log_bf)
+    limits[2] <- limits[2] + 0.2 * diff(limits)
+    cols <- c("black", "grey35", "#D55E00", "#0072B2", "grey55")
+    matplot(mu0_seq, log_bf, type = "b", col = cols, lty = 1:5, pch = c(16, 1:4), xaxt = "n",
+            xlab = expression(mu[0]), ylab = "log BF10", ylim = limits)
+    axis(1, at = mu0_seq)
+    legend("top", legend = colnames(PET_BF10), col = cols, lty = 1:5, pch = c(16, 1:4), horiz = TRUE, bty = "n")
   })
 
 })

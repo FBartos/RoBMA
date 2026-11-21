@@ -48,12 +48,12 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
-<rect x='155.40' y='295.05' width='146.00' height='54.20' style='stroke-width: 0.75; stroke: #B3B3B3; fill: #B3B3B3; fill-opacity: 0.40;' />
-<line x1='155.40' y1='322.19' x2='301.40' y2='322.19' style='stroke-width: 0.75; stroke: #B3B3B3;' />
-<rect x='447.40' y='308.97' width='146.00' height='66.21' style='stroke-width: 0.75; stroke: #B3B3B3; fill: #B3B3B3; fill-opacity: 0.40;' />
-<line x1='447.40' y1='342.68' x2='593.40' y2='342.68' style='stroke-width: 0.75; stroke: #B3B3B3;' />
-<polygon points='224.35,322.19 228.40,318.14 232.45,322.19 228.40,326.24 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='516.35,342.68 520.40,338.63 524.45,342.68 520.40,346.73 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<rect x='155.40' y='301.96' width='146.00' height='47.29' style='stroke-width: 0.75; stroke: #B3B3B3; fill: #B3B3B3; fill-opacity: 0.40;' />
+<line x1='155.40' y1='327.83' x2='301.40' y2='327.83' style='stroke-width: 0.75; stroke: #B3B3B3;' />
+<rect x='447.40' y='313.99' width='146.00' height='60.51' style='stroke-width: 0.75; stroke: #B3B3B3; fill: #B3B3B3; fill-opacity: 0.40;' />
+<line x1='447.40' y1='346.60' x2='593.40' y2='346.60' style='stroke-width: 0.75; stroke: #B3B3B3;' />
+<polygon points='224.35,327.83 228.40,323.78 232.45,327.83 228.40,331.88 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='516.35,346.60 520.40,342.55 524.45,346.60 520.40,350.65 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <circle cx='276.85' cy='303.55' r='1.50' style='stroke-width: 0.75; fill: #A6A6A6;' />
 <circle cx='279.45' cy='294.30' r='1.84' style='stroke-width: 0.75; fill: #A6A6A6;' />
 <circle cx='203.42' cy='321.37' r='2.36' style='stroke-width: 0.75; fill: #A6A6A6;' />

@@ -1,5 +1,5 @@
 
 Pooled Heterogeneity (study)
             Mean Median 0.025 0.975
-tau_common 0.724  0.704 0.417 1.157
+tau_common 0.727  0.704 0.416 1.165
 

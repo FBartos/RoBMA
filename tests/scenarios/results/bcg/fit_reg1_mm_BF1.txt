@@ -1,3 +1,3 @@
                   Alternative:                Null:    BF error%(BF)
-mu_alloc  alloc[alternate] < 0 alloc[alternate] = 0 4.245         NA
-intercept        intercept < 0        intercept = 0 4.245         NA
+mu_alloc  alloc[alternate] < 0 alloc[alternate] = 0 3.637         NA
+intercept        intercept < 0        intercept = 0 3.637         NA

@@ -106,15 +106,15 @@ test_that("qCMDE normalization classifies random-mixture rows as exact Normal la
     conditionals[, "sd"]), 1e-8)
   expect_lt(max(abs(laws[["sd"]] / conditionals[, "sd"] - 1)), 1e-8)
 
-  # The qCMDE range is the union of the rows' central intervals: the X7
-  # reference for these rows at 1 - 1e-8 is [-0.56928, 0.77954].
+  # Each row's central interval follows directly from its independently
+  # computed conditional Normal. Changes in the sampled rows change the union.
   intervals <- .iwmde_qcmde_law_intervals(laws, 1 - 1e-8)
-  union <- range(intervals[["intervals"]])
-  expect_equal(union, c(-0.56928, 0.77954), tolerance = 1e-4)
-  expect_equal(union, range(c(
+  reference <- cbind(
     conditionals[, "mean"] - stats::qnorm(1 - 5e-9) * conditionals[, "sd"],
     conditionals[, "mean"] + stats::qnorm(1 - 5e-9) * conditionals[, "sd"]
-  )), tolerance = 1e-8)
+  )
+  expect_equal(unname(intervals[["intervals"]]), unname(reference), tolerance = 1e-8)
+  expect_equal(range(intervals[["intervals"]]), range(reference), tolerance = 1e-8)
 })
 
 test_that("public qCMDE random-mixture hypotheses match conditional Normal ordinates", {

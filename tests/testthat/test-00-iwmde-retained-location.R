@@ -335,8 +335,8 @@ test_that("constructor metadata routes iid allocations and excludes known-R cond
     }
     # Materialize the real constructor's map/design around injected draws;
     # no JAGS model is fitted, compiled, adapted, or sampled.
-    fit <- coda::mcmc.list(coda::mcmc(samples))
-    class(fit) <- c("BayesTools_fit", class(fit))
+    fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+    class(fit) <- "BayesTools_fit"
     attr(fit, "formula_design") <- object$formula_design
     attr(fit, "prior_list") <- c(design$prior_list, .create_fit_priors(object$data, object$priors))
     fit <- BayesTools:::.bt_attach_parameter_map(fit)
@@ -447,8 +447,8 @@ test_that("constructor metadata routes iid allocations and excludes known-R cond
     logical(1L))[branches$bias])
   append_column("PEESE", .1 * vapply(prior_list$bias, BayesTools::is.prior.PEESE,
     logical(1L))[branches$bias])
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "formula_design") <- object$formula_design
   attr(fit, "prior_list") <- prior_list
   fit <- BayesTools:::.bt_attach_parameter_map(fit)

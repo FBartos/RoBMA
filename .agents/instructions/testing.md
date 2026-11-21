@@ -137,9 +137,10 @@ evidence.
 
 Standard and certification caches are isolated below
 `ROBMA_TEST_FILES_DIR`, or under `tests/testthat/test_files/` by default.
-Cache validity includes RoBMA, BayesTools, R, and JAGS versions; the fitting
-test hash; cache-affecting RoBMA source; BayesTools' backend fingerprint; and
-required attached results. A source file is cache-affecting when it executes
+Cache validity includes the RoBMA, BayesTools, R and JAGS versions, fitting
+test hash, cache-affecting RoBMA source, required attached results and the
+BayesTools backend fingerprint. The fingerprint includes rjags and its linked
+JAGS version. A source file is cache-affecting when it executes
 while a model is constructed (constructors, data and prior preparation, JAGS
 model text, native code of the JAGS module and the R-native routines they
 call), while the sampler runs, or while the LOO, WAIC, and marginal-likelihood

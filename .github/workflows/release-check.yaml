@@ -28,9 +28,10 @@ jobs:
          {"os": "macos-15-intel", "r": "4.6"}]
 
   revdeps:
-    uses: FBartos/BayesTools/.github/workflows/downstream.yaml@development
+    uses: FBartos/BayesTools/.github/workflows/downstream.yaml@512c79475f7ac95070b38ee411ef81f47efd7f51
     with:
       source: cran
+      jags5: true
 
   urls-and-site:
     runs-on: ubuntu-latest
@@ -46,7 +47,7 @@ jobs:
       - uses: r-lib/actions/setup-pandoc@v2
 
       - name: Set up JAGS
-        uses: FBartos/BayesTools/.github/actions/setup-jags@development
+        uses: FBartos/BayesTools/.github/actions/setup-jags5@512c79475f7ac95070b38ee411ef81f47efd7f51
 
       - name: Resolve BayesTools source
         id: bayestools

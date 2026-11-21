@@ -48,7 +48,7 @@ test_that("the node memo key covers every input and the map stays bounded", {
   probe  <- file.path(work, if (.Platform$OS.type == "windows") "probe.exe" else "probe")
   build  <- suppressWarnings(system2(
     compiler$command[[1L]],
-    c(compiler$command[-1L], compiler$standard, "-O1",
+    c(compiler$command[-1L], compiler$standard, "-O1", "-pthread",
       shQuote(paste0("-I", normalizePath(dirname(header), winslash = "/"))),
       shQuote(testthat::test_path("fixtures", "selnorm-node-memo-probe.cc")),
       "-o", shQuote(probe)),
@@ -68,7 +68,7 @@ test_that("the node memo key covers every input and the map stays bounded", {
     "store_carries_mutation", "store_replaces_old_value", "restored_call_hits",
     "qmc_design_is_not_an_input", "length_change_misses", "new_layout_hits",
     "old_layout_misses", "limit_keys_all_hit", "update_at_limit_keeps_keys",
-    "new_key_beyond_limit_clears")
+    "new_key_beyond_limit_clears", "concurrent_chains")
   expect_setequal(setdiff(names(results), "elements_checked"), expected)
   expect_identical(unname(results[expected]), rep(1L, length(expected)))
 })

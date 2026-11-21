@@ -306,16 +306,6 @@ test_that("the split validators refuse every invalid dynamic and control value a
 
   fixtures <- .native_selection_jags_fixtures()
   base     <- fixtures$base
-  compile <- function(specification, data) {
-
-    data   <- data[unique(c("y", specification$arguments))]
-    syntax <- paste0("model { y[1:2] ~ ", specification$distribution, "(",
-      paste(specification$arguments, collapse = ", "), ") }")
-    connection <- textConnection(syntax)
-    on.exit(close(connection), add = TRUE)
-    rjags::jags.model(connection, data = data, n.chains = 1L, n.adapt = 0L, quiet = TRUE)
-    invisible(TRUE)
-  }
   at_first <- function(value) function(x) { x[1L] <- value; x }
   at_second <- function(value) function(x) { x[2L] <- value; x }
   replace  <- function(value) function(x) value
@@ -361,17 +351,17 @@ test_that("the split validators refuse every invalid dynamic and control value a
   for (name in c("cluster", "factor")) {
     specification <- fixtures$cases[[name]]
     data <- utils::modifyList(base, specification$extra)
-    expect_true(isTRUE(compile(specification, data)), info = paste(name, "baseline"))
+    expect_true(isTRUE(.compile_selection_jags_fixture(specification, data)), info = paste(name, "baseline"))
     checked <- character()
     for (row in table) {
       field <- if (row[[1L]] == "loading" && name == "factor") "factor_loading" else row[[1L]]
       if (!field %in% specification$arguments) next
       changed <- data
       changed[[field]] <- row[[4L]](changed[[field]])
-      error <- tryCatch(compile(specification, changed), error = identity)
+      error <- tryCatch(.compile_selection_jags_fixture(specification, changed), error = identity)
       info  <- paste(name, row[[1L]], row[[2L]], row[[3L]])
       expect_s3_class(error, "error")
-      expect_match(conditionMessage(error), "Invalid parent values", fixed = TRUE, info = info)
+      expect_match(conditionMessage(error), "Node inconsistent with parents", fixed = TRUE, info = info)
       checked <- c(checked, paste(row[[3L]], field))
     }
     # every validated dynamic parameter and every control parameter is covered

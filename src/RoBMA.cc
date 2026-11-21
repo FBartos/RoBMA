@@ -1,4 +1,8 @@
 #include <module/Module.h>
+#include <version.h>
+
+static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
+
 #include "distributions/DWN.h"
 #include "distributions/DWB.h"
 #include "distributions/DWP.h"

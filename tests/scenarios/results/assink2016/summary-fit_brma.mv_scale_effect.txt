@@ -3,13 +3,13 @@ Bayesian Multivariate Location-Scale Model (k = 100)
 
 Common Estimates
             Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu         0.361 0.091 0.185 0.360 0.547     0.00186          0.020 2394 1.002
-study: tau 0.259 0.097 0.079 0.253 0.466     0.00206          0.021 2215 1.001
+mu         0.361 0.094 0.181 0.359 0.552     0.00183          0.020 2625 1.001
+study: tau 0.260 0.100 0.070 0.254 0.476     0.00213          0.021 2187 1.006
 
 Scale
                                      Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-(esid_study: tau) exp(intercept)    0.517 0.099  0.352  0.508 0.739     0.00282          0.028 1238 1.001
-(esid_study: tau) deltype[general] -0.314 0.215 -0.743 -0.317 0.107     0.00617          0.029 1222 1.000
-(esid_study: tau) deltype[overt]   -0.536 0.305 -1.141 -0.535 0.055     0.00471          0.015 4225 1.000
+(esid_study: tau) exp(intercept)    0.510 0.098  0.351  0.500 0.730     0.00275          0.028 1307 1.002
+(esid_study: tau) deltype[general] -0.300 0.213 -0.721 -0.300 0.112     0.00597          0.028 1297 1.002
+(esid_study: tau) deltype[overt]   -0.530 0.303 -1.126 -0.530 0.056     0.00504          0.017 3670 1.001
 exp(intercept) is the baseline heterogeneity SD (tau) of the indicated target, already exponentiated. Other coefficients are changes in log(SD); exp(coefficient) is an SD multiplier.
 

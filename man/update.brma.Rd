@@ -82,6 +82,7 @@ preserved because the fitted model structure is reused.
 Extensions continue the random-number generator state stored by JAGS. They
 cannot be restarted from a new seed without changing the meaning of chain
 continuation, so \code{update()} has no \code{seed} argument.
+Extending a JAGS 4 fit requires refitting the original model under JAGS 5.
 
 Retained selection-normalizer caches are restored when compatible. Set
 \code{RoBMA.options(selection.cache_retain = TRUE)} to retain the cache after

@@ -20,22 +20,22 @@ namespace RoBMA {
 
 DKNOWNVMNORM::DKNOWNVMNORM() : VectorDist("dknown_v_mnorm", 3) {}
 
-bool DKNOWNVMNORM::checkParameterLength(std::vector<unsigned int> const &len) const
+bool DKNOWNVMNORM::checkParameterLength(std::vector<unsigned long> const &len) const
 {
   if (len.size() != 3 || len[0] == 0 || len[0] != len[1]) {
     return false;
   }
 
-  const unsigned int k = len[0];
+  const unsigned long k = len[0];
   const unsigned int maximum = std::numeric_limits<int>::max();
   if (k > maximum / k) return false;
   return len[2] == k * (k + 1) / 2;
 }
 
 bool DKNOWNVMNORM::checkParameterValue(std::vector<double const *> const &par,
-                                       std::vector<unsigned int> const &len) const
+                                       std::vector<unsigned long> const &len) const
 {
-  const unsigned int k = len[0];
+  const unsigned long k = len[0];
 
   for (unsigned int i = 0; i < k; ++i) {
     if (!std::isfinite(par[0][i]) || !std::isfinite(par[1][i]) ||
@@ -53,13 +53,12 @@ bool DKNOWNVMNORM::checkParameterValue(std::vector<double const *> const &par,
   return true;
 }
 
-double DKNOWNVMNORM::logDensity(double const *x, unsigned int length,
+double DKNOWNVMNORM::logDensity(double const *x,
                                 PDFType type,
                                 std::vector<double const *> const &par,
-                                std::vector<unsigned int> const &len,
-                                double const *lower, double const *upper) const
+                                std::vector<unsigned long> const &len) const
 {
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   const double two_pi = 6.283185307179586476925286766559;
 
   std::vector<double> covariance(static_cast<unsigned int>(k * k), 0.0);
@@ -115,13 +114,12 @@ double DKNOWNVMNORM::logDensity(double const *x, unsigned int length,
   return -0.5 * (static_cast<double>(k) * std::log(two_pi) + log_det + quad);
 }
 
-void DKNOWNVMNORM::randomSample(double *x, unsigned int length,
+void DKNOWNVMNORM::randomSample(double *x,
                                 std::vector<double const *> const &par,
-                                std::vector<unsigned int> const &len,
-                                double const *lower, double const *upper,
+                                std::vector<unsigned long> const &len,
                                 RNG *rng) const
 {
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   std::vector<double> covariance(static_cast<unsigned int>(k * k), 0.0);
   unsigned int pos = 0;
   for (int col = 0; col < k; ++col) {
@@ -156,29 +154,19 @@ void DKNOWNVMNORM::randomSample(double *x, unsigned int length,
   }
 }
 
-void DKNOWNVMNORM::support(double *lower, double *upper, unsigned int length,
+void DKNOWNVMNORM::support(double *lower, double *upper,
                            std::vector<double const *> const &par,
-                           std::vector<unsigned int> const &len) const
+                           std::vector<unsigned long> const &len) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
+  for (unsigned long i = 0; i < len[0]; ++i) {
     lower[i] = JAGS_NEGINF;
     upper[i] = JAGS_POSINF;
   }
 }
 
-unsigned int DKNOWNVMNORM::length(std::vector<unsigned int> const &len) const
+unsigned long DKNOWNVMNORM::length(std::vector<unsigned long> const &len) const
 {
   return len[0];
-}
-
-void DKNOWNVMNORM::typicalValue(double *x, unsigned int length,
-                                std::vector<double const *> const &par,
-                                std::vector<unsigned int> const &len,
-                                double const *lower, double const *upper) const
-{
-  for (unsigned int i = 0; i < length; ++i) {
-    x[i] = par[0][i];
-  }
 }
 
 bool DKNOWNVMNORM::isSupportFixed(std::vector<bool> const &fixmask) const

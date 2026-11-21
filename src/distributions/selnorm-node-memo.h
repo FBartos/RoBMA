@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -26,9 +27,8 @@
 // stored, even when its relative Monte Carlo standard error happens to be
 // exactly 0.
 //
-// JAGS runs a process single-threaded, so the memo has no lock. It lives behind
-// a function-local pointer that is intentionally never deleted, which avoids
-// a destructor running while the DLL unloads.
+// JAGS can evaluate different chains concurrently. The lock protects the shared
+// map while copying or comparing an entry; density evaluation runs outside it.
 //
 // A kernel gains only when the density it skips costs more than the comparison
 // of every input, which includes the quadrature tables. On that fit the factor
@@ -65,6 +65,7 @@ public:
   bool find(const void *node, const SelNormMemoInput *inputs,
             std::size_t count, double *log_density) const
   {
+    const std::lock_guard<std::mutex> lock(mutex_);
     const auto found = entries_.find(node);
     if (found == entries_.end()) return false;
     const Entry &entry = found->second;
@@ -88,6 +89,7 @@ public:
   void store(const void *node, const SelNormMemoInput *inputs,
              std::size_t count, double log_density)
   {
+    const std::lock_guard<std::mutex> lock(mutex_);
     if (entries_.size() >= maximum_keys && entries_.find(node) == entries_.end()) {
       entries_.clear();
     }
@@ -140,6 +142,7 @@ private:
     std::vector<double> values;
     double log_density = 0.0;
   };
+  mutable std::mutex mutex_;
   std::unordered_map<const void *, Entry> entries_;
 };
 
@@ -148,16 +151,13 @@ private:
 // weights, step bounds, observed bins, effect sign, telescoping flag, kernel,
 // quadrature nodes, log weights and orders, QMC design, point counts,
 // scrambles, tolerance and weight rule. Everything but the QMC design is an
-// input; the other scalar controls are packed with the density type. JAGS gives
-// vector distributions no truncation bounds and the kernels do not read them;
-// the callers bypass the memo for a call that has any, since their length is
-// unknown here.
+// input; the other scalar controls are packed with the density type.
 enum { selnorm_step_memo_inputs = 13, selnorm_step_memo_scalars = 9 };
 
 inline void selnorm_step_memo_collect(
-    const double *x, unsigned int length, int type,
+    const double *x, unsigned long length, int type,
     const std::vector<const double *> &par,
-    const std::vector<unsigned int> &len,
+    const std::vector<unsigned long> &len,
     SelNormMemoInput *inputs, double *scalars)
 {
   scalars[0] = static_cast<double>(type);

@@ -1,0 +1,7 @@
+BF10 compares the unrestricted mean with each point null.
+    mu0 Quadrature    Bridge     IWMDE     qCMDE    Normal IWMDE_nominal_error_percent
+1 -0.25  0.7053630 0.7113370 0.6275656 0.6434362 0.6370156                    8.655909
+2  0.00  0.2491717 0.2522033 0.2693068 0.2478546 0.2244202                    2.412424
+3  0.25  2.3136642 2.3311667 2.7475916 2.1973102 0.8526191                    5.504210
+IWMDE uses all eligible draws. At small tau the fitted Gaussian proposal gives importance weights with infinite variance.
+The nominal IWMDE error percentages are unreliable for these Bayes factors.

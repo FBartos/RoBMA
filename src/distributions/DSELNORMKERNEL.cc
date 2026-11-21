@@ -2,6 +2,7 @@
 
 #include <rng/RNG.h>
 #include <util/nainf.h>
+#include <stdexcept>
 
 #include <cmath>
 #include "../selnorm/selnorm.h"
@@ -12,11 +13,11 @@ namespace RoBMA {
 
 DSELNORMKERNEL::DSELNORMKERNEL() : VectorDist("dselnorm_kernel", 19) {}
 
-bool DSELNORMKERNEL::checkParameterLength(std::vector<unsigned int> const &len) const
+bool DSELNORMKERNEL::checkParameterLength(std::vector<unsigned long> const &len) const
 {
   if (len.size() != 19) return false;
   const unsigned int maximum = std::numeric_limits<int>::max();
-  for (unsigned int length : len) if (length > maximum) return false;
+  for (unsigned long length : len) if (length > maximum) return false;
   for (unsigned int i = 0; i < 6; ++i) if (len[i] != 1) return false;
   for (unsigned int i = 9; i < 13; ++i) if (len[i] != 1) return false;
   if (len[18] != 1) return false;
@@ -29,7 +30,7 @@ bool DSELNORMKERNEL::checkParameterLength(std::vector<unsigned int> const &len) 
 }
 
 bool DSELNORMKERNEL::checkParameterValue(std::vector<double const *> const &par,
-                                         std::vector<unsigned int> const &len) const
+                                         std::vector<unsigned long> const &len) const
 {
   return *par[1] > 0 && *par[3] > 0 && *par[4] > 0 && *par[5] > 0 &&
     (*par[10] == 1 || *par[10] == -1) &&
@@ -45,11 +46,10 @@ bool DSELNORMKERNEL::checkParameterValue(std::vector<double const *> const &par,
         static_cast<int>(len[6]) : std::numeric_limits<int>::max());
 }
 
-double DSELNORMKERNEL::logDensity(double const *x, unsigned int length,
+double DSELNORMKERNEL::logDensity(double const *x,
                                   PDFType type,
                                   std::vector<double const *> const &par,
-                                  std::vector<unsigned int> const &len,
-                                  double const *lower, double const *upper) const
+                                  std::vector<unsigned long> const &len) const
 {
   const int n_segments = static_cast<int>(len[16]);
   const SelNormJagsBounds z_lower(par[7], len[7]);
@@ -90,34 +90,25 @@ double DSELNORMKERNEL::logDensity(double const *x, unsigned int length,
   );
 }
 
-void DSELNORMKERNEL::randomSample(double *x, unsigned int length,
+void DSELNORMKERNEL::randomSample(double *x,
                                   std::vector<double const *> const &par,
-                                  std::vector<unsigned int> const &len,
-                                  double const *lower, double const *upper,
+                                  std::vector<unsigned long> const &len,
                                   RNG *rng) const
 {
+  throw std::runtime_error("dselnorm_kernel supports observed likelihood nodes only.");
 }
 
-void DSELNORMKERNEL::support(double *lower, double *upper, unsigned int length,
+void DSELNORMKERNEL::support(double *lower, double *upper,
                              std::vector<double const *> const &par,
-                             std::vector<unsigned int> const &len) const
+                             std::vector<unsigned long> const &len) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
-    lower[i] = JAGS_NEGINF;
-    upper[i] = JAGS_POSINF;
-  }
+  *lower = JAGS_NEGINF;
+  *upper = JAGS_POSINF;
 }
 
-unsigned int DSELNORMKERNEL::length(std::vector<unsigned int> const &len) const
+unsigned long DSELNORMKERNEL::length(std::vector<unsigned long> const &len) const
 {
   return 1;
-}
-
-void DSELNORMKERNEL::typicalValue(double *x, unsigned int length,
-                                  std::vector<double const *> const &par,
-                                  std::vector<unsigned int> const &len,
-                                  double const *lower, double const *upper) const
-{
 }
 
 bool DSELNORMKERNEL::isSupportFixed(std::vector<bool> const &fixmask) const

@@ -401,7 +401,8 @@ test_that("ordered nuisance priors use the same numerical kernel on scalar and g
   expect_true(all(is.finite(.iwmde_ordered_log_q_source(context, ordered_state,
     c(source / 2, source, source * 2)))))
   components <- .iwmde_parameter_components(context, "mu_g1[20]", g_spec)
-  expect_identical(sum(components[["active"]]), 5L)
+  expect_identical(as.logical(components[["active"]]),
+    as.logical(context[["posterior_samples"]][, indicator]))
   curve <- graphics::plot(object, parameter = "tau", prior = FALSE,
     density_method = "qCMDE", plot_type = "ggplot")
   expect_s3_class(curve, "ggplot")
