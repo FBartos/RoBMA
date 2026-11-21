@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -220,13 +220,15 @@ and (suppressed here) MCMC convergence diagnostics for <code>mu</code>,
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.186 0.085 0.022 0.186 0.356</span></span>
-<span><span class="co">#&gt; tau 0.318 0.056 0.232 0.310 0.450</span></span>
-<span><span class="co">#&gt; rho 0.627 0.139 0.327 0.639 0.858</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.179 0.090 0.000 0.179 0.361</span></span>
+<span><span class="co">#&gt; tau 0.323 0.060 0.234 0.314 0.466</span></span>
+<span><span class="co">#&gt; rho 0.635 0.140 0.336 0.649 0.870</span></span></code></pre></div>
 <p>The posterior mean for the pooled effect tracks the REML estimate
 from the <code>metafor</code> package, with comparable cluster-level
-allocation <code>rho</code> and total heterogeneity
-<code>tau</code>.</p>
+allocation <code>rho</code> and total heterogeneity <code>tau</code>.
+The lower endpoint of the pooled-effect credible interval rounds to
+zero. Its Monte Carlo standard error is about 0.008, so its sign is
+uncertain.</p>
 </div>
 <div class="section level2">
 <h2 id="heterogeneity-tau-and-rho">Heterogeneity:
@@ -254,17 +256,17 @@ partitioned within- and between-cluster components.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Heterogeneity Estimates:</span></span>
 <span><span class="co">#&gt;                  Mean Median  0.025  0.975</span></span>
-<span><span class="co">#&gt; tau             0.318  0.310  0.232  0.450</span></span>
-<span><span class="co">#&gt; rho             0.627  0.639  0.327  0.858</span></span>
-<span><span class="co">#&gt; tau [within]    0.187  0.185  0.131  0.253</span></span>
-<span><span class="co">#&gt; tau [between]   0.253  0.245  0.147  0.405</span></span>
-<span><span class="co">#&gt; tau2            0.104  0.096  0.054  0.203</span></span>
+<span><span class="co">#&gt; tau             0.323  0.314  0.234  0.466</span></span>
+<span><span class="co">#&gt; rho             0.635  0.649  0.336  0.870</span></span>
+<span><span class="co">#&gt; tau [within]    0.187  0.185  0.131  0.254</span></span>
+<span><span class="co">#&gt; tau [between]   0.259  0.249  0.149  0.425</span></span>
+<span><span class="co">#&gt; tau2            0.108  0.098  0.055  0.217</span></span>
 <span><span class="co">#&gt; tau2 [within]   0.036  0.034  0.017  0.064</span></span>
-<span><span class="co">#&gt; tau2 [between]  0.068  0.060  0.022  0.164</span></span>
-<span><span class="co">#&gt; I2             94.980 95.105 91.586 97.617</span></span>
-<span><span class="co">#&gt; I2 [within]    35.298 34.226 13.779 63.148</span></span>
-<span><span class="co">#&gt; I2 [between]   59.682 60.617 30.491 83.176</span></span>
-<span><span class="co">#&gt; H2             22.097 20.430 11.886 41.970</span></span></code></pre></div>
+<span><span class="co">#&gt; tau2 [between]  0.072  0.062  0.022  0.180</span></span>
+<span><span class="co">#&gt; I2             95.092 95.213 91.686 97.773</span></span>
+<span><span class="co">#&gt; I2 [within]    34.542 33.337 12.646 62.413</span></span>
+<span><span class="co">#&gt; I2 [between]   60.550 61.614 31.425 84.579</span></span>
+<span><span class="co">#&gt; H2             22.827 20.891 12.028 44.897</span></span></code></pre></div>
 <p><code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> visualizes the posterior, and
 <code>prior = TRUE</code> overlays the prior distribution so the shift
 from prior to posterior is visible. Side-by-side panels for

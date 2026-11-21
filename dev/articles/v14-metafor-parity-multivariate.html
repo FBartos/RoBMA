@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -204,7 +204,9 @@ within-district correlation for the school effects.</p>
 random-effect parameters monitored by the fitted Bayesian model. Here
 <code>tau</code> is the shared marginal heterogeneity SD corresponding
 to the <code>metafor</code> package variance component, and
-<code>district: rho</code> is the compound-symmetric correlation.</p>
+<code>district: rho</code> is the compound-symmetric correlation. The
+pooled effect and one district-level latent coefficient fall below the
+effective sample size target of 500 in this fit.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit1_brma</span>, include_mcmc_diagnostics <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -212,9 +214,9 @@ to the <code>metafor</code> package variance component, and
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.181 0.088 0.013 0.179 0.363</span></span>
-<span><span class="co">#&gt; tau 0.321 0.054 0.237 0.314 0.449</span></span>
-<span><span class="co">#&gt; rho 0.631 0.137 0.335 0.645 0.856</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.182 0.083 0.022 0.180 0.361</span></span>
+<span><span class="co">#&gt; tau 0.317 0.056 0.233 0.309 0.452</span></span>
+<span><span class="co">#&gt; rho 0.621 0.142 0.311 0.634 0.859</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="known-sampling-covariance">Known Sampling Covariance<a class="anchor" aria-label="anchor" href="#known-sampling-covariance"></a>
@@ -299,10 +301,10 @@ variance allocation of tau^2 into the individual levels.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;                        Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu                    0.355 0.097 0.169 0.353 0.551</span></span>
-<span><span class="co">#&gt; tau_total             0.478 0.062 0.375 0.471 0.617</span></span>
-<span><span class="co">#&gt; tau2_prop(esid_study) 0.676 0.138 0.398 0.682 0.926</span></span>
-<span><span class="co">#&gt; tau2_prop(study)      0.324 0.138 0.074 0.318 0.602</span></span></code></pre></div>
+<span><span class="co">#&gt; mu                    0.354 0.097 0.165 0.354 0.546</span></span>
+<span><span class="co">#&gt; tau_total             0.478 0.062 0.376 0.471 0.621</span></span>
+<span><span class="co">#&gt; tau2_prop(esid_study) 0.677 0.137 0.396 0.684 0.923</span></span>
+<span><span class="co">#&gt; tau2_prop(study)      0.323 0.137 0.077 0.316 0.604</span></span></code></pre></div>
 <p>A more detailed summary of the between-study heterogeneity can be
 obtained via the <code>summary_heterogeneity</code> function. The first
 heterogeneity table summarizes the shared <code>study/esid</code>
@@ -314,10 +316,10 @@ deviations.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Heterogeneity Estimates (study/esid):</span></span>
 <span><span class="co">#&gt;                        Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; tau_total             0.478  0.471 0.375 0.617</span></span>
-<span><span class="co">#&gt; tau2_total            0.232  0.222 0.141 0.381</span></span>
-<span><span class="co">#&gt; tau2_prop(esid_study) 0.676  0.682 0.398 0.926</span></span>
-<span><span class="co">#&gt; tau2_prop(study)      0.324  0.318 0.074 0.602</span></span>
+<span><span class="co">#&gt; tau_total             0.478  0.471 0.376 0.621</span></span>
+<span><span class="co">#&gt; tau2_total            0.232  0.222 0.141 0.386</span></span>
+<span><span class="co">#&gt; tau2_prop(esid_study) 0.677  0.684 0.396 0.923</span></span>
+<span><span class="co">#&gt; tau2_prop(study)      0.323  0.316 0.077 0.604</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Heterogeneity Estimates (esid_study):</span></span>
 <span><span class="co">#&gt;       Mean Median 0.025 0.975</span></span>
@@ -326,8 +328,8 @@ deviations.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Heterogeneity Estimates (study):</span></span>
 <span><span class="co">#&gt;       Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; tau  0.270  0.264 0.111 0.467</span></span>
-<span><span class="co">#&gt; tau2 0.081  0.070 0.012 0.218</span></span></code></pre></div>
+<span><span class="co">#&gt; tau  0.270  0.262 0.112 0.469</span></span>
+<span><span class="co">#&gt; tau2 0.081  0.069 0.013 0.220</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="heterogeneous-ar1-structure">Heterogeneous AR(1) Structure<a class="anchor" aria-label="anchor" href="#heterogeneous-ar1-structure"></a>
@@ -448,24 +450,26 @@ use it directly in the prior distribution specification.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;                     Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; tau_common         5.043 0.785 3.651 4.993 6.745</span></span>
-<span><span class="co">#&gt; tau2_mult(time[1]) 0.834 0.245 0.428 0.811 1.382</span></span>
-<span><span class="co">#&gt; tau2_mult(time[2]) 1.172 0.253 0.719 1.160 1.724</span></span>
-<span><span class="co">#&gt; tau2_mult(time[3]) 0.949 0.213 0.600 0.926 1.427</span></span>
-<span><span class="co">#&gt; tau2_mult(time[4]) 1.046 0.335 0.442 1.025 1.749</span></span>
-<span><span class="co">#&gt; rho                0.827 0.073 0.647 0.840 0.929</span></span>
+<span><span class="co">#&gt; tau_common         4.990 0.774 3.617 4.936 6.640</span></span>
+<span><span class="co">#&gt; tau2_mult(time[1]) 0.821 0.236 0.432 0.799 1.338</span></span>
+<span><span class="co">#&gt; tau2_mult(time[2]) 1.220 0.262 0.771 1.196 1.794</span></span>
+<span><span class="co">#&gt; tau2_mult(time[3]) 0.941 0.209 0.596 0.918 1.426</span></span>
+<span><span class="co">#&gt; tau2_mult(time[4]) 1.018 0.322 0.432 0.999 1.703</span></span>
+<span><span class="co">#&gt; rho                0.822 0.074 0.642 0.835 0.927</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                   Mean    SD   0.025     0.5   0.975</span></span>
-<span><span class="co">#&gt; time_factor[1] -25.413 1.019 -27.399 -25.423 -23.362</span></span>
-<span><span class="co">#&gt; time_factor[2] -26.924 1.123 -29.038 -26.941 -24.774</span></span>
-<span><span class="co">#&gt; time_factor[3] -28.128 1.023 -30.113 -28.146 -26.130</span></span>
-<span><span class="co">#&gt; time_factor[4] -25.782 1.388 -28.530 -25.795 -23.071</span></span></code></pre></div>
+<span><span class="co">#&gt; time_factor[1] -25.391 0.980 -27.271 -25.403 -23.432</span></span>
+<span><span class="co">#&gt; time_factor[2] -26.946 1.133 -29.181 -26.964 -24.656</span></span>
+<span><span class="co">#&gt; time_factor[3] -28.152 1.022 -30.149 -28.149 -26.100</span></span>
+<span><span class="co">#&gt; time_factor[4] -25.784 1.367 -28.445 -25.797 -23.023</span></span></code></pre></div>
 <p>The <code>HAR</code> structure lets the heterogeneity differ by time
 point while estimating one autocorrelation across neighboring time
-points. This separates the temporal structure of the true effects from
-the working temporal dependence already encoded in
-<code>V_ishak</code>.</p>
+points. The estimated autocorrelation of the true effects is about 0.82.
+The working sampling-error correlation in <code>V_ishak</code> was fixed
+at 0.97. The fit falls below the effective sample size target of 500 for
+the autocorrelation and two time-specific means, so their estimates have
+appreciable Monte Carlo uncertainty.</p>
 </div>
 <div class="section level2">
 <h2 id="study-and-treatment-random-effects">Study and Treatment Random Effects<a class="anchor" aria-label="anchor" href="#study-and-treatment-random-effects"></a>
@@ -588,14 +592,14 @@ correlation at zero.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;                 Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; study: tau     0.040 0.028 0.002 0.036 0.105</span></span>
-<span><span class="co">#&gt; treatment: tau 0.040 0.027 0.002 0.037 0.101</span></span>
+<span><span class="co">#&gt; study: tau     0.041 0.028 0.002 0.037 0.104</span></span>
+<span><span class="co">#&gt; treatment: tau 0.040 0.027 0.002 0.037 0.102</span></span>
 <span><span class="co">#&gt; treatment: rho 0.000 0.000 0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;            Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; intercept 0.327 0.026 0.276 0.326 0.380</span></span>
-<span><span class="co">#&gt; trt[BMT]  0.136 0.043 0.052 0.136 0.220</span></span></code></pre></div>
+<span><span class="co">#&gt; intercept 0.326 0.026 0.276 0.326 0.380</span></span>
+<span><span class="co">#&gt; trt[BMT]  0.137 0.043 0.053 0.137 0.222</span></span></code></pre></div>
 <p>The study component captures baseline heterogeneity across studies,
 while the treatment component captures additional treatment-specific
 variation within studies.</p>
@@ -604,12 +608,12 @@ variation within studies.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Heterogeneity Estimates (study):</span></span>
 <span><span class="co">#&gt;       Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; tau  0.040  0.036 0.002 0.105</span></span>
+<span><span class="co">#&gt; tau  0.041  0.037 0.002 0.104</span></span>
 <span><span class="co">#&gt; tau2 0.002  0.001 0.000 0.011</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Heterogeneity Estimates (treatment):</span></span>
 <span><span class="co">#&gt;                 Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; tau            0.040  0.037 0.002 0.101</span></span>
+<span><span class="co">#&gt; tau            0.040  0.037 0.002 0.102</span></span>
 <span><span class="co">#&gt; tau2           0.002  0.001 0.000 0.010</span></span>
 <span><span class="co">#&gt; treatment: rho 0.000  0.000 0.000 0.000</span></span></code></pre></div>
 </div>

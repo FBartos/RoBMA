@@ -100,18 +100,18 @@ summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF
-#> Effect              0.500       0.722        2.595
-#> Heterogeneity       0.500       0.573        1.340
+#> Effect              0.500       0.721        2.583
+#> Heterogeneity       0.500       0.569        1.318
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.691 0.806 -0.192 0.492 2.708
-#> tau 0.409 0.687  0.000 0.161 2.483
+#> mu  0.687 0.817 -0.206 0.474 2.696
+#> tau 0.420 0.711  0.000 0.154 2.526
 #> 
 #> Conditional Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.957 0.804 -0.266 0.826 2.870
-#> tau 0.714 0.778  0.097 0.426 3.003
+#> mu  0.953 0.820 -0.290 0.815 2.889
+#> tau 0.738 0.810  0.096 0.432 3.090
 ```
 
 The output from the [`summary()`](https://rdrr.io/r/base/summary.html)
@@ -125,16 +125,17 @@ effect is similar to the one reported in Bartoš et al.
 $`\text{BF}_{\text{rf}} = 1.27`$ (minor differences are a consequence of
 the product-space estimation algorithm in the new version of the
 package), giving weak/undecided evidence for the presence of the effect
-and heterogeneity.
+and heterogeneity. The current fit gives inclusion Bayes factors of 2.58
+for the effect and 1.32 for heterogeneity.
 
 The second part under the ‘Model-averaged estimates’ heading displays
 the parameter estimates model-averaged across all specified models
 (i.e., including models specifying the effect size to be zero). These
 estimates are shrunk towards the null hypotheses of no effect or no
 heterogeneity in accordance with the posterior uncertainty about the
-presence of the effect or heterogeneity. We find the model-averaged mean
-effect OR = 3.83, 95% CI \[0.82, 15.19\], and a heterogeneity estimate
-$`\tau_\text{logOR} = 0.43`$, 95% CI \[0.00, 2.66\].
+presence of the effect or heterogeneity. Averaging across all models
+gives a mean odds ratio of 3.32 (95% credible interval \[0.81, 14.82\])
+and mean heterogeneity of $`\tau_\text{logOR} = 0.42`$ \[0.00, 2.53\].
 
 The third part under the ‘Conditional estimates’ heading displays the
 conditional effect size and heterogeneity estimates (i.e., estimates
@@ -143,9 +144,11 @@ ones reported in Bartoš et al. ([2023](#ref-bartos2023empirical)), OR =
 4.89, 95% CI \[0.77, 18.90\], and a heterogeneity estimate
 $`\tau_\text{logOR} = 0.77`$, 95% CI \[0.10, 3.62\].
 
-The dedicated helper functions extract the pooled effect on the
-odds-ratio scale and heterogeneity on the log-odds-ratio scale (assuming
-the presence of the effect and heterogeneity respectively):
+For the current fit, the conditional mean odds ratio is 4.22 (95%
+credible interval \[0.75, 17.97\]) and conditional mean heterogeneity is
+$`\tau_\text{logOR} = 0.74`$ \[0.10, 3.09\]. The dedicated helpers
+report these conditional estimates on the odds-ratio and log-odds-ratio
+scales, respectively.
 
 ``` r
 
@@ -153,13 +156,13 @@ pooled_effect(fit_BMA, conditional = TRUE, transform = "EXP")
 #> 
 #> Conditional Pooled Effect Size (odds ratio)
 #>     Mean Median 0.025  0.975 PI 0.025 PI 0.975
-#> mu 4.026  2.284 0.766 17.640    0.397   22.526
+#> mu 4.221  2.259 0.748 17.971    0.357   24.105
 #> Effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.
 pooled_heterogeneity(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Heterogeneity
 #>      Mean Median 0.025 0.975
-#> tau 0.714  0.426 0.097 3.003
+#> tau 0.738  0.432 0.096 3.090
 ```
 
 We can also visualize the posterior distributions of the effect size and

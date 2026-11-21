@@ -558,26 +558,26 @@ summary(fit_RoBMA)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Effect                 0.500       0.586        1.417                6.320
-#> Heterogeneity          0.500       1.000    23999.000              100.004
-#> Publication Bias       0.500       0.838        5.179                4.912
-#> Bayes factor MC error for tau is based on only 1 posterior samples from the less frequent model.
+#> Effect                 0.500       0.575        1.351                6.538
+#> Heterogeneity          0.500       1.000    11999.000               70.717
+#> Publication Bias       0.500       0.838        5.184                5.142
+#> Bayes factor MC error for tau is based on only 2 posterior samples from the less frequent model.
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> mu  0.106 0.114 -0.002 0.092 0.301     0.00372          0.033  935 1.002
-#> tau 0.163 0.056  0.082 0.153 0.297     0.00116          0.021 2340 1.000
+#> mu  0.103 0.113 -0.010 0.079 0.303     0.00371          0.033  932 1.003
+#> tau 0.164 0.055  0.083 0.154 0.291     0.00112          0.020 2582 1.003
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000          NA             NA   NA    NA
-#> omega[0.025,0.05] 0.935 0.155 0.425 1.000  1.000     0.00183          0.012 7153 1.000
-#> omega[0.05,0.5]   0.739 0.359 0.059 1.000  1.000     0.00719          0.020 2525 1.000
-#> omega[0.5,0.95]   0.699 0.400 0.028 1.000  1.000     0.00822          0.021 2403 1.000
-#> omega[0.95,0.975] 0.707 0.398 0.028 1.000  1.000     0.00824          0.021 2354 1.000
-#> omega[0.975,1]    0.718 0.399 0.028 1.000  1.000     0.00836          0.021 2344 1.000
-#> PET               0.771 1.209 0.000 0.000  3.299     0.03924          0.032  951 1.002
-#> PEESE             1.574 5.165 0.000 0.000 21.352     0.07784          0.015 4496 1.000
+#> omega[0.025,0.05] 0.932 0.158 0.420 1.000  1.000     0.00200          0.013 6408 1.000
+#> omega[0.05,0.5]   0.731 0.363 0.057 1.000  1.000     0.00698          0.019 2796 1.001
+#> omega[0.5,0.95]   0.690 0.405 0.026 1.000  1.000     0.00816          0.020 2546 1.001
+#> omega[0.95,0.975] 0.696 0.403 0.026 1.000  1.000     0.00819          0.020 2497 1.001
+#> omega[0.975,1]    0.707 0.405 0.026 1.000  1.000     0.00818          0.020 2562 1.001
+#> PET               0.773 1.222 0.000 0.000  3.335     0.03926          0.032  973 1.000
+#> PEESE             1.607 5.220 0.000 0.000 21.795     0.07658          0.015 4723 1.001
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -590,13 +590,12 @@ the presence of the components; we can observe that the posterior model
 probabilities of models assuming the presence of an effect slightly
 increased. The last column contains information about the evidence in
 favor of the presence of any of those components. Evidence for the
-presence of an effect is undecided; the models assuming the presence of
-an effect are only about 1.3 times more likely given the data than the
-models assuming the absence of an effect. However, we find overwhelming
-evidence in favor of heterogeneity, with the models assuming the
-presence of heterogeneity being about 8,000 times more likely given the
-data than models assuming the absence of heterogeneity, and moderate
-evidence in favor of publication bias.
+presence of an effect is undecided ($`\mathrm{BF}_{10} \approx 1.4`$),
+and the evidence for publication bias is moderate
+($`\mathrm{BF}_{\mathrm{pb}} \approx 5.2`$). The data overwhelmingly
+favor heterogeneity. Only 2 of 24,000 draws visited a model without
+heterogeneity, so the magnitude of its inclusion Bayes factor is
+imprecise.
 
 The second table called `Estimates` contains information about the
 model-averaged estimates. The first row labeled `mu` corresponds to the
@@ -614,7 +613,7 @@ pooled_effect(fit_RoBMA, output_measure = "COR")
 #> 
 #> Pooled Effect Size (correlation)
 #>     Mean Median  0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.104  0.092 -0.002 0.292   -0.303    0.464
+#> mu 0.101  0.079 -0.010 0.294   -0.306    0.463
 #> Effect estimates are transformed from Fisher's z to correlation.
 ```
 
@@ -633,43 +632,43 @@ summary(fit_RoBMA, conditional = TRUE)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Effect                 0.500       0.586        1.417                6.320
-#> Heterogeneity          0.500       1.000    23999.000              100.004
-#> Publication Bias       0.500       0.838        5.179                4.912
-#> Bayes factor MC error for tau is based on only 1 posterior samples from the less frequent model.
+#> Effect                 0.500       0.575        1.351                6.538
+#> Heterogeneity          0.500       1.000    11999.000               70.717
+#> Publication Bias       0.500       0.838        5.184                5.142
+#> Bayes factor MC error for tau is based on only 2 posterior samples from the less frequent model.
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> mu  0.106 0.114 -0.002 0.092 0.301     0.00372          0.033  935 1.002
-#> tau 0.163 0.056  0.082 0.153 0.297     0.00116          0.021 2340 1.000
+#> mu  0.103 0.113 -0.010 0.079 0.303     0.00371          0.033  932 1.003
+#> tau 0.164 0.055  0.083 0.154 0.291     0.00112          0.020 2582 1.003
 #> 
 #> Conditional Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.180 0.092 -0.046 0.197 0.314
-#> tau 0.163 0.056  0.082 0.153 0.297
+#> mu  0.179 0.094 -0.058 0.195 0.316
+#> tau 0.164 0.055  0.083 0.154 0.291
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000          NA             NA   NA    NA
-#> omega[0.025,0.05] 0.935 0.155 0.425 1.000  1.000     0.00183          0.012 7153 1.000
-#> omega[0.05,0.5]   0.739 0.359 0.059 1.000  1.000     0.00719          0.020 2525 1.000
-#> omega[0.5,0.95]   0.699 0.400 0.028 1.000  1.000     0.00822          0.021 2403 1.000
-#> omega[0.95,0.975] 0.707 0.398 0.028 1.000  1.000     0.00824          0.021 2354 1.000
-#> omega[0.975,1]    0.718 0.399 0.028 1.000  1.000     0.00836          0.021 2344 1.000
-#> PET               0.771 1.209 0.000 0.000  3.299     0.03924          0.032  951 1.002
-#> PEESE             1.574 5.165 0.000 0.000 21.352     0.07784          0.015 4496 1.000
+#> omega[0.025,0.05] 0.932 0.158 0.420 1.000  1.000     0.00200          0.013 6408 1.000
+#> omega[0.05,0.5]   0.731 0.363 0.057 1.000  1.000     0.00698          0.019 2796 1.001
+#> omega[0.5,0.95]   0.690 0.405 0.026 1.000  1.000     0.00816          0.020 2546 1.001
+#> omega[0.95,0.975] 0.696 0.403 0.026 1.000  1.000     0.00819          0.020 2497 1.001
+#> omega[0.975,1]    0.707 0.405 0.026 1.000  1.000     0.00818          0.020 2562 1.001
+#> PET               0.773 1.222 0.000 0.000  3.335     0.03926          0.032  973 1.000
+#> PEESE             1.607 5.220 0.000 0.000 21.795     0.07658          0.015 4723 1.001
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 #> 
 #> Conditional Publication Bias
 #>                     Mean    SD 0.025    0.5  0.975
 #> omega[0,0.025]     1.000 0.000 1.000  1.000  1.000
-#> omega[0.025,0.05]  0.832 0.211 0.320  0.939  1.000
-#> omega[0.05,0.5]    0.327 0.235 0.039  0.269  0.894
-#> omega[0.5,0.95]    0.223 0.211 0.016  0.141  0.804
-#> omega[0.95,0.975]  0.242 0.239 0.016  0.144  0.902
-#> omega[0.975,1]     0.271 0.294 0.016  0.144  1.000
-#> PET                2.313 0.903 0.253  2.532  3.656
-#> PEESE             13.413 8.276 0.925 11.818 29.284
+#> omega[0.025,0.05]  0.828 0.214 0.314  0.935  1.000
+#> omega[0.05,0.5]    0.319 0.230 0.039  0.259  0.884
+#> omega[0.5,0.95]    0.214 0.206 0.015  0.137  0.788
+#> omega[0.95,0.975]  0.232 0.233 0.015  0.139  0.888
+#> omega[0.975,1]     0.257 0.285 0.015  0.139  1.000
+#> PET                2.375 0.884 0.271  2.563  3.741
+#> PEESE             13.632 8.194 1.062 12.156 29.546
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -687,39 +686,39 @@ summary_models(fit_RoBMA, type = "individual")
 #>  Spike(0)       Spike(0)          None                                  0.125       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          None                                  0.125       0.000        0.000                   NA
 #>  Spike(0)       InvGamma(1, 0.07) None                                  0.125       0.000        0.000              100.004
-#>  Normal(0, 0.5) InvGamma(1, 0.07) None                                  0.125       0.162        1.351                4.911
+#>  Normal(0, 0.5) InvGamma(1, 0.07) None                                  0.125       0.162        1.350                5.140
 #>  Spike(0)       Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA
 #>  Spike(0)       InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.000        0.000                   NA
-#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.015        1.434                6.734
+#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.012        1.186                6.284
 #>  Spike(0)       Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA
-#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.021        2.017                5.631
+#>  Spike(0)       InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.000        0.004              100.004
+#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.020        1.959                5.888
 #>  Spike(0)       Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.034        3.373                7.603
-#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.052        5.158                3.909
+#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.033        3.246                6.821
+#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.051        5.132                4.110
 #>  Spike(0)       Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.040        3.928                7.158
-#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.046        4.594                4.285
+#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.044        4.394                6.630
+#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.047        4.724                3.773
 #>  Spike(0)       Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.036        3.556                8.249
-#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.044        4.338                4.129
+#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.038        3.795                7.804
+#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.044        4.333                3.855
 #>  Spike(0)       Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.053        5.286                6.819
-#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.048        4.746                3.955
-#>  Spike(0)       Spike(0)          PET                                   0.031       0.000        0.001              100.004
+#>  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.056        5.658                6.806
+#>  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.048        4.820                4.111
+#>  Spike(0)       Spike(0)          PET                                   0.031       0.000        0.003               70.717
 #>  Normal(0, 0.5) Spike(0)          PET                                   0.031       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) PET                                   0.031       0.220        8.744                7.731
-#>  Normal(0, 0.5) InvGamma(1, 0.07) PET                                   0.031       0.113        3.966                3.899
+#>  Spike(0)       InvGamma(1, 0.07) PET                                   0.031       0.222        8.822                7.461
+#>  Normal(0, 0.5) InvGamma(1, 0.07) PET                                   0.031       0.104        3.589                3.926
 #>  Spike(0)       Spike(0)          PEESE                                 0.031       0.000        0.000                   NA
 #>  Normal(0, 0.5) Spike(0)          PEESE                                 0.031       0.000        0.000                   NA
-#>  Spike(0)       InvGamma(1, 0.07) PEESE                                 0.031       0.031        0.985                9.356
-#>  Normal(0, 0.5) InvGamma(1, 0.07) PEESE                                 0.031       0.087        2.939                4.365
+#>  Spike(0)       InvGamma(1, 0.07) PEESE                                 0.031       0.032        1.018                9.475
+#>  Normal(0, 0.5) InvGamma(1, 0.07) PEESE                                 0.031       0.086        2.921                4.412
 ```
 
 MCMC diagnostics are included in the summary output. Visual diagnostics
@@ -800,40 +799,40 @@ summary_models(fit_RoBMA2, type = "individual")
 #>  Effect                   Heterogeneity     Publication Bias                Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
 #>  Normal(0, 0.05)          Spike(0)          None                                  0.125       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          None                                  0.125       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) None                                  0.125       0.001        0.007               26.741
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) None                                  0.125       0.336        3.542                3.953
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) None                                  0.125       0.000        0.001               70.720
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) None                                  0.125       0.347        3.714                4.308
 #>  Normal(0, 0.05)          Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.000        0.044               37.802
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.022        2.124                6.094
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.000        0.025               50.011
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.023        2.270                5.500
 #>  Normal(0, 0.05)          Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.001        0.057               33.346
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.031        2.992                5.238
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.001        0.089               38.172
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.031        3.019                5.215
 #>  Normal(0, 0.05)          Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.019        1.866               11.637
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.061        6.171                4.599
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.018        1.735               11.479
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.061        6.186                3.837
 #>  Normal(0, 0.05)          Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.025        2.396               10.475
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.047        4.636                4.285
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.022        2.164               10.081
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.049        4.860                4.194
 #>  Normal(0, 0.05)          Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.019        1.800               12.223
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.046        4.622                4.382
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.022        2.104               11.855
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.051        5.126                4.068
 #>  Normal(0, 0.05)          Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.032        3.188               10.879
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.046        4.595                4.431
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.032        3.161                9.730
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.044        4.352                4.505
 #>  Normal(0, 0.05)          Spike(0)          PET                                   0.031       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          PET                                   0.031       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) PET                                   0.031       0.108        3.735               13.878
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PET                                   0.031       0.078        2.630                4.661
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) PET                                   0.031       0.105        3.647               13.530
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PET                                   0.031       0.068        2.274                4.120
 #>  Normal(0, 0.05)          Spike(0)          PEESE                                 0.031       0.000        0.000                   NA
 #>  Normal(0.3, 0.1)[0, Inf] Spike(0)          PEESE                                 0.031       0.000        0.000                   NA
-#>  Normal(0, 0.05)          InvGamma(1, 0.07) PEESE                                 0.031       0.036        1.144               12.139
-#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PEESE                                 0.031       0.093        3.189                4.133
+#>  Normal(0, 0.05)          InvGamma(1, 0.07) PEESE                                 0.031       0.033        1.067               11.671
+#>  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PEESE                                 0.031       0.092        3.146                3.986
 ```
 
 ### References

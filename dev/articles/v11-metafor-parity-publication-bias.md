@@ -163,12 +163,12 @@ summary(fit_PET_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>       Mean    SD  0.025    0.5 0.975
-#> mu  -0.003 0.098 -0.200 -0.003 0.182
-#> tau  0.308 0.040  0.234  0.306 0.393
+#> mu  -0.005 0.097 -0.201 -0.004 0.181
+#> tau  0.308 0.041  0.234  0.306 0.394
 #> 
 #> Publication Bias
 #>      Mean    SD 0.025   0.5 0.975
-#> PET 0.930 0.394 0.189 0.922 1.722
+#> PET 0.941 0.389 0.208 0.930 1.725
 ```
 
 The posterior mean of `mu` is the bias-corrected average effect; the
@@ -255,12 +255,12 @@ summary(fit_PEESE_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.092 0.063 -0.033 0.092 0.217
-#> tau 0.305 0.040  0.231 0.303 0.390
+#> mu  0.092 0.063 -0.032 0.092 0.214
+#> tau 0.305 0.041  0.230 0.302 0.391
 #> 
 #> Publication Bias
 #>        Mean    SD 0.025   0.5 0.975
-#> PEESE 1.844 0.753 0.407 1.833 3.368
+#> PEESE 1.842 0.759 0.380 1.849 3.330
 ```
 
 As for PET, the left panel shows the prior and posterior of the `PEESE`
@@ -346,13 +346,13 @@ summary(fit_selmodel_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.142 0.057 0.029 0.142 0.252
-#> tau 0.294 0.044 0.213 0.293 0.385
+#> mu  0.141 0.057 0.030 0.141 0.252
+#> tau 0.293 0.044 0.212 0.291 0.383
 #> 
 #> Publication Bias
 #>                 Mean    SD 0.025   0.5 0.975
 #> omega[0,0.025] 1.000 0.000 1.000 1.000 1.000
-#> omega[0.025,1] 0.621 0.194 0.267 0.617 0.969
+#> omega[0.025,1] 0.621 0.194 0.274 0.616 0.972
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -473,13 +473,13 @@ summary(fit_PET_brma_flex, include_mcmc_diagnostics = FALSE)
 #> Bayesian Random-Effects PET Model (k = 81)
 #> 
 #> Estimates
-#>       Mean    SD  0.025    0.5 0.975
-#> mu  -0.002 0.100 -0.207 -0.002 0.193
-#> tau  0.308 0.041  0.234  0.306 0.395
+#>      Mean    SD  0.025   0.5 0.975
+#> mu  0.001 0.105 -0.212 0.003 0.205
+#> tau 0.309 0.041  0.235 0.307 0.394
 #> 
 #> Publication Bias
 #>      Mean    SD 0.025   0.5 0.975
-#> PET 0.926 0.405 0.147 0.920 1.753
+#> PET 0.912 0.423 0.096 0.901 1.777
 ```
 
 The two panels below show the prior and posterior of the `PET`
@@ -527,12 +527,12 @@ summary(fit_PEESE_brma_flex, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.094 0.064 -0.031 0.093 0.220
-#> tau 0.305 0.041  0.228 0.303 0.391
+#> mu  0.094 0.065 -0.031 0.094 0.225
+#> tau 0.305 0.041  0.230 0.303 0.392
 #> 
 #> Publication Bias
 #>        Mean    SD 0.025   0.5 0.975
-#> PEESE 1.816 0.775 0.288 1.819 3.317
+#> PEESE 1.812 0.784 0.249 1.814 3.335
 ```
 
 ``` r
@@ -594,13 +594,13 @@ summary(fit_selmodel_brma_flex, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.167 0.060 0.054 0.164 0.291
-#> tau 0.305 0.045 0.224 0.302 0.399
+#> mu  0.168 0.060 0.056 0.166 0.291
+#> tau 0.305 0.044 0.225 0.303 0.398
 #> 
 #> Publication Bias
 #>                 Mean    SD 0.025   0.5 0.975
 #> omega[0,0.025] 1.000 0.000 1.000 1.000 1.000
-#> omega[0.025,1] 0.766 0.261 0.378 0.726 1.390
+#> omega[0.025,1] 0.772 0.266 0.376 0.734 1.406
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 

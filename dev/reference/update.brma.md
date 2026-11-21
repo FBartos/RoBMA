@@ -113,7 +113,8 @@ is reused.
 Extensions continue the random-number generator state stored by JAGS.
 They cannot be restarted from a new seed without changing the meaning of
 chain continuation, so [`update()`](https://rdrr.io/r/stats/update.html)
-has no `seed` argument.
+has no `seed` argument. Extending a JAGS 4 fit requires refitting the
+original model under JAGS 5.
 
 Retained selection-normalizer caches are restored when compatible. Set
 `RoBMA.options(selection.cache_retain = TRUE)` to retain the cache after

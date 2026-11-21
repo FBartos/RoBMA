@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -218,8 +218,8 @@ the heterogeneity.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.554 0.070 0.424 0.552 0.700</span></span>
-<span><span class="co">#&gt; tau 0.140 0.083 0.008 0.134 0.318</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.553 0.069 0.424 0.551 0.696</span></span>
+<span><span class="co">#&gt; tau 0.139 0.084 0.009 0.133 0.318</span></span></code></pre></div>
 <p>Setting the heterogeneity prior distribution to a spike at zero turns
 the random-effects model into a fixed-effect model.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
@@ -243,7 +243,7 @@ the random-effects model into a fixed-effect model.</p>
 between the two fits.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">fit_RE</span>, <span class="va">fit_FE</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Bayes factor in favor of Model 1 over Model 2: 0.76130</span></span></code></pre></div>
+<span><span class="co">#&gt; Bayes factor in favor of Model 1 over Model 2: 0.75627</span></span></code></pre></div>
 <p>The Bayes factor is close to one and neither model is decisively
 preferred. Rather than picking one of the two models, we can
 model-average over them and weight the inference by the posterior model
@@ -273,12 +273,12 @@ above.</p>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              1.000       1.000           NA                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.434        0.766                2.344</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.439        0.783                2.295</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.421 0.536 0.670     0.00057          0.009 12056 1.000</span></span>
-<span><span class="co">#&gt; tau 0.061 0.088 0.000 0.000 0.278     0.00094          0.011  8836 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.672     0.00058          0.009 11766 1.000</span></span>
+<span><span class="co">#&gt; tau 0.062 0.089 0.000 0.000 0.277     0.00093          0.011  9061 1.000</span></span></code></pre></div>
 <p>The <em>Components</em> table reports the posterior probability and
 inclusion Bayes factor for heterogeneity. This BF closely matches
 <code>bf(fit_RE, fit_FE)</code> above up to MCMC noise. The two routes
@@ -312,12 +312,12 @@ heterogeneity, each present or absent).</p>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.431        0.757                2.368</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.440        0.786                2.329</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.668     0.00057          0.009 12033 1.000</span></span>
-<span><span class="co">#&gt; tau 0.060 0.088 0.000 0.000 0.277     0.00094          0.011  8696 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.674     0.00060          0.009 11316 1.000</span></span>
+<span><span class="co">#&gt; tau 0.062 0.089 0.000 0.000 0.280     0.00093          0.010  9199 1.000</span></span></code></pre></div>
 <p>Both inclusion Bayes factors come from the same MCMC. The effect BF
 is overwhelming on this dataset; the heterogeneity BF is the same as
 before. The model-averaged estimates are spike-and-slab mixtures: a
@@ -352,17 +352,17 @@ where the spike’s posterior weight is essentially zero.</p>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.431        0.757                2.368</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.440        0.786                2.329</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.668     0.00057          0.009 12033 1.000</span></span>
-<span><span class="co">#&gt; tau 0.060 0.088 0.000 0.000 0.277     0.00094          0.011  8696 1.000</span></span>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.674     0.00060          0.009 11316 1.000</span></span>
+<span><span class="co">#&gt; tau 0.062 0.089 0.000 0.000 0.280     0.00093          0.010  9199 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.668</span></span>
-<span><span class="co">#&gt; tau 0.140 0.083 0.009 0.133 0.312</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.674</span></span>
+<span><span class="co">#&gt; tau 0.141 0.084 0.009 0.135 0.317</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="meta-regression-with-model-averaging">Meta-Regression with Model Averaging<a class="anchor" aria-label="anchor" href="#meta-regression-with-model-averaging"></a>
@@ -416,21 +416,21 @@ heterogeneity
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.366        0.577                2.457</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.371        0.591                2.407</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression Inclusion</span></span>
 <span><span class="co">#&gt;        Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
-<span><span class="co">#&gt; tailor       0.500       0.546        1.204                3.471</span></span>
+<span><span class="co">#&gt; tailor       0.500       0.556        1.254                3.497</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; tau 0.046 0.079 0.000 0.000 0.261     0.00089          0.011 7862 1.001</span></span>
+<span><span class="co">#&gt; tau 0.047 0.080 0.000 0.000 0.264     0.00087          0.011 8322 1.001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; intercept       0.510 0.068  0.378  0.508 0.649     0.00082          0.012 6956 1.000</span></span>
-<span><span class="co">#&gt; tailor[dif: 0] -0.066 0.076 -0.227 -0.036 0.000     0.00118          0.016 4159 1.000</span></span>
-<span><span class="co">#&gt; tailor[dif: 1]  0.066 0.076  0.000  0.036 0.227     0.00118          0.016 4159 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; intercept       0.508 0.069  0.377  0.506 0.648     0.00083          0.012 6958 1.000</span></span>
+<span><span class="co">#&gt; tailor[dif: 0] -0.068 0.076 -0.228 -0.044 0.000     0.00116          0.015 4315 1.000</span></span>
+<span><span class="co">#&gt; tailor[dif: 1]  0.068 0.076  0.000  0.044 0.228     0.00116          0.015 4315 1.000</span></span></code></pre></div>
 <p>The <em>Components</em> table now also lists <code>tailor</code> and
 its inclusion BF. Because we average the moderation across models in
 which the slope is zero, <code><a href="../reference/regplot.html">regplot()</a></code> shrinks the difference
@@ -439,9 +439,12 @@ towards zero when the inclusion BF is modest.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/regplot.html">regplot</a></span><span class="op">(</span><span class="va">fit_BMA_mod</span>, mod <span class="op">=</span> <span class="st">"tailor"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="v20-bayesian-model-averaging_files/figure-html/regplot-BMA-mod-1.png" class="r-plt" alt="" width="480" style="display: block; margin: auto;"></p>
-<p>Alternatively, we can directly compute the estimated marginal means
-via the <code><a href="../reference/marginal_means.html">marginal_means()</a></code> function and visualize the prior
-and posterior distributions at each moderator level.</p>
+<p>Alternatively, we can compute the marginal means via
+<code><a href="../reference/marginal_means.html">marginal_means()</a></code> and visualize the prior and posterior
+distributions at each moderator level. The posterior draws for the
+intercept and the <code>tailor[1]</code> marginal mean all lie on one
+side of zero. Their very large Savage-Dickey Bayes factors depend on
+extrapolating the posterior density into that tail.</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">emm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/marginal_means.html">marginal_means</a></span><span class="op">(</span><span class="va">fit_BMA_mod</span><span class="op">)</span></span>
@@ -449,9 +452,9 @@ and posterior distributions at each moderator level.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-Averaged Marginal Means:</span></span>
 <span><span class="co">#&gt;            Mean    SD 0.025   0.5 0.975  Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept 0.510 0.068 0.378 0.508 0.649 6.194632e+192</span></span>
-<span><span class="co">#&gt; tailor[0] 0.443 0.123 0.193 0.462 0.646  1.921280e+02</span></span>
-<span><span class="co">#&gt; tailor[1] 0.576 0.075 0.439 0.573 0.731 1.251480e+214</span></span>
+<span><span class="co">#&gt; intercept 0.508 0.069 0.377 0.506 0.648 2.790899e+137</span></span>
+<span><span class="co">#&gt; tailor[0] 0.440 0.124 0.190 0.458 0.646  1.827880e+02</span></span>
+<span><span class="co">#&gt; tailor[1] 0.576 0.075 0.439 0.574 0.730 1.337889e+205</span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_tailor[1]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span></span>

@@ -140,20 +140,20 @@ the exact slice sampler, split by reason into `fallback_few_proposals`,
 `fallback_surrogate_exact` and `fallback_low_acceptance`;
 `sampling_proposed` and `sampling_accepted`, the proposals made after
 adaptation by samplers that stayed corrected and the proposals whose
-correction accepted them (unchanged values included), counting burn-in,
-retained and extension draws and the closing draws the sampler makes
-after recording the chain end; `sampling_judged`, the sum over the
-samplers of their proposals times their acceptance rate per direction
-(rate^(1/d) for a block of d parameters, the accepted proposals of a
-scalar sampler, over each backend run); `acceptance_rate`, the judged,
-per-direction rate `sampling_judged / sampling_proposed`, which equals
-the raw rate `sampling_accepted / sampling_proposed` for fits without
-blocks (`NA` without proposals); `min_sampler_rate`, the lowest
-acceptance rate of one sampler over one backend run (of the fit, of an
-automatic extension or of an
-[`update()`](https://rdrr.io/r/stats/update.html)), among samplers with
-at least 1,000 proposals in that run (`NA` when none has). A fit made of
-several backend runs (automatic or
+correction accepted them (unchanged values included), counting burn-in
+and all sampling iterations through the end of each chain or extension,
+including iterations between retained draws when thinning;
+`sampling_judged`, the sum over the samplers of their proposals times
+their acceptance rate per direction (rate^(1/d) for a block of d
+parameters, the accepted proposals of a scalar sampler, over each
+backend run); `acceptance_rate`, the judged, per-direction rate
+`sampling_judged / sampling_proposed`, which equals the raw rate
+`sampling_accepted / sampling_proposed` for fits without blocks (`NA`
+without proposals); `min_sampler_rate`, the lowest acceptance rate of
+one sampler over one backend run (of the fit, of an automatic extension
+or of an [`update()`](https://rdrr.io/r/stats/update.html)), among
+samplers with at least 1,000 proposals in that run (`NA` when none has).
+A fit made of several backend runs (automatic or
 [`update()`](https://rdrr.io/r/stats/update.html) extensions, or fits
 that sample in several runs, as JASP does) takes this minimum over more
 and shorter runs; while a sampler still makes at least 1,000 proposals

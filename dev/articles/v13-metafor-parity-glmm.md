@@ -107,8 +107,8 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>       Mean    SD  0.025    0.5  0.975
-#> mu  -0.700 0.186 -1.072 -0.702 -0.328
-#> tau  0.586 0.144  0.356  0.568  0.916
+#> mu  -0.716 0.187 -1.081 -0.717 -0.341
+#> tau  0.590 0.143  0.363  0.573  0.926
 ```
 
 The posterior mean for `mu` tracks the maximum-likelihood estimate from
@@ -123,7 +123,7 @@ pooled_effect(fit1_brma, transform = "EXP")
 #> 
 #> Pooled Effect Size (odds ratio)
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.505  0.496 0.342 0.721    0.141    1.758
+#> mu 0.497  0.488 0.339 0.711    0.137    1.742
 #> Effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.
 ```
 

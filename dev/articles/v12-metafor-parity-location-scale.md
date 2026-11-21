@@ -83,8 +83,8 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.220 0.047 0.129 0.218 0.316
-#> tau 0.226 0.052 0.130 0.224 0.336
+#> mu  0.220 0.047 0.129 0.219 0.318
+#> tau 0.226 0.052 0.130 0.224 0.334
 ```
 
 The pooled effect and the single heterogeneity parameter `tau` track the
@@ -152,13 +152,13 @@ summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Location
 #>             Mean    SD  0.025    0.5  0.975
-#> intercept  0.302 0.067  0.171  0.303  0.434
-#> ni100     -0.056 0.023 -0.103 -0.056 -0.013
+#> intercept  0.303 0.067  0.172  0.303  0.435
+#> ni100     -0.057 0.023 -0.104 -0.056 -0.013
 #> 
 #> Scale
 #>                  Mean    SD  0.025    0.5 0.975
-#> exp(intercept)  0.349 0.117  0.150  0.340 0.607
-#> ni100          -0.374 0.222 -0.841 -0.362 0.035
+#> exp(intercept)  0.346 0.118  0.144  0.336 0.604
+#> ni100          -0.368 0.226 -0.844 -0.361 0.064
 #> exp(intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
 ```
 
@@ -259,15 +259,15 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Location
 #>             Mean    SD  0.025    0.5  0.975
-#> intercept  0.230 0.069  0.096  0.229  0.369
-#> ni100     -0.059 0.023 -0.106 -0.058 -0.016
-#> meta[1]    0.173 0.077  0.026  0.173  0.328
+#> intercept  0.230 0.069  0.097  0.229  0.369
+#> ni100     -0.059 0.023 -0.105 -0.058 -0.016
+#> meta[1]    0.172 0.078  0.024  0.171  0.329
 #> 
 #> Scale
 #>                  Mean    SD  0.025    0.5 0.975
-#> exp(intercept)  0.292 0.114  0.098  0.281 0.543
-#> ni100          -0.342 0.238 -0.829 -0.334 0.108
-#> imag[1]         0.367 0.447 -0.572  0.380 1.208
+#> exp(intercept)  0.292 0.112  0.102  0.283 0.538
+#> ni100          -0.344 0.239 -0.836 -0.336 0.106
+#> imag[1]         0.362 0.438 -0.561  0.383 1.175
 #> exp(intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
 ```
 

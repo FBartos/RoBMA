@@ -110,7 +110,9 @@ fit1_brma <- brma.mv(
 effect and the random-effect parameters monitored by the fitted Bayesian
 model. Here `tau` is the shared marginal heterogeneity SD corresponding
 to the `metafor` package variance component, and `district: rho` is the
-compound-symmetric correlation.
+compound-symmetric correlation. The pooled effect and one district-level
+latent coefficient fall below the effective sample size target of 500 in
+this fit.
 
 ``` r
 
@@ -120,9 +122,9 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.181 0.088 0.013 0.179 0.363
-#> tau 0.321 0.054 0.237 0.314 0.449
-#> rho 0.631 0.137 0.335 0.645 0.856
+#> mu  0.182 0.083 0.022 0.180 0.361
+#> tau 0.317 0.056 0.233 0.309 0.452
+#> rho 0.621 0.142 0.311 0.634 0.859
 ```
 
 ## Known Sampling Covariance
@@ -225,10 +227,10 @@ summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>                        Mean    SD 0.025   0.5 0.975
-#> mu                    0.355 0.097 0.169 0.353 0.551
-#> tau_total             0.478 0.062 0.375 0.471 0.617
-#> tau2_prop(esid_study) 0.676 0.138 0.398 0.682 0.926
-#> tau2_prop(study)      0.324 0.138 0.074 0.318 0.602
+#> mu                    0.354 0.097 0.165 0.354 0.546
+#> tau_total             0.478 0.062 0.376 0.471 0.621
+#> tau2_prop(esid_study) 0.677 0.137 0.396 0.684 0.923
+#> tau2_prop(study)      0.323 0.137 0.077 0.316 0.604
 ```
 
 A more detailed summary of the between-study heterogeneity can be
@@ -243,10 +245,10 @@ summary_heterogeneity(fit2_brma)
 #> 
 #> Heterogeneity Estimates (study/esid):
 #>                        Mean Median 0.025 0.975
-#> tau_total             0.478  0.471 0.375 0.617
-#> tau2_total            0.232  0.222 0.141 0.381
-#> tau2_prop(esid_study) 0.676  0.682 0.398 0.926
-#> tau2_prop(study)      0.324  0.318 0.074 0.602
+#> tau_total             0.478  0.471 0.376 0.621
+#> tau2_total            0.232  0.222 0.141 0.386
+#> tau2_prop(esid_study) 0.677  0.684 0.396 0.923
+#> tau2_prop(study)      0.323  0.316 0.077 0.604
 #> 
 #> Heterogeneity Estimates (esid_study):
 #>       Mean Median 0.025 0.975
@@ -255,8 +257,8 @@ summary_heterogeneity(fit2_brma)
 #> 
 #> Heterogeneity Estimates (study):
 #>       Mean Median 0.025 0.975
-#> tau  0.270  0.264 0.111 0.467
-#> tau2 0.081  0.070 0.012 0.218
+#> tau  0.270  0.262 0.112 0.469
+#> tau2 0.081  0.069 0.013 0.220
 ```
 
 ## Heterogeneous AR(1) Structure
@@ -392,25 +394,28 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>                     Mean    SD 0.025   0.5 0.975
-#> tau_common         5.043 0.785 3.651 4.993 6.745
-#> tau2_mult(time[1]) 0.834 0.245 0.428 0.811 1.382
-#> tau2_mult(time[2]) 1.172 0.253 0.719 1.160 1.724
-#> tau2_mult(time[3]) 0.949 0.213 0.600 0.926 1.427
-#> tau2_mult(time[4]) 1.046 0.335 0.442 1.025 1.749
-#> rho                0.827 0.073 0.647 0.840 0.929
+#> tau_common         4.990 0.774 3.617 4.936 6.640
+#> tau2_mult(time[1]) 0.821 0.236 0.432 0.799 1.338
+#> tau2_mult(time[2]) 1.220 0.262 0.771 1.196 1.794
+#> tau2_mult(time[3]) 0.941 0.209 0.596 0.918 1.426
+#> tau2_mult(time[4]) 1.018 0.322 0.432 0.999 1.703
+#> rho                0.822 0.074 0.642 0.835 0.927
 #> 
 #> Meta-Regression
 #>                   Mean    SD   0.025     0.5   0.975
-#> time_factor[1] -25.413 1.019 -27.399 -25.423 -23.362
-#> time_factor[2] -26.924 1.123 -29.038 -26.941 -24.774
-#> time_factor[3] -28.128 1.023 -30.113 -28.146 -26.130
-#> time_factor[4] -25.782 1.388 -28.530 -25.795 -23.071
+#> time_factor[1] -25.391 0.980 -27.271 -25.403 -23.432
+#> time_factor[2] -26.946 1.133 -29.181 -26.964 -24.656
+#> time_factor[3] -28.152 1.022 -30.149 -28.149 -26.100
+#> time_factor[4] -25.784 1.367 -28.445 -25.797 -23.023
 ```
 
 The `HAR` structure lets the heterogeneity differ by time point while
-estimating one autocorrelation across neighboring time points. This
-separates the temporal structure of the true effects from the working
-temporal dependence already encoded in `V_ishak`.
+estimating one autocorrelation across neighboring time points. The
+estimated autocorrelation of the true effects is about 0.82. The working
+sampling-error correlation in `V_ishak` was fixed at 0.97. The fit falls
+below the effective sample size target of 500 for the autocorrelation
+and two time-specific means, so their estimates have appreciable Monte
+Carlo uncertainty.
 
 ## Study and Treatment Random Effects
 
@@ -546,14 +551,14 @@ summary(fit4_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>                 Mean    SD 0.025   0.5 0.975
-#> study: tau     0.040 0.028 0.002 0.036 0.105
-#> treatment: tau 0.040 0.027 0.002 0.037 0.101
+#> study: tau     0.041 0.028 0.002 0.037 0.104
+#> treatment: tau 0.040 0.027 0.002 0.037 0.102
 #> treatment: rho 0.000 0.000 0.000 0.000 0.000
 #> 
 #> Meta-Regression
 #>            Mean    SD 0.025   0.5 0.975
-#> intercept 0.327 0.026 0.276 0.326 0.380
-#> trt[BMT]  0.136 0.043 0.052 0.136 0.220
+#> intercept 0.326 0.026 0.276 0.326 0.380
+#> trt[BMT]  0.137 0.043 0.053 0.137 0.222
 ```
 
 The study component captures baseline heterogeneity across studies,
@@ -566,12 +571,12 @@ summary_heterogeneity(fit4_brma)
 #> 
 #> Heterogeneity Estimates (study):
 #>       Mean Median 0.025 0.975
-#> tau  0.040  0.036 0.002 0.105
+#> tau  0.041  0.037 0.002 0.104
 #> tau2 0.002  0.001 0.000 0.011
 #> 
 #> Heterogeneity Estimates (treatment):
 #>                 Mean Median 0.025 0.975
-#> tau            0.040  0.037 0.002 0.101
+#> tau            0.040  0.037 0.002 0.102
 #> tau2           0.002  0.001 0.000 0.010
 #> treatment: rho 0.000  0.000 0.000 0.000
 ```

@@ -11,7 +11,7 @@ quantities."><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -178,7 +178,8 @@ supported by this method. For <code><a href="brma.mv.html">brma.mv()</a></code> 
 preserved because the fitted model structure is reused.</p>
 <p>Extensions continue the random-number generator state stored by JAGS. They
 cannot be restarted from a new seed without changing the meaning of chain
-continuation, so <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> has no <code>seed</code> argument.</p>
+continuation, so <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> has no <code>seed</code> argument.
+Extending a JAGS 4 fit requires refitting the original model under JAGS 5.</p>
 <p>Retained selection-normalizer caches are restored when compatible. Set
 <code>RoBMA.options(selection.cache_retain = TRUE)</code> to retain the cache after
 extension, or use <code><a href="remove_selection_cache.html">remove_selection_cache()</a></code> to remove saved cache entries.</p>

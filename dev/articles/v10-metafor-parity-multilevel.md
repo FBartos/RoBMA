@@ -118,14 +118,16 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.186 0.085 0.022 0.186 0.356
-#> tau 0.318 0.056 0.232 0.310 0.450
-#> rho 0.627 0.139 0.327 0.639 0.858
+#> mu  0.179 0.090 0.000 0.179 0.361
+#> tau 0.323 0.060 0.234 0.314 0.466
+#> rho 0.635 0.140 0.336 0.649 0.870
 ```
 
 The posterior mean for the pooled effect tracks the REML estimate from
 the `metafor` package, with comparable cluster-level allocation `rho`
-and total heterogeneity `tau`.
+and total heterogeneity `tau`. The lower endpoint of the pooled-effect
+credible interval rounds to zero. Its Monte Carlo standard error is
+about 0.008, so its sign is uncertain.
 
 ## Heterogeneity: $`\tau`$ and $`\rho`$
 
@@ -156,17 +158,17 @@ summary_heterogeneity(fit1_brma)
 #> 
 #> Heterogeneity Estimates:
 #>                  Mean Median  0.025  0.975
-#> tau             0.318  0.310  0.232  0.450
-#> rho             0.627  0.639  0.327  0.858
-#> tau [within]    0.187  0.185  0.131  0.253
-#> tau [between]   0.253  0.245  0.147  0.405
-#> tau2            0.104  0.096  0.054  0.203
+#> tau             0.323  0.314  0.234  0.466
+#> rho             0.635  0.649  0.336  0.870
+#> tau [within]    0.187  0.185  0.131  0.254
+#> tau [between]   0.259  0.249  0.149  0.425
+#> tau2            0.108  0.098  0.055  0.217
 #> tau2 [within]   0.036  0.034  0.017  0.064
-#> tau2 [between]  0.068  0.060  0.022  0.164
-#> I2             94.980 95.105 91.586 97.617
-#> I2 [within]    35.298 34.226 13.779 63.148
-#> I2 [between]   59.682 60.617 30.491 83.176
-#> H2             22.097 20.430 11.886 41.970
+#> tau2 [between]  0.072  0.062  0.022  0.180
+#> I2             95.092 95.213 91.686 97.773
+#> I2 [within]    34.542 33.337 12.646 62.413
+#> I2 [between]   60.550 61.614 31.425 84.579
+#> H2             22.827 20.891 12.028 44.897
 ```
 
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) visualizes the

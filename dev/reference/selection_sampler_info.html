@@ -9,7 +9,7 @@ of a fitted model, or the counters of the current R process."><meta name="robots
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -194,9 +194,10 @@ sampler, split by reason into <code>fallback_few_proposals</code>,
 <code>fallback_surrogate_exact</code> and <code>fallback_low_acceptance</code>;
 <code>sampling_proposed</code> and <code>sampling_accepted</code>, the proposals made
 after adaptation by samplers that stayed corrected and the proposals whose
-correction accepted them (unchanged values included), counting burn-in,
-retained and extension draws and the closing draws the sampler makes after
-recording the chain end; <code>sampling_judged</code>, the sum over the samplers
+correction accepted them (unchanged values included), counting burn-in
+and all sampling iterations through the end of each chain or extension,
+including iterations between retained draws when thinning;
+<code>sampling_judged</code>, the sum over the samplers
 of their proposals times their acceptance rate per direction (rate^(1/d)
 for a block of d parameters, the accepted proposals of a scalar sampler,
 over each backend run); <code>acceptance_rate</code>, the judged, per-direction

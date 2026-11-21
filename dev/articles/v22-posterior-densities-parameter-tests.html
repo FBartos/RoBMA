@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -181,8 +181,8 @@ prior distribution on the mean effect.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;       Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  -0.689 0.182 -1.057 -0.688 -0.330     0.00149          0.008 15000 1.000</span></span>
-<span><span class="co">#&gt; tau  0.572 0.143  0.342  0.554  0.897     0.00176          0.012  6688 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  -0.690 0.183 -1.059 -0.688 -0.329     0.00155          0.008 13918 1.000</span></span>
+<span><span class="co">#&gt; tau  0.570 0.143  0.345  0.551  0.900     0.00166          0.012  7789 1.001</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="qcmde-posterior-density-estimation">qCMDE Posterior Density Estimation<a class="anchor" aria-label="anchor" href="#qcmde-posterior-density-estimation"></a>
@@ -261,15 +261,15 @@ uses prior-posterior odds and does not need a density ordinate.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">mu_posterior_bf</span></span>
 <span><span class="co">#&gt;  Alternative:  Null:       BF error%(BF)</span></span>
-<span><span class="co">#&gt;       mu != 0 mu = 0   58.328     10.580</span></span>
-<span><span class="co">#&gt;        mu &lt; 0 mu = 0  116.610     10.580</span></span>
-<span><span class="co">#&gt;        mu &lt; 0 mu &gt; 0 2499.000     40.834</span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE relative MCSE is 10.6% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE relative MCSE is 10.6% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE finite-population row-sampling relative error is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE finite-population row-sampling relative error is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE effective sample size is 70.7 (warning threshold 100).</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE effective sample size is 70.7 (warning threshold 100).</span></span></span></code></pre></div>
+<span><span class="co">#&gt;       mu != 0 mu = 0   60.759     10.777</span></span>
+<span><span class="co">#&gt;        mu &lt; 0 mu = 0  121.454     10.777</span></span>
+<span><span class="co">#&gt;        mu &lt; 0 mu &gt; 0 1874.000     35.366</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE relative MCSE is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE relative MCSE is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE finite-population row-sampling relative error is 10.7% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE finite-population row-sampling relative error is 10.7% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE effective sample size is 72.9 (warning threshold 100).</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">qCMDE effective sample size is 72.9 (warning threshold 100).</span></span></span></code></pre></div>
 <p>The bridge sampling route fits one constrained model per hypothesis
 side, attaches marginal likelihoods with <code><a href="../reference/add_marglik.brma.html">add_marglik()</a></code>, and
 compares them with <code><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bf()</a></code>.</p>
@@ -321,33 +321,29 @@ hypotheses.</caption>
 <tbody>
 <tr class="odd">
 <td align="left"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><annotation encoding="application/x-tex">\text{BF}_{10}</annotation></semantics></math></td>
-<td align="right">58.3</td>
-<td align="right">65.6</td>
+<td align="right">60.8</td>
+<td align="right">65.8</td>
 </tr>
 <tr class="even">
 <td align="left"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mtext mathvariant="normal">BF</mtext><mrow><mi>−</mi><mn>0</mn></mrow></msub><annotation encoding="application/x-tex">\text{BF}_{-0}</annotation></semantics></math></td>
-<td align="right">116.6</td>
+<td align="right">121.5</td>
 <td align="right">130.9</td>
 </tr>
 <tr class="odd">
 <td align="left"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mtext mathvariant="normal">BF</mtext><mrow><mi>−</mi><mo>+</mo></mrow></msub><annotation encoding="application/x-tex">\text{BF}_{-+}</annotation></semantics></math></td>
-<td align="right">2499.0</td>
-<td align="right">2027.8</td>
+<td align="right">1874.0</td>
+<td align="right">2029.8</td>
 </tr>
 </tbody>
 </table>
-<p>The point-null Bayes factors agree closely across the two routes. The
-posterior-based value for
+<p>The point-null Bayes factors agree to within the Monte Carlo error
+reported for the qCMDE estimates (about 11%). Only 8 of the 15,000
+posterior draws have a positive mean effect. The encompassing-prior
+estimate of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mtext mathvariant="normal">BF</mtext><mrow><mi>−</mi><mo>+</mo></mrow></msub><annotation encoding="application/x-tex">\text{BF}_{-+}</annotation></semantics></math>
-is limited by the number of posterior draws as only a very small
-proportion of samples is at the positive side. Consequently, the
-encompassing prior estimate is much more variable than the corresponding
-bridge sampling approach (see the the large <code>error%(BF)</code>
-reported earlier). In general, Bayes factors larger than 100 (lower than
-1/100) are likely to have limited precision when using the posterior
-based or product-space approaches. (This usually does not matter for the
-interpretation, i.e., the data provide overwhelming evidence for one of
-the hypotheses.)</p>
+therefore has about 35% relative Monte Carlo error. Both the posterior
+draws and bridge sampling strongly favor a negative over a positive mean
+effect.</p>
 </div>
 <div class="section level2">
 <h2 id="meta-regression">Meta-Regression<a class="anchor" aria-label="anchor" href="#meta-regression"></a>
@@ -375,15 +371,15 @@ allocation methods among each other.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; tau 0.382 0.155 0.124 0.366 0.725     0.00249          0.016 3889 1.000</span></span>
+<span><span class="co">#&gt; tau 0.387 0.160 0.123 0.370 0.746     0.00256          0.016 3926 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                          Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; intercept               0.188 0.333 -0.523  0.206  0.811     0.00296          0.009 12876 1.000</span></span>
-<span><span class="co">#&gt; ablat                  -0.026 0.009 -0.043 -0.026 -0.005     0.00009          0.010 11011 1.000</span></span>
-<span><span class="co">#&gt; alloc[dif: alternate]   0.073 0.205 -0.346  0.075  0.490     0.00186          0.009 12313 1.000</span></span>
-<span><span class="co">#&gt; alloc[dif: random]     -0.174 0.174 -0.538 -0.166  0.152     0.00165          0.009 11253 1.000</span></span>
-<span><span class="co">#&gt; alloc[dif: systematic]  0.101 0.192 -0.258  0.092  0.505     0.00166          0.009 13319 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; intercept               0.185 0.338 -0.540  0.210  0.801     0.00308          0.009 11998 1.000</span></span>
+<span><span class="co">#&gt; ablat                  -0.026 0.010 -0.043 -0.026 -0.005     0.00009          0.010 11173 1.000</span></span>
+<span><span class="co">#&gt; alloc[dif: alternate]   0.071 0.209 -0.354  0.072  0.486     0.00186          0.009 12618 1.000</span></span>
+<span><span class="co">#&gt; alloc[dif: random]     -0.173 0.179 -0.547 -0.164  0.161     0.00170          0.009 11167 1.000</span></span>
+<span><span class="co">#&gt; alloc[dif: systematic]  0.102 0.195 -0.254  0.094  0.511     0.00172          0.009 12939 1.000</span></span></code></pre></div>
 <p>qCMDE is again available directly through <code><a href="../reference/plot.brma.html">plot.brma()</a></code>.
 When interpreting categorical moderators, estimated marginal means
 (EMMs) are a clearer way to report the results. The
@@ -420,9 +416,9 @@ allocation marginal posterior.</p>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                                      Alternative:                                 Null:    BF error%(BF)</span></span>
-<span><span class="co">#&gt; mu_alloc (1)     alloc[alternate] &gt; alloc[random]     alloc[alternate] &lt;= alloc[random] 3.808      2.012</span></span>
-<span><span class="co">#&gt; mu_alloc (2) alloc[alternate] &gt; alloc[systematic] alloc[alternate] &lt;= alloc[systematic] 0.921      1.634</span></span>
-<span><span class="co">#&gt; mu_alloc (3)    alloc[random] &gt; alloc[systematic]    alloc[random] &lt;= alloc[systematic] 0.212      2.148</span></span></code></pre></div>
+<span><span class="co">#&gt; mu_alloc (1)     alloc[alternate] &gt; alloc[random]     alloc[alternate] &lt;= alloc[random] 3.640      1.986</span></span>
+<span><span class="co">#&gt; mu_alloc (2) alloc[alternate] &gt; alloc[systematic] alloc[alternate] &lt;= alloc[systematic] 0.916      1.635</span></span>
+<span><span class="co">#&gt; mu_alloc (3)    alloc[random] &gt; alloc[systematic]    alloc[random] &lt;= alloc[systematic] 0.223      2.113</span></span></code></pre></div>
 </div>
 <div class="section level2 unnumbered">
 <h2 class="unnumbered" id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>

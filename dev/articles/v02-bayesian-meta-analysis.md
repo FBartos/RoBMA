@@ -93,8 +93,8 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>       Mean    SD  0.025    0.5  0.975
-#> mu  -0.689 0.182 -1.057 -0.688 -0.330
-#> tau  0.572 0.143  0.342  0.554  0.897
+#> mu  -0.690 0.183 -1.059 -0.688 -0.329
+#> tau  0.570 0.143  0.345  0.551  0.900
 ```
 
 The posterior mean for the log risk ratio is close to the REML estimate
@@ -110,7 +110,7 @@ pooled_effect(fit1_brma, transform = "EXP")
 #> 
 #> Pooled Effect Size (risk ratio)
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.510  0.503 0.348 0.719    0.145    1.722
+#> mu 0.510  0.503 0.347 0.720    0.146    1.713
 #> Effect estimates are summarized on the risk ratio scale using EXP on the log risk ratio measure.
 ```
 
@@ -152,10 +152,10 @@ summary_heterogeneity(fit1_brma)
 #> 
 #> Heterogeneity Estimates:
 #>        Mean Median  0.025  0.975
-#> tau   0.572  0.554  0.342  0.897
-#> tau2  0.348  0.307  0.117  0.805
-#> I2   91.356 92.072 81.601 96.821
-#> H2   14.162 12.614  5.435 31.452
+#> tau   0.570  0.551  0.345  0.900
+#> tau2  0.345  0.304  0.119  0.810
+#> I2   91.298 91.997 81.801 96.842
+#> H2   14.066 12.495  5.495 31.670
 ```
 
 ## Funnel Plot
@@ -269,12 +269,12 @@ summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 0.310 0.143 0.087 0.291 0.646
+#> tau 0.309 0.142 0.086 0.288 0.641
 #> 
 #> Meta-Regression
 #>             Mean    SD  0.025    0.5  0.975
-#> intercept  0.208 0.285 -0.412  0.229  0.736
-#> ablat     -0.027 0.008 -0.043 -0.028 -0.010
+#> intercept  0.207 0.284 -0.429  0.229  0.731
+#> ablat     -0.027 0.008 -0.042 -0.028 -0.010
 ```
 
 [`regplot()`](https://fbartos.github.io/RoBMA/dev/reference/regplot.md)
@@ -299,9 +299,9 @@ predict(fit2_brma, newdata = new_data, type = "terms")
 #> 
 #> Location Term Posterior Prediction:
 #>         Mean Median  0.025  0.975
-#> mu[1] -0.202 -0.188 -0.601  0.136
-#> mu[2] -0.749 -0.745 -0.999 -0.509
-#> mu[3] -1.295 -1.301 -1.727 -0.821
+#> mu[1] -0.203 -0.189 -0.612  0.137
+#> mu[2] -0.749 -0.746 -1.003 -0.508
+#> mu[3] -1.295 -1.300 -1.720 -0.827
 ```
 
 ## Comparing Models with Bayes Factors
@@ -322,7 +322,7 @@ fit2_brma <- add_marglik(fit2_brma)
 ``` r
 
 bf(fit2_brma, fit1_brma)
-#> Bayes factor in favor of Model 1 over Model 2: 15.22299
+#> Bayes factor in favor of Model 1 over Model 2: 15.14413
 ```
 
 The Bayes factor quantifies how much the data shift the relative
@@ -357,14 +357,14 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 0.360 0.149 0.112 0.342 0.700
+#> tau 0.359 0.147 0.110 0.344 0.692
 #> 
 #> Meta-Regression
 #>                     Mean    SD  0.025    0.5  0.975
-#> intercept          0.258 0.362 -0.508  0.277  0.925
-#> ablat             -0.026 0.009 -0.042 -0.027 -0.006
-#> alloc[random]     -0.222 0.260 -0.751 -0.218  0.281
-#> alloc[systematic]  0.029 0.280 -0.498  0.021  0.606
+#> intercept          0.257 0.365 -0.503  0.275  0.924
+#> ablat             -0.026 0.009 -0.043 -0.027 -0.007
+#> alloc[random]     -0.220 0.257 -0.750 -0.216  0.285
+#> alloc[systematic]  0.034 0.277 -0.493  0.025  0.601
 ```
 
 The `RoBMA` R package also allows direct visualization of categorical
@@ -393,13 +393,13 @@ summary(emm)
 #> 
 #> Marginal Means:
 #>                     Mean    SD  0.025    0.5  0.975
-#> intercept         -0.613 0.223 -1.058 -0.609 -0.169
-#> ablat[-1SD]       -0.237 0.250 -0.755 -0.229  0.236
-#> ablat[0SD]        -0.613 0.223 -1.058 -0.609 -0.169
-#> ablat[1SD]        -0.989 0.267 -1.505 -0.993 -0.432
-#> alloc[alternate]  -0.613 0.223 -1.058 -0.609 -0.169
-#> alloc[random]     -0.835 0.181 -1.214 -0.828 -0.491
-#> alloc[systematic] -0.583 0.227 -1.016 -0.592 -0.103
+#> intercept         -0.616 0.219 -1.058 -0.613 -0.179
+#> ablat[-1SD]       -0.239 0.249 -0.755 -0.232  0.229
+#> ablat[0SD]        -0.616 0.219 -1.058 -0.613 -0.179
+#> ablat[1SD]        -0.993 0.262 -1.501 -0.998 -0.450
+#> alloc[alternate]  -0.616 0.219 -1.058 -0.613 -0.179
+#> alloc[random]     -0.836 0.180 -1.208 -0.830 -0.491
+#> alloc[systematic] -0.582 0.224 -1.009 -0.592 -0.121
 ```
 
 The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
@@ -437,7 +437,7 @@ fit3_brma <- add_loo(fit3_brma)
 head(rstudent(fit3_metafor)$z)
 #> [1]  0.4369227 -0.2024807 -0.3084436 -0.1187827 -0.4726194  0.4726194
 head(rstudent(fit3_brma)$z)
-#> [1]  0.3340480 -0.3631891 -0.4012927 -0.4301325 -0.4448620  0.4307321
+#> [1]  0.3378437 -0.3618206 -0.3992397 -0.4166937 -0.4501352  0.4539664
 ```
 
 [`qqnorm()`](https://rdrr.io/r/stats/qqnorm.html) checks the residuals
@@ -461,12 +461,12 @@ diagnostic is available.
 inf_brma <- influence(fit3_brma)
 head(inf_brma$inf)
 #>           rstudent      dffits     cook.d    cov.r   tau.del        hat
-#> Study 1  0.3340480  0.09066758 0.01079896 1.389756 0.3781569 0.08940512
-#> Study 2 -0.3631891 -0.16662852 0.04063976 1.784436 0.3869998 0.20434930
-#> Study 3 -0.4012927 -0.09603475 0.01117284 1.292404 0.3740040 0.07010807
-#> Study 4 -0.4301325 -0.26295606 0.12076321 2.283518 0.3901040 0.42241446
-#> Study 5 -0.4448620 -0.22113760 0.08359183 1.925780 0.3715541 0.54476639
-#> Study 6  0.4307321  0.26637007 0.14271841 2.399854 0.3832925 0.68674031
+#> Study 1  0.3378437  0.09121500 0.01118029 1.388620 0.3763181 0.08929162
+#> Study 2 -0.3618206 -0.17640716 0.04765091 1.829031 0.3857211 0.20427819
+#> Study 3 -0.3992397 -0.09675328 0.01156020 1.294891 0.3723903 0.06997830
+#> Study 4 -0.4166937 -0.26100525 0.12744874 2.394618 0.3927784 0.42257832
+#> Study 5 -0.4501352 -0.23568539 0.09831910 2.021391 0.3684962 0.54477303
+#> Study 6  0.4539664  0.27758115 0.15568379 2.252212 0.3765522 0.68679271
 ```
 
 ## References

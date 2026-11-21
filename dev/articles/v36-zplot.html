@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -257,9 +257,9 @@ models using the <code><a href="https://rdrr.io/r/base/summary.html" class="exte
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.254 0.015 0.224 0.254 0.284     0.00019          0.012  6744 1.001</span></span>
-<span><span class="co">#&gt; tau 0.122 0.013 0.098 0.121 0.149     0.00023          0.017  3384 1.001</span></span>
-<span><span class="co">#&gt; rho 0.947 0.040 0.848 0.955 0.997     0.00037          0.009 11587 1.000</span></span>
+<span><span class="co">#&gt; mu  0.254 0.015 0.225 0.254 0.284     0.00019          0.012  6494 1.001</span></span>
+<span><span class="co">#&gt; tau 0.122 0.013 0.098 0.121 0.149     0.00023          0.018  3267 1.001</span></span>
+<span><span class="co">#&gt; rho 0.947 0.040 0.847 0.955 0.997     0.00034          0.009 13701 1.000</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA_Weingarten2018</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -273,27 +273,28 @@ models using the <code><a href="https://rdrr.io/r/base/summary.html" class="exte
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.173 0.021 0.131 0.173 0.213     0.00042          0.020 2450 1.002</span></span>
-<span><span class="co">#&gt; tau 0.130 0.015 0.102 0.129 0.162     0.00027          0.018 3001 1.004</span></span>
-<span><span class="co">#&gt; rho 0.959 0.032 0.877 0.967 0.998     0.00037          0.011 7896 1.001</span></span>
+<span><span class="co">#&gt; mu  0.172 0.021 0.131 0.172 0.213     0.00042          0.020 2476 1.000</span></span>
+<span><span class="co">#&gt; tau 0.130 0.015 0.102 0.129 0.161     0.00027          0.018 3076 1.002</span></span>
+<span><span class="co">#&gt; rho 0.959 0.033 0.876 0.967 0.998     0.00036          0.011 8322 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.880 0.134 0.581 0.925 1.000     0.00377          0.028 1289 1.002</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.272 0.061 0.167 0.266 0.407     0.00091          0.015 4549 1.000</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.097 0.043 0.038 0.089 0.202     0.00059          0.014 5405 1.001</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.097 0.045 0.038 0.089 0.202     0.00061          0.014 5420 1.003</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.097 0.046 0.038 0.089 0.202     0.00062          0.014 5424 1.004</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.874 0.135 0.581 0.911 1.000     0.00342          0.025 1580 1.002</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.270 0.061 0.166 0.265 0.403     0.00092          0.015 4442 1.001</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.096 0.043 0.037 0.089 0.200     0.00068          0.016 4164 1.001</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.096 0.043 0.037 0.089 0.200     0.00068          0.016 4211 1.000</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.096 0.044 0.037 0.089 0.200     0.00068          0.016 4354 1.001</span></span>
 <span><span class="co">#&gt; PET               0.000 0.000 0.000 0.000 0.000     0.00000             NA    0    NA</span></span>
 <span><span class="co">#&gt; PEESE             0.000 0.000 0.000 0.000 0.000     0.00000             NA    0    NA</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>The Bayesian multilevel random-effects model finds results similar to
 those reported in the original publication-bias-unadjusted analysis.</p>
-<p>The RoBMA analysis reveals extreme evidence for publication bias.
-However, RoBMA still finds extreme evidence for the presence of an
-effect, with a substantially reduced but non-zero model-averaged effect
-size estimate.</p>
+<p>All 50,000 posterior draws include both publication bias and an
+average effect. This provides extreme evidence for both, with limited
+precision for the Bayes factors at this sampling budget. The adjusted
+model estimates a smaller positive effect than the conventional
+random-effects model.</p>
 <p><strong>Zplot diagnostics.</strong> We now generate zplots to assess
 how well each model captures the observed distribution of z-statistics.
 The <code><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist()</a></code> function creates a histogram of the observed
@@ -372,23 +373,19 @@ object.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Zplot Estimates:</span></span>
 <span><span class="co">#&gt;              Mean  Median   0.025   0.975</span></span>
-<span><span class="co">#&gt; EDR         0.209   0.207   0.162   0.271</span></span>
-<span><span class="co">#&gt; Soric FDR   0.203   0.202   0.142   0.272</span></span>
-<span><span class="co">#&gt; Missing N 511.609 482.606 251.546 946.432</span></span>
+<span><span class="co">#&gt; EDR         0.209   0.206   0.161   0.271</span></span>
+<span><span class="co">#&gt; Soric FDR   0.204   0.203   0.141   0.274</span></span>
+<span><span class="co">#&gt; Missing N 516.880 486.819 253.484 949.116</span></span>
 <span><span class="co">#&gt; Estimated using 298 estimates, 134 significant (ODR = 0.45, 95% CI [0.39, 0.51]); conditioning depth: marginal.</span></span></code></pre></div>
 <p>The summary provides several key results. The observed discovery rate
-(ODR) substantially exceeds the expected discovery rate (EDR),
-indicating that many more significant results appear in the published
-literature than we would expect. The estimated number of missing studies
-suggests that a substantial number of non-significant or negative
-results may be absent from the published literature, under the
-publication bias interpretation. However, the large missing N diagnostic
-might also reflect a large number of analytic paths that were possible
-and the results were selected over. The false discovery risk (FDR)
-provides an upper bound on the proportion of statistically significant
-results that may be false positives, though this risk remains moderate
-due to evidence for a genuine underlying effect despite the extreme
-publication bias.</p>
+(ODR) is the proportion of significant estimates in the published data.
+The EDR describes the fitted distribution after removing the selection
+adjustment. The conventional Missing N extrapolates the number of
+estimates relative to the reference publication-weight interval. A paper
+can contribute multiple estimates or analyses, so this quantity cannot
+identify a count of unpublished studies. The Sorić false discovery risk
+(FDR) gives an upper bound on the proportion of significant results that
+may be false positives.</p>
 </div>
 <div class="section level3">
 <h3 id="example-2-social-comparison-and-behavior-change">Example 2: Social Comparison and Behavior Change<a class="anchor" aria-label="anchor" href="#example-2-social-comparison-and-behavior-change"></a>
@@ -437,8 +434,8 @@ models:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.170 0.034 0.105 0.170 0.239     0.00015          0.004 49452 1.000</span></span>
-<span><span class="co">#&gt; tau 0.152 0.031 0.100 0.149 0.222     0.00020          0.006 24471 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.170 0.034 0.106 0.170 0.239     0.00015          0.004 49532 1.000</span></span>
+<span><span class="co">#&gt; tau 0.152 0.031 0.100 0.149 0.222     0.00019          0.006 26085 1.000</span></span></code></pre></div>
 <p>The random-effects model estimates a positive effect size, suggesting
 a positive effect of social comparison interventions. However, this
 analysis does not account for potential publication bias.</p>
@@ -449,26 +446,25 @@ analysis does not account for potential publication bias.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
-<span><span class="co">#&gt; Effect                 0.500       0.148        0.173                3.103</span></span>
+<span><span class="co">#&gt; Effect                 0.500       0.146        0.172                3.105</span></span>
 <span><span class="co">#&gt; Heterogeneity          0.500       1.000   &gt;49999.000                   NA</span></span>
-<span><span class="co">#&gt; Publication Bias       0.500       0.998      548.451               21.567</span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">Bayes factor MC error for bias is based on 91 posterior samples from the less frequent model.</span></span></span>
+<span><span class="co">#&gt; Publication Bias       0.500       0.997      389.625               19.728</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
-<span><span class="co">#&gt;       Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  -0.012 0.065 -0.211 0.000 0.048     0.00098          0.015 5014 1.003</span></span>
-<span><span class="co">#&gt; tau  0.210 0.045  0.139 0.205 0.315     0.00047          0.010 9475 1.000</span></span>
+<span><span class="co">#&gt;       Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
+<span><span class="co">#&gt; mu  -0.012 0.063 -0.206 0.000 0.051     0.00091          0.015  4889 1.003</span></span>
+<span><span class="co">#&gt; tau  0.210 0.044  0.139 0.205 0.313     0.00045          0.010 10223 1.001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.947 0.101 0.644 1.000 1.000     0.00133          0.013  5811 1.002</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.686 0.180 0.330 0.694 0.983     0.00147          0.008 15028 1.000</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.076 0.083 0.010 0.061 0.207     0.00075          0.009 12965 1.001</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.076 0.083 0.010 0.061 0.207     0.00075          0.009 12965 1.001</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.076 0.083 0.010 0.061 0.207     0.00076          0.009 12849 1.001</span></span>
-<span><span class="co">#&gt; PET               0.002 0.048 0.000 0.000 0.000     0.00037          0.008 19588 1.011</span></span>
-<span><span class="co">#&gt; PEESE             0.005 0.148 0.000 0.000 0.000     0.00082          0.006 32760 1.003</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.947 0.102 0.638 1.000 1.000     0.00113          0.011  8263 1.003</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.688 0.180 0.331 0.697 0.983     0.00141          0.008 16318 1.000</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.077 0.088 0.010 0.061 0.212     0.00096          0.011  9307 1.002</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.077 0.089 0.010 0.061 0.212     0.00095          0.011  9355 1.002</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.077 0.089 0.010 0.061 0.212     0.00095          0.011  9351 1.002</span></span>
+<span><span class="co">#&gt; PET               0.002 0.049 0.000 0.000 0.000     0.00033          0.007 22787 1.005</span></span>
+<span><span class="co">#&gt; PEESE             0.003 0.112 0.000 0.000 0.000     0.00067          0.006 33597 1.011</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>When accounting for the possibility of publication bias with RoBMA,
 we find extreme evidence for the presence of publication bias.
@@ -532,20 +528,17 @@ summarized with the additional statistics provided by the
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Zplot Estimates:</span></span>
 <span><span class="co">#&gt;             Mean Median  0.025   0.975</span></span>
-<span><span class="co">#&gt; EDR        0.341  0.333  0.232   0.518</span></span>
-<span><span class="co">#&gt; Soric FDR  0.108  0.105  0.049   0.175</span></span>
-<span><span class="co">#&gt; Missing N 57.590 47.385 25.776 151.864</span></span>
+<span><span class="co">#&gt; EDR        0.340  0.333  0.232   0.509</span></span>
+<span><span class="co">#&gt; Soric FDR  0.108  0.106  0.051   0.174</span></span>
+<span><span class="co">#&gt; Missing N 57.559 47.489 25.616 149.696</span></span>
 <span><span class="co">#&gt; Estimated using 37 estimates, 13 significant (ODR = 0.35, 95% CI [0.21, 0.53]); conditioning depth: marginal.</span></span></code></pre></div>
-<p>The summary provides several results. The observed discovery rate
-(ODR, i.e., the observed proportion of statistically significant
-results) in the dataset matches the expected discovery rate (EDR) due to
-the one-sided selection for marginally significant results (instead of
-statistically significant results). The estimated number of missing
-studies suggests that a considerable number of non-significant or
-negative results may be absent from the published literature. The false
-discovery risk (FDR), which corresponds to the upper bound on the false
-positive rate, is not extremely inflated due to the possible small
-positive and negative effects under the moderate heterogeneity.</p>
+<p>The observed discovery rate is 35% (13 of 37 estimates), close to the
+estimated EDR of 34% (95% credible interval [23%, 51%]). The one-sided
+selection models concentrate most of their weight on the
+marginal-significance and direction thresholds. Their inverse-weight
+extrapolation gives a mean Missing N of about 58 [26, 150]. The mean
+Sorić upper bound on the false discovery rate is about 11% [5%,
+17%].</p>
 </div>
 <div class="section level3">
 <h3 id="example-3-chatgpt-and-learning-performance">Example 3: ChatGPT and Learning Performance<a class="anchor" aria-label="anchor" href="#example-3-chatgpt-and-learning-performance"></a>
@@ -596,18 +589,13 @@ ChatGPT: Model Fit Assessment
 </p>
 </div>
 <p>The zplot for the ChatGPT data shows a different pattern than the
-extreme publication bias observed in the social comparison example.
-While we do not see strong selection at conventional significance
-thresholds, there is a moderate discontinuity at the transition to
-non-conforming results (z = 0), suggesting some degree of selection
-against negative findings.</p>
-<p>The random-effects model (black dashed line) provides a better fit to
-the data than in the previous example; however, RoBMA (blue dashed line)
-captures the discontinuity at zero slightly better. This visual pattern
-corresponds to moderate statistical evidence for publication bias,
-highlighting a case where both models might be considered, though the
-RoBMA model incorporates the uncertainty about the best model and
-provides a more complete account of the data patterns.</p>
+extreme publication bias observed in the social comparison example. The
+histogram shows a change around zero and relatively little evidence of a
+sharp drop at the conventional significance thresholds.</p>
+<p>The random-effects and RoBMA curves are closer here than in the
+social comparison example. The ensemble assigns nearly all of its
+posterior probability to PET and PEESE, which relate the effect size to
+study precision.</p>
 <p><strong>Extrapolation to pre-publication bias.</strong> We can
 examine the extrapolation to assess the impact of publication bias:</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
@@ -617,10 +605,8 @@ examine the extrapolation to assess the impact of publication bias:</p>
 ChatGPT: Extrapolation Analysis
 </p>
 </div>
-<p>The extrapolated distribution (blue line) shows a more modest
-difference between the fitted and extrapolated distributions compared to
-the extreme bias example, reflecting the moderate degree of publication
-bias in this literature.</p>
+<p>The extrapolated distribution lies closer to the fitted distribution
+than in the social comparison example.</p>
 <p><strong>Model results.</strong> To quantify these visual patterns, we
 examine the model summaries:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
@@ -630,55 +616,61 @@ examine the model summaries:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.830 0.121 0.594 0.829 1.069     0.00054          0.004 49715 1.000</span></span>
-<span><span class="co">#&gt; tau 0.736 0.095 0.567 0.730 0.936     0.00056          0.006 28435 1.000</span></span>
+<span><span class="co">#&gt; mu  0.829 0.121 0.594 0.829 1.068     0.00054          0.004 51014 1.000</span></span>
+<span><span class="co">#&gt; tau 0.736 0.095 0.569 0.730 0.938     0.00055          0.006 29545 1.000</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA_Wang2025</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Robust Bayesian Model-Averaged Random-Effects Model (k = 42)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
-<span><span class="co">#&gt; Effect                 0.500       0.513        1.052                2.372</span></span>
+<span><span class="co">#&gt; Effect                 0.500       0.513        1.052                2.283</span></span>
 <span><span class="co">#&gt; Heterogeneity          0.500       1.000   &gt;99999.000                   NA</span></span>
-<span><span class="co">#&gt; Publication Bias       0.500       0.999     1586.302               29.218</span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">Bayes factor MC error for bias is based on 63 posterior samples from the less frequent model.</span></span></span>
+<span><span class="co">#&gt; Publication Bias       0.500       1.000     4544.455               47.811</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">Bayes factor MC error for bias is based on 22 posterior samples from the less frequent model.</span></span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.121 0.214 -0.287 0.000 0.564     0.00320          0.015  4535 1.001</span></span>
-<span><span class="co">#&gt; tau 0.613 0.086  0.462 0.607 0.800     0.00040          0.005 47519 1.000</span></span>
+<span><span class="co">#&gt; mu  0.119 0.212 -0.284 0.000 0.562     0.00309          0.015  4712 1.001</span></span>
+<span><span class="co">#&gt; tau 0.613 0.086  0.462 0.608 0.798     0.00039          0.004 49733 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 1.000 0.005 1.000 1.000 1.000     0.00003          0.006 56690 1.029</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   1.000 0.013 1.000 1.000 1.000     0.00011          0.008 44028 1.066</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.999 0.027 1.000 1.000 1.000     0.00021          0.008 35237 1.048</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.999 0.027 1.000 1.000 1.000     0.00021          0.008 35237 1.048</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.999 0.027 1.000 1.000 1.000     0.00021          0.008 35968 1.049</span></span>
-<span><span class="co">#&gt; PET               1.232 1.645 0.000 0.000 4.255     0.03310          0.020  2521 1.005</span></span>
-<span><span class="co">#&gt; PEESE             4.424 3.670 0.000 5.563 9.789     0.06654          0.018  3241 1.005</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 1.000 0.004 1.000 1.000 1.000     0.00002          0.005 58899 1.089</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   1.000 0.010 1.000 1.000 1.000     0.00007          0.007 40897 1.035</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   1.000 0.019 1.000 1.000 1.000     0.00014          0.007 35431 1.047</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 1.000 0.019 1.000 1.000 1.000     0.00014          0.007 35431 1.047</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    1.000 0.019 1.000 1.000 1.000     0.00014          0.007 37268 1.047</span></span>
+<span><span class="co">#&gt; PET               1.249 1.652 0.000 0.000 4.244     0.02835          0.017  3392 1.001</span></span>
+<span><span class="co">#&gt; PEESE             4.409 3.675 0.000 5.553 9.799     0.05371          0.015  4688 1.001</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
-<p>Importantly, the results show an extreme degree of between-study
-heterogeneity that greatly complicates feasible implications and
-recommendations. This demonstrates the moderate nature of the
-publication bias, where the adjusted estimate is meaningfully smaller
-but not completely reduced. The Bayes factor for publication bias
-provides moderate evidence for publication bias, and the evidence for
-the effect becomes weak.</p>
-<p><strong>Zplot summary metrics.</strong> This moderate
-publication-bias pattern is reflected in the summary statistics,</p>
+<p>The estimated between-study heterogeneity is substantial
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>≈</mo><mn>0.61</mn></mrow><annotation encoding="application/x-tex">\tau \approx 0.61</annotation></semantics></math>).
+The conventional random-effects mean is about 0.83, compared with a
+bias-adjusted model-averaged effect of 0.12 (95% credible interval
+[−0.28, 0.56]). The evidence strongly favors publication bias. Only 22
+of 100,000 posterior draws exclude it, and the fit flags a convergence
+warning for one selection weight, so the precise Bayes factor is
+uncertain. Evidence for the adjusted mean effect is undecided
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>1.05</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 1.05</annotation></semantics></math>).</p>
+<p><strong>Zplot summary metrics.</strong> The discovery statistics
+summarize the size of the discrepancy between observed and expected
+significant results.</p>
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/as_zplot.brma.html">as_zplot</a></span><span class="op">(</span><span class="va">fit_RoBMA_Wang2025</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Zplot Estimates:</span></span>
 <span><span class="co">#&gt;            Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; EDR       0.472  0.468 0.370 0.591</span></span>
-<span><span class="co">#&gt; Soric FDR 0.061  0.060 0.036 0.090</span></span>
-<span><span class="co">#&gt; Missing N 0.045  0.000 0.000 0.000</span></span>
+<span><span class="co">#&gt; EDR       0.471  0.468 0.369 0.589</span></span>
+<span><span class="co">#&gt; Soric FDR 0.061  0.060 0.037 0.090</span></span>
+<span><span class="co">#&gt; Missing N 0.021  0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; Estimated using 42 estimates, 27 significant (ODR = 0.64, 95% CI [0.48, 0.78]); conditioning depth: marginal.</span></span></code></pre></div>
-<p>which show a moderate-to-high EDR and a small number of missing
-estimates.</p>
+<p>The observed discovery rate is 64% (27 of 42 estimates), compared
+with an EDR of 47% [37%, 59%]. The conventional Missing N has a median
+of zero. PET and PEESE together account for more than 99% of the
+posterior draws, and these regression adjustments contribute zero to the
+inverse-weight missing-count diagnostic.</p>
 </div>
 <div class="section level3">
 <h3 id="example-4-framing-effects-from-many-labs-2">Example 4: Framing Effects from Many Labs 2<a class="anchor" aria-label="anchor" href="#example-4-framing-effects-from-many-labs-2"></a>
@@ -735,12 +727,9 @@ discontinuities at significance thresholds or at zero. Both the
 random-effects model (black dashed line) and RoBMA (blue dashed line)
 provide essentially identical fits to the data, with their posterior
 predictive distributions overlapping almost perfectly.</p>
-<p>This close agreement between models indicates that either approach
-would be appropriate for these data. The absence of publication bias is
-further confirmed by the statistical evidence: RoBMA provides moderate
-evidence against publication bias, demonstrating how the method
-appropriately penalizes unnecessary model complexity when simpler models
-explain the data equally well.</p>
+<p>The agreement between the curves is consistent with the moderate
+evidence against publication bias
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>01</mn></msub><mo>≈</mo><mn>3.7</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{01} \approx 3.7</annotation></semantics></math>).</p>
 <p><strong>Extrapolation to pre-publication bias.</strong> We can
 examine whether there would be any difference in the absence of
 publication bias:</p>
@@ -751,33 +740,28 @@ publication bias:</p>
 Framing Effects: Extrapolation Analysis
 </p>
 </div>
-<p>The extrapolated distribution (blue line) shows virtually no
-difference between the fitted and extrapolated distributions, confirming
-that publication bias has minimal impact in this well-designed
-replication project. This example illustrates the ideal scenario where
-traditional meta-analytic approaches are fully justified.</p>
+<p>The fitted and extrapolated distributions nearly coincide. The fitted
+adjustment has little impact on the estimated z-statistic distribution
+for these data.</p>
 <p><strong>Model results.</strong> The quantitative results confirm the
 visual impression:</p>
 <div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RE_ManyLabs16</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA_ManyLabs16</span><span class="op">)</span></span></code></pre></div>
-<p>Both models yield virtually identical size estimates. The Bayes
-factor for publication bias provides moderate evidence against the
-presence of publication bias, appropriately penalizing the more complex
-model when it offers no advantage. This demonstrates the method’s
-ability to distinguish between necessary and unnecessary model
-complexity.</p>
-<p><strong>Zplot summary metrics.</strong> The absence of publication
-bias is reflected in the publication-bias assessment statistics: a
-moderate EDR matching the ODR and no missing studies.</p>
+<p>Both models yield similar pooled effect estimates. The model
+comparison moderately favors models without publication bias.</p>
+<p><strong>Zplot summary metrics.</strong> The observed discovery rate
+is 56% (31 of 55 estimates), close to the mean EDR of 58% [41%, 68%].
+The conventional Missing N has a median of zero and a 95% credible
+interval from zero to about eight missing estimates.</p>
 <div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/as_zplot.brma.html">as_zplot</a></span><span class="op">(</span><span class="va">fit_RoBMA_ManyLabs16</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Zplot Estimates:</span></span>
 <span><span class="co">#&gt;            Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; EDR       0.582  0.590 0.418 0.681</span></span>
-<span><span class="co">#&gt; Soric FDR 0.039  0.037 0.025 0.073</span></span>
-<span><span class="co">#&gt; Missing N 0.518  0.000 0.000 7.090</span></span>
+<span><span class="co">#&gt; EDR       0.582  0.591 0.411 0.682</span></span>
+<span><span class="co">#&gt; Soric FDR 0.039  0.036 0.024 0.075</span></span>
+<span><span class="co">#&gt; Missing N 0.614  0.000 0.000 7.832</span></span>
 <span><span class="co">#&gt; Estimated using 55 estimates, 31 significant (ODR = 0.56, 95% CI [0.42, 0.69]); conditioning depth: marginal.</span></span></code></pre></div>
 </div>
 </div>

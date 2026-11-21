@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -345,43 +345,41 @@ correlation scale.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression Inclusion</span></span>
 <span><span class="co">#&gt;         Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; measure       0.500       0.715        2.506</span></span>
-<span><span class="co">#&gt; age           0.500       0.105        0.118</span></span>
+<span><span class="co">#&gt; measure       0.500       0.736        2.782</span></span>
+<span><span class="co">#&gt; age           0.500       0.106        0.118</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; tau 0.125 0.021 0.089 0.124 0.172</span></span>
+<span><span class="co">#&gt; tau 0.125 0.021 0.089 0.123 0.171</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                           Mean    SD  0.025    0.5 0.975</span></span>
-<span><span class="co">#&gt; intercept                0.166 0.030  0.100  0.167 0.221</span></span>
-<span><span class="co">#&gt; measure[dif: direct]    -0.044 0.034 -0.105 -0.048 0.000</span></span>
-<span><span class="co">#&gt; measure[dif: informant]  0.044 0.034  0.000  0.048 0.105</span></span>
-<span><span class="co">#&gt; age                      0.000 0.003 -0.001  0.000 0.009</span></span>
+<span><span class="co">#&gt; intercept                0.166 0.029  0.102  0.167 0.219</span></span>
+<span><span class="co">#&gt; measure[dif: direct]    -0.045 0.034 -0.104 -0.050 0.000</span></span>
+<span><span class="co">#&gt; measure[dif: informant]  0.045 0.034  0.000  0.050 0.104</span></span>
+<span><span class="co">#&gt; age                      0.000 0.003  0.000  0.000 0.009</span></span>
 <span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_BMA</span>, output_measure <span class="op">=</span> <span class="st">"COR"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pooled Effect Size (correlation)</span></span>
 <span><span class="co">#&gt;     Mean Median 0.025 0.975 PI 0.025 PI 0.975</span></span>
-<span><span class="co">#&gt; mu 0.160  0.160 0.114 0.208   -0.094    0.396</span></span>
+<span><span class="co">#&gt; mu 0.160  0.160 0.114 0.206   -0.093    0.395</span></span>
 <span><span class="co">#&gt; Effect estimates are transformed from Fisher's z to correlation.</span></span></code></pre></div>
 <p>The summary function produces output with multiple sections. The
 first section contains the <code>Components summary</code> with the
 hypothesis test results for the overall effect size and heterogeneity.
-We find overwhelming evidence for both with inclusion Bayes factors
-(<code>Inclusion BF</code>) above 14,999 (the numerical precision of
-Bayes factors above 100 is usually limited by the number of posterior
-samples).</p>
+All 15,000 posterior draws include both an overall effect and
+heterogeneity. The table reports inclusion Bayes factors above 14,999
+for each component, which indicates overwhelming support at the
+resolution of these draws.</p>
 <p>The second section contains the
 <code>Meta-regression components summary</code> with the hypothesis test
-results for the moderators. We find weak evidence for the moderation by
-the executive function assessment type,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">measure</mtext></msub><mo>=</mo><mn>2.62</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{measure}} = 2.62</annotation></semantics></math>.
-Furthermore, we find moderate evidence for the null hypothesis of no
-moderation by mean age of the children,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">age</mtext></msub><mo>=</mo><mn>0.117</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{age}} = 0.117</annotation></semantics></math>
-(i.e., BF for the null is 1/0.117 = 8.55). These findings extend the
-frequentist meta-regression by disentangling the absence of evidence
-from the evidence of absence.</p>
+results for the moderators. The inclusion Bayes factor of about 2.8
+gives weak evidence for moderation by executive function assessment
+type. The inclusion Bayes factor for mean age is about 0.12,
+corresponding to moderate evidence for the absence of age moderation
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>01</mn></msub><mo>≈</mo><mn>8.4</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{01} \approx 8.4</annotation></semantics></math>).
+These findings extend the frequentist meta-regression by disentangling
+the absence of evidence from the evidence of absence.</p>
 <p>The third section contains the <code>Model-averaged estimates</code>
 with the model-averaged estimates for mean effect and between-study
 heterogeneity. <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> reports the pooled mean
@@ -392,16 +390,17 @@ effect on the correlation scale via
 model-averaged regression coefficient estimates. The main difference
 from the usual frequentist meta-regression output is that the
 categorical predictors are summarized as a difference from the grand
-mean for each factor level. Here, the <code>intercept</code> regression
-coefficient estimate corresponds to the grand mean effect and the
-<code>measure[dif: direct]</code> regression coefficient estimate of
--0.044, 95% CI [-0.104, 0.000] corresponds to the difference between the
-direct assessment and the grand mean. As such, the results suggest that
-the effect size in studies using direct assessment is lower in
-comparison to the grand mean of the studies. The <code>age</code>
-regression coefficient of 0.000, 95% CI [0.000, 0.009] corresponds to
-the increase in the mean effect for a one-unit increase in mean age of
-children.</p>
+mean for each factor level. The <code>intercept</code> corresponds to
+the grand mean, and the direct-assessment deviation from the grand mean
+is
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>−</mi><mn>0.045</mn></mrow><annotation encoding="application/x-tex">-0.045</annotation></semantics></math>
+(95% credible interval
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mi>−</mi><mn>0.104</mn><mo>,</mo><mn>0.000</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[-0.104, 0.000]</annotation></semantics></math>).
+As such, the results suggest that the effect size in studies using
+direct assessment is lower in comparison to the grand mean of the
+studies. The <code>age</code> regression coefficient of 0.000, 95% CI
+[0.000, 0.009] corresponds to the increase in the mean effect for a
+one-unit increase in mean age of children.</p>
 <p>Similarly to the frequentist meta-regression, we can use
 <code><a href="../reference/marginal_means.html">marginal_means()</a></code> and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> to obtain the
 marginal estimates for each factor level on the correlation scale.</p>
@@ -410,13 +409,13 @@ marginal estimates for each factor level on the correlation scale.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">BMA_marginal</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-Averaged Marginal Means (correlation):</span></span>
-<span><span class="co">#&gt;                     Mean    SD 0.025   0.5 0.975 Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept          0.167 0.024 0.121 0.167 0.215 1.061156e+88</span></span>
-<span><span class="co">#&gt; measure[direct]    0.124 0.038 0.053 0.124 0.196 2.185900e+01</span></span>
-<span><span class="co">#&gt; measure[informant] 0.209 0.043 0.129 0.211 0.290 2.022761e+26</span></span>
-<span><span class="co">#&gt; age[-1SD]          0.165 0.026 0.112 0.166 0.215 3.988164e+04</span></span>
-<span><span class="co">#&gt; age[0SD]           0.167 0.024 0.121 0.167 0.215 1.061156e+88</span></span>
-<span><span class="co">#&gt; age[1SD]           0.169 0.026 0.120 0.168 0.222 2.309589e+79</span></span>
+<span><span class="co">#&gt;                     Mean    SD 0.025   0.5 0.975  Inclusion BF</span></span>
+<span><span class="co">#&gt; intercept          0.167 0.024 0.121 0.167 0.214 4.572268e+117</span></span>
+<span><span class="co">#&gt; measure[direct]    0.123 0.037 0.053 0.122 0.194  3.091500e+01</span></span>
+<span><span class="co">#&gt; measure[informant] 0.210 0.043 0.129 0.212 0.289  1.368088e+35</span></span>
+<span><span class="co">#&gt; age[-1SD]          0.165 0.026 0.113 0.166 0.215  2.559560e+02</span></span>
+<span><span class="co">#&gt; age[0SD]           0.167 0.024 0.121 0.167 0.214 4.572268e+117</span></span>
+<span><span class="co">#&gt; age[1SD]           0.169 0.025 0.121 0.168 0.221 6.548844e+104</span></span>
 <span><span class="co">#&gt; Effect estimates are transformed from Fisher's z to correlation.</span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_measure[informant]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
@@ -424,27 +423,25 @@ marginal estimates for each factor level on the correlation scale.</p>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_age[0SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_age[1SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span></code></pre></div>
 <p>The estimated marginal means are similar to the frequentist results.
-Studies using the informant-completed questionnaires again show a
-stronger effect of household chaos on child executive functions, r =
-0.209, 95% CI [0.129, 0.288], than the direct assessment, r = 0.124, 95%
-CI [0.054, 0.197].</p>
+The estimated correlation is higher for informant-completed
+questionnaires
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.210</mn></mrow><annotation encoding="application/x-tex">r = 0.210</annotation></semantics></math>,
+95% credible interval
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mn>0.129</mn><mo>,</mo><mn>0.289</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[0.129, 0.289]</annotation></semantics></math>)
+than for direct assessments
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.123</mn></mrow><annotation encoding="application/x-tex">r = 0.123</annotation></semantics></math>,
+95% credible interval
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mn>0.053</mn><mo>,</mo><mn>0.194</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[0.053, 0.194]</annotation></semantics></math>).</p>
 <p>The last column summarizes results from a test against a null
-hypothesis of marginal means equals 0. Here, we find extreme evidence
-that the effect size for studies using the informant-completed
-questionnaires differs from zero,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>&gt;</mo><mn>10</mn><mo>,</mo><mn>000</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} &gt; 10{,}000</annotation></semantics></math>,
-and strong evidence that the effect size for studies using direct
-assessment differs from zero,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>20.4</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 20.4</annotation></semantics></math>.
-The test is performed using the change from prior to posterior
-distribution at 0 (i.e., the Savage-Dickey density ratio) assuming the
-presence of the overall effect or the presence of difference according
-to the tested factor. Because the tests use prior and posterior samples,
-calculating the Bayes factor can be problematic when the posterior
-distribution is far from the tested value. In such cases, warning
-messages are printed and very large Bayes factors returned (like here);
-while the actual Bayes factor is finite, it is still too large to be
-computed precisely given the posterior samples.</p>
+hypothesis of marginal means equals 0. There is strong evidence for a
+nonzero marginal effect for direct assessments
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>31</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 31</annotation></semantics></math>).
+The test compares the prior and posterior densities at zero, conditional
+on the presence of the overall effect or the difference according to the
+tested factor. For informant-completed questionnaires, the posterior
+draws all lie on the positive side of zero. The magnitude of the
+resulting Savage-Dickey Bayes factor is poorly determined because the
+density estimate at zero extrapolates beyond the draws.</p>
 <p>The full model-averaged posterior marginal means distribution can be
 visualized by the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> method.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
@@ -478,77 +475,81 @@ now contains 144 models.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect                 0.500       0.515        1.062</span></span>
+<span><span class="co">#&gt; Effect                 0.500       0.564        1.291</span></span>
 <span><span class="co">#&gt; Heterogeneity          0.500       1.000   &gt;44999.000</span></span>
-<span><span class="co">#&gt; Publication Bias       0.500       0.835        5.069</span></span>
+<span><span class="co">#&gt; Publication Bias       0.500       0.813        4.361</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression Inclusion</span></span>
 <span><span class="co">#&gt;         Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; measure       0.500       0.859        6.101</span></span>
-<span><span class="co">#&gt; age           0.500       0.098        0.109</span></span>
+<span><span class="co">#&gt; measure       0.500       0.853        5.790</span></span>
+<span><span class="co">#&gt; age           0.500       0.092        0.102</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; tau 0.120 0.022 0.085 0.117 0.169</span></span>
+<span><span class="co">#&gt; tau 0.120 0.022 0.085 0.118 0.170</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                           Mean    SD  0.025    0.5 0.975</span></span>
-<span><span class="co">#&gt; intercept                0.064 0.074 -0.016  0.022 0.197</span></span>
-<span><span class="co">#&gt; measure[dif: direct]    -0.060 0.033 -0.116 -0.065 0.000</span></span>
-<span><span class="co">#&gt; measure[dif: informant]  0.060 0.033  0.000  0.065 0.116</span></span>
+<span><span class="co">#&gt; intercept                0.071 0.075 -0.013  0.060 0.199</span></span>
+<span><span class="co">#&gt; measure[dif: direct]    -0.059 0.033 -0.116 -0.064 0.000</span></span>
+<span><span class="co">#&gt; measure[dif: informant]  0.059 0.033  0.000  0.064 0.116</span></span>
 <span><span class="co">#&gt; age                      0.000 0.002 -0.002  0.000 0.006</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5  0.975</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.997 0.026 1.000 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.992 0.054 0.883 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.982 0.112 0.698 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.982 0.112 0.707 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.982 0.111 0.731 1.000  1.000</span></span>
-<span><span class="co">#&gt; PET               1.387 1.214 0.000 1.774  3.101</span></span>
-<span><span class="co">#&gt; PEESE             2.064 5.425 0.000 0.000 19.869</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.997 0.028 1.000 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.991 0.057 0.851 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.979 0.120 0.618 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.979 0.120 0.621 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.980 0.119 0.631 1.000  1.000</span></span>
+<span><span class="co">#&gt; PET               1.264 1.213 0.000 1.218  3.081</span></span>
+<span><span class="co">#&gt; PEESE             2.256 5.621 0.000 0.000 20.259</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span>
 <span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_measure <span class="op">=</span> <span class="st">"COR"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pooled Effect Size (correlation)</span></span>
 <span><span class="co">#&gt;     Mean Median  0.025 0.975 PI 0.025 PI 0.975</span></span>
-<span><span class="co">#&gt; mu 0.055  0.000 -0.019 0.186   -0.214    0.330</span></span>
+<span><span class="co">#&gt; mu 0.062  0.052 -0.019 0.189   -0.210    0.336</span></span>
 <span><span class="co">#&gt; Effect estimates are transformed from Fisher's z to correlation.</span></span></code></pre></div>
 <p>All previously described functions for manipulating the fitted model
 work identically with the publication bias adjusted model. As such, we
 just briefly mention the main differences found after adjusting for
 publication bias.</p>
-<p>RoBMA-reg reveals moderate evidence of publication bias
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">pb</mtext></msub><mo>=</mo><mn>4.38</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{pb}} = 4.38</annotation></semantics></math>.
-Furthermore, accounting for publication bias leaves the evidence for the
-overall effect undecided,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>1.18</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 1.18</annotation></semantics></math>,
-and notably reduces the mean effect estimate to r = 0.059, 95% CI
-[-0.019, 0.188].</p>
+<p>The adjusted ensemble finds moderate evidence for publication bias
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">b</mi></mrow></msub><mo>≈</mo><mn>4.4</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{\mathrm{pb}} \approx 4.4</annotation></semantics></math>).
+Evidence for the overall effect remains undecided
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>1.3</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 1.3</annotation></semantics></math>),
+and the model-averaged correlation shrinks to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.062</mn></mrow><annotation encoding="application/x-tex">r = 0.062</annotation></semantics></math>
+(95% credible interval
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mi>−</mi><mn>0.019</mn><mo>,</mo><mn>0.189</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[-0.019, 0.189]</annotation></semantics></math>).</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">RoBMA_marginal</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/marginal_means.html">marginal_means</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_measure <span class="op">=</span> <span class="st">"COR"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">RoBMA_marginal</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-Averaged Marginal Means (correlation):</span></span>
-<span><span class="co">#&gt;                     Mean    SD  0.025    0.5 0.975 Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept          0.064 0.073  0.000  0.007 0.194        1.041</span></span>
-<span><span class="co">#&gt; measure[direct]    0.005 0.086 -0.112 -0.008 0.169        0.636</span></span>
-<span><span class="co">#&gt; measure[informant] 0.124 0.072  0.000  0.105 0.264        6.281</span></span>
-<span><span class="co">#&gt; age[-1SD]          0.064 0.073 -0.011  0.020 0.194        0.524</span></span>
-<span><span class="co">#&gt; age[0SD]           0.064 0.073  0.000  0.007 0.194        1.041</span></span>
-<span><span class="co">#&gt; age[1SD]           0.065 0.074 -0.007  0.023 0.198        0.530</span></span>
+<span><span class="co">#&gt;                     Mean    SD  0.025   0.5 0.975 Inclusion BF</span></span>
+<span><span class="co">#&gt; intercept          0.071 0.073  0.000 0.062 0.197        1.295</span></span>
+<span><span class="co">#&gt; measure[direct]    0.013 0.087 -0.111 0.000 0.172        0.599</span></span>
+<span><span class="co">#&gt; measure[informant] 0.130 0.073  0.000 0.118 0.266        6.241</span></span>
+<span><span class="co">#&gt; age[-1SD]          0.071 0.073 -0.009 0.061 0.196        0.653</span></span>
+<span><span class="co">#&gt; age[0SD]           0.071 0.073  0.000 0.062 0.197        1.295</span></span>
+<span><span class="co">#&gt; age[1SD]           0.072 0.074 -0.004 0.063 0.200        0.669</span></span>
 <span><span class="co">#&gt; Effect estimates are transformed from Fisher's z to correlation.</span></span></code></pre></div>
-<p>The estimated marginal means now suggest that studies using the
-informant-completed questionnaires show a much smaller effect of
-household chaos on child executive functions, r = 0.127, 95% CI [0.000,
-0.264] with moderate evidence in favor of the effect,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>6.17</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 6.17</annotation></semantics></math>,
-while studies using direct assessment even provide weak evidence against
-the effect of household chaos on child executive functions,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.627</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.627</annotation></semantics></math>,
-with most likely effect sizes around zero, r = 0.010, 95% CI [-0.112,
-0.171].</p>
+<p>After adjustment for publication bias, the estimated marginal
+correlation for informant-completed questionnaires is
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.130</mn></mrow><annotation encoding="application/x-tex">r = 0.130</annotation></semantics></math>
+(95% credible interval
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mn>0.000</mn><mo>,</mo><mn>0.266</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[0.000, 0.266]</annotation></semantics></math>),
+with moderate evidence for a nonzero effect
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>6.2</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 6.2</annotation></semantics></math>).
+For direct assessments the estimate is close to zero
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.013</mn></mrow><annotation encoding="application/x-tex">r = 0.013</annotation></semantics></math>,
+95% credible interval
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mi>−</mi><mn>0.111</mn><mo>,</mo><mn>0.172</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[-0.111, 0.172]</annotation></semantics></math>),
+with weak evidence against a nonzero effect
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>0.60</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 0.60</annotation></semantics></math>).</p>
 <p>A visual summary of the estimated marginal means highlights the
 considerably wider model-averaged posterior distributions of the
 marginal means, a consequence of accounting and adjusting for

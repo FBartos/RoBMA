@@ -16,8 +16,8 @@ more detailed vignettes that follow.
 
 ## System Requirements
 
-The `RoBMA` R package requires JAGS 4.x (4.3.1 or newer; JAGS 5 is not
-supported) ([Plummer, 2003](#ref-plummer2003jags)). Install JAGS from
+RoBMA requires JAGS 5.0.0 or later ([Plummer,
+2003](#ref-plummer2003jags)) and rjags 5-5 or later. Install JAGS from
 <https://mcmc-jags.sourceforge.io/> before installing the R package.
 
 ``` r
@@ -25,15 +25,18 @@ supported) ([Plummer, 2003](#ref-plummer2003jags)). Install JAGS from
 install.packages("RoBMA")
 ```
 
-**Note on backwards compatibility.** The 4.0 release is not backwards
-compatible with earlier versions of the package. The *Manuscript
-Companions* section accompanies the methodological papers in which the
-`RoBMA` R package was originally developed and illustrated; the
-vignettes there have been updated to the 4.0 version of the package, and
-the numerical results differ from the published values because the
-underlying algorithms have changed. To reproduce the published analyses
-exactly, install `RoBMA` version 3.6.1 together with `BayesTools`
-version 0.2.23:
+**Note on backwards compatibility.** Version 5 uses BayesTools to fit
+models directly with rjags. To add samples to a fit created with JAGS 4,
+refit the analysis under JAGS 5 and use
+[`update()`](https://rdrr.io/r/stats/update.html) on the new fit. The
+4.0 release is not backwards compatible with earlier versions of the
+package. The *Manuscript Companions* section accompanies the
+methodological papers in which the `RoBMA` R package was originally
+developed and illustrated; the vignettes there have been updated to the
+4.0 version of the package, and the numerical results differ from the
+published values because the underlying algorithms have changed. To
+reproduce the published analyses exactly, install `RoBMA` version 3.6.1
+together with `BayesTools` version 0.2.23:
 
 ``` r
 

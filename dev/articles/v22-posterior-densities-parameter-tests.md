@@ -86,8 +86,8 @@ summary(fit_simple)
 #> 
 #> Estimates
 #>       Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-#> mu  -0.689 0.182 -1.057 -0.688 -0.330     0.00149          0.008 15000 1.000
-#> tau  0.572 0.143  0.342  0.554  0.897     0.00176          0.012  6688 1.000
+#> mu  -0.690 0.183 -1.059 -0.688 -0.329     0.00155          0.008 13918 1.000
+#> tau  0.570 0.143  0.345  0.551  0.900     0.00166          0.012  7789 1.001
 ```
 
 ## qCMDE Posterior Density Estimation
@@ -174,15 +174,15 @@ mu_posterior_bf <- hypothesis(
 )
 mu_posterior_bf
 #>  Alternative:  Null:       BF error%(BF)
-#>       mu != 0 mu = 0   58.328     10.580
-#>        mu < 0 mu = 0  116.610     10.580
-#>        mu < 0 mu > 0 2499.000     40.834
-#> qCMDE relative MCSE is 10.6% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
-#> qCMDE relative MCSE is 10.6% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
-#> qCMDE finite-population row-sampling relative error is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
-#> qCMDE finite-population row-sampling relative error is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
-#> qCMDE effective sample size is 70.7 (warning threshold 100).
-#> qCMDE effective sample size is 70.7 (warning threshold 100).
+#>       mu != 0 mu = 0   60.759     10.777
+#>        mu < 0 mu = 0  121.454     10.777
+#>        mu < 0 mu > 0 1874.000     35.366
+#> qCMDE relative MCSE is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
+#> qCMDE relative MCSE is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
+#> qCMDE finite-population row-sampling relative error is 10.7% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
+#> qCMDE finite-population row-sampling relative error is 10.7% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.
+#> qCMDE effective sample size is 72.9 (warning threshold 100).
+#> qCMDE effective sample size is 72.9 (warning threshold 100).
 ```
 
 The bridge sampling route fits one constrained model per hypothesis
@@ -236,22 +236,18 @@ factors and the corresponding error estimates in percentages.
 
 | Test               | Posterior BF | Bridge BF |
 |:-------------------|-------------:|----------:|
-| $`\text{BF}_{10}`$ |         58.3 |      65.6 |
-| $`\text{BF}_{-0}`$ |        116.6 |     130.9 |
-| $`\text{BF}_{-+}`$ |       2499.0 |    2027.8 |
+| $`\text{BF}_{10}`$ |         60.8 |      65.8 |
+| $`\text{BF}_{-0}`$ |        121.5 |     130.9 |
+| $`\text{BF}_{-+}`$ |       1874.0 |    2029.8 |
 
 Bayes factor estimates for the mean-effect hypotheses. {.table}
 
-The point-null Bayes factors agree closely across the two routes. The
-posterior-based value for $`\text{BF}_{-+}`$ is limited by the number of
-posterior draws as only a very small proportion of samples is at the
-positive side. Consequently, the encompassing prior estimate is much
-more variable than the corresponding bridge sampling approach (see the
-the large `error%(BF)` reported earlier). In general, Bayes factors
-larger than 100 (lower than 1/100) are likely to have limited precision
-when using the posterior based or product-space approaches. (This
-usually does not matter for the interpretation, i.e., the data provide
-overwhelming evidence for one of the hypotheses.)
+The point-null Bayes factors agree to within the Monte Carlo error
+reported for the qCMDE estimates (about 11%). Only 8 of the 15,000
+posterior draws have a positive mean effect. The encompassing-prior
+estimate of $`\text{BF}_{-+}`$ therefore has about 35% relative Monte
+Carlo error. Both the posterior draws and bridge sampling strongly favor
+a negative over a positive mean effect.
 
 ## Meta-Regression
 
@@ -282,15 +278,15 @@ summary(fit_meta_reg)
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> tau 0.382 0.155 0.124 0.366 0.725     0.00249          0.016 3889 1.000
+#> tau 0.387 0.160 0.123 0.370 0.746     0.00256          0.016 3926 1.000
 #> 
 #> Meta-Regression
 #>                          Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-#> intercept               0.188 0.333 -0.523  0.206  0.811     0.00296          0.009 12876 1.000
-#> ablat                  -0.026 0.009 -0.043 -0.026 -0.005     0.00009          0.010 11011 1.000
-#> alloc[dif: alternate]   0.073 0.205 -0.346  0.075  0.490     0.00186          0.009 12313 1.000
-#> alloc[dif: random]     -0.174 0.174 -0.538 -0.166  0.152     0.00165          0.009 11253 1.000
-#> alloc[dif: systematic]  0.101 0.192 -0.258  0.092  0.505     0.00166          0.009 13319 1.000
+#> intercept               0.185 0.338 -0.540  0.210  0.801     0.00308          0.009 11998 1.000
+#> ablat                  -0.026 0.010 -0.043 -0.026 -0.005     0.00009          0.010 11173 1.000
+#> alloc[dif: alternate]   0.071 0.209 -0.354  0.072  0.486     0.00186          0.009 12618 1.000
+#> alloc[dif: random]     -0.173 0.179 -0.547 -0.164  0.161     0.00170          0.009 11167 1.000
+#> alloc[dif: systematic]  0.102 0.195 -0.254  0.094  0.511     0.00172          0.009 12939 1.000
 ```
 
 qCMDE is again available directly through
@@ -341,9 +337,9 @@ hypothesis(
   )
 )
 #>                                      Alternative:                                 Null:    BF error%(BF)
-#> mu_alloc (1)     alloc[alternate] > alloc[random]     alloc[alternate] <= alloc[random] 3.808      2.012
-#> mu_alloc (2) alloc[alternate] > alloc[systematic] alloc[alternate] <= alloc[systematic] 0.921      1.634
-#> mu_alloc (3)    alloc[random] > alloc[systematic]    alloc[random] <= alloc[systematic] 0.212      2.148
+#> mu_alloc (1)     alloc[alternate] > alloc[random]     alloc[alternate] <= alloc[random] 3.640      1.986
+#> mu_alloc (2) alloc[alternate] > alloc[systematic] alloc[alternate] <= alloc[systematic] 0.916      1.635
+#> mu_alloc (3)    alloc[random] > alloc[systematic]    alloc[random] <= alloc[systematic] 0.223      2.113
 ```
 
 ## References

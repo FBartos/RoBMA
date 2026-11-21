@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9012</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -128,21 +128,23 @@ more detailed vignettes that follow.</p>
 <div class="section level2">
 <h2 id="system-requirements">System Requirements<a class="anchor" aria-label="anchor" href="#system-requirements"></a>
 </h2>
-<p>The <code>RoBMA</code> R package requires JAGS 4.x (4.3.1 or newer;
-JAGS 5 is not supported) <span class="citation">(<a href="#ref-plummer2003jags">Plummer, 2003</a>)</span>. Install JAGS from
-<a href="https://mcmc-jags.sourceforge.io/" class="external-link uri">https://mcmc-jags.sourceforge.io/</a> before installing the
+<p>RoBMA requires JAGS 5.0.0 or later <span class="citation">(<a href="#ref-plummer2003jags">Plummer, 2003</a>)</span> and rjags 5-5 or
+later. Install JAGS from <a href="https://mcmc-jags.sourceforge.io/" class="external-link uri">https://mcmc-jags.sourceforge.io/</a> before installing the
 R package.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"RoBMA"</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Note on backwards compatibility.</strong> The 4.0 release is
-not backwards compatible with earlier versions of the package. The
-<em>Manuscript Companions</em> section accompanies the methodological
-papers in which the <code>RoBMA</code> R package was originally
-developed and illustrated; the vignettes there have been updated to the
-4.0 version of the package, and the numerical results differ from the
-published values because the underlying algorithms have changed. To
-reproduce the published analyses exactly, install <code>RoBMA</code>
-version 3.6.1 together with <code>BayesTools</code> version 0.2.23:</p>
+<p><strong>Note on backwards compatibility.</strong> Version 5 uses
+BayesTools to fit models directly with rjags. To add samples to a fit
+created with JAGS 4, refit the analysis under JAGS 5 and use
+<code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> on the new fit. The 4.0 release is not backwards
+compatible with earlier versions of the package. The <em>Manuscript
+Companions</em> section accompanies the methodological papers in which
+the <code>RoBMA</code> R package was originally developed and
+illustrated; the vignettes there have been updated to the 4.0 version of
+the package, and the numerical results differ from the published values
+because the underlying algorithms have changed. To reproduce the
+published analyses exactly, install <code>RoBMA</code> version 3.6.1
+together with <code>BayesTools</code> version 0.2.23:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_version</span><span class="op">(</span><span class="st">"BayesTools"</span>, version <span class="op">=</span> <span class="st">"0.2.23"</span><span class="op">)</span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_version</span><span class="op">(</span><span class="st">"RoBMA"</span>,      version <span class="op">=</span> <span class="st">"3.6.1"</span><span class="op">)</span></span></code></pre></div>

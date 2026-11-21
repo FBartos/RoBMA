@@ -92,18 +92,18 @@ summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF
-#> Effect              0.500       0.996      257.993
-#> Heterogeneity       0.500       0.772        3.383
+#> Effect              0.500       0.996      242.243
+#> Heterogeneity       0.500       0.777        3.492
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  1.079 0.194 0.666 1.090 1.422
-#> tau 0.228 0.211 0.000 0.202 0.730
+#> mu  1.076 0.196 0.646 1.089 1.413
+#> tau 0.232 0.216 0.000 0.203 0.757
 #> 
 #> Conditional Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  1.083 0.183 0.690 1.091 1.422
-#> tau 0.296 0.194 0.071 0.253 0.793
+#> mu  1.081 0.184 0.678 1.090 1.414
+#> tau 0.298 0.201 0.070 0.253 0.814
 ```
 
 The output from the [`summary()`](https://rdrr.io/r/base/summary.html)
@@ -116,7 +116,8 @@ effect is similar to the one reported in Bartoš et al.
 ([2021](#ref-bartos2021bayesian)), $`\text{BF}_{10} = 250`$ and
 $`\text{BF}_{\text{rf}} = 3.60`$ (minor differences are a consequence of
 the product-space estimation algorithm in the new version of the
-package).
+package). In the current fit, the inclusion Bayes factors are about 242
+for the effect and 3.5 for heterogeneity.
 
 The second part under the ‘Model-averaged estimates’ heading displays
 the parameter estimates model-averaged across all specified models
@@ -139,12 +140,12 @@ pooled_effect(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 1.083  1.091 0.690 1.422    0.311    1.776
+#> mu 1.081  1.090 0.678 1.414    0.295    1.776
 pooled_heterogeneity(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Heterogeneity
 #>      Mean Median 0.025 0.975
-#> tau 0.296  0.253 0.071 0.793
+#> tau 0.298  0.253 0.070 0.814
 ```
 
 ## Visualizing the Results
@@ -228,62 +229,59 @@ summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF
-#> Effect                 0.500       0.741        2.863
-#> Heterogeneity          0.500       0.677        2.092
-#> Publication Bias       0.500       0.822        4.613
+#> Effect                 0.500       0.732        2.729
+#> Heterogeneity          0.500       0.678        2.103
+#> Publication Bias       0.500       0.827        4.793
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.518 0.491 -0.231 0.526 1.306
-#> tau 0.202 0.249  0.000 0.148 0.870
+#> mu  0.507 0.497 -0.252 0.507 1.306
+#> tau 0.199 0.231  0.000 0.150 0.824
 #> 
 #> Conditional Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.699 0.447 -0.303 0.786 1.334
-#> tau 0.299 0.250  0.062 0.229 0.992
+#> mu  0.693 0.457 -0.334 0.788 1.339
+#> tau 0.294 0.225  0.062 0.232 0.930
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.960 0.146 0.399 1.000  1.000
-#> omega[0.05,0.5]   0.911 0.239 0.095 1.000  1.000
-#> omega[0.5,0.95]   0.898 0.264 0.058 1.000  1.000
-#> omega[0.95,0.975] 0.906 0.252 0.067 1.000  1.000
-#> omega[0.975,1]    0.925 0.233 0.073 1.000  1.000
-#> PET               1.475 1.994 0.000 0.000  5.371
-#> PEESE             2.351 4.703 0.000 0.000 15.815
+#> omega[0.025,0.05] 0.961 0.146 0.397 1.000  1.000
+#> omega[0.05,0.5]   0.913 0.238 0.090 1.000  1.000
+#> omega[0.5,0.95]   0.901 0.262 0.055 1.000  1.000
+#> omega[0.95,0.975] 0.908 0.250 0.066 1.000  1.000
+#> omega[0.975,1]    0.928 0.230 0.073 1.000  1.000
+#> PET               1.508 2.027 0.000 0.000  5.434
+#> PEESE             2.447 4.823 0.000 0.000 16.088
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 #> 
 #> Conditional Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.727 0.287 0.092 0.815  1.000
-#> omega[0.05,0.5]   0.394 0.276 0.012 0.353  0.942
-#> omega[0.5,0.95]   0.305 0.253 0.007 0.238  0.894
-#> omega[0.95,0.975] 0.356 0.282 0.008 0.289  0.942
-#> omega[0.975,1]    0.490 0.386 0.008 0.383  1.000
-#> PET               3.511 1.520 0.331 3.907  6.041
-#> PEESE             9.207 4.847 1.000 8.904 17.916
+#> omega[0.025,0.05] 0.727 0.292 0.089 0.821  1.000
+#> omega[0.05,0.5]   0.390 0.280 0.012 0.352  0.944
+#> omega[0.5,0.95]   0.302 0.255 0.007 0.233  0.897
+#> omega[0.95,0.975] 0.353 0.284 0.009 0.280  0.946
+#> omega[0.975,1]    0.492 0.387 0.009 0.385  1.000
+#> PET               3.560 1.545 0.321 3.945  6.188
+#> PEESE             9.370 4.918 0.978 9.139 17.885
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
 We notice the additional values in the ‘Component Inclusion’ table in
 the ‘Publication Bias’ row. The model is now extended with 32
 publication bias adjustment models that account for 50% of the prior
-model probability. When comparing RoBMA to the second BMA fit, we notice
-a large decrease in the inclusion Bayes factor for the presence of the
-effect, $`\text{BF}_{10} = 2.77`$ vs. $`\text{BF}_{10} = 250`$, which
-still presents weak evidence for the presence of the effect. We can
-further quantify the evidence in favor of publication bias with the
-inclusion Bayes factor for publication bias $`\text{BF}_{pb} = 4.74`$,
-which can be interpreted as moderate evidence in favor of publication
-bias.
+model probability. Including publication-bias adjustment reduces the
+inclusion Bayes factor for the effect from about 242 in the unadjusted
+BMA to 2.7 in RoBMA, leaving weak evidence for an effect. The inclusion
+Bayes factor for publication bias is about 4.8, giving moderate evidence
+in its favor.
 
 We can also compare the unadjusted and publication-bias-adjusted
-conditional effect size estimates. Including models assuming publication
-bias into our model-averaged estimate (assuming the presence of the
-effect) decreases the estimated effect to d = 0.704, 95% CI \[-0.327,
-1.338\] with a much wider credible interval.
+conditional effect size estimates. Conditional on the presence of an
+effect, the pooled estimate decreases from *d* = 1.081 (95% credible
+interval \[0.678, 1.414\]) to *d* = 0.693 \[−0.334, 1.339\]. The
+adjusted interval is wider and includes zero.
 
 ``` r
 
@@ -291,12 +289,12 @@ pooled_effect(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 1.083  1.091 0.690 1.422    0.311    1.776
+#> mu 1.081  1.090 0.678 1.414    0.295    1.776
 pooled_effect(fit_RoBMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
 #>     Mean Median  0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.699  0.786 -0.303 1.334   -0.438    1.610
+#> mu 0.693  0.788 -0.334 1.339   -0.482    1.622
 ```
 
 The same shift is visible in the prior and posterior plot below.
