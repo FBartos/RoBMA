@@ -40,39 +40,27 @@ test_that("factor-level point hypotheses use the level's own fitted coordinate",
     coordinate = c("mu_g1[1]", "mu_g1[2]", "mu_g2[1]", "mu_g2[2]", "mu_g2[3]"),
     stringsAsFactors = FALSE
   )
-  compared <- character()
-
   for (i in seq_len(nrow(cases))) {
     # Savage-Dickey ratio of the treatment coordinate: its normal prior
     # density over the exact Gaussian kernel sum of its draws at the null
-    # (bandwidth bw.nrd0). The comparison needs a null within three
-    # bandwidths of the draws (levels 20 and 4 lie far from zero; their
-    # ordinates are kernel tails).
+    # (bandwidth bw.nrd0). Use the posterior median for the two far-from-zero
+    # levels so the same-coordinate comparison is inside their sampled range.
     prior  <- fit[["priors"]][["mods"]][[cases[["term"]][i]]]
     draws  <- mcmc[, cases[["coordinate"]][i]]
     bw     <- stats::bw.nrd0(draws)
-    if (0 >= min(draws) - 3 * bw && 0 <= max(draws) + 3 * bw) {
-      height    <- mean(stats::dnorm(0, mean = draws, sd = bw))
-      direct_BF <- stats::dnorm(
-        0,
-        prior[["parameters"]][["mean"]],
-        prior[["parameters"]][["sd"]]
-      ) / height
-      result <- suppressWarnings(hypothesis(
-        fit, cases[["hypothesis"]][i], density_method = "KDE"
-      ))
-      expect_equal(
-        attr(result, "raw_BF"), direct_BF,
-        tolerance = 1e-10, info = cases[["hypothesis"]][i]
-      )
-      compared <- c(compared, cases[["hypothesis"]][i])
-    }
+    null <- if (cases[["level"]][i] %in% c("20", "4")) stats::median(draws) else 0
+    statement <- sub("= 0$", paste("=", sprintf("%.17g", null)), cases[["hypothesis"]][i])
+    height <- mean(stats::dnorm(null, mean = draws, sd = bw))
+    direct_BF <- stats::dnorm(
+      null, prior[["parameters"]][["mean"]], prior[["parameters"]][["sd"]]
+    ) / height
+    result <- suppressWarnings(hypothesis(fit, statement, density_method = "KDE"))
+    expect_equal(attr(result, "raw_BF"), direct_BF, tolerance = 1e-10, info = statement)
     expect_identical(
       .factor_level_target_weights(fit, cases[["hypothesis"]][i]),
       stats::setNames(1, cases[["coordinate"]][i])
     )
   }
-  expect_identical(compared, c("g1[10] = 0", "g2[2] = 0", "g2[3] = 0"))
 })
 
 

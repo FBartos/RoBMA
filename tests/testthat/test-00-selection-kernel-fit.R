@@ -1850,8 +1850,8 @@ test_that("unmonitored selection weights come from the BayesTools omega node", {
     )
   ), is_null = c(FALSE, TRUE))
   samples <- cbind(mu = c(0.1, 0.2, 0.3), bias_indicator = c(1, 2, 1))
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- list(
     mu   = BayesTools::prior("normal", list(0, 1)),
     bias = bias

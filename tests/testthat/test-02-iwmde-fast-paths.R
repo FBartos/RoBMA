@@ -3104,8 +3104,8 @@ test_that("fixed formula coordinates materialize an exact location basis", {
     byrow = TRUE,
     dimnames = list(NULL, c(columns, "irrelevant"))
   )
-  fit <- coda::mcmc(posterior_samples)
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(posterior_samples)), sample = nrow(posterior_samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- c(
     formula_result$prior_list,
     list(irrelevant = BayesTools::prior("normal", list(mean = 0, sd = 1)))
@@ -3176,8 +3176,8 @@ test_that("fixed-mu reuse follows persisted indirect formula dependencies", {
     byrow = TRUE,
     dimnames = list(NULL, c("mu_x", "tau", "irrelevant"))
   )
-  fit <- coda::mcmc(posterior_samples)
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(posterior_samples)), sample = nrow(posterior_samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- c(
     formula_result$prior_list,
     list(
@@ -3663,8 +3663,8 @@ test_that("metadata-declared non-affine formula locations retain evaluation", {
     ncol     = 1L,
     dimnames = list(NULL, "mu_intercept")
   )
-  fit <- coda::mcmc(posterior_samples)
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(posterior_samples)), sample = nrow(posterior_samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- formula_result$prior_list
   attr(fit, "formula_design") <- list(mu = formula_result$formula_design)
   fit <- BayesTools:::.bt_attach_parameter_map(fit)

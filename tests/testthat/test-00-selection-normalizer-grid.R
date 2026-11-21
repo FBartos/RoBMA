@@ -37,8 +37,8 @@
     samples <- cbind(samples, c(-.1, .2) + index / 20)
     colnames(samples)[ncol(samples)] <- latent[[index]]
   }
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "formula_design") <- object$formula_design
   attr(fit, "prior_list") <- c(design$prior_list, .create_fit_priors(object$data, object$priors))
   fit <- BayesTools:::.bt_attach_parameter_map(fit)
