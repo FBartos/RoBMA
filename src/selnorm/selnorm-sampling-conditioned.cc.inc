@@ -561,12 +561,9 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   if (info != 0) throw std::runtime_error("The total outcome covariance solve failed.");
   std::vector<double> normalizer_mean(dimension), whitened(dimension);
   double log_density = -.5 * dimension * std::log(2.0 * std::acos(-1.0));
-  const bool masked = has_exempt_row(obs_bin, dimension);
-  const bool deterministic_outcome = std::none_of(integrated.begin(), integrated.end(),
-    [](bool varies) { return varies; });
   for (int row = 0; row < dimension; ++row) {
     if (obs_bin[row] && integrated[row]) deterministic_event = false;
-    const bool fixed = deterministic_outcome || (masked && !integrated[row]);
+    const bool fixed = !integrated[row];
     sampling_effect[row] = x[row] - mean[row];
     if (!fixed) {
       sampling_effect[row] = sampling_auxiliary[row];

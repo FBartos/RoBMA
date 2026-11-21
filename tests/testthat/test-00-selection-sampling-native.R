@@ -245,6 +245,49 @@ test_that("exempt conditioned blocks keep fixed and integrated eligible outcomes
   }
 })
 
+test_that("sampling-conditioned likelihoods keep fixed outcomes on their observed cutoffs", {
+
+  # The integrated random slope is zero on row 1. The retained sampling
+  # errors are correlated, so row 2 still needs the full joint update.
+  V       <- matrix(c(1, .5, .5, 1), 2L)
+  loading <- matrix(c(0, .5), 2L)
+  total   <- V + tcrossprod(loading)
+  e0      <- c(1, .5)
+  u0      <- c(0, .25)
+  omega   <- c(1, .2)
+  for (cut in c(0, .1)) {
+    yi   <- c(cut, -.0625)
+    # At zero the solve loses a small mean against e0; at .1 even
+    # mean + (yi - mean) can round below the observed value.
+    mean <- c(if (cut == 0) -2^-55 else 1, 0)
+    args <- .sampling_native_arguments(mean, c(0, 0), loading, omega, points = 2L)
+    args$z_lower <- c(cut, -Inf)
+    args$z_upper <- c(Inf, cut)
+    delta <- drop(solve(total, yi - mean - e0 - u0))
+    e     <- drop(e0 + V %*% delta)
+    p2    <- pnorm(cut, mean[2L] + e[2L], loading[2L], lower.tail = FALSE)
+    gaussian <- mvtnorm::dmvnorm(yi, mean, total, log = TRUE)
+
+    # Row 1 is in the leading bin. Product selection therefore depends
+    # only on row 2, and the best bin in their publication is always first.
+    rules <- if (cut == 0) 0:1 else 0:2
+    for (rule in rules) {
+      args$vector_rule <- rule
+      out <- do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch",
+        yi, args$means, V[lower.tri(V, diag = TRUE)], args$diagonal,
+        args$loading, args$rank, matrix(e0, 1L), matrix(u0, 1L),
+        args$sei, args$omega, args$z_lower, args$z_upper, c(1L, 2L)),
+        unname(args[9:length(args)]), list(PACKAGE = "RoBMA")))
+      mass <- if (rule == 0L) omega[1L] * p2 + omega[2L] * (1 - p2) else 1
+      weight <- if (rule == 0L) omega[2L] else 1
+      expect_equal(out$log_normalizer, log(mass), tolerance = 1e-13)
+      expect_equal(out$log_lik, gaussian + log(weight) - log(mass), tolerance = 1e-13)
+      expect_equal(drop(out$delta), delta, tolerance = 1e-13)
+      expect_equal(drop(out$e_star), c(yi[1L] - mean[1L], e[2L]), tolerance = 1e-13)
+    }
+  }
+})
+
 test_that("whole-sampling likelihoods use relative nonmonotone selection weights", {
 
   args <- .sampling_native_arguments(c(.1, -.2), c(.25, .49), omega = c(1, .15, 2.5))
