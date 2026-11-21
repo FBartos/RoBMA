@@ -72,6 +72,14 @@
 #' meta-analysis.
 #' @param data an optional data frame containing the variables.
 #' @param slab an optional vector of study labels.
+#' @param bias_exempt an optional logical vector with one value per original
+#' outcome row. A `TRUE` row stays in the analysis with zero PET/PEESE offset.
+#' Under product selection, its weight is one. Under best-p-value selection,
+#' only nonexempt outcomes compete to determine the publication's weight. A
+#' fully exempt publication has weight one. An exempt outcome can still be
+#' associated with selection through its correlation with a nonexempt outcome.
+#' Omission is equivalent to all `FALSE`. The indicator must be nonmissing on
+#' rows retained for analysis.
 #' @param subset an optional logical or numeric vector specifying a subset of
 #' data to be used. Subsetting precedes missing-row removal; retained-row
 #' outcome and predictor checks follow these steps. Type, shape, and existing
@@ -315,6 +323,11 @@ NULL
   known_V_input      <- outcome_result$known_V_input
   known_V_hidden     <- outcome_result$known_V_hidden
 
+  bias_exempt <- .get_variable(.call, data, .envir, "bias_exempt")
+  if (!is.null(bias_exempt)) {
+    BayesTools::check_bool(bias_exempt, "bias_exempt", check_length = k, allow_NA = TRUE)
+  }
+
   ### Step 2: Extract moderator variables (mods and scale)
   if (!is.null(mods_from_yi)) {
     # Mods already extracted from yi formula
@@ -435,6 +448,17 @@ NULL
       ),
       call. = FALSE
     )
+  }
+
+  if (!is.null(bias_exempt)) {
+    bias_exempt <- bias_exempt[keep_rows]
+    if (anyNA(bias_exempt)) {
+      stop("The 'bias_exempt' argument must be TRUE or FALSE on every retained row.",
+           call. = FALSE)
+    }
+    if (any(bias_exempt)) {
+      data_outcome[["bias_exempt"]] <- bias_exempt
+    }
   }
 
   # Validate the retained real-valued outcome fields. Integer count fields
@@ -2795,6 +2819,48 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 
 
 # Internal helper to construct outcome arguments for `.check_and_list_data`.
+# Exemption flags of new rows. Callers that construct the rows themselves
+# (regplot grids) supply them; otherwise they come from a logical 'bias_exempt'
+# column of 'newdata'. A fitted formula variable or selection publication-group
+# column of that name is never read as a flag. Flags enter the parser by value.
+.prepare_newdata_bias_exempt <- function(original_data, newdata, bias_exempt = NULL) {
+
+  if (!is.null(bias_exempt)) {
+    BayesTools::check_bool(bias_exempt, "bias_exempt", check_length = nrow(newdata))
+    return(bias_exempt)
+  }
+  fitted_exempt <- !is.null(original_data[["outcome"]][["bias_exempt"]])
+  selection_model <- .data_selection_model(original_data)
+  fitted_variables <- c(
+    if (.is_data_mods(original_data)) all.vars(attr(original_data[["mods"]], "formula")),
+    .prepare_newdata_formula_arg_variables(.prepare_newdata_scale_formula_arg(original_data)),
+    .prepare_newdata_formula_arg_variables(.prepare_newdata_random_formula_arg(original_data)),
+    unlist(lapply(selection_model[["branches"]], `[[`, "group"), use.names = FALSE)
+  )
+  if ("bias_exempt" %in% fitted_variables) {
+    if (fitted_exempt) {
+      stop("Publication-bias predictions from this fit need exemption flags for new rows, ",
+           "but 'bias_exempt' names a variable of the fitted model, so 'newdata' cannot ",
+           "supply them.", call. = FALSE)
+    }
+    return(NULL)
+  }
+  if (!"bias_exempt" %in% names(newdata)) {
+    if (fitted_exempt) {
+      stop("Supply a logical 'bias_exempt' column in 'newdata' for this publication-bias prediction.",
+           call. = FALSE)
+    }
+    return(NULL)
+  }
+  bias_exempt <- newdata[["bias_exempt"]]
+  if (!is.logical(bias_exempt) || !is.null(dim(bias_exempt))) {
+    stop("The 'bias_exempt' column in 'newdata' must be logical.", call. = FALSE)
+  }
+
+  return(bias_exempt)
+}
+
+
 .prepare_newdata_outcome_call_args <- function(outcome_type, newdata,
                                                prefer_vi = FALSE) {
 
@@ -2990,11 +3056,13 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 # @param bias_adjusted Whether PET/PEESE terms should be omitted.
 # @param include_scale Whether to replay the fitted scale formula.
 # @param include_random Whether to replay the fitted random formula.
+# @param bias_exempt Exemption flags of rows the caller constructed; `NULL`
+#   reads a logical `bias_exempt` column of `newdata`.
 #
 # @return A data list equivalent to `object[["data"]]` but for `newdata`
 .prepare_newdata <- function(object, newdata, type, bias_adjusted = FALSE,
                              include_scale = type != "terms",
-                             include_random = FALSE) {
+                             include_random = FALSE, bias_exempt = NULL) {
 
   # extract settings from the original fitted object's data attributes
   original_data <- object[["data"]]
@@ -3019,6 +3087,16 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 
   # add data argument
   call_args[["data"]] <- quote(data)
+
+  uses_bias <- !bias_adjusted && (
+    (type %in% c("terms", "location", "cluster", "estimate", "response") &&
+       (.is_PET(object) || .is_PEESE(object))) ||
+      (type == "response" && .is_weightfunction(object)) ||
+      .is_selected_latent_prediction(object, type, bias_adjusted)
+  )
+  if (uses_bias) {
+    call_args[["bias_exempt"]] <- .prepare_newdata_bias_exempt(original_data, newdata, bias_exempt)
+  }
 
   # add outcome arguments based on outcome_type
   call_args <- c(

@@ -73,7 +73,9 @@
     as.numeric(cluster[["nodes"]]), as.numeric(cluster[["log_weights"]]), as.numeric(cluster[["orders"]]),
     as.numeric(factor[["nodes"]]), as.numeric(factor[["log_weights"]]),
     as.numeric(factor[["orders"]]),
-    as.numeric(z), if (probability) 2L else 0L, PACKAGE = "RoBMA")
+    as.numeric(z), if (probability) 2L else 0L,
+    if (!is.null(selection_context[["bias_exempt"]])) as.integer(!selection_context[["bias_exempt"]]),
+    PACKAGE = "RoBMA")
   if (!is.list(result) || !identical(dim(result[["density"]]), c(S, length(z))) ||
       length(result[["relative_mcse"]]) != S || length(result[["log_density"]]) != S) {
     stop("The selected factor projection returned invalid output.", call. = FALSE)
@@ -167,6 +169,7 @@
     if (is.null(rank_one_loading)) NULL else .native_numeric_matrix(rank_one_loading),
     quadrature,
     .native_numeric_vector(execution_plan[["relative_tolerance"]]),
+    selection_context[["bias_exempt"]],
     PACKAGE = "RoBMA"
   )
   if (!is.null(quadrature)) {

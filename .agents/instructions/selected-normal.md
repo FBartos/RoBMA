@@ -21,7 +21,9 @@ PET/PEESE sampling-bias offsets follow effect direction: add them for positive
 effects and subtract them for negative effects. Reuse
 `.evaluate.brma.bias_offset()`.
 Their coefficients are zero in inactive product-space branches, so applying
-these offsets to all rows preserves branch routing.
+the row-specific offsets preserves branch routing. A retained logical
+`bias_exempt` flag zeroes the offset on that outcome only. Older fits and an
+omitted indicator use the original predictors.
 
 Ordinary normal CDF code owns its direction transformation. Selected-normal
 code receives the sign through `.selection_context()`. Callers must not add
@@ -115,6 +117,15 @@ consume resolved source metadata rather than infer conditioning from monitoring.
 Product normalizers factor only for conditionally independent
 rows. Best uses the weight at the smallest actual p-value, including nonmonotone
 weights; thresholds use original sampling SEs.
+Both rules omit exempt outcomes from the publication event. Product uses only
+eligible factors; best takes the smallest eligible p-value in each publication.
+An empty event has weight and normalizer one. Preserve the Gaussian density
+and all covariance dependencies of the full block. When bounding, predicting
+or deleting an exempt outcome, retain selection on correlated eligible
+outcomes. Keep physical bin numbers in stored selection contexts and carry
+the logical observation field through every subset. Fitted predictions reuse
+the flags; explicit prediction rows need a logical `bias_exempt` column when
+the fit has exemptions and the prediction uses publication bias.
 Non-unit observation `weights` require sampling `integrate` and the supported
 independent-product weighted path. Unit weights are identical to omission and
 remain valid with sampling `condition`.

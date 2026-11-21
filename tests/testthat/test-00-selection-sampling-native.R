@@ -41,7 +41,7 @@ context("Whole sampling-error selection native kernels")
 .sampling_native_mass <- function(arguments) {
 
   do.call(.Call, c(list("RoBMA_selnorm_conditioned_normalizer_batch"),
-                  unname(arguments), list(PACKAGE = "RoBMA")))
+                  unname(arguments), list(NULL, PACKAGE = "RoBMA")))
 }
 
 test_that("analytic sampling selection does not require a QMC grid", {
@@ -163,6 +163,22 @@ test_that("Matheron likelihood preserves singular sampling covariance", {
     expect_equal(as.vector(out$e_star), e, tolerance = 1e-13)
     expect_equal(out$log_lik, expected, tolerance = 1e-13)
     expect_equal(out$log_normalizer, log(normalizer), tolerance = 1e-13)
+
+    # Keep the exempt first row in the singular sampling law and its
+    # conditional reconstruction. Only the second row supplies a weight.
+    partial <- likelihood_args
+    partial[[13L]][1L] <- 0L
+    normalizer <- .2 + .8 * pnorm(sign * (mean[2L] + e[2L]) / sqrt(d[2L]))
+    expected <- mvtnorm::dmvnorm(yi, mean, V + diag(d), log = TRUE) +
+      log(c(1, .2)[bins[2L]]) - log(normalizer)
+    for (rule in 0:1) {
+      partial[[17L]] <- rule
+      out <- do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch"),
+        partial, list(PACKAGE = "RoBMA")))
+      expect_equal(as.vector(out$e_star), e, tolerance = 1e-13)
+      expect_equal(out$log_lik, expected, tolerance = 1e-13)
+      expect_equal(out$log_normalizer, log(normalizer), tolerance = 1e-13)
+    }
   }
   likelihood_args[[4]]  <- matrix(c(0, .49), 1L)
   likelihood_args[[10]] <- matrix(c(1, 0), 1L)
@@ -170,6 +186,63 @@ test_that("Matheron likelihood preserves singular sampling covariance", {
     likelihood_args, list(PACKAGE = "RoBMA"))),
     "Conditional sampling selection is unavailable because a fully retained outcome has zero acceptance probability. Use strictly positive selection weights or integrate an outcome-generating source.",
     fixed = TRUE)
+
+  # Only the exempt second row varies within a retained context. Although
+  # the observed eligible first row has positive weight, its retained error
+  # can put it in the leading zero-weight bin with positive probability.
+  likelihood_args[[10]] <- matrix(c(0, .5, 1), 1L)
+  likelihood_args[[11]] <- c(1, 0, -Inf)
+  likelihood_args[[12]] <- c(Inf, 1, 0)
+  for (rule in 0:1) {
+    likelihood_args[[17L]] <- rule
+    likelihood_args[[13L]] <- c(2L, 0L)
+    evaluate <- function() do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch"),
+      likelihood_args, list(PACKAGE = "RoBMA")))
+    expect_error(evaluate(), "fully retained outcome has zero acceptance probability", fixed = TRUE)
+    likelihood_args[[13L]] <- c(0L, 0L)
+    expect_equal(evaluate()$log_lik, mvtnorm::dmvnorm(yi, mean, V + diag(c(0, .49)), log = TRUE))
+  }
+})
+
+test_that("exempt conditioned blocks keep fixed and integrated eligible outcomes", {
+
+  # Row 1 is exempt, row 2 is eligible without integrated variance and observed
+  # exactly at the z = 0 cut, and row 3 is eligible with integrated variance.
+  V     <- matrix(c(.6, .2, -.15, .2, .5, .1, -.15, .1, .7), 3L)
+  d     <- c(.3, 0, .5)
+  mean  <- c(.15, -.1, .05)
+  e0    <- c(.2, -.25, .1)
+  u0    <- c(-.3, 0, .35)
+  omega <- c(1, .3, .7)
+  args  <- .sampling_native_arguments(mean, d, omega = omega)
+  args$z_lower <- c(1, 0, -Inf)
+  args$z_upper <- c(Inf, 1, 0)
+  total <- V + diag(d)
+  for (y3 in c(-.4, .6, 1.3)) {
+    yi   <- c(1.1, 0, y3)
+    bins <- c(0L, 2L, which(y3 >= args$z_lower)[1L])
+    # Reference: the Matheron update gives row 3's retained mean, row 2 stays
+    # in its observed bin, and row 3's bin masses are univariate normal.
+    e  <- drop(e0 + V %*% solve(total, yi - mean - e0 - u0))
+    at_least <- pnorm(c(1, 0), mean[3L] + e[3L], sqrt(d[3L]), lower.tail = FALSE)
+    p3 <- c(at_least[1L], diff(at_least), 1 - at_least[2L])
+    gaussian <- mvtnorm::dmvnorm(yi, mean, total, log = TRUE)
+    for (rule in 0:1) {
+      args$vector_rule <- rule
+      expected <- gaussian + if (rule == 0L) {
+        log(omega[bins[3L]]) - log(sum(omega * p3))
+      } else {
+        log(omega[min(bins[2:3])]) - log(sum(p3 * omega[pmin(bins[2L], 1:3)]))
+      }
+      out <- do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch",
+        as.double(yi), args$means, as.double(V[lower.tri(V, diag = TRUE)]),
+        args$diagonal, args$loading, args$rank, matrix(e0, 1L), matrix(u0, 1L),
+        args$sei, args$omega, args$z_lower, args$z_upper, bins),
+        unname(args[9:length(args)]), list(PACKAGE = "RoBMA")))
+      expect_equal(out$log_lik, expected, tolerance = 1e-12,
+        label = paste("rule", rule, "y3", y3))
+    }
+  }
 })
 
 test_that("whole-sampling likelihoods use relative nonmonotone selection weights", {
@@ -233,7 +306,7 @@ test_that("shared Gaussian events evaluate deterministic laws and event bounds e
   args <- .sampling_native_arguments(c(-1, .5), c(0, 0), points = 8L)
   event_args <- list(args$means, matrix(0, 1L, 3L), args$sei, args$omega,
     args$z_lower, args$z_upper, args$sign, args$kernel_mode, args$vector_rule,
-    matrix(c(-2, .5), 1L), matrix(c(0, 1), 1L), args$qmc, 8L, 8L, NULL, NULL, .005)
+    matrix(c(-2, .5), 1L), matrix(c(0, 1), 1L), args$qmc, 8L, 8L, NULL, NULL, .005, NULL)
   evaluate <- function(values) {
 
     do.call(.Call, c(list("RoBMA_selnorm_gaussian_event_mass_batch"), values,
@@ -313,7 +386,7 @@ test_that("F6-1 rank-two best-two-sided support includes reflected selection bou
   # CDF differences impose signed physical box limits. They must not be
   # reflected along with selection thresholds.
   projected <- do.call(.Call, c(list("RoBMA_selnorm_factor_projection_batch"), unname(args),
-    list(c(-1.5, .5), 1L), list(PACKAGE = "RoBMA")))
+    list(c(-1.5, .5), 1L, NULL), list(PACKAGE = "RoBMA")))
   box <- function(bound) pnorm(min(bound, .5), -3, sqrt(2)) - pnorm(max(-bound, -1.5), -3, sqrt(2))
   expected_box <- (box(2) * p(2) - box(1) * p(1)) / reference
   expect_lte(abs(diff(as.vector(projected$density)) - expected_box), 1e-8)
@@ -354,7 +427,7 @@ test_that("PSD projections preserve exact CDF and tail endpoints and empty selec
   project <- function(z, kind) {
 
     do.call(.Call, c(list("RoBMA_selnorm_factor_projection_batch"),
-      unname(args), list(as.double(z), as.integer(kind)), list(PACKAGE = "RoBMA")))
+      unname(args), list(as.double(z), as.integer(kind), NULL), list(PACKAGE = "RoBMA")))
   }
   cdf <- project(c(-Inf, -1, 0, Inf), 1L)
   expect_equal(as.vector(cdf$density), c(0, 0, 0, 1), tolerance = 0)
@@ -362,6 +435,29 @@ test_that("PSD projections preserve exact CDF and tail endpoints and empty selec
   tail <- project(0, 2L)
   expect_equal(as.vector(tail$density), 1, tolerance = 0)
   expect_lt(tail$relative_mcse, args$relative_tolerance)
+})
+
+test_that("singular z projections keep exempt rows correlated with selection", {
+
+  # Y1 = U and Y2 = 2 - U for U standard normal. Only Y1 drives selection.
+  args <- .sampling_native_arguments(c(0, 2), c(0, 0), matrix(c(1, -1), 2L))
+  z <- c(.3, 1.3, 2.3)
+  probability <- function(x) {
+    ifelse(x <= 0, .2 * pnorm(x), .1 + pnorm(x) - .5) / .6
+  }
+  cdf <- function(x) (probability(x) + 1 - probability(2 - x)) / 2
+  density <- (dnorm(z) * ifelse(z > 0, 1, .2) +
+              dnorm(z - 2) * ifelse(2 - z > 0, 1, .2)) / (2 * .6)
+  for (rule in 0:1) {
+    args$vector_rule <- rule
+    reference <- list(density, cdf(z), cdf(-z) + 1 - cdf(z))
+    for (kind in 0:2) {
+      projected <- do.call(.Call, c(list("RoBMA_selnorm_factor_projection_batch"),
+        unname(args), list(z, kind, c(1L, 0L), PACKAGE = "RoBMA")))
+      expect_equal(as.vector(projected$density), reference[[kind + 1L]], tolerance = 1e-12)
+      expect_equal(projected$log_density, -log(.6), tolerance = 1e-12)
+    }
+  }
 })
 
 test_that("positive-residual small factors reuse accurate deterministic quadrature", {
@@ -543,12 +639,12 @@ test_that("projection diagnostics include denominator uncertainty in every ratio
       list(args$means, packed, args$sei, args$omega, args$z_lower, args$z_upper,
         args$sign, args$kernel_mode, args$vector_rule, lower, upper,
         prefix[[if (points == 8L) "full" else "coarse"]], as.integer(points),
-        8L, NULL, NULL, 1e-8), list(PACKAGE = "RoBMA")))
+        8L, NULL, NULL, 1e-8, NULL), list(PACKAGE = "RoBMA")))
   }
   for (kind in c(1L, 2L)) {
     grid <- if (kind == 1L) c(-.5, .25, 1) else c(.5, 1.5)
     actual <- do.call(.Call, c(list("RoBMA_selnorm_factor_projection_batch"),
-      unname(args), list(as.double(grid), kind), list(PACKAGE = "RoBMA")))
+      unname(args), list(as.double(grid), kind, NULL), list(PACKAGE = "RoBMA")))
     values <- errors <- matrix(NA_real_, 3L, length(grid))
     for (focal in 1:3) for (index in seq_along(grid)) {
       tails <- if (kind == 1L) "cdf" else c("minus", "plus")

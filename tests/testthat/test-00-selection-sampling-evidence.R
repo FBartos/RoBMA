@@ -311,6 +311,16 @@ test_that("prepared scalar bridge evaluation preserves augmentation and directio
       expected_scale <- expected_scale + log(ifelse(sign * y >= 0, 1, .2)) - log(acceptance)
     }
     expect_equal(actual_scale, sum(expected_scale), tolerance = 1e-12)
+    # The observed weight and the acceptance normalizer of the protected row
+    # must both drop out of the independent bridge shortcut.
+    exempt <- c(FALSE, TRUE)
+    object$data$outcome$bias_exempt <- exempt
+    fit_data <- .marglik_add_selection_bridge_data(.create_fit_data(object$data, object$priors),
+      object$priors, direction, object$data)
+    actual_exempt <- .marglik_conditioned_sampling_independent(parameters, fit_data, plan,
+      TRUE, FALSE, FALSE, direction, NULL)
+    expected_scale[exempt] <- dnorm(y[exempt], parameters$mu[exempt], sqrt(vi[exempt] + .7^2), log = TRUE)
+    expect_equal(actual_exempt, sum(expected_scale), tolerance = 1e-12)
   }
 })
 

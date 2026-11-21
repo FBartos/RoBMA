@@ -34,7 +34,7 @@ test_that("finite selected-normal CDF queries retain their numeric value", {
     as.integer(c(0, 0)),
     TRUE,
     TRUE,
-    PACKAGE = "RoBMA"
+    NULL, PACKAGE = "RoBMA"
   )
 
   expected <- stats::pnorm(q, mean = location, sd = scale)

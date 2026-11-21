@@ -110,8 +110,9 @@
   return(.point_prior_value(prior))
 }
 
-.bias_regression_predictor <- function(sei, parameter, effect_direction) {
+.bias_regression_predictor <- function(sei, parameter, effect_direction, bias_exempt = NULL) {
 
+  if (!is.null(bias_exempt)) sei[as.logical(bias_exempt)] <- 0
   direction <- if (effect_direction == "negative") -1 else 1
   if (parameter == "PET") {
     return(direction * sei)
@@ -1475,7 +1476,8 @@
       .bias_regression_predictor(
         sei              = outcome_data[["sei"]],
         parameter        = parameter,
-        effect_direction = effect_direction
+        effect_direction = effect_direction,
+        bias_exempt      = outcome_data[["bias_exempt"]]
       )
     )
   }

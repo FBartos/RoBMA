@@ -9,7 +9,7 @@ test_that("rank-one two-sided best events split both threshold crossings", {
       matrix(mean, 1L), NULL, 1, matrix(weights, 1L),
       tail(bounds, -1L), head(bounds, -1L), 1L, 1L, 2L,
       matrix(lower, 1L), matrix(upper, 1L), numeric(), 8L, 2L,
-      matrix(loading, 1L), NULL, .005, PACKAGE = "RoBMA")
+      matrix(loading, 1L), NULL, .005, NULL, PACKAGE = "RoBMA")
   }
   for (mean in c(-.4, 0, .7)) {
     for (loading in c(-1.2, .8)) {

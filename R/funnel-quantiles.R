@@ -889,6 +889,8 @@
   } else {
     NULL
   }
+  # These contexts describe hypothetical estimates on the standard-error grid.
+  if (!is.null(selection)) selection[["bias_exempt"]] <- NULL
   .plot_check_scalar_selection_target(x, selection, "funnel")
   use_normal <- if (is.null(selection)) {
     rep(TRUE, S)

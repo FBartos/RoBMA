@@ -91,8 +91,13 @@
 
   .check_glmm_no_bias_priors(data, priors)
 
+  bias_predictor_data <- list()
+  if (!is.null(data[["outcome"]][["bias_exempt"]]) &&
+      (.is_priors_PET(priors) || .is_priors_PEESE(priors))) {
+    bias_predictor_data[["bias_exempt"]] <- as.integer(data[["outcome"]][["bias_exempt"]])
+  }
   if (.is_data_joint_selection(data)) {
-    return(.selection_joint_fit_data(data = data, priors = priors))
+    return(c(.selection_joint_fit_data(data = data, priors = priors), bias_predictor_data))
   }
 
   ### add outcome specific data
@@ -176,6 +181,7 @@
       )
 
       fit_data <- c(fit_data, selection_spec[["jags_data"]])
+      fit_data[["sel_obs_bin"]] <- .selection_kernel_obs_bin(selection_spec, data[["outcome"]][["bias_exempt"]])
 
     }
 
@@ -236,7 +242,7 @@
 
 
 
-  return(fit_data)
+  return(c(fit_data, bias_predictor_data))
 }
 .create_fit_formula_list       <- function(data, parameter) {
 
@@ -423,11 +429,16 @@
     mu_estimate <- paste0(mu_estimate, " + sampling_dependency[i]")
   }
   # add PET/PEESE
+  bias_sei <- if (is.null(data[["outcome"]][["bias_exempt"]])) {
+    "sei[i]"
+  } else {
+    "(sei[i] * (1 - bias_exempt[i]))"
+  }
   if (is_PET) {
-    mu_estimate <- paste0(mu_estimate, " + PET * sei[i]")
+    mu_estimate <- paste0(mu_estimate, " + PET * ", bias_sei)
   }
   if (is_PEESE) {
-    mu_estimate <- paste0(mu_estimate, " + PEESE * pow(sei[i],2)")
+    mu_estimate <- paste0(mu_estimate, " + PEESE * pow(", bias_sei, ",2)")
   }
   if (is_joint_selection) {
     if (.selection_retains_sampling(data)) {

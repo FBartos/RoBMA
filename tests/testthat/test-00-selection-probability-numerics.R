@@ -249,7 +249,7 @@ test_that("native central interval probabilities are not projected", {
       as.integer(1),
       as.integer(0),
       FALSE,
-      PACKAGE = "RoBMA"
+      NULL, PACKAGE = "RoBMA"
     ))
   }
 

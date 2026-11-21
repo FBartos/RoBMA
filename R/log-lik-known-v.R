@@ -551,6 +551,8 @@
          call. = FALSE)
   }
   retained <- setdiff(groups[[group]], row)
+  exempt <- context[["bias_exempt"]]
+  if (!is.null(exempt)) retained <- retained[!exempt[retained]]
   S <- nrow(context[["omega"]])
   original_rule <- rep_len(context[["vector_rule"]], S)
   focal_bin <- rep.int(context[["obs_bin"]][row], S)
@@ -562,6 +564,12 @@
   )
   context[["vector_rule"]] <- rep.int(0L, S)
   context <- BayesTools::selection_context_subset_observations(context, row)
+  if (isTRUE(exempt[row])) {
+    # With all other outcomes held fixed, the event is constant in this row.
+    context[["omega"]][] <- 1
+    context[["kernel_mode"]][] <- SELKERNEL_NORMAL
+    context[["use_normal"]][] <- TRUE
+  }
   context[["obs_bin_by_sample"]] <- focal_bin
   context[["row_fields"]] <- unique(c(context[["row_fields"]], "obs_bin_by_sample"))
   context
@@ -663,7 +671,7 @@
         as.numeric(sampling_variances), integrated_variances, total_variances,
         as.numeric(setup[["selection_sei"]]), selection[["omega"]],
         as.numeric(selection[["z_lower"]]), as.numeric(selection[["z_upper"]]),
-        as.integer(selection[["obs_bin"]]), as.integer(selection[["kernel_mode"]]),
+        .selection_kernel_obs_bin(selection), as.integer(selection[["kernel_mode"]]),
         isTRUE(selection[["telescope_probabilities"]]),
         as.numeric(quadrature[["nodes"]]), as.numeric(quadrature[["log_weights"]]),
         as.integer(quadrature[["orders"]]), as.numeric(plan[["relative_tolerance"]]),
@@ -695,7 +703,7 @@
   for (row in seq_len(K)) {
     variance <- integrated_variances[, row]
     ordinary <- variance == 0 | selection[["kernel_mode"]] == SELKERNEL_NORMAL |
-      equal_weights
+      equal_weights | isTRUE(selection[["bias_exempt"]][row])
     # When selection cancels in a dependent block, retain the ordinary joint
     # Gaussian deletion calculation below, which also integrates random context.
     normal_rows <- if (independent_blocks) ordinary else rep(FALSE, S)
@@ -894,10 +902,11 @@
   remedy <- paste0("Increase 'max_points_per_scramble' in ",
                    "'selection_control = set_selection_likelihood_control()' when fitting.")
   ordinary_covariance <- state[["total_covariance"]]
+  eligible <- if (is.null(selection[["bias_exempt"]])) seq_len(K) else which(!selection[["bias_exempt"]])
   for (draw in seq_len(S)) {
     if (!any(vapply(out, function(value) anyNA(value[draw, ]), logical(1L)))) next
     covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
-    ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
+    ordinary <- all(diag(covariance)[eligible] == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
     if (retained_context || !ordinary) {
       sampling <- .selection_deleted_gaussian_coordinates(V, errors[draw, ])

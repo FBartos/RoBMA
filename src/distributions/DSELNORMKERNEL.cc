@@ -40,7 +40,7 @@ bool DSELNORMKERNEL::checkParameterValue(std::vector<double const *> const &par,
     // Zero remains valid when no step weight is active; no p-hacking mode is
     // introduced here. The existing kernel retains its supported-mode routing.
     selnorm_jags_integer_in_range(*par[9],
-      (*par[18] == SELKERNEL_STEP || *par[18] == SELKERNEL_STEP_PHACK_POWER) ? 1 :
+      *par[18] == SELKERNEL_STEP ? 0 : *par[18] == SELKERNEL_STEP_PHACK_POWER ? 1 :
         std::numeric_limits<int>::min(),
       (*par[18] == SELKERNEL_STEP || *par[18] == SELKERNEL_STEP_PHACK_POWER) ?
         static_cast<int>(len[6]) : std::numeric_limits<int>::max());
@@ -85,7 +85,7 @@ double DSELNORMKERNEL::logDensity(double const *x,
     static_cast<int>(*par[9]),
     *par[11],
     static_cast<int>(*par[12]),
-    static_cast<int>(*par[18]),
+    *par[9] == 0 && *par[18] == SELKERNEL_STEP ? SELKERNEL_NORMAL : static_cast<int>(*par[18]),
     data
   );
 }

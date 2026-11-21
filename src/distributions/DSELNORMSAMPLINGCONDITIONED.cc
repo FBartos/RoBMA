@@ -64,7 +64,7 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterValue(
         par[2][row] < 0.0 || !std::isfinite(par[5][row]) ||
         !std::isfinite(par[6][row]) || !std::isfinite(par[7][row]) ||
         !(par[7][row] > 0.0) ||
-        !selnorm_jags_integer_in_range(par[11][row], 1, len[8]) ||
+        !selnorm_jags_integer_in_range(par[11][row], 0, len[8]) ||
         !selnorm_jags_integer_in_range(par[16][row], 1, limit)) return false;
   }
   for (int argument : {1, 3, 8, 17}) {

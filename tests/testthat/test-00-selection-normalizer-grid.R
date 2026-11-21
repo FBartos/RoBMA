@@ -86,6 +86,16 @@
 }
 
 
+test_that("normalizer grids are prepared only for eligible correlated blocks", {
+
+  context <- .normalizer_grid_test_fixture()$context
+  queries <- seq(-1, 1, length.out = 20)
+  context$data$outcome$bias_exempt <- rep(c(TRUE, FALSE), 3)
+  expect_null(.selection_normalizer_grid(context, queries, 1L))
+  context$data$outcome$bias_exempt[1:2] <- FALSE
+  expect_true(is.environment(.selection_normalizer_grid(context, queries, 1L)))
+})
+
 test_that("oversize normalizer grids decline before integer products overflow", {
 
   fixture <- .normalizer_grid_test_fixture()

@@ -9,8 +9,15 @@
   # The transport identity and its certificate do not depend on how a block
   # normalizer is evaluated, only on the accuracy each route reports, so every
   # correlated route is eligible.
-  tracked <- sum(plan[["block_methods"]] %in%
-    c("dense", "rank_one", "factor"))
+  tracked_blocks <- plan[["block_methods"]] %in% c("dense", "rank_one", "factor")
+  exempt <- context[["data"]][["outcome"]][["bias_exempt"]]
+  if (!is.null(exempt)) {
+    # Mixed and fully exempt blocks use their direct projected likelihood.
+    tracked_blocks <- tracked_blocks & !vapply(plan[["row_blocks"]], function(rows) {
+      any(exempt[rows])
+    }, logical(1))
+  }
+  tracked <- sum(tracked_blocks)
   queries <- sort(unique(queries[is.finite(queries)]))
   if (!tracked || length(queries) < 16L || !length(rows)) return(NULL)
   # Reserve for native records, reported error, binding data and R overhead.

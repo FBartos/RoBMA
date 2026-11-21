@@ -152,6 +152,77 @@ double qmc_value(const double *values, int scrambles, int points,
 
 #include "selnorm-event.cc.inc"
 
+// A zero observation bin marks a row outside the publication event. Project
+// only that event onto its participating coordinates. The Gaussian numerator,
+// retained-source reconstruction, and prediction bounds still use every row.
+bool has_exempt_row(const int *bins, int k)
+{
+  return bins && std::find(bins, bins + k, 0) != bins + k;
+}
+
+struct SelectionRows {
+  const int dimension;
+  std::vector<int> index;
+
+  SelectionRows(const int *bins, int k) : dimension(k) {
+    for (int i = 0; i < k; ++i) if (bins[i] != 0) index.push_back(i);
+  }
+
+  template <typename T>
+  std::vector<T> take(const T *values, int columns = 1) const {
+    std::vector<T> result;
+    result.reserve(index.size() * columns);
+    for (int j = 0; j < columns; ++j) {
+      for (int i : index) result.push_back(values[i + dimension * j]);
+    }
+    return result;
+  }
+
+  std::vector<double> covariance_lower(const double *packed) const {
+    std::vector<double> result;
+    for (std::size_t j = 0; j < index.size(); ++j) {
+      const std::size_t column = index[j];
+      const std::size_t start = column * (2 * dimension - column + 1) / 2;
+      for (std::size_t i = j; i < index.size(); ++i)
+        result.push_back(packed[start + index[i] - column]);
+    }
+    return result;
+  }
+};
+
+double singleton_event_log_mass(double mean, double sd, double se,
+    const double *omega, const SelNormKernelData &selection, int rule)
+{
+  if (rule == SELVECTOR_BEST_TWO_SIDED)
+    return independent_best_log_mass(&mean, &sd, 1, &se, omega, selection, rule);
+  return cpp_selnorm_kernel_log_norm(mean, sd, se, omega, 0, 0,
+    SELKERNEL_STEP, selection, 1, false);
+}
+
+template <typename Normalizer>
+double selection_row_correction(const int *bins, int k, const double *x,
+    const double *mean, const double *se, const double *omega,
+    const double *z_lower, int n_bins, int sign, int rule,
+    double *normalizer_out, const double *normalizer_override, Normalizer normalize)
+{
+  const SelectionRows rows(bins, k);
+  if (rows.index.empty()) {
+    if (normalizer_out) *normalizer_out = 0.0;
+    return 0.0;
+  }
+  const auto y = rows.take(x), m = rows.take(mean), s = rows.take(se);
+  const auto b = rows.take(bins);
+  const int n = static_cast<int>(rows.index.size());
+  const double weight = vector_observed_log_weight(y.data(), n, s.data(),
+    omega, z_lower, n_bins, sign, rule, b.data());
+  if (!std::isfinite(weight) && !normalizer_out) return weight;
+  double normalizer = std::numeric_limits<double>::quiet_NaN();
+  if (normalizer_override) normalizer = *normalizer_override;
+  else normalize(rows, n, y.data(), m.data(), s.data(), b.data(), &normalizer);
+  if (normalizer_out) *normalizer_out = normalizer;
+  return weight - normalizer;
+}
+
 struct ClusterNormalizerContext {
   int vector_rule = SELVECTOR_PRODUCT;
   const long double *quadrature_weights;
@@ -6307,6 +6378,31 @@ double cpp_selnorm_factor_step_lpdf(
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
     return log_density;
   }
+  if (has_exempt_row(obs_bin, dimension)) {
+    return log_density + selection_row_correction(obs_bin, dimension, x, mean,
+      selection_se, omega, z_lower, n_bins, effect_sign, vector_rule,
+      log_normalizer_out, log_normalizer_override,
+      [&](const SelectionRows &rows, int n, const double *y, const double *m,
+          const double *se, const int *bins, double *normalizer) {
+        const auto sd = rows.take(residual_sd);
+        const auto factors = rows.take(declared_loading, declared_rank);
+        if (n == 1) {
+          double marginal_sd = sd[0];
+          for (double value : factors) marginal_sd = std::hypot(marginal_sd, value);
+          *normalizer = singleton_event_log_mass(m[0], marginal_sd, se[0],
+            omega, selection, vector_rule);
+          if (deterministic) *deterministic = true;
+          return;
+        }
+        cpp_selnorm_factor_step_lpdf(y, m, sd.data(), factors.data(), n,
+          declared_rank, se, omega, n_bins, z_lower, z_upper, bins, effect_sign,
+          telescope_probabilities, kernel_mode, quadrature_nodes,
+          quadrature_log_weights, quadrature_orders, quadrature_rule_count, qmc,
+          initial_points, max_points, scrambles, relative_tolerance,
+          relative_mcse, relative_change, normalizer, vector_rule, nullptr,
+          deterministic, nullptr, check_interrupt);
+      });
+  }
   if (vector_rule != SELVECTOR_PRODUCT) {
     const double weight = vector_observed_log_weight(x, dimension, selection_se,
       omega, z_lower, n_bins, effect_sign, vector_rule, obs_bin);
@@ -7123,7 +7219,7 @@ double cpp_selnorm_cluster_step_lpdf(
     if (!(residual_sd[i] > 0.0) || !std::isfinite(residual_sd[i]) ||
         !std::isfinite(loading[i]) || !std::isfinite(x[i]) ||
         !std::isfinite(mean[i]) || !(selection_se[i] > 0.0) ||
-        !std::isfinite(selection_se[i]) || obs_bin[i] < 1 ||
+        !std::isfinite(selection_se[i]) || obs_bin[i] < 0 ||
         obs_bin[i] > n_bins) return negative_infinity;
     residual_values[i] = x[i] - mean[i];
   }
@@ -7134,6 +7230,28 @@ double cpp_selnorm_cluster_step_lpdf(
   if (kernel_mode == SELKERNEL_NORMAL) {
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
     return log_density;
+  }
+  if (has_exempt_row(obs_bin, dimension)) {
+    return log_density + selection_row_correction(obs_bin, dimension, x, mean,
+      selection_se, omega, z_lower, n_bins, effect_sign, vector_rule,
+      log_normalizer_out, log_normalizer_override,
+      [&](const SelectionRows &rows, int n, const double *y, const double *m,
+          const double *se, const int *bins, double *normalizer) {
+        const auto sd = rows.take(residual_sd), factor = rows.take(loading);
+        if (n == 1) {
+          *normalizer = singleton_event_log_mass(m[0], std::hypot(sd[0], factor[0]),
+            se[0], omega, selection, vector_rule);
+          if (deterministic) *deterministic = true;
+          return;
+        }
+        cpp_selnorm_cluster_step_lpdf(y, m, sd.data(), factor.data(), n, se,
+          omega, n_bins, z_lower, z_upper, bins, effect_sign,
+          telescope_probabilities, kernel_mode, quadrature_nodes,
+          quadrature_log_weights, quadrature_orders, quadrature_rule_count, qmc,
+          initial_points, max_points, scrambles, relative_tolerance,
+          relative_mcse, relative_change, quadrature_weights, normalizer,
+          vector_rule, deterministic, nullptr, check_interrupt);
+      });
   }
 
   if (vector_rule != SELVECTOR_PRODUCT) {
@@ -7611,6 +7729,7 @@ double cpp_selnorm_mnorm_step_lpdf(
   selection.telescope_probabilities = telescope_probabilities;
 
   if (k == 1 && projection == nullptr) {
+    if (obs_bin[0] == 0) kernel_mode = SELKERNEL_NORMAL;
     const double variance = covariance_lower[0];
     if (!(variance > 0.0) || !std::isfinite(variance)) {
       return negative_infinity;
@@ -7684,6 +7803,24 @@ double cpp_selnorm_mnorm_step_lpdf(
   if (kernel_mode == SELKERNEL_NORMAL && projection == nullptr) {
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
     return log_density;
+  }
+  if (!projection && has_exempt_row(obs_bin, k)) {
+    return log_density + selection_row_correction(obs_bin, k, x, mean,
+      selection_se, omega, z_lower, n_bins, effect_sign, vector_rule,
+      log_normalizer_out, log_normalizer_override,
+      [&](const SelectionRows &rows, int n, const double *y, const double *m,
+          const double *se, const int *bins, double *normalizer) {
+        const auto sub = rows.covariance_lower(covariance_lower);
+        if (n == 1) {
+          *normalizer = singleton_event_log_mass(m[0], std::sqrt(sub[0]), se[0],
+            omega, selection, vector_rule);
+          return;
+        }
+        cpp_selnorm_mnorm_step_lpdf(y, m, sub.data(), n, se, omega, n_bins,
+          z_lower, z_upper, bins, effect_sign, telescope_probabilities,
+          kernel_mode, qmc, points, scrambles, relative_mcse, nullptr,
+          normalizer, vector_rule, integration);
+      });
   }
 
   if (vector_rule != SELVECTOR_PRODUCT) {
@@ -8151,13 +8288,44 @@ double cpp_selnorm_gaussian_event_log_mass(
     int kernel_mode, int vector_rule, const double *lower,
     const double *upper, const double *qmc, int points, int scrambles,
     double *relative_mcse, const double *rank_one_loading,
-    SelNormDenseIntegration *integration)
+    SelNormDenseIntegration *integration, const int *routing_bin)
 {
   *relative_mcse = std::numeric_limits<double>::infinity();
   const double invalid = std::numeric_limits<double>::quiet_NaN();
   if (dimension < 1 || points < 1 || scrambles < 2 ||
       vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED ||
       (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP)) return invalid;
+  if (has_exempt_row(routing_bin, dimension)) {
+    // Only coordinates that carry a selection factor or a box limit enter
+    // this integral. A bounded exempt row remains in the joint Gaussian.
+    const double infinity = std::numeric_limits<double>::infinity();
+    std::vector<int> keep(dimension);
+    for (int i = 0; i < dimension; ++i) {
+      keep[i] = routing_bin[i] != 0 || (lower && lower[i] != -infinity) ||
+        (upper && upper[i] != infinity);
+    }
+    const SelectionRows rows(keep.data(), dimension);
+    const int n = static_cast<int>(rows.index.size());
+    if (n == 0) {
+      *relative_mcse = 0.0;
+      return 0.0;
+    }
+    if (n < dimension) {
+      const auto m = rows.take(mean), se = rows.take(selection_se);
+      const auto lo = lower ? rows.take(lower) : std::vector<double>();
+      const auto hi = upper ? rows.take(upper) : std::vector<double>();
+      const auto bins = rows.take(routing_bin);
+      const auto cov = rank_one_loading ? std::vector<double>() : rows.covariance_lower(covariance_lower);
+      const auto load = rank_one_loading ? rows.take(rank_one_loading) : std::vector<double>();
+      return cpp_selnorm_gaussian_event_log_mass(m.data(), cov.data(), n, se.data(),
+        omega, n_bins, z_lower, z_upper, effect_sign, kernel_mode, vector_rule,
+        lower ? lo.data() : nullptr, upper ? hi.data() : nullptr, qmc, points,
+        scrambles, relative_mcse, rank_one_loading ? load.data() : nullptr,
+        integration, bins.data());
+    }
+  } else {
+    routing_bin = nullptr;
+  }
   SelNormKernelData selection = {};
   selection.n_bins = n_bins;
   selection.effect_sign = effect_sign;
@@ -8167,7 +8335,7 @@ double cpp_selnorm_gaussian_event_log_mass(
   if (rank_one_loading != nullptr) {
     *relative_mcse = 0.0;
     return rank_one_event_log_mass(mean, rank_one_loading, dimension,
-      selection_se, omega, selection, kernel_mode, vector_rule, lower, upper);
+      selection_se, omega, selection, kernel_mode, vector_rule, lower, upper, routing_bin);
   }
   std::vector<double> cholesky(static_cast<std::size_t>(dimension * dimension));
   int position = 0;
@@ -8187,7 +8355,7 @@ double cpp_selnorm_gaussian_event_log_mass(
     std::vector<double> loading(dimension, 0.0);
     *relative_mcse = 0.0;
     return rank_one_event_log_mass(mean, loading.data(), dimension,
-      selection_se, omega, selection, kernel_mode, vector_rule, lower, upper);
+      selection_se, omega, selection, kernel_mode, vector_rule, lower, upper, routing_bin);
   }
   bool full_space = true;
   for (int row = 0; row < dimension; ++row) {
@@ -8197,7 +8365,7 @@ double cpp_selnorm_gaussian_event_log_mass(
   }
   bool constant = true;
   for (int bin = 1; bin < n_bins; ++bin) constant = constant && omega[bin] == omega[0];
-  const bool try_envelope = integration != nullptr && full_space && !diagonal &&
+  const bool try_envelope = integration != nullptr && routing_bin == nullptr && full_space && !diagonal &&
     !constant && kernel_mode == SELKERNEL_STEP && vector_rule == SELVECTOR_PRODUCT &&
     selnorm_is_descending_step_partition(z_lower, z_upper, n_bins);
   // Keep the supplied covariance before Cholesky overwrites it. The event
@@ -8219,7 +8387,7 @@ double cpp_selnorm_gaussian_event_log_mass(
   }
   return gaussian_event_log_mass(mean, cholesky, dimension, selection_se,
     omega, selection, kernel_mode, vector_rule, lower, upper, qmc,
-    points, scrambles, relative_mcse);
+    points, scrambles, relative_mcse, routing_bin);
 }
 
 #include "selnorm-sampling-conditioned.cc.inc"

@@ -1,5 +1,6 @@
 # Argument order, defaults, and entry points of RoBMA 4.0.0 that later
-# development must keep. New arguments follow the released ones.
+# development must keep. New arguments follow the released ones, except
+# 'bias_exempt', which the maintainer placed after 'cluster'.
 
 .released_arguments_norm <- c(
   "yi", "vi", "sei", "weights", "ni", "mods", "scale", "cluster", "data",
@@ -37,7 +38,8 @@ test_that("selection arguments follow the released RoBMA() and bselmodel() argum
     list(name = "bselmodel", fun = bselmodel, released = released_bselmodel)
   )) {
     arguments <- names(formals(case[["fun"]]))
-    expect_identical(arguments, c(case[["released"]], "selection", "selection_control", "..."),
+    released  <- append(case[["released"]], "bias_exempt", after = match("cluster", case[["released"]]))
+    expect_identical(arguments, c(released, "selection", "selection_control", "..."),
                      info = case[["name"]])
   }
 })
