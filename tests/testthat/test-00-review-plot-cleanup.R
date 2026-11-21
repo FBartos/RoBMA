@@ -141,6 +141,7 @@ test_that("precomputed posterior plots estimate only selected factor levels", {
   testthat::local_mocked_bindings(
     .iwmde_estimate = function(..., metadata) {
       cell <- metadata[["level"]]
+      if (is.null(cell)) stop("The factor layout must be checked before estimating a scalar density.")
       visited <<- c(visited, cell)
       if (identical(cell, "May")) {
         return(list(diagnostics = list(density = list(status = "unavailable",
@@ -151,6 +152,8 @@ test_that("precomputed posterior plots estimate only selected factor levels", {
 
   for (method in c("qCMDE", "IWMDE")) {
     visited <- character()
+    expect_error(plot(fit, "mu", individual = TRUE, density_method = method),
+      "'individual = TRUE' requires a whole factor term.", fixed = TRUE)
     selected <- plot(fit, "g", level = "Jul", density_method = method, plot_type = "ggplot")
     expect_s3_class(selected, "ggplot")
     expect_identical(visited, "Jul")
@@ -177,5 +180,11 @@ test_that("a selected level with unit atomic mass needs no density estimate", {
   for (method in c("qCMDE", "IWMDE")) {
     plotted <- plot(fit, "g", level = "c", density_method = method, plot_type = "ggplot")
     expect_equal(ggplot2::ggplot_build(plotted)$data, reference)
+  }
+  if (utils::packageVersion("ggplot2") >= "3.5.0") {
+    full <- ggplot2::ggplot_build(plot(fit, "g", plot_type = "ggplot", density_method = "qCMDE"))
+    guide <- full$plot$guides$params[[1L]]
+    expect_identical(guide$key$.label, c("b", "c"))
+    expect_identical(guide$decor[[1L]]$data$.draw, c(TRUE, TRUE))
   }
 })

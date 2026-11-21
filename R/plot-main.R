@@ -433,6 +433,7 @@ lines.brma <- function(
       standardized_coefficients = standardized_coefficients,
       conditional               = conditional
     )
+    .plot_brma_check_factor_layout(samples[[sample_parameter]], level, individual)
     density_sample_parameter <- parameter
     random_label <- attr(samples, "random_parameter_label", exact = TRUE)
     # A quantity without a prior density (e.g. an original-scale correlation
@@ -466,10 +467,6 @@ lines.brma <- function(
       )
     }
   } else {
-    parameter_spec <- if (.density_method_uses_precomputed(density_method)) {
-      .plot_brma_formula_parameter_spec(x, parameter, parameter_entry,
-        standardized_coefficients)
-    } else NULL
     sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
     samples <- .brma_as_mixed_posteriors(
       object           = x,
@@ -481,12 +478,15 @@ lines.brma <- function(
       samples <- BayesTools::simplify_as_mixed_posterior_bias(samples, parameter)
       sample_parameter <- parameter
     }
+    .plot_brma_check_factor_layout(samples[[sample_parameter]], level, individual)
     density_sample_parameter <- .plot_brma_density_sample_parameter(
       samples          = samples,
       parameter        = parameter,
       sample_parameter = sample_parameter
     )
     if (.density_method_uses_precomputed(density_method)) {
+      parameter_spec <- .plot_brma_formula_parameter_spec(x, parameter, parameter_entry,
+        standardized_coefficients)
       samples <- .plot_brma_attach_iwmde(
         object                  = x,
         samples                 = samples,
@@ -507,9 +507,6 @@ lines.brma <- function(
   }
 
   ### set up plotting arguments
-  if (individual && !inherits(samples[[sample_parameter]], "mixed_posteriors.factor")) {
-    stop("'individual = TRUE' requires a whole factor term.", call. = FALSE)
-  }
   ordered_target <- isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
   ordered_cell <- ordered_target && is_factor_cell
   if (ordered_cell && !is.null(dots_raw[["linetype"]])) {
@@ -590,6 +587,13 @@ lines.brma <- function(
   }
 }
 
+
+.plot_brma_check_factor_layout <- function(sample, level, individual) {
+
+  if (inherits(sample, "mixed_posteriors.factor")) return(invisible(NULL))
+  if (individual) stop("'individual = TRUE' requires a whole factor term.", call. = FALSE)
+  if (!is.null(level)) stop("'level' requires a factor-valued posterior.", call. = FALSE)
+}
 
 .plot_brma_attach_iwmde <- function(object, samples, parameter, sample_parameter,
                                     conditional,
