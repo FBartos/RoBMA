@@ -805,10 +805,7 @@ NULL
     sei[missing_sei] <- sqrt(vi[missing_sei])
   }
 
-  represented_vi  <- sei^2
-  unrepresentable <- !is.na(sei) & sei > 0 &
-    (!is.finite(represented_vi) | represented_vi == 0)
-  if (any(unrepresentable)) {
+  if (any(is.infinite(sei))) {
     stop(
       "Positive 'sei' values must have positive finite squared sampling variances.",
       call. = FALSE
@@ -904,12 +901,20 @@ NULL
     stop("The dimensions of 'V' must match the length of 'yi'.", call. = FALSE)
   }
   missing_for_na <- known_V_input[["missing_for_na"]]
-  sei            <- numeric(k)
-  # Use the marginal variance for the retained-row domain check, before
-  # decomposing V. Invalid diagonals still reach the covariance validator.
-  diagonal       <- known_V_input[["diagonal"]]
-  positive       <- which(diagonal > 0)
-  sei[positive]  <- sqrt(diagonal[positive])
+  if (!is.null(V) || !is.null(vi)) {
+    # Preserve an original SE when it supplies a missing variance, even
+    # when squaring it overflows or underflows. Invalid covariance entries
+    # still reach the covariance validator after row selection.
+    supplied_se <- sei
+    diagonal <- known_V_input[["diagonal"]]
+    sei      <- numeric(k)
+    positive <- which(diagonal > 0)
+    sei[positive] <- sqrt(diagonal[positive])
+    if (!is.null(supplied_se)) {
+      from_se <- is.na(vi) & !is.na(supplied_se)
+      sei[from_se] <- supplied_se[from_se]
+    }
+  }
   sei[missing_for_na] <- NA_real_
 
   if (!is.null(ni))

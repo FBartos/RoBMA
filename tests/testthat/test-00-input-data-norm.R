@@ -149,11 +149,11 @@ test_that("Input generates default slab when not provided", {
 
 test_that("normal input requires representable and consistent sampling variances", {
 
-  for (sei in c(1e-200, 1e200)) {
-    expect_error(
-      brma.norm(yi = 0, sei = sei, only_data = TRUE),
-      "positive finite squared sampling variances"
-    )
+  for (constructor in list(brma.norm, brma.mv)) for (sei in c(1e-200, 1e200)) {
+    expect_error(constructor(yi = 0, sei = sei, only_data = TRUE),
+                 class = "RoBMA_data_outside_numerical_domain")
+    kept <- constructor(yi = c(0, .1), sei = c(sei, .2), subset = 2L, only_data = TRUE)
+    expect_equal(kept$data$outcome$sei, .2)
   }
 
   expect_error(brma.norm(
