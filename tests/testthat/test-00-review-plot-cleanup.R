@@ -110,6 +110,27 @@ test_that("factor posterior levels select the same curve in plots and overlays",
   expect_identical(graphics::par("usr"), axes)
 })
 
+test_that("selecting an interaction cell preserves its whole-term colour", {
+
+  dat <- expand.grid(a = LETTERS[1:2], b = letters[1:3], study = 1:2)
+  dat$yi <- seq_len(nrow(dat)) / 20
+  dat$sei <- .1
+  slab <- BayesTools::prior_factor("mnormal", list(0, 1), contrast = "meandif")
+  setup <- review_compile_object(brma(yi, sei = sei, mods = ~ a * b, data = dat, measure = "GEN",
+    prior_mods = list(a = slab, b = slab, "a:b" = slab), prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE))
+  columns <- review_prior_columns(setup$compiled$mu$prior_list)
+  withr::local_seed(2)
+  draws <- matrix(rnorm(100 * length(columns)), 100, dimnames = list(NULL, columns))
+  fit <- review_attach_replay(setup, cbind(draws, tau = .2))
+  class(fit) <- setdiff(class(fit), "only_priors.brma")
+
+  full <- plot(fit, "a:b", plot_type = "ggplot")$scales$get_scales("colour")
+  expect_equal(unname(full$palette(6L)), .plot_level_palette(6L))
+  cell <- plot(fit, "a:b", level = "B, c", plot_type = "ggplot")
+  expect_equal(unique(ggplot2::ggplot_build(cell)$data[[1L]]$colour), full$palette(6L)[["B, c"]])
+})
+
 test_that("precomputed posterior plots estimate only selected factor levels", {
 
   fit <- review_factor_replay(c("May", "Jun", "Jul"), "orthonormal")
