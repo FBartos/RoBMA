@@ -312,13 +312,13 @@ test_that("declared factor projections match independent Gaussian rectangles", {
   project <- .zplot_joint_block
   environment(project) <- new.env(parent = environment(project))
   environment(project)$.zplot_joint_block <- project
-  environment(project)$.Call <- function(.NAME, ..., PACKAGE = NULL) {
+  environment(project)$.Call <- .native_call_mock(function(.NAME, ..., PACKAGE = NULL) {
 
     arguments <- list(...)
     native_ranks <<- c(native_ranks,
       ncol(arguments[[18L]][[2L]]) %/% ncol(arguments[[2L]]))
     native(.NAME, ..., PACKAGE = PACKAGE)
-  }
+  })
   # Structural supports remain authoritative for inactive loading columns.
   testthat::local_mocked_bindings(
     selection_qmc_design = function(...) stop("Declared factors must use quadrature."),

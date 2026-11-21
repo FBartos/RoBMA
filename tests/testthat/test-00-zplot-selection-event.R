@@ -326,7 +326,7 @@ test_that("factor projections report failed numerical diagnostics completely", {
 
   native_result <- list(log_density = 0, relative_mcse = .02, density = matrix(.2))
   project <- .selection_factor_projection
-  environment(project) <- list2env(list(.Call = function(...) native_result),
+  environment(project) <- list2env(list(.Call = .native_call_mock(function(...) native_result)),
     parent = environment(project))
   evaluate <- function() {
     project(matrix(0, 1L, 2L), matrix(1, 1L, 2L), matrix(0, 1L, 0L),

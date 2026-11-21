@@ -23,3 +23,21 @@
     testthat::expect_lte(max(abs(object - expected)), bound)
   }
 }
+
+# covr (>= 4.0.0) instruments package code with '.Call(covr:::covr_count, id)'.
+# A test that puts its own '.Call' into a package function's environment gets
+# those counting calls too: pass them, which name a native symbol rather than a
+# string, to the real '.Call' and the package's routines to 'handler'.
+.native_call_mock <- function(handler) {
+
+  force(handler)
+  function(.NAME, ...) {
+    if (!is.character(.NAME)) {
+      return(base::.Call(.NAME, ...))
+    }
+    handler(.NAME, ...)
+  }
+}
+
+# Whether the tests run under covr, which rewrites package function bodies.
+.test_in_covr <- function() identical(Sys.getenv("R_COVR"), "true")
