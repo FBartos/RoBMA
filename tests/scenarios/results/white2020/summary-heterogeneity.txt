@@ -1,18 +1,18 @@
 
 Heterogeneity Estimates (study+observation):
                         Mean Median 0.025 0.975
-tau_total              0.287  0.286 0.237 0.345
-tau2_total             0.083  0.082 0.056 0.119
-tau2_prop(study)       0.225  0.215 0.043 0.465
-tau2_prop(observation) 0.775  0.785 0.535 0.957
+tau_total              0.287  0.286 0.237 0.343
+tau2_total             0.083  0.082 0.056 0.118
+tau2_prop(study)       0.224  0.215 0.043 0.456
+tau2_prop(observation) 0.776  0.785 0.544 0.957
 
 Heterogeneity Estimates (study):
       Mean Median 0.025 0.975
-tau  0.133  0.131 0.057 0.218
-tau2 0.019  0.017 0.003 0.047
+tau  0.132  0.131 0.057 0.215
+tau2 0.019  0.017 0.003 0.046
 
 Heterogeneity Estimates (observation):
       Mean Median 0.025 0.975
-tau  0.252  0.251 0.204 0.304
-tau2 0.064  0.063 0.042 0.093
+tau  0.252  0.251 0.202 0.305
+tau2 0.064  0.063 0.041 0.093
 

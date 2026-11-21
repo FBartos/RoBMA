@@ -1,6 +1,6 @@
 
 Heterogeneity Estimates (study):
       Mean Median 0.025 0.975
-tau  0.188  0.185 0.132 0.260
-tau2 0.036  0.034 0.017 0.068
+tau  0.186  0.183 0.129 0.259
+tau2 0.036  0.034 0.017 0.067
 

@@ -1,4 +1,4 @@
        coefficient  marglik hypothesis
-1            scale 1.106346   1.159430
-2 scale | location 2.376847   2.233925
-3 location | scale 2.003142   2.019200
+1            scale 1.103336   1.162831
+2 scale | location 2.385958   2.050704
+3 location | scale 2.007829   1.773737
