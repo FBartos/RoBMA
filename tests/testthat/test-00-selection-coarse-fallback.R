@@ -111,12 +111,15 @@ test_that("the counters of earlier fits are discarded at the start of a fit and 
   expect_identical(reads, 1L)
 
   # the stored setup closure keeps the body of RoBMA 4.1.1 and discards through
-  # the namespace function, so fits saved by 4.1.1 replay it unchanged
+  # the namespace function, so fits saved by 4.1.1 replay it unchanged (covr
+  # rewrites the body it compares)
   setup <- .selection_runtime_setup()
-  expect_identical(deparse(body(setup), control = NULL), deparse(quote({
-    utils::getFromNamespace(".selection_runtime_configure", "RoBMA")(settings, context)
-    invisible(NULL)
-  }), control = NULL))
+  if (!.test_in_covr()) {
+    expect_identical(deparse(body(setup), control = NULL), deparse(quote({
+      utils::getFromNamespace(".selection_runtime_configure", "RoBMA")(settings, context)
+      invisible(NULL)
+    }), control = NULL))
+  }
   expect_invisible(setup(context))
   expect_identical(reads, 2L)
   setup(utils::modifyList(context, list(phase = "finish")))

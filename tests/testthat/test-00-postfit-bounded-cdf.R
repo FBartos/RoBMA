@@ -241,7 +241,7 @@ test_that("missing native CDF diagnostics cannot silently bypass the postfit con
   x <- .postfit_cdf_fixture()
   native <- .postfit_cdf_original(x)
   guarded <- .selection_joint_dense_loglik_block
-  environment(guarded) <- list2env(list(.Call = function(...) native),
+  environment(guarded) <- list2env(list(.Call = .native_call_mock(function(...) native)),
     parent = environment(.selection_joint_dense_loglik_block))
   expect_error(guarded(x$yi, x$mean, x$packed, x$sei, x$context, x$plan, 2L, TRUE),
     "Selection CDF integration diagnostics are unavailable.", fixed = TRUE)

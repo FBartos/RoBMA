@@ -22,7 +22,7 @@ test_that("integration rejections name fitting and supported post-fit remedies",
   native_environment <- new.env(parent = environment(.selection_joint_dense_loglik_block))
   # Inject diagnostics at the native boundary; no numerical calculation is replaced
   # in production, and these tests certify message formatting, not integration.
-  native_environment[[".Call"]] <- function(...) native_result
+  native_environment[[".Call"]] <- .native_call_mock(function(...) native_result)
   dense <- .selection_joint_dense_loglik_block
   factor <- .selection_joint_factor_loglik_block
   cluster <- .selection_joint_cluster_loglik_block

@@ -51,7 +51,7 @@
     stopifnot(replaced == 1L)
   }
   env <- new.env(parent = environment(projection))
-  env$.Call <- function(.NAME, ..., PACKAGE) {
+  env$.Call <- .native_call_mock(function(.NAME, ..., PACKAGE) {
 
     native_args <- list(...)
     if (.NAME != "RoBMA_selnorm_context_star_zplot") {
@@ -66,7 +66,7 @@
       weights = native_args[[10L]], raw = value$compact_log_normalizers, means = native_args[[1L]],
       bounded_cdf = isTRUE(attr(native_args[[11L]], "bounded_cdf")))
     value
-  }
+  })
   environment(projection) <- env
   value <- if (capture_error) tryCatch(do.call(projection, args), error = identity) else
     do.call(projection, args)
