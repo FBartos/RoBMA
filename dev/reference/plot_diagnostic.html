@@ -11,7 +11,7 @@ and autocorrelation plots."><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9009</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9010</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -86,7 +86,9 @@ and autocorrelation plots.</p>
 <span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
 <span>  lags <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>  component <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  <span class="va">...</span></span>
+<span>  <span class="va">...</span>,</span>
+<span>  statistic <span class="op">=</span> <span class="st">"value"</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">plot_diagnostic_autocorrelation</span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -116,7 +118,9 @@ and autocorrelation plots.</p>
 <span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
 <span>  lags <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>  component <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  <span class="va">...</span></span>
+<span>  <span class="va">...</span>,</span>
+<span>  statistic <span class="op">=</span> <span class="st">"value"</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">plot_diagnostic_density</span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -193,6 +197,30 @@ from <code><a href="brma.mv.html">brma.mv()</a></code> random formulas. A <code>
 <code>parameter_scale</code> selection with another <code>component</code> stops with
 an error of class <code>RoBMA_component_mismatch</code>.</p></dd>
 
+
+<dt id="arg-statistic">statistic<a class="anchor" aria-label="anchor" href="#arg-statistic"></a></dt>
+<dd><p>trace statistic. <code>"value"</code> shows the sampled parameter.
+<code>"inclusion"</code> shows the fraction of each batch spent in the alternative
+components and needs every component declared null or alternative,
+with both present.
+<code>"component"</code> shows the fraction spent in each mixture
+component in separate plots (one plot for a binary null/alternative
+choice). <code>"switching"</code> shows the fraction of adjacent draws within
+each batch that changed component. Use <code>parameter = "bias"</code> for the
+publication-bias mixture or select a whole moderator term.
+A random-effect quantity must have a unique indicator from its prior or
+allocation gate. Otherwise the diagnostic raises
+<code>RoBMA_indicator_unavailable</code> (also a <code>BayesTools_plot_condition</code>).</p></dd>
+
+
+<dt id="arg-batch-size">batch_size<a class="anchor" aria-label="anchor" href="#arg-batch-size"></a></dt>
+<dd><p>optional positive integer giving the number of retained
+draws per batch for indicator traces. Switching needs at least two
+retained draws per batch and chain; a final one-draw batch is not drawn.
+By default the shortest chain
+supplies approximately its square root in batches. Each chain is
+batched separately and plotted at the batches' midpoint iterations.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -205,6 +233,21 @@ coordinate plots are produced, invisibly for base graphics.</p>
     <div class="dont-index"><p><code><a href="summary.brma.html">summary.brma()</a></code></p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"metadat"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">dat.lehmann2018</span>, package <span class="op">=</span> <span class="st">"metadat"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>yi <span class="op">=</span> <span class="va">yi</span>, vi <span class="op">=</span> <span class="va">vi</span>, data <span class="op">=</span> <span class="va">dat.lehmann2018</span>, measure <span class="op">=</span> <span class="st">"SMD"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span>  <span class="fu">plot_diagnostic_trace</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, statistic <span class="op">=</span> <span class="st">"inclusion"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">plot_diagnostic_trace</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"bias"</span>, statistic <span class="op">=</span> <span class="st">"component"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">plot_diagnostic</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"bias"</span>, type <span class="op">=</span> <span class="st">"trace"</span>, statistic <span class="op">=</span> <span class="st">"switching"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span></span></span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 
