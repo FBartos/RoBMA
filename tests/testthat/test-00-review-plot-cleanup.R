@@ -65,11 +65,11 @@ test_that("factor posterior levels select the same curve in plots and overlays",
   second <- review_factor_replay(levels, "orthonormal", independent = TRUE)
   class(first)  <- setdiff(class(first), "only_priors.brma")
   class(second) <- setdiff(class(second), "only_priors.brma")
-  colors <- c("firebrick", "navy", "forestgreen")
-  full <- plot(first, "g", plot_type = "ggplot", col = colors, xlim = c(-8, 8))
-  one  <- plot(first, "g", level = "Jul", plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+  colors <- .plot_level_palette(length(levels))
+  full <- plot(first, "g", plot_type = "ggplot")
+  one  <- plot(first, "g", level = "Jul", plot_type = "ggplot")
   separate <- plot(first, "g", level = "Jul", individual = TRUE,
-    plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+    plot_type = "ggplot")
   expect_s3_class(full, "ggplot")
   expect_s3_class(one, "ggplot")
   expect_named(separate, "Jul")
@@ -90,8 +90,10 @@ test_that("factor posterior levels select the same curve in plots and overlays",
   expect_equal(nrow(plotted_curve(one, colors[1L])), 0L)
 
   overlay <- one + lines(second, "g", level = "Jul", plot_type = "ggplot",
-    col = colors, lty = 2)
-  second_plot <- plot(second, "g", level = "Jul", plot_type = "ggplot", col = colors, xlim = c(-8, 8))
+    lty = 2)
+  line_types <- unique(unlist(lapply(ggplot2::ggplot_build(overlay)$data, `[[`, "linetype")))
+  expect_length(line_types, 2L)
+  second_plot <- plot(second, "g", level = "Jul", plot_type = "ggplot")
   expected <- rbind(july, plotted_curve(second_plot, colors[3L]))
   expect_equal(plotted_curve(overlay, colors[3L]), expected)
   expect_error(plot(first, "g[Jul]", level = "Jul"),
