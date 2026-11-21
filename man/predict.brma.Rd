@@ -54,7 +54,12 @@ selection models require no publication-group column. Unadjusted normal
 selected latent predictions (\code{type = "estimate"}) require \code{sei}
 or \code{vi} in explicit \code{newdata}. If an active
 selection branch uses \code{weight_rule = "best"}, its publication groups
-must also be resolvable in the prediction data.}
+must also be resolvable in the prediction data.
+Fitted-row predictions reuse their publication-bias exemptions. For
+explicit new rows, supply a logical \code{bias_exempt} column when the
+fit contains exempt rows and the requested prediction uses publication
+bias. For fits without exempt rows, omission treats all new rows as
+susceptible to the fitted publication-bias component.}
 
 \item{type}{type of prediction to be performed. Options are:
 \itemize{

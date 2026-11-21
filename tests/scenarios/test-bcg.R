@@ -30,6 +30,77 @@ testthat::test_that("BCG Simple Fits", {
   scenario_text("fit_simple_print_prior", {print_prior(fit_simple)})
   scenario_text("fit_simple_interpret", {interpret(fit_simple)})
 
+  ### publication-bias exemptions ----
+  # Suppose reporting had been guaranteed from 1975 onward (trials 4, 8, and
+  # 13). This cutoff is hypothetical; the BCG data record the publication year.
+  # All 13 trials contribute to every fit. Only eligible trials enter the
+  # selection function, which favors protective effects at one-sided p <= .025.
+  fit_selection_ml <- metafor::rma(yi, vi, data = dat, method = "ML")
+  fit_selection_all_metafor <- metafor::selmodel(fit_selection_ml, type = "stepfun", steps = .025, alternative = "less", decreasing = TRUE)
+  fit_selection_exempt_metafor <- metafor::selmodel(fit_selection_ml, type = "stepfun", steps = .025, alternative = "less", decreasing = TRUE, subset = year < 1975)
+
+  fit_selection_all <- scenario_fit("fit_selection_all", {
+    bselmodel(yi, vi, data = dat, measure = "RR", effect_direction = "negative", steps = .025, seed = 1)
+  })
+  fit_selection_exempt <- scenario_fit("fit_selection_exempt", {
+    bselmodel(yi, vi, data = dat, measure = "RR", effect_direction = "negative", steps = .025, bias_exempt = year >= 1975, seed = 1)
+  })
+
+  # Compare posterior means and 95% credible intervals with ML estimates and
+  # 95% confidence intervals. Omega is the relative weight for eligible p > .025.
+  bcg_bayes <- function(fit, bias) ex_r(fit, c("mu", lower = "mu", upper = "mu", "tau", bias), statistic = c("Mean", "CI_0.025", "CI_0.975", "Mean", "Mean"))
+  bcg_ml <- function(fit, ...) c(mu = unname(fit$b[1]), lower = unname(fit$ci.lb[1]), upper = unname(fit$ci.ub[1]), tau = sqrt(fit$tau2), ...)
+  weight <- c(omega = "omega[0.025,1]")
+  selection_comparison <- data.frame(
+    model = rep(c("Normal", "All eligible", "1975 onward exempt"), each = 2),
+    method = rep(c("RoBMA", "metafor"), 3),
+    rbind(bcg_bayes(fit_simple, weight),           bcg_ml(fit_selection_ml, omega = NA_real_),
+          bcg_bayes(fit_selection_all, weight),    bcg_ml(fit_selection_all_metafor, omega = fit_selection_all_metafor$delta[2]),
+          bcg_bayes(fit_selection_exempt, weight), bcg_ml(fit_selection_exempt_metafor, omega = fit_selection_exempt_metafor$delta[2])),
+    row.names = NULL
+  )
+  scenario_text("bias_exempt_comparison", selection_comparison)
+  bcg_interval_plot <- function(comparison) {
+    y <- rep(3:1, each = 2) + c(.10, -.10)
+    col <- rep(c("black", "steelblue4"), 3)
+    par(mar = c(4, 10, 2, 1))
+    with(comparison, {
+      plot(mu, y, xlim = range(lower, upper, 0), ylim = c(.5, 3.6), xlab = "Pooled log risk ratio",
+           ylab = "", yaxt = "n", type = "n", bty = "n")
+      axis(2, at = 3:1, labels = unique(model), las = 1, tick = FALSE)
+      abline(v = 0, lty = 3, col = "grey60")
+      segments(lower, y, upper, y, col = col)
+      points(mu, y, pch = c(16, 1), col = col)
+      legend("topright", legend = c("RoBMA", "metafor"), pch = c(16, 1), col = col[1:2], horiz = TRUE, bty = "n")
+    })
+  }
+  scenario_plot("bias_exempt_comparison", bcg_interval_plot(selection_comparison))
+
+  ### PET with the same publication-bias exemptions ----
+  # For protective effects the PET offset is -PET * SE. In metafor the
+  # moderator is therefore -SE for eligible trials and zero for exempt trials.
+  # Both fits use the observed vi for every trial's sampling variance.
+  fit_pet_all_metafor <- metafor::rma(yi, vi, mods = ~ I(-sqrt(vi)), data = dat, method = "ML")
+  fit_pet_exempt_metafor <- metafor::rma(yi, vi, mods = ~ I(-sqrt(vi) * (year < 1975)), data = dat, method = "ML")
+  fit_pet_all <- scenario_fit("fit_pet_all", {
+    bPET(yi, vi, data = dat, measure = "RR", effect_direction = "negative", seed = 1)
+  })
+  fit_pet_exempt <- scenario_fit("fit_pet_exempt", {
+    bPET(yi, vi, data = dat, measure = "RR", effect_direction = "negative", bias_exempt = year >= 1975, seed = 1)
+  })
+
+  # mu is the intercept at zero PET offset; PET is the coefficient of -SE.
+  pet_comparison <- data.frame(
+    model = rep(c("Normal", "All eligible", "1975 onward exempt"), each = 2),
+    method = rep(c("RoBMA", "metafor"), 3),
+    rbind(bcg_bayes(fit_simple, "PET"),     bcg_ml(fit_selection_ml, PET = NA_real_),
+          bcg_bayes(fit_pet_all, "PET"),    bcg_ml(fit_pet_all_metafor, PET = unname(coef(fit_pet_all_metafor)[2])),
+          bcg_bayes(fit_pet_exempt, "PET"), bcg_ml(fit_pet_exempt_metafor, PET = unname(coef(fit_pet_exempt_metafor)[2]))),
+    row.names = NULL
+  )
+  scenario_text("pet_bias_exempt_comparison", pet_comparison)
+  scenario_plot("pet_bias_exempt_comparison", bcg_interval_plot(pet_comparison))
+
   ### basic fit plots ----
   set.seed(1)
   scenario_plot("fit_simple_posterior_mu", {

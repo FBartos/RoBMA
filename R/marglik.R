@@ -845,7 +845,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       selection[["vector_rule"]] != 0L || any(selection[["omega"]] <= 0)) return(NULL)
   K <- length(plan[["yi"]])
   mu <- .marglik_get_mu_samples(parameters, is_PET, is_PEESE,
-    effect_direction, data[["sei"]], K)
+    effect_direction, data[["sei"]], K, bias_exempt = data[["bias_exempt"]])
   tau <- .marglik_get_tau_samples(parameters, is_scale, FALSE, K,
     fixed_tau = fixed_tau)[["tau_within"]]
   total_sd <- .root_sum_squares(tau, matrix(plan[["sampling_sd"]], 1L, K))
@@ -866,6 +866,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   means <- matrix(direction * context_mean, 1L, K)
   log_mass <- .selection_step_log_norm_matrix(means, tau, data[["sei"]], selection)
   log_weight <- log(selection[["omega"]][1L, selection[["obs_bin"]]])
+  log_weight[selection[["bias_exempt"]]] <- 0
   sum(gaussian + log_weight - as.numeric(log_mass))
 }
 
@@ -1216,6 +1217,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   fit_data[["sel_phack_z_source"]]        <- selection_spec[["phack_z_source"]]
   fit_data[["sel_phack_z_dest"]]          <- selection_spec[["phack_z_dest"]]
   fit_data[["sel_obs_bin"]]               <- selection_spec[["obs_bin"]]
+  fit_data[["bias_exempt"]]               <- model_data[["outcome"]][["bias_exempt"]]
   fit_data[["sel_telescope_probabilities"]] <-
     isTRUE(selection_spec[["telescope_probabilities"]])
 
@@ -1372,7 +1374,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     is_PEESE         = is_PEESE,
     effect_direction = effect_direction,
     sei              = if (outcome_type == "norm") data[["sei"]] else NULL,
-    K                = K
+    K                = K,
+    bias_exempt      = data[["bias_exempt"]]
   )
 
   ### compute tau samples as 1 x K matrix
@@ -1587,7 +1590,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
 #' @keywords internal
 .marglik_get_mu_samples <- function(parameters, is_PET, is_PEESE,
-                                    effect_direction, sei, K) {
+                                    effect_direction, sei, K, bias_exempt = NULL) {
 
   # BayesTools returns:
   # - scalar mu (no mods)
@@ -1602,7 +1605,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       .bias_regression_predictor(
         sei              = sei,
         parameter        = parameter,
-        effect_direction = effect_direction
+        effect_direction = effect_direction,
+        bias_exempt      = bias_exempt
       )
   }
 
@@ -1822,6 +1826,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     phack_kind     = phack_kind
   )
 
+  selection_context[["bias_exempt"]] <- data[["bias_exempt"]]
   return(.selection_reset_native_cache(selection_context))
 }
 

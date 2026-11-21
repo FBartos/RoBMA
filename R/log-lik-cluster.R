@@ -146,12 +146,22 @@
 .selection_deleted_gaussian_block <- function(covariance, values, deleted) {
 
   retained <- setdiff(seq_along(values), deleted)
+  law <- .selection_conditional_gaussian_law(covariance, retained, deleted)
+  list(mean = as.vector(crossprod(law[["coefficient"]], values[retained])),
+       covariance = law[["covariance"]])
+}
+
+
+# The conditional mean is the retained Gaussian residual times coefficient.
+# Build the conditional covariance from residual loadings, including singular laws.
+.selection_conditional_gaussian_law <- function(covariance, retained, deleted) {
+
   dimension <- length(deleted)
   if (!length(retained)) {
-    return(list(mean = numeric(dimension), covariance = covariance[deleted, deleted, drop = FALSE]))
+    return(list(coefficient = matrix(0, 0L, dimension), covariance = covariance[deleted, deleted, drop = FALSE]))
   }
   if (all(covariance == 0)) {
-    return(list(mean = numeric(dimension), covariance = matrix(0, dimension, dimension)))
+    return(list(coefficient = matrix(0, length(retained), dimension), covariance = matrix(0, dimension, dimension)))
   }
   kept <- covariance[retained, retained, drop = FALSE]
   cross <- covariance[retained, deleted, drop = FALSE]
@@ -181,8 +191,7 @@
     kept_rank <- nrow(decomposition[["sampling_factor"]])
     if (kept_rank == nrow(full[["sampling_factor"]])) conditional_covariance[,] <- 0
   }
-  list(mean = as.vector(crossprod(coefficient, values[retained])),
-       covariance = conditional_covariance)
+  list(coefficient = coefficient, covariance = conditional_covariance)
 }
 
 
@@ -218,9 +227,10 @@
   designs <- new.env(parent = emptyenv())
   out <- matrix(NA_real_, S, length(units))
   ordinary_covariance <- state[["total_covariance"]]
+  eligible <- if (is.null(selection[["bias_exempt"]])) seq_len(K) else which(!selection[["bias_exempt"]])
   for (draw in seq_len(S)) {
     covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
-    ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
+    ordinary <- all(diag(covariance)[eligible] == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
     context <- BayesTools::selection_context_subset_rows(selection, draw)
     weight_groups <- if (context[["vector_rule"]] == 0L) list(seq_len(K)) else groups

@@ -13,7 +13,8 @@ test_that("cluster selection batches reject invalid observed values and bins", {
     do.call(.Call, c(list("RoBMA_selnorm_cluster_step_loglik_batch"), values,
                      list(PACKAGE = "RoBMA")))
   }
-  for (bin in c(NA_integer_, 0L, 3L)) {
+  # Bin 0 marks a publication-bias exempt row and is valid.
+  for (bin in c(NA_integer_, -1L, 3L)) {
     changed <- args
     changed[[9L]][[1L]] <- bin
     expect_error(evaluate(changed), "Observed selection inputs are invalid")

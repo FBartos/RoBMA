@@ -334,7 +334,8 @@
     is_PEESE         = active_setup[["is_PEESE"]],
     effect_direction = .data_effect_direction(data),
     sei              = if (outcome_type == "norm") data[["outcome"]][["sei"]] else NULL,
-    K                = K
+    K                = K,
+    bias_exempt      = data[["outcome"]][["bias_exempt"]]
   )
   tau_result <- .marglik_get_tau_samples(
     parameters    = parameters,

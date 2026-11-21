@@ -327,8 +327,9 @@
     observed <- .iwmde_ordered_selection_observed_constant(context, state, setup, selection_context)
     if (is.null(observed)) observed <- selected_L - gaussian_L + sum(weights * norm)
     omega <- selection[["weights"]][["omega"]]
-    block[["log_correction_lower"]] <- observed - sum(weights) * log(max(omega))
-    block[["log_correction_upper"]] <- observed - sum(weights) * log(min(omega))
+    selection_power <- sum(replace(weights, selection_context[["bias_exempt"]], 0))
+    block[["log_correction_lower"]] <- observed - selection_power * log(max(omega))
+    block[["log_correction_upper"]] <- observed - selection_power * log(min(omega))
   }
   untruncated <- !is.null(block[["normal"]]) && identical(.iwmde_prior_support(prior), c(-Inf, Inf))
   if (block[["selected"]] && untruncated) {

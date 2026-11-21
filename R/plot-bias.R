@@ -179,6 +179,8 @@ plot_weightfunction.brma  <- function(
 #' \eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction. Models
 #' with moderators are not supported because the fitted curve depends on the
 #' moderator values at which it is evaluated.
+#' The regression curve describes a nonexempt outcome at each standard error.
+#' Exempt outcomes appear at their observed standard errors.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {

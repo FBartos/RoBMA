@@ -32,7 +32,7 @@ context("Conditional Gaussian vector selection events")
     as.double(design), 4096L, 8L, NULL,
     if (quadrature) .selection_joint_cluster_quadrature_rules(
       SELNORM_CLUSTER_QUADRATURE_ORDERS) else NULL,
-    .005, PACKAGE = "RoBMA"
+    .005, NULL, PACKAGE = "RoBMA"
   )
 }
 
@@ -159,7 +159,7 @@ test_that("declared rank-one events retain zero-residual and point-mass boundari
       "RoBMA_selnorm_gaussian_event_mass_batch", matrix(mean, 1L), NULL,
       c(1, 1), matrix(event$omega, 1L), event$lower, event$upper,
       1L, 1L, as.integer(rule), matrix(lower, 1L), matrix(upper, 1L),
-      numeric(), 8L, 2L, matrix(loading, 1L), NULL, .005, PACKAGE = "RoBMA"
+      numeric(), 8L, 2L, matrix(loading, 1L), NULL, .005, NULL, PACKAGE = "RoBMA"
     )
   }
   for (rule in 0:1) {
