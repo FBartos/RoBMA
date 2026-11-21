@@ -121,7 +121,7 @@ test_that("cross-level region hypotheses use direct averaged odds", {
   out <- hypothesis(
     object,
     "alloc[A] > alloc[B]",
-    columns = "all",
+    include_probabilities = TRUE, include_method = TRUE,
     seed    = 913
   )
 
@@ -129,8 +129,8 @@ test_that("cross-level region hypotheses use direct averaged odds", {
   prior_odds     <- 0.5 / 0.5
   direct_bf      <- posterior_odds / prior_odds
 
-  expect_equal(out[["posterior"]], posterior_odds, tolerance = 1e-12)
-  expect_equal(out[["prior"]], prior_odds, tolerance = 0.04)
+  expect_equal(out[["posterior_prob_alt"]], 0.75, tolerance = 1e-12)
+  expect_equal(out[["prior_prob_alt"]], 0.5, tolerance = 0.01)
   expect_equal(as.numeric(attr(out, "raw_BF")), direct_bf, tolerance = 0.12)
   expect_equal(out[["method"]], "prior-posterior odds")
 })
@@ -144,7 +144,7 @@ test_that("cross-level region counts ignore density sample budgets", {
   kde <- hypothesis(
     object,
     hypothesis_text,
-    columns = "all",
+    include_probabilities = TRUE,
     seed    = 913
   )
   iwmde <- hypothesis(
@@ -152,7 +152,7 @@ test_that("cross-level region counts ignore density sample budgets", {
     hypothesis_text,
     density_method  = "IWMDE",
     density_control = list(samples = 20),
-    columns         = "all",
+    include_probabilities = TRUE,
     seed            = 913
   )
   qcmde <- hypothesis(
@@ -160,13 +160,13 @@ test_that("cross-level region counts ignore density sample budgets", {
     hypothesis_text,
     density_method  = "qCMDE",
     density_control = list(samples = 20),
-    columns         = "all",
+    include_probabilities = TRUE,
     seed            = 913
   )
 
   expect_identical(iwmde, kde)
   expect_identical(qcmde, kde)
-  expect_equal(kde[["posterior"]], 3, tolerance = 1e-12)
+  expect_equal(kde[["posterior_prob_alt"]], 0.75, tolerance = 1e-12)
 })
 
 
@@ -228,7 +228,7 @@ test_that("single-model point hypotheses use averaged marginal draws", {
   captured <- NULL
   # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF.default = function(posterior, ...) {
+    .hypothesis_BF_draws = function(posterior, ...) {
 
       captured <<- posterior[["conditional"]]
       return("ok")
@@ -273,7 +273,7 @@ test_that("cross-level point densities ignore child-level ordinates", {
   baseline <- suppressWarnings(hypothesis(
     object,
     hypothesis_text,
-    columns = "all",
+    include_densities = TRUE, include_method = TRUE,
     seed    = 819
   ))
 
@@ -292,12 +292,12 @@ test_that("cross-level point densities ignore child-level ordinates", {
   perturbed <- suppressWarnings(hypothesis(
     object,
     hypothesis_text,
-    columns = "all",
+    include_densities = TRUE, include_method = TRUE,
     seed    = 819
   ))
 
   expect_identical(perturbed, baseline)
-  expect_identical(baseline[["method"]], "Savage-Dickey")
+  expect_identical(baseline[["method"]], "Savage-Dickey (KDE)")
 })
 
 
@@ -316,19 +316,19 @@ test_that("the plans of a marginal-means object are built once and shared by its
     .package = "BayesTools"
   )
 
-  first  <- hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913)
+  first  <- hypothesis(object, "alloc[A] > alloc[B]", include_probabilities = TRUE, seed = 913)
   expect_identical(builds, 1L)
-  again  <- hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913)
+  again  <- hypothesis(object, "alloc[A] > alloc[B]", include_probabilities = TRUE, seed = 913)
   expect_identical(builds, 1L)
   expect_identical(again, first)
   # Another statement is another plan; the parameter the statement selects, or
   # names, is what the plan is of.
-  hypothesis(object, "alloc[A] > 0", columns = "all", seed = 913)
+  hypothesis(object, "alloc[A] > 0", include_probabilities = TRUE, seed = 913)
   expect_identical(builds, 2L)
-  hypothesis(object, "alloc[A] > 0", parameter = "mu_alloc", columns = "all",
+  hypothesis(object, "alloc[A] > 0", parameter = "mu_alloc", include_probabilities = TRUE,
              seed = 913)
   expect_identical(builds, 2L)
-  hypothesis(object, "alloc[B] > 0", columns = "all", seed = 913)
+  hypothesis(object, "alloc[B] > 0", include_probabilities = TRUE, seed = 913)
   expect_identical(builds, 3L)
   # hypothesis_quantities() plans the statements of every level, and plans them
   # once for the next call.
@@ -340,7 +340,7 @@ test_that("the plans of a marginal-means object are built once and shared by its
   # Another object, even one that differs in a label only, has plans of its own.
   perturbed <- object
   perturbed[["term_map"]][["label"]] <- "another label"
-  hypothesis(perturbed, "alloc[A] > alloc[B]", columns = "all", seed = 913)
+  hypothesis(perturbed, "alloc[A] > alloc[B]", include_probabilities = TRUE, seed = 913)
   expect_identical(builds, after + 1L)
 
   # The plans of the cache are those of a call without one.
@@ -349,7 +349,7 @@ test_that("the plans of a marginal-means object are built once and shared by its
     .package = "BayesTools"
   )
   expect_identical(
-    hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913),
+    hypothesis(object, "alloc[A] > alloc[B]", include_probabilities = TRUE, seed = 913),
     first
   )
   expect_identical(hypothesis_quantities(object), quantities)
@@ -360,7 +360,7 @@ test_that("marginal-means statements on several parameters are tested in one cal
   BayesTools::hypothesis_cache_clear()
   withr::defer(BayesTools::hypothesis_cache_clear())
   call <- function(object, statements, ...) {
-    hypothesis(object, statements, columns = "all", seed = 913, ...)
+    hypothesis(object, statements, include_probabilities = TRUE, seed = 913, ...)
   }
   original <- BayesTools:::.hypothesis_model_plan_marginal_means_build
   builds   <- 0L
@@ -373,18 +373,18 @@ test_that("marginal-means statements on several parameters are tested in one cal
   )
 
   # Region statements are available to single-model and model-averaged
-  # objects. The posterior odds are the counts of the draws, 75% and 40%
+  # objects. Among the posterior draws, 75% and 40%
   # above zero.
   for (model_averaged in c(FALSE, TRUE)) {
     object <- .marginal_means_route_two_parameter_object(model_averaged)
     forward <- call(object, c("alloc[A] > 0", "other[A] > 0"))
     expect_identical(rownames(forward), c("mu_alloc", "mu_other"))
-    expect_equal(forward[["posterior"]], c(3, 2 / 3), tolerance = 1e-12)
+    expect_equal(forward[["posterior_prob_alt"]], c(0.75, 0.40), tolerance = 1e-12)
     alone <- list(
       call(object, "alloc[A] > 0"),
       call(object, "other[A] > 0")
     )
-    for (column in c("prior", "posterior")) {
+    for (column in c("prior_prob_alt", "posterior_prob_alt", "prior_prob_null", "posterior_prob_null")) {
       expect_equal(
         forward[[column]],
         c(alone[[1L]][[column]], alone[[2L]][[column]]),
@@ -400,10 +400,10 @@ test_that("marginal-means statements on several parameters are tested in one cal
     # The rows keep the order of the statements, and the statement numbers.
     reversed <- call(object, c("other[A] > 0", "alloc[A] > 0"))
     expect_identical(rownames(reversed), c("mu_other", "mu_alloc"))
-    expect_equal(reversed[["posterior"]], c(2 / 3, 3), tolerance = 1e-12)
+    expect_equal(reversed[["posterior_prob_alt"]], c(0.40, 0.75), tolerance = 1e-12)
     mixed <- call(object, c("alloc[A] > 0", "other[A] > 0", "alloc[A] > -0.5"))
     expect_identical(rownames(mixed), c("mu_alloc (1)", "mu_other", "mu_alloc (3)"))
-    expect_equal(mixed[["posterior"]][c(1L, 2L)], c(3, 2 / 3), tolerance = 1e-12)
+    expect_equal(mixed[["posterior_prob_alt"]][c(1L, 2L)], c(0.75, 0.40), tolerance = 1e-12)
     expect_equal(
       attr(mixed, "raw_log_BF")[[3L]],
       attr(call(object, "alloc[A] > -0.5"), "raw_log_BF"),

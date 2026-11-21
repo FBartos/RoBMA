@@ -7,7 +7,7 @@ source(testthat::test_path("common-functions.R"))
 .review_expect_combined_equals_single <- function(object, statements, info) {
 
   call <- function(statement) {
-    hypothesis(object, statement, density_method = "KDE", columns = "all", seed = 1)
+    hypothesis(object, statement, density_method = "KDE", include_densities = TRUE, seed = 1)
   }
   combined <- tryCatch(call(statements), error = identity)
   expect_s3_class(combined, "data.frame")
@@ -95,26 +95,28 @@ test_that("marginal-means statements on several parameters equal the statements 
     c("g1[10] = 0.1", "g2[2] > 0", "g2[3] = 0.1")
   )
   expect_rows_equal_alone <- function(statements, density_method) {
-    combined <- hypothesis(
-      means, statements, density_method = density_method, columns = "all",
-      seed = 1
-    )
-    alone <- lapply(statements, function(statement) {
+    run <- function(statements) {
       hypothesis(
-        means, statement, density_method = density_method, columns = "all",
-        seed = 1
+        means, statements, density_method = density_method, seed = 1,
+        include_densities = TRUE, include_probabilities = TRUE, include_method = TRUE
       )
-    })
+    }
+    combined <- run(statements)
+    alone <- lapply(statements, run)
     info <- paste(density_method, paste(statements, collapse = ", "))
     expect_identical(
       combined[["method"]],
       unlist(lapply(alone, `[[`, "method"), use.names = FALSE),
       info = info
     )
-    for (column in c("prior", "posterior")) {
+    evidence <- c("prior_density", "posterior_density", "prior_prob_alt",
+                  "posterior_prob_alt", "prior_prob_null", "posterior_prob_null")
+    for (column in intersect(evidence, names(combined))) {
       expect_equal(
         combined[[column]],
-        unlist(lapply(alone, `[[`, column), use.names = FALSE),
+        vapply(alone, function(row) {
+          if (column %in% names(row)) row[[column]] else NA_real_
+        }, numeric(1)),
         tolerance = 1e-12, info = info
       )
     }

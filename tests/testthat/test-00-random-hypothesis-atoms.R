@@ -11,7 +11,7 @@
     density_method = density_method,
     seed           = 1,
     n_samples      = 1000L,
-    columns        = "all"
+    include_densities = TRUE
   )
 }
 
@@ -55,7 +55,7 @@ test_that("gated random point hypotheses use the exact BayesTools prior densitie
   )
   for (case in cases) {
     out <- .gated_random_hypothesis(object, case[["parameter"]], case[["value"]])
-    expect_equal(as.numeric(out[["prior"]]), case[["prior"]], tolerance = 1e-8,
+    expect_equal(as.numeric(out[["prior_density"]]), case[["prior"]], tolerance = 1e-8,
                  info = case[["parameter"]])
     expect_equal(attr(out, "raw_BF"), attr(direct, "raw_BF"), tolerance = 1e-12,
                  info = case[["parameter"]])

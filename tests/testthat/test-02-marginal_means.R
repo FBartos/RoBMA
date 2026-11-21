@@ -8,6 +8,17 @@ source(testthat::test_path("helper-iwmde.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
 smoke_samples <- test_profile_value(250L, 1000L)
 
+# An inclusion Bayes factor of eight or more integer digits is compared by
+# those digits. Such a kernel Savage-Dickey ratio takes its posterior ordinate
+# from kernel tails several posterior sds from the draws, where rounding-level
+# differences in the draws between platforms reach its decimals. On Ubuntu
+# 26.04, whose JAGS fuses multiply-adds, the draws of the lehmann2018 fit
+# differ by up to 4e-12 relative and its 50987819.788 by 7e-12, in the
+# eleventh significant digit.
+marginal_means_large_bf_integer <- function(lines) {
+  sub("([0-9]{8})[.][0-9]{3}$", "\\1", lines)
+}
+
 .expect_marginal_means_bf_values <- function(actual, expected) {
 
   expect_equal(as.numeric(unlist(actual)), as.numeric(unlist(expected)))
@@ -1251,14 +1262,14 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     posterior      = mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     hypothesis     = paste0("mu_alloc = ", mm[["null_hypothesis"]]),
     parameter      = "mu_alloc",
-    columns        = "all",
+    include_method = TRUE,
     density_method = "precomputed"
   )
   level_bf <- BayesTools::hypothesis_BF(
     posterior  = mm[["inference"]][["averaged"]][["mu_alloc"]],
     hypothesis = "mu_alloc[alternate] > mu_alloc[random]",
     parameter  = "mu_alloc",
-    columns    = "all",
+    include_method = TRUE,
     seed       = 11
   )
 
@@ -1272,7 +1283,7 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
   expect_equal(as.numeric(hypothesis_bf[["BF_error"]]),
                attr(expected[["alternate"]], "BF_error_percent"),
                tolerance = 1e-12)
-  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (qCMDE)")
   expect_equal(level_bf[["method"]], "prior-posterior odds")
   expect_true(is.finite(attr(level_bf, "raw_BF")))
 })
@@ -1535,7 +1546,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     posterior      = mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     hypothesis     = paste0("mu_alloc = ", mm[["null_hypothesis"]]),
     parameter      = "mu_alloc",
-    columns        = "all",
+    include_method = TRUE,
     density_method = "precomputed"
   )
 
@@ -1560,7 +1571,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
   expect_equal(as.numeric(hypothesis_bf[["BF_error"]]),
                attr(expected[["alternate"]], "BF_error_percent"),
                tolerance = 1e-12)
-  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (IWMDE)")
 })
 
 
@@ -1844,13 +1855,15 @@ test_that("marginal_means summaries match reference tables", {
       test_reference_table(
         summary(emm),
         paste0("summary_marginal-", name, "-averaged.txt"),
-        paste0("Averaged marginal means reference table mismatch for '", name, "'")
+        paste0("Averaged marginal means reference table mismatch for '", name, "'"),
+        normalize = marginal_means_large_bf_integer
       )
 
       test_reference_table(
         summary(emm, type = "conditional"),
         paste0("summary_marginal-", name, "-conditional.txt"),
-        paste0("Conditional marginal means reference table mismatch for '", name, "'")
+        paste0("Conditional marginal means reference table mismatch for '", name, "'"),
+        normalize = marginal_means_large_bf_integer
       )
     } else {
       test_reference_table(

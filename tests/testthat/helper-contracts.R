@@ -927,6 +927,18 @@ engine_formula_route <- function(fit, parameter, target) {
 # their rows' quantities. qCMDE/IWMDE statements the plans admit are
 # evaluated for the first point and contrast statement of each object
 # ('run_precomputed'), with a small density budget.
+# The statement as its plan was written. Refusal messages name the statement
+# in this notation, which its rendered rewrite does not keep ("a = b" renders
+# as "a - b = 0").
+.plan_statement_text <- function(plan) {
+
+  statement <- plan[["statement"]][["statements"]][[1L]]
+  if (isTRUE(statement[["explicit"]])) {
+    return(paste(statement[["left"]][["label"]], "vs", statement[["right"]][["label"]]))
+  }
+  statement[["left"]][["label"]]
+}
+
 .expect_plans_consistent <- function(object, info, run_precomputed = TRUE) {
 
   metadata   <- .brma_parameter_catalog_metadata(object)
@@ -974,7 +986,7 @@ engine_formula_route <- function(fit, parameter, target) {
     }
     for (type in c("point", "region", "contrast")) {
       for (plan in plans[[type]]) {
-        statement <- BayesTools::hypothesis_render(plan[["statement"]])
+        statement <- .plan_statement_text(plan)
         for (method in BayesTools:::.hypothesis_model_quantities_methods(provider)) {
           refusal <- engine_plan_status(plan, object, method, provider)
           case    <- paste(row_info, statement, method)

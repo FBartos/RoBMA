@@ -150,7 +150,9 @@ test_that("marginal means retain genuine qCMDE curves and usable point ordinates
   prior_sd <- sqrt(intercept[["parameters"]][["sd"]]^2 + treatment[["parameters"]][["sd"]]^2)
   ordinate <- BayesTools::posterior_metadata(cells[["random"]], "posterior_ordinate")
   expected_bf <- stats::dnorm(0, prior_mean, prior_sd) / ordinate[["ordinate"]]
-  result <- hypothesis(means, "alloc[random] = 0", columns = "all")
+  result <- hypothesis(means, "alloc[random] = 0", include_densities = TRUE, include_method = TRUE)
+  expect_identical(result[["method"]], "Savage-Dickey (qCMDE)")
+  expect_equal(result[["posterior_density"]], as.numeric(ordinate[["ordinate"]]))
   expect_lt(abs(log(attr(result, "raw_BF")[[1L]] / expected_bf)), 1e-3)
   expect_equal(result[["BF_error"]][[1L]], ordinate[["diagnostics"]][["BF_error_percent"]])
 })
