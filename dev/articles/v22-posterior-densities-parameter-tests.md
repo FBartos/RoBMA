@@ -340,10 +340,10 @@ hypothesis(
     "alloc[random] > alloc[systematic]"
   )
 )
-#>                                            Alternative:                                       Null:    BF error%(BF)
-#> mu_alloc (1)     mu_alloc[alternate] > mu_alloc[random]     mu_alloc[alternate] <= mu_alloc[random] 3.808      2.012
-#> mu_alloc (2) mu_alloc[alternate] > mu_alloc[systematic] mu_alloc[alternate] <= mu_alloc[systematic] 0.921      1.634
-#> mu_alloc (3)    mu_alloc[random] > mu_alloc[systematic]    mu_alloc[random] <= mu_alloc[systematic] 0.212      2.148
+#>                                      Alternative:                                 Null:    BF error%(BF)
+#> mu_alloc (1)     alloc[alternate] > alloc[random]     alloc[alternate] <= alloc[random] 3.808      2.012
+#> mu_alloc (2) alloc[alternate] > alloc[systematic] alloc[alternate] <= alloc[systematic] 0.921      1.634
+#> mu_alloc (3)    alloc[random] > alloc[systematic]    alloc[random] <= alloc[systematic] 0.212      2.148
 ```
 
 ## References

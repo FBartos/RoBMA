@@ -11,7 +11,7 @@ expressions, for example "mu = 0", "year &amp;gt; 0", or
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9008</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9009</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -92,7 +92,9 @@ expressions, for example <code>"mu = 0"</code>, <code>"year &gt; 0"</code>, or
 <span>  density_method <span class="op">=</span> <span class="st">"qCMDE"</span>,</span>
 <span>  density_control <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_samples <span class="op">=</span> <span class="fl">10000</span>,</span>
-<span>  columns <span class="op">=</span> <span class="st">"default"</span>,</span>
+<span>  include_densities <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  include_probabilities <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  include_method <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -106,7 +108,9 @@ expressions, for example <code>"mu = 0"</code>, <code>"year &gt; 0"</code>, or
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  density_method <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  density_control <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  columns <span class="op">=</span> <span class="st">"default"</span>,</span>
+<span>  include_densities <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  include_probabilities <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  include_method <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -439,13 +443,24 @@ adaptive-quadrature sensitivity warns above 2.5 percent and is rejected above 5 
 deterministic marginal prior densities.</p></dd>
 
 
-<dt id="arg-columns">columns<a class="anchor" aria-label="anchor" href="#arg-columns"></a></dt>
-<dd><p>output columns passed to <code><a href="https://fbartos.github.io/BayesTools/reference/hypothesis_BF.html" class="external-link">BayesTools::hypothesis_BF()</a></code>.
-<code>"default"</code> returns the compact BayesTools table with
-<code>Alternative</code>, <code>Null</code>, <code>BF</code>, and <code>error%(BF)</code>
-columns. <code>"all"</code> also returns <code>prior</code>, <code>posterior</code>, and
-<code>method</code> columns. The <code>prior</code> and <code>posterior</code> columns are
-diagnostics rather than probabilities for all hypothesis types.</p></dd>
+<dt id="arg-include-densities">include_densities<a class="anchor" aria-label="anchor" href="#arg-include-densities"></a></dt>
+<dd><p>whether to show the prior and posterior densities at
+the tested point. Defaults to <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-include-probabilities">include_probabilities<a class="anchor" aria-label="anchor" href="#arg-include-probabilities"></a></dt>
+<dd><p>whether to show the prior and posterior
+probabilities of the alternative and null regions. Defaults to <code>FALSE</code>.
+For example, <code>"-0.1 &lt;= mu &lt;= 0.1"</code> compares the interval with its
+complement. Use <code>"-0.1 &lt;= mu &lt;= 0.1 vs unconstrained"</code> to compare the
+interval with the full model under the selected conditioning, or reverse the
+two sides to report the reciprocal Bayes factor.</p></dd>
+
+
+<dt id="arg-include-method">include_method<a class="anchor" aria-label="anchor" href="#arg-include-method"></a></dt>
+<dd><p>whether to show the Bayes factor method for each
+hypothesis, including the posterior density estimator for point tests.
+Defaults to <code>FALSE</code>.</p></dd>
 
 
 <dt id="arg-parameter">parameter<a class="anchor" aria-label="anchor" href="#arg-parameter"></a></dt>
@@ -592,6 +607,8 @@ BayesTools attaches to the marginal mean, as for fitted objects.</p>
 <span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"mu != 0 vs mu = 0"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"mu &gt; 0 vs mu = 0"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"mu &gt; 0 vs mu &lt; 0"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"-0.1 &lt;= mu &lt;= 0.1"</span>, include_probabilities <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"mu = 0"</span>, include_densities <span class="op">=</span> <span class="cn">TRUE</span>, include_method <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Heterogeneity hypothesis</span></span></span>
 <span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"tau = 0 vs tau &gt; 0"</span>, component <span class="op">=</span> <span class="st">"scale"</span><span class="op">)</span></span></span>
@@ -612,6 +629,8 @@ BayesTools attaches to the marginal mean, as for fitted objects.</p>
 <span class="r-in"><span><span class="co"># Marginal-mean hypothesis for a factor level</span></span></span>
 <span class="r-in"><span><span class="va">emm</span> <span class="op">&lt;-</span> <span class="fu"><a href="marginal_means.html">marginal_means</a></span><span class="op">(</span><span class="va">fit_mod</span>, density_method <span class="op">=</span> <span class="st">"qCMDE"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">emm</span>, <span class="st">"group[B] &gt; 0 vs group[B] = 0"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">hypothesis</span><span class="op">(</span><span class="va">emm</span>, <span class="st">"unconstrained vs -0.1 &lt;= group[B] &lt;= 0.1"</span>,</span></span>
+<span class="r-in"><span>           include_probabilities <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
