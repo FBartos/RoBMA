@@ -20,8 +20,8 @@ context("Summary heterogeneity helpers")
     only_priors               = TRUE
   )
   design <- RoBMA:::.fitted_formula_design(object, "mu", required = TRUE)
-  fit    <- coda::mcmc.list(coda::mcmc(posterior_samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(posterior_samples)), sample = nrow(posterior_samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list")     <- design[["prior_list"]]
   attr(fit, "formula_design") <- list(mu = design)
   attr(fit, "parameter_map") <- BayesTools:::.bt_build_parameter_map(

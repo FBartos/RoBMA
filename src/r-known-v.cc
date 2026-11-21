@@ -37,11 +37,11 @@ namespace {
 
 // Private implementation fragments remain in one translation unit so the
 // exact solver dispatch and compiler-visible numerical kernels are unchanged.
-#include "r-known-v-common.cc.inc"
-#include "r-known-v-plan.cc.inc"
-#include "r-known-v-low-rank.cc.inc"
-#include "r-known-v-structured.cc.inc"
-#include "r-known-v-evaluate.cc.inc"
+#include "r-native/r-known-v-common.cc.inc"
+#include "r-native/r-known-v-plan.cc.inc"
+#include "r-native/r-known-v-low-rank.cc.inc"
+#include "r-native/r-known-v-structured.cc.inc"
+#include "r-native/r-known-v-evaluate.cc.inc"
 
 } // namespace
 

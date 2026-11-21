@@ -67,8 +67,8 @@ on data do not change prior support or truncate an MCMC proposal.
 
 ## Development and backend
 
-Requires R >= 4.3.0, C++17, and JAGS 4.x (>= 4.3.1; the native module does
-not support JAGS 5) through `runjags`/`rjags`.
+Requires R >= 4.3.0, C++17, JAGS >= 5.0.0 and rjags >= 5-5.
+BayesTools owns model fitting and extension through its direct rjags interface.
 Fitting uses JAGS product-space models and focused native kernels. In the
 workspace, use its configured R and private agent library for these commands:
 

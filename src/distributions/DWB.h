@@ -10,28 +10,22 @@ class DWB : public VectorDist
   public:
     DWB();
     
-  double logDensity(double const *x, unsigned int length, PDFType tpye, 
+  double logDensity(double const *x, PDFType type,
 		    std::vector<double const *> const &parameters,
-		    std::vector<unsigned int> const &lengths,
-		    double const *lower, double const *upper) const;
-  void randomSample(double *x, unsigned int length,
+		    std::vector<unsigned long> const &lengths) const override;
+  void randomSample(double *x,
 		    std::vector<double const *> const &parameters,
-		    std::vector<unsigned int> const &lengths,
-		    double const *lower, double const *upper, RNG *rng) const;
-  void typicalValue(double *x, unsigned int length,
-		    std::vector<double const *> const &par,
-		    std::vector<unsigned int> const &lengths,
-		    double const *lower, double const *upper) const;
+		    std::vector<unsigned long> const &lengths, RNG *rng) const override;
   bool checkParameterValue(std::vector<double const *> const &parameters,
-                           std::vector<unsigned int> const &lengths) const;
-  bool checkParameterLength(std::vector<unsigned int> const &lengths) const;
-  bool checkParameterDiscrete(std::vector<bool> const &mask) const;
-  unsigned int length(std::vector<unsigned int> const &dim) const;
-  void support(double *lower, double *upper, unsigned int length,
+                           std::vector<unsigned long> const &lengths) const override;
+  bool checkParameterLength(std::vector<unsigned long> const &lengths) const override;
+  bool checkParameterDiscrete(std::vector<bool> const &mask) const override;
+  unsigned long length(std::vector<unsigned long> const &dim) const override;
+  void support(double *lower, double *upper,
 	       std::vector<double const *> const &parameters,
-	       std::vector<unsigned int> const &lengths) const;
-  bool isSupportFixed(std::vector<bool> const &fixmask) const;
-  bool isDiscreteValued(std::vector<bool> const &mask) const;
+	       std::vector<unsigned long> const &lengths) const override;
+  bool isSupportFixed(std::vector<bool> const &fixmask) const override;
+  bool isDiscreteValued(std::vector<bool> const &mask) const override;
   };
 
 }

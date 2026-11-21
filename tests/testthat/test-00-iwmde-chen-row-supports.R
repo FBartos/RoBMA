@@ -241,7 +241,7 @@ test_that("a linear target with one common support keeps the weights of the exac
   samples <- cbind(samples, mu_intercept = 0, tau = .1)
   fit <- structure(
     list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples)),
-    class = c("runjags", "list")
+    class = "BayesTools_fit"
   )
   attr(fit, "formula_design") <- object[["formula_design"]]
   scales <- lapply(compiled, `[[`, "formula_scale")

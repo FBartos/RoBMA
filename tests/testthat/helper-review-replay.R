@@ -240,7 +240,7 @@ review_attach_replay <- function(setup, samples) {
   chains <- if (is.list(samples)) samples else list(samples)
   fit <- structure(
     list(mcmc = coda::mcmc.list(lapply(chains, coda::mcmc)), sample = nrow(chains[[1L]])),
-    class = c("BayesTools_fit", "runjags", "list")
+    class = "BayesTools_fit"
   )
   attr(fit, "formula_design") <- object[["formula_design"]]
   scale_info <- lapply(setup[["compiled"]], `[[`, "formula_scale")

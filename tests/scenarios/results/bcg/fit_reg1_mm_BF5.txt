@@ -1,5 +1,5 @@
                                   Alternative:                                Null:    BF error%(BF)
-mu_alloc      alloc[random] < alloc[alternate]     alloc[random] = alloc[alternate] 1.598         NA
-mu_alloc1 alloc[random] - alloc[alternate] < 0 alloc[random] - alloc[alternate] = 0 1.598         NA
-mu_alloc2     alloc[random] < alloc[alternate]     alloc[random] = alloc[alternate] 1.648      3.049
-mu_alloc3     alloc[random] < alloc[alternate]     alloc[random] = alloc[alternate] 1.653      3.702
+mu_alloc      alloc[random] < alloc[alternate]     alloc[random] = alloc[alternate] 1.726         NA
+mu_alloc1 alloc[random] - alloc[alternate] < 0 alloc[random] - alloc[alternate] = 0 1.726         NA
+mu_alloc2     alloc[random] < alloc[alternate]     alloc[random] = alloc[alternate] 1.654      2.777
+mu_alloc3     alloc[random] < alloc[alternate]     alloc[random] = alloc[alternate] 1.695      3.574

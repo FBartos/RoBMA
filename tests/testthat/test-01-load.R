@@ -27,7 +27,7 @@ test_that("scalar step kernels require finite means in every mode", {
     expect_no_error(compile(mode))
     for (mean in c(Inf, -Inf)) {
       expect_error(compile(mode, list(offset = mean)),
-        "Invalid parent values", fixed = TRUE)
+        "Node inconsistent with parents", fixed = TRUE)
     }
   }
   # The normal branch still ignores inactive step weights and observed bins.
@@ -194,10 +194,9 @@ test_that("general selected-normal JAGS kernel restores protocol sentinels", {
     n.chains = 2,
     n.adapt  = 0
   )
-  dic <- rjags::dic.samples(
-    model,
+  deviance <- rjags::jags.samples(
+    model, "y", stat = "deviance", summary = "mean",
     n.iter       = 2,
-    type         = "pD",
     progress.bar = "none"
   )
 
@@ -221,7 +220,7 @@ test_that("general selected-normal JAGS kernel restores protocol sentinels", {
   )
 
   expect_equal(
-    as.numeric(sum(dic[["deviance"]])),
+    mean(as.numeric(deviance[["y"]])),
     expected_deviance,
     tolerance = 128 * .Machine$double.eps
   )
@@ -260,8 +259,9 @@ test_that("selection bound sentinels decode by magnitude", {
       n.chains = 2,
       n.adapt  = 0
     )
-    dic <- rjags::dic.samples(model, n.iter = 2, type = "pD", progress.bar = "none")
-    as.numeric(sum(dic[["deviance"]]))
+    deviance <- rjags::jags.samples(model, "y", stat = "deviance", summary = "mean",
+      n.iter = 2, progress.bar = "none")
+    mean(as.numeric(deviance[["y"]]))
   }
 
   expect_identical(bound_deviance(inexact), bound_deviance(1e300))
@@ -465,7 +465,7 @@ test_that("dwpois has discrete nonnegative support and can sample", {
   expect_true(all(draws >= 0))
   expect_true(all(draws == floor(draws)))
 
-  con_bad <- textConnection("model{\n  y ~ dwpois(lambda, weight)\n}\n")
+  con_bad <- textConnection("model{\n  theta ~ dnorm(0,1)\n  y ~ dwpois(lambda * exp(theta), weight)\n}\n")
   on.exit(close(con_bad), add = TRUE)
   expect_error(
     rjags::jags.model(
@@ -474,6 +474,6 @@ test_that("dwpois has discrete nonnegative support and can sample", {
       quiet   = TRUE,
       n.adapt = 0
     ),
-    "Invalid parent values"
+    "Node inconsistent with parents", fixed = TRUE
   )
 })

@@ -538,3 +538,20 @@
   )
   list(base = base, cases = cases)
 }
+
+# JAGS 5 evaluates an observed likelihood at initialization when it has a
+# sampled ancestor. The initial offset of zero preserves each fixture's mean.
+.compile_selection_jags_fixture <- function(specification, data) {
+
+  arguments <- specification$arguments
+  data <- data[unique(c("y", arguments))]
+  arguments[1L] <- "model_mu[]"
+  syntax <- paste0("model { offset ~ dnorm(0, 1)\n",
+    "for (i in 1:2) { model_mu[i] <- mu[i] + offset }\n",
+    "y[1:2] ~ ", specification$distribution, "(", paste(arguments, collapse = ", "), ") }")
+  connection <- textConnection(syntax)
+  on.exit(close(connection))
+  rjags::jags.model(connection, data = data, inits = list(offset = 0),
+    n.chains = 1L, n.adapt = 0L, quiet = TRUE)
+  invisible(TRUE)
+}

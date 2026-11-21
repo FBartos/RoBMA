@@ -6,6 +6,12 @@ parameter metadata, summaries, selectors, and public result interfaces.
 See [maintainer decisions](decision-rationale.md) for the reasons behind the
 Cook's distance, posterior VIF, and pooled-heterogeneity conventions below.
 
+RoBMA fits and extends through `BayesTools::JAGS_fit()` and
+`BayesTools::JAGS_extend()` using the JAGS 5 backend. The `brma` object's
+`fit` component holds a `BayesTools_fit`. Use its coda methods for draws,
+preserving within-chain timing and chain-major row order. BayesTools owns
+the chain states, model reconstruction, adaptation and worker lifecycle.
+
 ## Formula ownership
 
 Cook's distance uses the unscaled squared posterior Mahalanobis distance,

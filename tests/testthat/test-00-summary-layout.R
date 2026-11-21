@@ -228,7 +228,7 @@ test_that("empty random estimates still consolidate an intercept-only location",
 test_that("empty estimate tables do not hide labels of populated sections", {
 
   out <- .summary_layout_fixture(conditional = FALSE)
-  out[["estimates"]] <- BayesTools::runjags_estimates_empty_table(
+  out[["estimates"]] <- BayesTools::JAGS_estimates_empty_table(
     probs = c(0.025, 0.975), remove_diagnostics = TRUE, title = "Estimates"
   )
   prepared <- .summary_brma_prepare_print_sections(out)

@@ -531,7 +531,7 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
 #
 # Derive chain IDs from the retained MCMC samples.
 #
-# @param fit       runjags fit object.
+# @param fit       BayesTools JAGS fit.
 # @param n_samples integer; expected number of posterior rows.
 #
 # @return integer vector of length n_samples.

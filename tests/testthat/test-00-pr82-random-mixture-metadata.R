@@ -25,8 +25,8 @@
                    source = c(if (fixed_component) .2 else .4, .5),
                    source_indicator = c(1, 2))
   colnames(samples)[3:4] <- c(source, paste0(source, "_indicator"))
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "formula_design") <- list(mu = design[["formula_design"]])
   attr(fit, "prior_list") <- priors
   fit <- BayesTools:::.bt_attach_parameter_map(fit)

@@ -1218,8 +1218,8 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/zzz.R"
   )
   src_files <- c(
-    "src/Makevars.in",
-    "src/Makevars.ucrt",
+    "src/Makevars",
+    "src/Makevars.common",
     "src/Makevars.win",
     "src/RoBMA.cc",
     "src/init.c",
@@ -1238,6 +1238,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/distributions/DSELNORMSTEPSWITCH.cc",
     "src/distributions/DSELNORMSTEPSWITCH.h",
     "src/distributions/selnorm-jags-bounds.h",
+    "src/distributions/selnorm-node-memo.h",
     "src/distributions/DKNOWNVMNORM.cc",
     "src/distributions/DKNOWNVMNORM.h",
     "src/distributions/DWB.cc",
@@ -1252,23 +1253,23 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/r-native-api.h",
     "src/r-native-boundary.h",
     "src/r-glmm.cc",
-    "src/r-glmm-common.cc.inc",
-    "src/r-glmm-marginal.cc.inc",
+    "src/r-native/r-glmm-common.cc.inc",
+    "src/r-native/r-glmm-marginal.cc.inc",
     "src/r-known-v.cc",
-    "src/r-known-v-common.cc.inc",
-    "src/r-known-v-evaluate.cc.inc",
-    "src/r-known-v-low-rank.cc.inc",
-    "src/r-known-v-plan.cc.inc",
-    "src/r-known-v-structured.cc.inc",
+    "src/r-native/r-known-v-common.cc.inc",
+    "src/r-native/r-known-v-evaluate.cc.inc",
+    "src/r-native/r-known-v-low-rank.cc.inc",
+    "src/r-native/r-known-v-plan.cc.inc",
+    "src/r-native/r-known-v-structured.cc.inc",
     "src/r-selnorm.cc",
-    "src/r-selnorm-cluster.cc.inc",
-    "src/r-selnorm-common.cc.inc",
-    "src/r-selnorm-funnel-common.cc.inc",
-    "src/r-selnorm-funnel-zcurve.cc.inc",
-    "src/r-selnorm-kernel.cc.inc",
-    "src/r-selnorm-loglik.cc.inc",
-    "src/r-selnorm-mv.cc.inc",
-    "src/r-selnorm-sampling-conditioned.cc.inc",
+    "src/r-native/r-selnorm-cluster.cc.inc",
+    "src/r-native/r-selnorm-common.cc.inc",
+    "src/r-native/r-selnorm-funnel-common.cc.inc",
+    "src/r-native/r-selnorm-funnel-zcurve.cc.inc",
+    "src/r-native/r-selnorm-kernel.cc.inc",
+    "src/r-native/r-selnorm-loglik.cc.inc",
+    "src/r-native/r-selnorm-mv.cc.inc",
+    "src/r-native/r-selnorm-sampling-conditioned.cc.inc",
     "src/samplers/CoarseCorrectedBlock.cc",
     "src/samplers/CoarseCorrectedBlock.h",
     "src/samplers/CoarseCorrectedSlice.cc",
@@ -1410,7 +1411,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "h", "hh", "hpp", "hxx", "inc", "in"
   )
   text_basenames <- c(
-    "NAMESPACE", "Makevars", "Makevars.in", "Makevars.ucrt", "Makevars.win",
+    "NAMESPACE", "Makevars", "Makevars.common", "Makevars.win",
     "configure", "configure.win", "cleanup", "cleanup.win"
   )
   if (extension %in% text_extensions || basename(path) %in% text_basenames) {

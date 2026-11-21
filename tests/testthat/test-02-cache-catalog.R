@@ -648,9 +648,10 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/selection-mapping.R",
     "R/marglik.R",
     "R/loo.R",
-    "src/Makevars.in",
-    "src/Makevars.ucrt",
+    "src/Makevars",
+    "src/Makevars.common",
     "src/Makevars.win",
+    "src/distributions/selnorm-node-memo.h",
     "src/RoBMA.cc",
     "src/distributions/DWN.cc",
     "src/glmm-aghq.cc",
@@ -659,10 +660,10 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "src/r-native-boundary.h",
     "src/r-glmm.cc",
     "src/r-selnorm.cc",
-    "src/r-selnorm-common.cc.inc",
-    "src/r-selnorm-funnel-zcurve.cc.inc",
-    "src/r-selnorm-kernel.cc.inc",
-    "src/r-selnorm-loglik.cc.inc",
+    "src/r-native/r-selnorm-common.cc.inc",
+    "src/r-native/r-selnorm-funnel-zcurve.cc.inc",
+    "src/r-native/r-selnorm-kernel.cc.inc",
+    "src/r-native/r-selnorm-loglik.cc.inc",
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",
     "src/selnorm/selnorm-parallel.h",
@@ -691,7 +692,7 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/zplot-api.R",
     "R/zplot-compute.R",
     "src/plot-root.h",
-    "src/r-native-probe.cc.inc"
+    "src/r-native/r-native-probe.cc.inc"
   ) %in% source_files))
 })
 

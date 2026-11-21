@@ -1,3 +1,3 @@
 Bayesian Random-Effects Model (k = 13).
-Pooled effect: mean log risk ratio = -0.689, 95% CrI [-1.057, -0.330].
-Pooled heterogeneity: mean tau = 0.572, 95% CrI [0.342, 0.897].
+Pooled effect: mean log risk ratio = -0.690, 95% CrI [-1.059, -0.329].
+Pooled heterogeneity: mean tau = 0.570, 95% CrI [0.345, 0.900].

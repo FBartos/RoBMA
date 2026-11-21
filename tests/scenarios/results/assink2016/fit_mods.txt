@@ -1,10 +1,10 @@
          Alternative:                 Null:     BF error%(BF)
- deltype[general] = 0 deltype[general] != 0  0.132     10.211
- deltype[general] = 0  deltype[general] > 0  0.067     10.212
- deltype[general] > 0  deltype[general] < 0 80.522      7.418
-[0;31mqCMDE relative MCSE is 10.2% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
-[0;31mqCMDE relative MCSE is 10.2% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 8.21% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 8.21% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
-[0;31mqCMDE effective sample size is 90.2 (warning threshold 100).[0m
-[0;31mqCMDE effective sample size is 90.2 (warning threshold 100).[0m
+ deltype[general] = 0 deltype[general] != 0  0.133     10.772
+ deltype[general] = 0  deltype[general] > 0  0.067     10.772
+ deltype[general] > 0  deltype[general] < 0 96.403      8.100
+[0;31mqCMDE relative MCSE is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 10.8% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 8.41% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 8.41% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE effective sample size is 81.2 (warning threshold 100).[0m
+[0;31mqCMDE effective sample size is 81.2 (warning threshold 100).[0m
