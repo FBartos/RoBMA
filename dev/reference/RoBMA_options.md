@@ -138,7 +138,7 @@ The available options are:
   assigns together with the gated and factor slice samplers of the
   BayesTools JAGS module where `sampler.gates` and `sampler.blocks`
   declare them. `"jags.default"` uses only the samplers JAGS assigns, in
-  every model and whatever `sampler.gates` and `sampler.blocks` say (as
+  every model and disables all specialized sampler options (as
   `"default"` did in RoBMA 4.1.1). The posterior target is unchanged.
   Settings are captured when each model is compiled, and
   [`update()`](https://rdrr.io/r/stats/update.html) keeps those of the
@@ -231,6 +231,45 @@ The available options are:
   fitted, and [`update()`](https://rdrr.io/r/stats/update.html) keeps
   those of the fit.
 
+- `sampler.joint`:
+
+  joint sampler policy for eligible model-averaged fits. `"auto"` (the
+  default) allows the joint bias, effect-inclusion and intercept update
+  on independent, unmoderated step-selection models. It also allows
+  joint coefficient and heterogeneity updates in unweighted independent
+  Gaussian meta-regressions with one standardized numeric moderator, no
+  supplied covariance matrix, eligible zero-spike normal mixtures, and
+  up to 800 retained estimates. `"bias"` requests the independent joint
+  bias update and also allows unweighted selection meta-regressions with
+  additive numeric or factor moderators on their fitted scale, no
+  supplied covariance matrix, and the ordinary selection-weight layout.
+  `"gaussian"` requests the Gaussian joint sampler, including for larger
+  models and for unstandardized numeric moderators. Both Gaussian routes
+  require sufficient proposal coverage. `"clustered"` and
+  `"clustered.scale"` request the grouped moderator update in eligible
+  positive-direction clustered models with one factor moderator and no
+  bias-exempt rows. `"clustered.scale"` also updates heterogeneity
+  jointly. Unsupported or declined candidates use the ordinary sampler
+  policy. Set `sampler.joint = "off"` to omit all joint-sampler markers.
+
+- `sampler.nested.weights`:
+
+  whether to request the nested parameterization for eligible pairs of
+  cumulative selection-weight priors (default `FALSE`). The physical
+  weight priors and likelihood are preserved. The nested layout can be
+  used with the independent joint bias update in unmoderated models. Set
+  `sampler.joint = "off"` to use the nested layout alone. If the nested
+  layout is declined, the ordinary rules for joint sampling apply.
+
+- `sampler.probabilities`:
+
+  a character vector of exact JAGS indicator node names to request
+  conditional branch probabilities from the finite sampler. The names
+  must exist in each fit. The default is `character(0)`. Read the traces
+  in `fit$fit$sampler_probabilities`. A requested indicator owned by a
+  joint sampler has a `NULL` trace. Its report row shows the owner and
+  status `"unavailable"`.
+
 - `default_UISD.effect`:
 
   default scaling of the unit information standard deviation for the
@@ -276,6 +315,18 @@ The available options are:
 - `default_bias_PEESE.scale`:
 
   default scale for the PEESE (default `5`)
+
+For joint sampler candidates and explicitly requested weight or
+probability options, inspect
+`attr(fit$fit, "sampler_declarations")$robma` for eligibility and
+sampler assignments. The joint sampler report records
+`"budget_bypassed"` when an otherwise eligible automatic Gaussian fit
+exceeds the row limit. `fit$fit$samplers` lists the assigned sampler for
+each sampled node in the first worker, and `fit$fit$samplers_by_worker`
+records assignments when workers differ. The probability report includes
+the requested spelling and the fitted trace key. These settings and
+declarations carry over to
+[`update()`](https://rdrr.io/r/stats/update.html).
 
 Boolean options require scalar `TRUE` or `FALSE` values. `max_cores`
 must be integer-like and at least 1; `cluster_likelihood.n_gamma` must
