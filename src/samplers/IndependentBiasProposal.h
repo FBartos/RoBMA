@@ -155,8 +155,8 @@ inline void add_gaussian(Quadratic &term, double residual, double center,
   term.curvature += precision;
 }
 
-// The expansion is a proposal. A failed expansion uses precisely the original
-// joint prior for the same fixed nuisance state in both directions of MH.
+// If the expansion fails in a fixed nuisance state, both directions use the
+// product of the categorical masses and the raw Gaussian prior as the proposal.
 inline void propose(const Geometry &geometry, const std::vector<double> &total_sd,
                     const double *slopes, const double *omega, Proposal &out, Scratch &scratch)
 {

@@ -22,6 +22,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -39,7 +40,7 @@ enum Setup { group_gate, design, groups, response, sampling_se, sampling_varianc
              observed_bin, lower, upper, omega, mode, telescope, intercept_gate,
              intercept_label, moderator_label, physical_tau, physical_rho,
              heterogeneity_gate, heterogeneity_label, pet, peese, study_count,
-             cadence, setup_count };
+             cadence, scale_enabled, setup_count };
 
 using Params = std::vector<Node const *>;
 using Vec = std::vector<double>;
@@ -68,7 +69,7 @@ bool valid_lengths(std::vector<unsigned long> const &size)
   for (unsigned int i : {group_gate, mode, telescope, intercept_gate, intercept_label,
                          moderator_label, physical_tau, physical_rho, heterogeneity_gate,
                          heterogeneity_label, pet, peese,
-                         study_count, cadence}) {
+                         study_count, cadence, scale_enabled}) {
     if (size[i] != 1) return false;
   }
   return true;
@@ -409,8 +410,14 @@ public:
   double logDensity() const override { return _view.logFullConditional(_chain); }
   void update(RNG *rng) override
   {
-    if (!updateStep(rng) && state() != SLICER_OK) {
-      throwNodeError(_view.node(), "Joint cluster scalar refresh has a nonfinite density");
+    const double previous = value();
+    try {
+      if (!updateStep(rng) && state() != SLICER_OK) {
+        throwNodeError(_view.node(), "Joint cluster scalar refresh has a nonfinite density");
+      }
+    } catch (...) {
+      setValue(previous);
+      throw;
     }
   }
 };
@@ -644,7 +651,7 @@ bool collect_setup(StochasticNode const *marker, FitData &data)
   if (!valid_lengths(sizes)) return false;
   for (unsigned int i : {design, groups, response, sampling_se, sampling_variance,
                         observed_bin, lower, upper, telescope, intercept_label,
-                        moderator_label, heterogeneity_label, study_count, cadence}) {
+                        moderator_label, heterogeneity_label, study_count, cadence, scale_enabled}) {
     if (!data.setup[i]->isFixed()) return false;
   }
 
@@ -652,10 +659,12 @@ bool collect_setup(StochasticNode const *marker, FitData &data)
       !integer_between(scalar(data.setup[cadence], 0), 1, 100) ||
       !integer_between(scalar(data.setup[intercept_label], 0), 1, 2) ||
       !integer_between(scalar(data.setup[moderator_label], 0), 1, 2) ||
-      !integer_between(scalar(data.setup[heterogeneity_label], 0), 1, 2)) return false;
+      !integer_between(scalar(data.setup[heterogeneity_label], 0), 1, 2) ||
+      !integer_between(scalar(data.setup[scale_enabled], 0), 0, 1)) return false;
 
   data.n_studies = scalar(data.setup[study_count], 0);
   data.spacing = scalar(data.setup[cadence], 0);
+  data.scale = scalar(data.setup[scale_enabled], 0) == 1;
   data.width = sizes[design] / sizes[groups];
   if (data.width > sizes[groups] || sizes[omega] > static_cast<unsigned long>(std::numeric_limits<int>::max())) {
     return false;
@@ -696,7 +705,12 @@ bool collect_nodes(std::vector<Member> const &members, FitData &data,
 {
   std::array<StochasticNode *, 7> single{};
   std::vector<StochasticNode *> gamma(data.n_studies, nullptr);
+  std::set<StochasticNode *> distinct;
   for (auto const &m : members) {
+    if (!distinct.insert(m.node).second) return false;
+    for (unsigned long i = 0; i < m.node->length(); ++i) {
+      if (m.node->isObserved(i)) return false;
+    }
     if (m.role == study) {
       if (m.slot > gamma.size() || gamma[m.slot - 1]) return false;
       gamma[m.slot - 1] = m.node;
@@ -706,7 +720,8 @@ bool collect_nodes(std::vector<Member> const &members, FitData &data,
     }
   }
   if (!single[gate] || !single[intercept] || !single[moderator] ||
-      single[gate] != data.setup[group_gate] || (!!single[total_sd] != !!single[allocation]) ||
+      single[gate] != data.setup[group_gate] || (single[total_sd] != nullptr) != data.scale ||
+      (single[allocation] != nullptr) != data.scale ||
       std::any_of(gamma.begin(), gamma.end(), [](auto node) { return node == nullptr; })) return false;
 
   auto gate_node = single[gate];
@@ -728,7 +743,6 @@ bool collect_nodes(std::vector<Member> const &members, FitData &data,
         mean[0] != 0 || precision[0] != 1) return false;
     nodes.push_back(node);
   }
-  data.scale = single[total_sd] != nullptr;
   if (data.scale) {
     Vec mean, precision;
     if (!normal_parameters(single[total_sd], mean, precision, true) ||

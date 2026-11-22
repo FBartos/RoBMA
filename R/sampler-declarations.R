@@ -22,11 +22,13 @@
   nested_weights  <- module_samplers && requested[["nested_weights"]] &&
     inherits(fit_priors[["bias"]], "prior.bias_mixture") &&
     .is_priors_weightfunction(priors) && !.selection_all_sources_conditioned(data)
+  joint <- .sampler_joint_declared(data, fit_priors, requested[["joint"]])
+  requested[["joint_sampler"]] <- attr(joint, "sampler", exact = TRUE)
 
   return(list(
     sampler_gates           = .sampler_gates_declared(fit_priors),
     sampler_blocks          = .sampler_blocks_declared(data, priors),
-    sampler_joint           = .sampler_joint_declared(data, fit_priors, nested_weights, requested[["joint"]]),
+    sampler_joint           = joint,
     sampler_nested_weights = nested_weights,
     sampler_probabilities   = if (module_samplers) requested[["probabilities"]] else character(),
     requested               = requested
@@ -34,28 +36,33 @@
 }
 
 
-# Explicit requests retain their eligibility and actual sampler assignment.
+# Joint candidates and explicit requests retain their eligibility and ownership.
 # The backend keeps the markers, nested layout and probability monitor plans.
 .sampler_request_record <- function(fit, requested) {
 
   record <- list()
   declarations <- attr(fit, "sampler_declarations", exact = TRUE)
-  assignments  <- fit[["samplers"]]
+  workers      <- fit[["samplers_by_worker"]]
+  assignments <- if (is.null(workers)) list(fit[["samplers"]]) else lapply(workers, `[[`, "samplers")
   disabled     <- !requested[["specialized"]]
   disabled_reason <- "The 'jags.default' sampler policy disables specialized samplers."
   policy       <- requested[["joint"]]
-  expected     <- switch(policy, gaussian = "RoBMA::GaussianJoint",
-                         clustered = "RoBMA::JointCluster", clustered.scale = "RoBMA::JointCluster",
-                         correlated = "RoBMA::CorrelatedBiasJoint")
+  expected     <- switch(policy, auto = requested[["joint_sampler"]], gaussian = "RoBMA::GaussianJoint",
+                         clustered = "RoBMA::JointCluster", clustered.scale = "RoBMA::JointCluster")
   if (!is.null(expected)) {
-    owned <- assignments[["Node"]][assignments[["Sampler"]] == expected]
-    status <- if (disabled) "disabled" else if (length(owned) > 0L) "active" else
+    claimed <- lapply(assignments, function(table) table[["Node"]][table[["Sampler"]] == expected])
+    owned   <- Reduce(intersect, claimed)
+    mixed   <- any(!vapply(claimed, setequal, logical(1), y = owned))
+    status <- if (disabled) "disabled" else if (mixed) "mixed" else if (length(owned) > 0L) "active" else
       if (is.null(declarations[["joint"]])) "graph_declined" else "native_declined"
     reason <- switch(status,
       disabled = disabled_reason,
-      graph_declined = switch(policy,
-        gaussian = "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
-        correlated = "This update requires an eligible correlated step-selection fit under 'slice.coarse' with no nested-weight request.",
+      mixed = "Workers assigned different nodes to the joint sampler. See the per-worker sampler assignments.",
+      graph_declined = switch(expected,
+        "RoBMA::IndependentBiasJoint" = "This update requires independent step-selection rows and eligible effect and bias mixtures.",
+        "RoBMA::GaussianJoint" = if (policy == "auto")
+          "This update requires an unweighted independent Gaussian fit, one standardized numeric moderator and eligible normal mixtures." else
+          "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
         "This update requires an eligible clustered fit with one factor moderator and supported prior laws."),
       native_declined = "The native sampler did not claim the declared nodes. See the fit's sampler assignments."
     )
@@ -70,11 +77,25 @@
   }
 
   if (length(requested[["probabilities"]]) > 0L) {
-    nodes <- requested[["probabilities"]]
-    owners <- assignments[["Sampler"]][match(nodes, assignments[["Node"]])]
-    recorded <- vapply(nodes, function(node) !is.null(fit[["sampler_probabilities"]][[node]]), logical(1))
+    requested_nodes <- requested[["probabilities"]]
+    nodes <- declarations[["probabilities"]][["node"]]
+    if (is.null(nodes)) nodes <- requested_nodes
+    owners <- vapply(nodes, function(node) {
+      node_owners <- unique(vapply(assignments, function(table) {
+        if (is.null(table)) return(NA_character_)
+        table[["Sampler"]][match(node, table[["Node"]])]
+      }, character(1)))
+      if (length(node_owners) == 1L) node_owners[[1L]] else "mixed"
+    }, character(1), USE.NAMES = FALSE)
+    recorded <- vapply(nodes, function(node) {
+      inherits(fit[["sampler_probabilities"]][[node]], "mcmc.list")
+    }, logical(1))
+    # The backend resolves fitted aliases when it binds the monitor. A recorded
+    # trace identifies the actual finite sampler even when JAGS reports another
+    # spelling for its stochastic node in the assignment table.
+    owners[recorded] <- "BayesTools::Finite"
     record[["probabilities"]] <- data.frame(
-      node = nodes, sampler = owners, status = if (disabled) "disabled" else
+      node = nodes, requested_node = requested_nodes, sampler = owners, status = if (disabled) "disabled" else
         ifelse(recorded, "active", "unavailable"),
       reason = if (disabled) disabled_reason else
         ifelse(recorded, NA_character_, "The fitted sampler supplies no conditional branch probabilities.")

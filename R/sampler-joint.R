@@ -1,16 +1,9 @@
 # Qualify data using the same descriptors that choose the fitted likelihood.
 # Prior and design eligibility is checked after BayesTools binds the formulas.
-.sampler_joint_declared <- function(data, fit_priors, nested_weights, policy) {
+.sampler_joint_declared <- function(data, fit_priors, policy) {
 
   if (!.sampler_module_samplers()) return(NULL)
   if (policy == "off") return(NULL)
-  if (policy == "correlated") {
-    if (nested_weights || !.selection_sampler_corrected(RoBMA.get_option("selection.sampler"))) return(NULL)
-    checked_data <- data
-    return(function(prior_list, formula_design, data) {
-      .sampler_joint_correlated(checked_data, prior_list, formula_design, data)
-    })
-  }
   if (policy %in% c("clustered", "clustered.scale")) {
     checked_data <- data
     return(function(prior_list, formula_design, data) {
@@ -24,18 +17,18 @@
   }
 
   sign <- if (.data_effect_direction(data) == "negative") -1 else 1
-  if (policy == "gaussian" && !.is_data_known_v(data) &&
+  if (policy %in% c("auto", "gaussian") && !.is_data_known_v(data) &&
       .is_data_mods(data) && is.null(fit_priors[["bias"]])) {
-    return(function(prior_list, formula_design, data) {
-      .sampler_joint_gaussian(prior_list, formula_design, data, sign)
-    })
+    return(structure(function(prior_list, formula_design, data) {
+      .sampler_joint_gaussian(prior_list, formula_design, data, sign, require_scaled = policy == "auto")
+    }, sampler = "RoBMA::GaussianJoint"))
   }
-  if (policy == "auto" && !nested_weights && !.is_data_mods(data) &&
+  if (policy == "auto" && !.is_data_mods(data) &&
       inherits(fit_priors[["bias"]], "prior.bias_mixture") &&
       .sampler_joint_independent_selection(data)) {
-    return(function(prior_list, formula_design, data) {
+    return(structure(function(prior_list, formula_design, data) {
       .sampler_joint_bias(prior_list, formula_design, data, sign)
-    })
+    }, sampler = "RoBMA::IndependentBiasJoint"))
   }
   return(NULL)
 }
@@ -115,7 +108,7 @@
 
   prior_names <- names(prior_list)
   if (length(formula_design) != 0L || !all(c("mu", "bias") %in% prior_names) ||
-      !all(prior_names %in% c("mu", "bias", "tau"))) return(NULL)
+      !all(prior_names %in% c("mu", "bias", "tau")) || length(prior_list[["bias"]]) < 2L) return(NULL)
   mu <- .sampler_joint_normal_mixture(prior_list, "mu")
   if (is.null(mu)) return(NULL)
 
@@ -173,7 +166,7 @@
 }
 
 
-.sampler_joint_gaussian <- function(prior_list, formula_design, data, sign) {
+.sampler_joint_gaussian <- function(prior_list, formula_design, data, sign, require_scaled = FALSE) {
 
   if (!identical(names(formula_design), "mu")) return(NULL)
   design <- formula_design[["mu"]]
@@ -192,6 +185,7 @@
       length(slope_data) != 1L || !setequal(names(prior_list), c(intercept_prior, slope_prior, "tau")) ||
       !is.numeric(data[[slope_data]]) || !is.null(dim(data[[slope_data]])) ||
       length(data[[slope_data]]) != data[["K"]] || !all(data[["sei"]] > 0)) return(NULL)
+  if (require_scaled && !slope_prior %in% names(design[["formula_scale"]])) return(NULL)
 
   intercept <- .sampler_joint_normal_mixture(prior_list, intercept_prior)
   moderator <- .sampler_joint_normal_mixture(prior_list, slope_prior)

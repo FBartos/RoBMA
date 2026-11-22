@@ -13,10 +13,10 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
     study = rep(letters[1:3], c(2L, 3L, 4L)),
     group = factor(rep(letters[1:3], 3), levels = c("c", "a", "b"))
   )
-  fit_cluster <- function(direction = "positive") {
+  fit_cluster <- function(direction = "positive", ...) {
     RoBMA(yi = y, vi = v, cluster = study, mods = ~ group, data = dat,
           measure = "SMD", effect_direction = direction, adapt = 60L, burnin = 50L,
-          sample = 100L, chains = 2L, seed = 37L, autofit = FALSE, silent = TRUE)
+          sample = 100L, chains = 2L, seed = 37L, autofit = FALSE, silent = TRUE, ...)
   }
   owned <- function(fit) {
     a <- fit[["fit"]][["samplers"]]
@@ -33,6 +33,9 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
   RoBMA.options(sampler.joint = "clustered.scale")
   scaled <- fit_cluster()
   expect_setequal(owned(scaled), c(group, scales))
+  request <- attr(scaled[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
+  expect_identical(request[["status"]], "active")
+  expect_setequal(request[["nodes"]], c(group, scales))
   expect_identical(colnames(scaled[["fit"]][["mcmc"]][[1L]]),
                    colnames(joint[["fit"]][["mcmc"]][[1L]]))
   expect_true(all(is.finite(as.matrix(scaled[["fit"]][["mcmc"]]))))
@@ -40,6 +43,13 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
   ordinary <- fit_cluster("negative")
   expect_length(owned(ordinary), 0L)
   expect_false(grepl("drobma_cluster_setup", ordinary[["fit"]][["model"]], fixed = TRUE))
+
+  one_bias <- BayesTools::prior_weightfunction("one-sided", .05, BayesTools::wf_fixed(c(1, .4)))
+  singleton <- fit_cluster(prior_bias = one_bias, prior_bias_null = NULL)
+  expect_true(singleton[["fit"]][["has_posterior"]])
+  expect_length(owned(singleton), 0L)
+  request <- attr(singleton[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
+  expect_identical(request[["status"]], "graph_declined")
 
   # A malformed native declaration with two markers naming the same study
   # slot must fall through as an entire block. No stochastic source is lost.
@@ -54,4 +64,76 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
   ordinary_samplers <- rjags::list.samplers(live)
   expect_false("RoBMA::JointCluster" %in% names(ordinary_samplers))
   expect_true(all(c(group, scales) %in% unlist(ordinary_samplers, use.names = FALSE)))
+})
+
+.cluster_provider_model <- function(scale = FALSE, declare_scales = scale, observed = list(),
+                                    second_study = "u[2]", nonlinear = FALSE) {
+
+  location <- if (nonlinear) "sqrt(a)" else "a"
+  scales <- if (scale) "s ~ dnorm(0, 1) T(0,)
+                       r ~ dbeta(2, 2)" else ""
+  markers <- if (declare_scales) "m6 ~ drobma_cluster_member(s, 5, 1)
+                                    m7 ~ drobma_cluster_member(r, 6, 1)" else ""
+  physical <- if (scale) "s, r" else ".5, .36"
+  model <- paste0("model {
+    g ~ dcat(c(1, 1))
+    a ~ dnorm(0, 1)
+    b[1:2] ~ dmnorm(zero, P)
+    for (j in 1:2) { u[j] ~ dnorm(0, 1) }
+    for (i in 1:4) {
+      y[i] ~ dnorm(", location, " + equals(g, 2) * (b[1]*X[i] + b[2]*X[i+4]) + .3*u[group[i]], 1)
+    }
+    m1 ~ drobma_cluster_member(g, 1, 1)
+    m2 ~ drobma_cluster_member(a, 2, 1)
+    m3 ~ drobma_cluster_member(b, 3, 1)
+    m4 ~ drobma_cluster_member(u[1], 4, 1)
+    m5 ~ drobma_cluster_member(", second_study, ", 4, 2)
+    ", scales, "
+    ", markers, "
+    setup ~ drobma_cluster_setup(g, X, group, y, ones, ones, ones, -1, 1, 1, 0, 0, 1, 1, 2,
+                                   ", physical, ", 2, 2, 0, 0, 2, 5, ", as.integer(scale), ")
+  }")
+  data <- c(list(zero = c(0, 0), P = diag(2), group = c(1, 1, 2, 2), ones = rep(1, 4),
+                 y = c(.3, .25, -.13, .08), X = c(0, 1, 0, 1, 1, 0, 1, 0),
+                 m1 = 0, m2 = 0, m3 = 0, m4 = 0, m5 = 0, setup = 0), observed)
+  if (declare_scales) data <- c(data, list(m6 = 0, m7 = 0))
+  inits <- list(a = 1e-6, g = 2L, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 7301L)
+  con <- textConnection(model)
+  on.exit(close(con))
+  rjags::jags.model(con, data = data, inits = inits, n.chains = 1L, n.threads = 1L,
+                    n.adapt = 0L, quiet = TRUE)
+}
+
+test_that("a clustered provider must supply distinct free roots for its requested scale mode", {
+
+  skip_if_not_installed("rjags")
+  roots <- c("g", "a", "b", "u[1]", "u[2]")
+  own <- function(model) rjags::list.samplers(model)[["RoBMA::JointCluster"]]
+  decline <- function(model, free) {
+    samplers <- rjags::list.samplers(model)
+    expect_null(samplers[["RoBMA::JointCluster"]])
+    expect_setequal(unlist(samplers, use.names = FALSE), free)
+  }
+  expect_setequal(own(.cluster_provider_model()), roots)
+  expect_setequal(own(.cluster_provider_model(scale = TRUE)), c(roots, "s", "r"))
+  decline(.cluster_provider_model(second_study = "u[1]"), roots)
+  decline(.cluster_provider_model(scale = TRUE, declare_scales = FALSE), c(roots, "s", "r"))
+  decline(.cluster_provider_model(scale = TRUE, observed = list(s = .5)), c(roots, "r"))
+  decline(.cluster_provider_model(scale = TRUE, observed = list(r = .36)), c(roots, "s"))
+  decline(.cluster_provider_model(scale = TRUE, observed = list(s = .5, r = .36)), roots)
+})
+
+test_that("a failed clustered scalar refresh restores its entry value", {
+
+  skip_if_not_installed("rjags")
+  live <- .cluster_provider_model(nonlinear = TRUE)
+  expect_setequal(rjags::list.samplers(live)[["RoBMA::JointCluster"]],
+                   c("g", "a", "b", "u[1]", "u[2]"))
+  stats::update(live, n.iter = 1L, progress.bar = "none")
+  live$sync()
+  entry <- live$state()[[1L]][["a"]]
+  expect_true(entry > 0)
+  expect_error(stats::update(live, n.iter = 1L, progress.bar = "none"), "Invalid parent values")
+  live$sync()
+  expect_identical(live$state()[[1L]][["a"]], entry)
 })
