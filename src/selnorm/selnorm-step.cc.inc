@@ -166,7 +166,10 @@ bool narrow_normal_log_probability(double width, double sd, double lo, double hi
   if (!(dz <= 1e-5) && !(lo == hi && nearest >= 1e6)) return false;
   const double mid = .5*lo + .5*hi;
   const double slope = mid * dz;
-  if (std::abs(slope) <= 1e-5) {
+  // Up to this slope the omitted fourth-order term is at most about
+  // (1e-3)^4/1920. Above it, dz <= 1e-5 implies |z| >= 100, so the
+  // quadratic remainder below fits the rank-one enclosure's log allowance.
+  if (std::abs(slope) <= 1e-3) {
     log_p = std::log(width) - std::log(sd) + dnorm(mid, 0, 1, true) +
       std::log1p((slope * slope - dz * dz) / 24);
   } else {
