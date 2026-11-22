@@ -24,6 +24,7 @@
 
 ### Fixes
 - GLMM log likelihoods, LOO and WAIC resolve sparse count cells more accurately with gamma, lognormal and inverse-gamma nuisance priors
+- dense three-outcome product selection models can recover a rejected normalizer using a bounded one-factor integral when the supplied covariance admits it
 - GVIF handles large coefficient matrices, uses the estimated design for fixed-zero intercepts and reports infinite inflation for terms with demonstrated exact overlap
 - radial and Q-Q plots retain near-100% bands and identify unrepresentable display ranges
 - selected-normal predictive moments retain rare selection bins whose Gaussian probabilities underflow, including hard selection in a far tail
