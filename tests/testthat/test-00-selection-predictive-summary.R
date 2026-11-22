@@ -140,6 +140,20 @@ test_that("hard selection retains excess and variance across the tail threshold"
   ref_var <- sd^2 * (1 + 40 * (40 + excess)) - ref_mean^2
   expect_lt(abs(cell$mean/ref_mean - 1), 1e-8)
   expect_lt(abs(cell$variance/ref_var - 1), 1e-8)
+
+  # Use the actual stored cuts: their magnitudes can differ by one ulp.
+  # The peak log ratio factors exactly in outcome units. At 1e7 SDs the
+  # conditional excess is below 3e-14 in these units and the relative
+  # Mills-factor difference of the two tails is below 1e-15.
+  left <- utils::tail(static$z_upper, 1L)
+  sd <- cutoff / 1e7
+  mu <- 1e-18
+  w[length(w)] <- 1
+  cell <- .selnorm_kernel_moments_matrix(matrix(mu), matrix(sd), 1, matrix(w, 1), spec)
+  midpoint <- (cutoff + left) / 2
+  log_ratio <- (cutoff - left) * ((mu - midpoint) / sd^2)
+  ref_mean <- midpoint + (cutoff - left) / 2 * tanh(log_ratio / 2)
+  expect_lt(abs(cell$mean - ref_mean), 1e-12)
 })
 
 test_that("predictive cell summaries match an independent log-space reference", {

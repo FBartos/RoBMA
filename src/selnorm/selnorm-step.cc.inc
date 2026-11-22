@@ -510,21 +510,22 @@ bool step_cdf_pair_logspace(const double *omega,
 // exp(-a*h*s - (h*s)^2/2), even when phi(a) itself has underflowed.
 struct StepMomentHalf {
   double score;
+  double cut;
   double log_mass;
   double anchor;
   double offset;
   double variance;
 };
 
-bool step_half_moments(double a, double b, double anchor, double signed_sd,
+bool step_half_moments(double a, double width_score, double cut, double anchor, double signed_sd,
                        double log_weight, StepMomentHalf &half)
 {
-  if (!std::isfinite(a) || !(a < b) || !std::isfinite(anchor)) return false;
+  if (!std::isfinite(a) || !(width_score > 0) || !std::isfinite(anchor)) return false;
   const double h = 1 / std::max(1.0, a);
   const double rate = std::min(a, 1.0);
   // Beyond a log-density drop of 50 the omitted exponential second-moment
   // fraction is at most (1 + 50 + 50^2/2)*exp(-50).
-  const double end = std::min((b - a) / h,
+  const double end = std::min(width_score / h,
     100 / (rate + std::hypot(rate, 10*h)));
   if (!(end > 0)) return false;
 
@@ -534,7 +535,7 @@ bool step_half_moments(double a, double b, double anchor, double signed_sd,
                                   .7966664774136267, .9602898564975362};
   static const double weights[] = {.3626837833783620, .3137066458778873,
                                     .2223810344533745, .1012285362903763};
-  const int panels = static_cast<int>(std::ceil(end / 2));
+  const int panels = std::max(1, static_cast<int>(std::ceil(end / 2)));
   double mass = 0, first = 0, second = 0;
   for (int p = 0; p < panels; ++p) {
     for (int j = 0; j < 4; ++j) {
@@ -553,6 +554,7 @@ bool step_half_moments(double a, double b, double anchor, double signed_sd,
   const double spread = second / mass - location*location;
   const double width = signed_sd * (h * end);
   half.score = a;
+  half.cut = cut;
   half.log_mass = log_weight + std::log(h) + std::log(end) + std::log(mass / (2*panels));
   half.anchor = anchor;
   half.offset = width * location;
@@ -566,7 +568,6 @@ bool step_rare_moments(const double *omega, const SelNormKernelData &data,
                        double &result_mean, double &result_variance)
 {
   std::vector<StepMomentHalf> halves;
-  double nearest = INFINITY;
   for (int b = 0; b < data.n_bins; ++b) {
     const double w = omega_at(omega, b + 1, stride);
     const double zu = data.z_upper[b];
@@ -578,26 +579,43 @@ bool step_rare_moments(const double *omega, const SelNormKernelData &data,
     const double hi = stable_affine_score(zu, sei, mean, sd);
     if (!(lo < hi)) return false;
     const double log_w = std::log(w);
+    const double width_score = (zu - zl) * sei / sd;
     if (lo < 0) {
       StepMomentHalf half;
-      if (!step_half_moments(std::max(-hi, 0.0), -lo, hi < 0 ? zu * sei : mean,
+      if (!step_half_moments(std::max(-hi, 0.0), hi < 0 ? width_score : -lo,
+                             zu, hi < 0 ? zu * sei : mean,
                              -sd, log_w, half)) return false;
-      nearest = std::min(nearest, half.score);
       halves.push_back(half);
     }
     if (hi > 0) {
       StepMomentHalf half;
-      if (!step_half_moments(std::max(lo, 0.0), hi, lo > 0 ? zl * sei : mean,
+      if (!step_half_moments(std::max(lo, 0.0), lo > 0 ? width_score : hi,
+                             zl, lo > 0 ? zl * sei : mean,
                              sd, log_w, half)) return false;
-      nearest = std::min(nearest, half.score);
       halves.push_back(half);
     }
   }
   // Factor out the nearest endpoint density before adding log weights. This
   // retains weight ratios even for equally remote tails on opposite sides.
+  if (halves.empty()) return false;
+  const auto nearest = std::min_element(halves.begin(), halves.end(),
+    [](const StepMomentHalf &x, const StepMomentHalf &y) { return x.score < y.score; });
   double peak = -INFINITY, origin = 0;
   for (auto &half : halves) {
-    half.log_mass -= (half.score - nearest) * (.5*half.score + .5*nearest);
+    if (nearest->score == 0) {
+      half.log_mass -= (.5 * half.score) * half.score;
+    } else if (half.cut != nearest->cut) {
+      // Factor the difference of squared distances in the supplied cuts.
+      // Opposing standardized scores can round to equal magnitudes even
+      // when the two peak densities differ appreciably. FastTwoSum keeps
+      // the rounding remainder of the midpoint before centering it on mu.
+      double x = .5 * half.cut, y = .5 * nearest->cut;
+      if (std::abs(x) < std::abs(y)) std::swap(x, y);
+      const double mid = x + y;
+      const double remainder = (x - mid) + y;
+      const double mid_offset = std::fma(mid, sei, -mean) + remainder * sei;
+      half.log_mass -= ((half.cut - nearest->cut) * sei / sd) * (mid_offset / sd);
+    }
     if (half.log_mass > peak) {
       peak = half.log_mass;
       origin = half.anchor;
