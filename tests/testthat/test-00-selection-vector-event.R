@@ -36,6 +36,14 @@ context("Conditional Gaussian vector selection events")
   )
 }
 
+test_that("scalar Gaussian events retain the outcome width at a hard selection bound", {
+  event <- list(lower = c(0, -Inf), upper = c(Inf, 0), omega = c(1, 0))
+  for (h in c(1e-308, 1e-17, 1e-12)) {
+    mass <- .vector_event_mass(.001, matrix(1), 1, event, 0L, upper = h)
+    expect_lt(abs(mass$log_mass[1L] - log(h) - stats::dnorm(h/2, .001, log = TRUE)), 1e-10)
+  }
+})
+
 # Independent reference: enumerate the disjoint one/two-dimensional outcome
 # rectangles, and integrate the bivariate Gaussian by base-R conditioning.
 # Compute the selected bin from the actual p-value of an interior point.

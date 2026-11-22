@@ -52,6 +52,12 @@ double cpp_selnorm_affine_normal_pdf_log_scale(
 double cpp_selnorm_normal_interval_log_prob(
   double lower, double upper, double mean, double sd)
 {
+  const double width = upper - lower;
+  if (width > 0 && std::isfinite(width) && width / sd <= 1e-5) {
+    double log_p;
+    if (narrow_normal_log_probability(width, sd, stable_normal_score(lower, mean, sd),
+                                       stable_normal_score(upper, mean, sd), log_p)) return log_p;
+  }
   return interval_log_prob(lower, upper, mean, sd);
 }
 

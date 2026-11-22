@@ -208,6 +208,26 @@ test_that("a nonzero cut distinguishes its endpoint from the next outcome interv
   expect_lt(abs(out$log_lower[3] - ref), 1e-12)
 })
 
+test_that("a collapsed score interval retains its outcome-scale exponential tail", {
+
+  spec <- .selection_spec(list(outcome = list(bias = prior_weightfunction(
+    "one-sided", .5, wf_fixed(c(1, 0))))), 0, 1,
+    effect_direction = "positive", signed_data = FALSE)
+  h <- 5e-11
+  a <- 1e6
+  for (mu in c(a, -a)) {
+    summary <- .selnorm_kernel_predictive_summary_matrix(h, matrix(mu), matrix(1), 1,
+                                                         matrix(c(1,0), 1L), spec)
+    # The omitted quadratic term is bounded by h^2/2. In the rare selected
+    # tail the additional Mills-ratio correction is at most 1/a^2.
+    ref <- if (mu > 0) {
+      stats::dnorm(0, mu, log = TRUE) + log(expm1(a*h)/a)
+    } else log(-expm1(-a*h))
+    # The rare-tail normalization subtracts log masses of order 5e11.
+    expect_lt(abs(summary$log_lower[1L] - ref), 3e-4)
+  }
+})
+
 test_that("predictive cell tails stay finite for widely spaced finite weights", {
 
   skip_if_not(.has_native_selnorm_kernel())

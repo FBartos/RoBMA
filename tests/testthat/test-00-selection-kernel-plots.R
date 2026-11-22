@@ -1061,6 +1061,24 @@ test_that("zero-weight selection intervals produce exact CDF plateaus", {
 })
 
 
+test_that("selected plotting quantiles resolve a short interval above a hard cutoff", {
+
+  prior <- prior_weightfunction("one-sided", .5, wf_fixed(c(1, 0)))
+  context <- .selection_spec(list(outcome = list(bias = prior)), 0, 1,
+                             effect_direction = "positive", signed_data = FALSE)
+  context$omega <- matrix(c(1, 0), 1L)
+  context$alpha <- 0
+  context$phack_kind <- 0L
+  context$kernel_mode <- SELKERNEL_STEP
+  p <- 1e-6
+  q <- .plot_mixture_quantiles_native(matrix(-150000), matrix(.5), p, 1, se = 1,
+    selected_rows = TRUE, selection_context = context, caller = "test")
+  # Conditional excess above 3e5 SDs has exponential limit with relative
+  # correction of order 1/a^2. Subtracting two 4.5e10 log masses limits the
+  # precision of the CDF in the plotting root finder.
+  expect_lt(abs(as.numeric(q) / (-log1p(-p)*.5/3e5) - 1), 5e-5)
+})
+
 test_that("selected-normal CDF retains representable extreme endpoints", {
 
   skip_if_not(.has_native_selnorm_kernel())

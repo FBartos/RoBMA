@@ -36,7 +36,8 @@ moments remain available to their callers, but are not subtracted from squared
 large means. Outer sampling mixtures and scalar moment integrals use a Gaussian
 location center and retain the existing numerical error and transition checks.
 For a continuous outcome query just inside a STEP cutoff, compute the partial
-bin mass from its width in outcome units. A query on a hard support boundary
+bin mass from its width in outcome units, from the represented endpoint
+`z_cut * sei` to the supplied outcome query. A query on a hard support boundary
 retains its exact zero tail. Fused summaries and cached plotting CDFs defer
 to that calculation when standardized endpoints cannot resolve the width.
 

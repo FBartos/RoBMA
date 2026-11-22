@@ -155,25 +155,40 @@ bool near_step_cut(double query_score, double cut_score)
   return std::isfinite(cut_score) && std::abs(query_score - cut_score) <= 1e-5;
 }
 
-// A partial bin is integrated in outcome units if subtracting the rounded
-// CDFs or standardized endpoints would lose its width. Around the midpoint
-// the first correction to the mean density is (z^2-1)*width^2/24.
+// Integrate a thin Gaussian interval using its original outcome width.
+bool narrow_normal_log_probability(double width, double sd, double lo, double hi,
+                                   double &log_p)
+{
+  if (!(width > 0) || !std::isfinite(width) || !(sd > 0) || !std::isfinite(sd) ||
+      !std::isfinite(lo) || !std::isfinite(hi)) return false;
+  const double dz = width / sd;
+  const double nearest = std::min(std::abs(lo), std::abs(hi));
+  if (!(dz <= 1e-5) && !(lo == hi && nearest >= 1e6)) return false;
+  const double mid = .5*lo + .5*hi;
+  const double slope = mid * dz;
+  if (std::abs(slope) <= 1e-5) {
+    log_p = std::log(width) - std::log(sd) + dnorm(mid, 0, 1, true) +
+      std::log1p((slope * slope - dz * dz) / 24);
+  } else {
+    // On one side of the mode, integrate the exponential slope at the
+    // nearer endpoint exactly. The omitted quadratic has relative effect
+    // at most dz^2/2, or 1/nearest^2 for a remote one-sided interval.
+    const double decay = nearest * dz;
+    log_p = dnorm(nearest, 0, 1, true) + std::log(-std::expm1(-decay)) - std::log(nearest);
+  }
+  return !std::isnan(log_p);
+}
+
 bool add_partial_step_mass(double query, double query_score, double cut, double cut_score,
                            double sd, bool above_cut, double log_weight, double *log_mass)
 {
-  const double width = std::abs(query - cut);
-  const double dz = width / sd;
-  const double z_mid = cut_score + (above_cut ? .5 : -.5) * dz;
-  if (width > 0 && std::isfinite(width) && dz <= 1e-5 &&
-      std::abs(z_mid) * dz <= 1e-5) {
-    const double slope = z_mid * dz;
-    const double log_p = std::log(width) - std::log(sd) + dnorm(z_mid, 0, 1, true) +
-      std::log1p((slope * slope - dz * dz) / 24);
+  const double lo = above_cut ? cut_score : query_score;
+  const double hi = above_cut ? query_score : cut_score;
+  double log_p;
+  if (narrow_normal_log_probability(std::abs(query - cut), sd, lo, hi, log_p)) {
     *log_mass = add_logspace(*log_mass, log_weight + log_p);
     return !std::isnan(*log_mass);
   }
-  const double lo = above_cut ? cut_score : query_score;
-  const double hi = above_cut ? query_score : cut_score;
   return lo < hi && add_weighted_standard_normal_interval(lo, hi, log_weight, log_mass);
 }
 
