@@ -88,6 +88,9 @@ struct SelNormDenseIntegration {
   double quadrature_change = 0.0;
   double covariance_width = 0.0;
   double tail_bound = 0.0;
+  // Relative radius of an accepted factor enclosure for a dense triple,
+  // including the perturbation from its represented factor covariance.
+  double rank_one_relative_error = 0.0;
   // Explicit R post-fit request; no sampler or RNG sets this flag.
   bool bounded_cdf = false;
   double cdf_log_error = 0.0;
