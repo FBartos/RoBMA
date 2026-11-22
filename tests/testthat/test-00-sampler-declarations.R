@@ -603,7 +603,7 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   RoBMA.options(sampler.nested.weights = TRUE)
   .fit(joint)
   expect_true(forwarded[["sampler_nested_weights"]])
-  expect_null(forwarded[["sampler_joint"]])
+  expect_true(is.function(forwarded[["sampler_joint"]]))
 
   # an extension replays the stored model and passes no declaration; it passes
   # the report explicitly (fits saved before the record store none)
@@ -618,6 +618,37 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   .fit(ordinary)
   expect_true("runtime_report" %in% names(forwarded))
   expect_null(forwarded[["runtime_report"]])
+})
+
+test_that("the sampler report gives the ownership common to all workers", {
+
+  active <- data.frame(Node = c("tau", "gate"), Sampler = rep("RoBMA::GaussianJoint", 2L))
+  other  <- data.frame(Node = c("tau", "gate"), Sampler = c("base::RealSlicer", "base::Finite"))
+  fit <- structure(list(
+    samplers = active,
+    samplers_by_worker = list(list(chains = 1L, samplers = active), list(chains = 2L, samplers = other))
+  ), sampler_declarations = list(joint = list()))
+  requested <- list(joint = "gaussian", specialized = TRUE, nested_weights = FALSE,
+                    probabilities = "gate")
+  recorded <- attr(.sampler_request_record(fit, requested), "sampler_declarations")[["robma"]]
+  expect_identical(recorded[["joint"]][["status"]], "mixed")
+  expect_length(recorded[["joint"]][["nodes"]], 0L)
+  expect_identical(recorded[["probabilities"]][["sampler"]], "mixed")
+  expect_identical(recorded[["probabilities"]][["status"]], "unavailable")
+})
+
+test_that("the automatic sampler report distinguishes a graph decline from a native refusal", {
+
+  requested <- list(joint = "auto", joint_sampler = "RoBMA::GaussianJoint", specialized = TRUE,
+                    nested_weights = FALSE, probabilities = character())
+  fit <- list(samplers = data.frame(Node = "tau", Sampler = "base::RealSlicer"))
+  status <- function(fit) {
+    recorded <- attr(.sampler_request_record(fit, requested), "sampler_declarations")[["robma"]]
+    recorded[["joint"]][["status"]]
+  }
+  expect_identical(status(fit), "graph_declined")
+  attr(fit, "sampler_declarations") <- list(joint = list(markers = "marker"))
+  expect_identical(status(fit), "native_declined")
 })
 
 

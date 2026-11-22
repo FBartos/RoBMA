@@ -13,8 +13,9 @@ verify_joint_workers <- function() {
   on.exit(unlink(path), add = TRUE)
   data("Bem2011", package = "RoBMA", envir = environment())
 
+  requested_tau <- " tau_indicator [ 1 ] "
   RoBMA.options(max_cores = 2L, sampler.joint = "auto", sampler.nested.weights = FALSE,
-                sampler.probabilities = "tau_indicator", selection.sampler = "slice.coarse")
+                sampler.probabilities = requested_tau, selection.sampler = "slice.coarse")
   fitted <- RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD",
     chains = 3L, parallel = TRUE, adapt = 500L, burnin = 100L,
     sample = 100L, thin = 2L, autofit = FALSE, silent = TRUE, seed = 806L,
@@ -33,16 +34,21 @@ verify_joint_workers <- function() {
 
   check_backend <- function(backend, samples, workers) {
 
+    declarations <- attr(backend, "sampler_declarations", exact = TRUE)
+    recorded_tau <- declarations[["probabilities"]][["node"]]
+    audit <- declarations[["robma"]][["probabilities"]]
+    stopifnot(identical(recorded_tau, paste0(tau_gate, "[1]")),
+              identical(audit[["node"]], recorded_tau), identical(audit[["requested_node"]], requested_tau),
+              identical(audit[["sampler"]], "BayesTools::Finite"), identical(audit[["status"]], "active"))
     reports <- attr(backend, "runtime_report_values", exact = TRUE)
     stopifnot(length(reports) == 1L, length(reports[[1L]]) == workers,
               all(!vapply(reports[[1L]], is.null, logical(1))))
     assignment <- backend[["samplers"]]
     owners <- assignment[["Node"]][assignment[["Sampler"]] == "RoBMA::IndependentBiasJoint"]
-    stopifnot(length(owners) == 3L, setequal(owners, expected),
-              tau_gate %in% assignment[["Node"]][assignment[["Sampler"]] == "BayesTools::Finite"])
+    stopifnot(length(owners) == 3L, setequal(owners, expected))
 
     draws <- backend[["mcmc"]]
-    trace <- backend[["sampler_probabilities"]][[tau_gate]]
+    trace <- backend[["sampler_probabilities"]][[recorded_tau]]
     stopifnot(length(draws) == 3L, length(trace) == 3L)
     for (chain in seq_along(trace)) {
       probability <- trace[[chain]][, c("p[1]", "p[2]"), drop = FALSE]
@@ -65,11 +71,12 @@ verify_joint_workers <- function() {
   check_backend(rebuilt, 150L, workers = 2L)
   stopifnot(identical(attr(rebuilt, "sampler_declarations", exact = TRUE), declarations),
             identical(attr(rebuilt, "prior_list", exact = TRUE), prior_list))
+  recorded_tau <- declarations[["probabilities"]][["node"]]
   for (chain in seq_len(3L)) {
     stopifnot(identical(as.matrix(rebuilt[["mcmc"]][[chain]])[seq_len(100L), , drop = FALSE],
                         as.matrix(backend[["mcmc"]][[chain]])),
-              identical(as.matrix(rebuilt[["sampler_probabilities"]][[tau_gate]][[chain]])[seq_len(100L), , drop = FALSE],
-                        as.matrix(backend[["sampler_probabilities"]][[tau_gate]][[chain]])))
+              identical(as.matrix(rebuilt[["sampler_probabilities"]][[recorded_tau]][[chain]])[seq_len(100L), , drop = FALSE],
+                        as.matrix(backend[["sampler_probabilities"]][[recorded_tau]][[chain]])))
   }
 
   for (fit in list(fitted, extended)) {

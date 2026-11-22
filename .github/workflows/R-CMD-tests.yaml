@@ -49,7 +49,7 @@ jobs:
         id: bayestools
         uses: FBartos/BayesTools/.github/actions/bayestools-source@development
         with:
-          development-spec: github::FBartos/BayesTools@02dafe3082925910ff41f4ec2be1f15d85ccdf9a
+          development-spec: github::FBartos/BayesTools@86275e0f8b30d096d9fd906a0a5c65c8ec98aa3b
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -73,9 +73,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tests/testthat/test_files/standard
-          key: ${{ runner.os }}-r-${{ matrix.config.r }}-robma-${{ steps.fit-cache-key.outputs.key }}
-          restore-keys: |
-            ${{ runner.os }}-r-${{ matrix.config.r }}-robma-standard-
+          key: ${{ runner.os }}-r-${{ matrix.config.r }}-robma-paired-${{ github.sha }}-${{ steps.fit-cache-key.outputs.key }}
 
       - name: Refresh missing or stale fitted models
         run: |

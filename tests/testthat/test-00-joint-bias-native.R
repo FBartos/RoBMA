@@ -63,3 +63,64 @@ test_that("the native joint-bias factory exclusively owns the declared coordinat
     expect_setequal(unlist(samplers, use.names = FALSE), c("bias", "effect", "raw"))
   }
 })
+
+test_that("the public independent joint bias update works with or without the nested weight layout", {
+
+  previous <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, previous), add = TRUE)
+  RoBMA.options(sampler.nested.weights = TRUE,
+                sampler.probabilities = character(), selection.sampler = "slice")
+  data("Bem2011", package = "RoBMA", envir = environment())
+  fit <- function(fine_alpha, policy = "auto") {
+    RoBMA.options(sampler.joint = policy)
+    RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD", prior_bias = list(
+      BayesTools::prior_weightfunction("one-sided", c(.05, .5), BayesTools::wf_cumulative(rep(1, 3))),
+      BayesTools::prior_weightfunction("one-sided", c(.025, .05, .5), BayesTools::wf_cumulative(fine_alpha))
+    ), chains = 1L, adapt = 500L, burnin = 50L, sample = 100L, seed = 704L,
+    convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))[["fit"]]
+  }
+  declarations <- function(fit) attr(fit, "sampler_declarations", exact = TRUE)
+  owned <- function(fit) {
+    assignment <- fit[["samplers"]]
+    assignment[["Node"]][assignment[["Sampler"]] == "RoBMA::IndependentBiasJoint"]
+  }
+  declined <- fit(c(2, 1, 1, 1))
+  nested <- declarations(declined)[["nested_weights"]]
+  expect_false(nested[["realized"]])
+  expect_match(nested[["reason"]], "no eligible nested")
+
+  combined <- fit(rep(1, 4))
+  expect_true(declarations(combined)[["nested_weights"]][["realized"]])
+  for (backend in list(declined, combined)) {
+    expect_setequal(owned(backend), c("bias_indicator", "mu_indicator", "mu_component_2"))
+    joint <- declarations(backend)[["robma"]][["joint"]]
+    expect_identical(joint[["policy"]], "auto")
+    expect_identical(joint[["sampler"]], "RoBMA::IndependentBiasJoint")
+    expect_identical(joint[["status"]], "active")
+  }
+
+  nested_only <- fit(rep(1, 4), policy = "off")
+  expect_true(declarations(nested_only)[["nested_weights"]][["realized"]])
+  expect_length(owned(nested_only), 0L)
+})
+
+test_that("a single bias branch preserves the ordinary public fit under auto", {
+
+  previous <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, previous), add = TRUE)
+  RoBMA.options(sampler.nested.weights = FALSE, sampler.probabilities = character(),
+                selection.sampler = "slice.coarse")
+  data("Bem2011", package = "RoBMA", envir = environment())
+  fit <- function(policy) {
+    RoBMA.options(sampler.joint = policy)
+    RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD",
+      prior_bias = BayesTools::prior_weightfunction("one-sided", c(.05, .5)),
+      prior_bias_null = FALSE, chains = 1L, adapt = 500L, burnin = 50L, sample = 100L,
+      seed = 704L, convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))[["fit"]]
+  }
+  auto <- fit("auto")
+  off <- fit("off")
+  expect_false("RoBMA::IndependentBiasJoint" %in% auto[["samplers"]][["Sampler"]])
+  expect_identical(auto[["samplers"]], off[["samplers"]])
+  expect_identical(auto[["mcmc"]], off[["mcmc"]])
+})

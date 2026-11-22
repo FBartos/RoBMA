@@ -20,7 +20,6 @@ static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
 #include "samplers/IndependentBiasJoint.h"
 #include "samplers/GaussianJoint.h"
 #include "samplers/JointCluster.h"
-#include "samplers/CorrelatedBiasJoint.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -28,7 +27,6 @@ namespace jags {
     // JAGS module class
     class RoBMAModule : public Module {
       IndependentBiasJointFactory independent_bias_joint;
-      CorrelatedBiasJointFactory correlated_bias_joint;
       public:
         RoBMAModule();
         ~RoBMAModule();
@@ -64,8 +62,6 @@ namespace jags {
       insert(new ClusterMarker(false));
       insert(new ClusterMarker(true));
       insert(joint_cluster_factory());
-      insert(new DCorrelatedBiasJointMarker);
-      insert(&correlated_bias_joint);
     }
 
     // destructor (executed when unloading the module)

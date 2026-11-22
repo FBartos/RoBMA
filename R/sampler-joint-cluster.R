@@ -71,7 +71,7 @@
                      rows[["omega"]], rows[["mode"]], rows[["telescope"]],
                      mu[["gate"]], mu[["label"]], group[["label"]], "tau", "rho",
                      tau[["gate"]], tau[["label"]], rows[["PET"]], rows[["PEESE"]],
-                     n_studies, 5L)
+                     n_studies, 5L, as.integer(scale))
   )
   list(markers = markers, data = cluster_data)
 }
@@ -130,7 +130,8 @@
                 omega = 1, mode = 0, telescope = 0, PET = 0, PEESE = 0))
   }
 
-  if (!inherits(bias, "prior.bias_mixture") || !.sampler_joint_independent_selection(data) ||
+  if (!inherits(bias, "prior.bias_mixture") || length(bias) < 2L ||
+      !.sampler_joint_independent_selection(data) ||
       !.selection_retains_other_random(data) || !isTRUE(fit_data[["sel_sign"]] == 1) ||
       !isTRUE(fit_data[["sel_joint_singleton_n"]] == k)) return(NULL)
   spec     <- .data_selection_execution_plan(data)[["selection_spec"]]

@@ -8,11 +8,13 @@
 #include <rng/RNG.h>
 #include <sampler/GraphView.h>
 #include <sampler/Sampler.h>
+#include <sampler/SingletonGraphView.h>
 #include <util/nainf.h>
 
 #include <array>
 #include <memory>
 #include <numeric>
+#include <set>
 #include <stdexcept>
 #include <utility>
 
@@ -74,6 +76,55 @@ struct GeometryNodes {
   int location_sign = 0;
 };
 
+// Stop at stochastic inputs. Their values stay fixed while this sampler
+// changes other roots, even if their density depends on one of those roots.
+std::set<Node const *> stochastic_inputs(Node const *node)
+{
+  std::vector<Node const *> pending = {node};
+  std::set<Node const *> seen;
+  std::set<Node const *> inputs;
+  while (!pending.empty()) {
+    const Node *current = pending.back();
+    pending.pop_back();
+    if (!seen.insert(current).second) continue;
+    if (current->isStochastic()) {
+      inputs.insert(current);
+      continue;
+    }
+    const auto &parents = current->parents();
+    pending.insert(pending.end(), parents.begin(), parents.end());
+  }
+  return inputs;
+}
+
+bool nested_weight_child(StochasticNode *node, const GraphView &view, const Graph &graph,
+                         Node const *omega)
+{
+  const auto &parents = node->parents();
+  if (node->distribution()->name() != "dbeta" || node->length() != 1 || isObserved(node) ||
+      isBounded(node) || !isSupportFixed(node) || parents.size() != 2 ||
+      stochastic_inputs(omega).count(node) == 0) return false;
+  const auto *bias = view.nodes().front();
+  bool bias_dependent = false;
+  for (const Node *parent : parents) {
+    if (parent->length() != 1) return false;
+    for (const Node *input : stochastic_inputs(parent)) {
+      if (input != bias) return false;
+      bias_dependent = true;
+    }
+  }
+  if (!bias_dependent) return false;
+
+  // Downstream stochastic terms of the chart must already participate in the
+  // joint view, where they are separately validated as rows or markers.
+  SingletonGraphView chart(node, graph);
+  const auto &known = view.stochasticChildren();
+  for (const auto *child : chart.stochasticChildren()) {
+    if (std::find(known.begin(), known.end(), child) == known.end()) return false;
+  }
+  return true;
+}
+
 bool add_likelihood_row(StochasticNode const *child, const GraphView &view,
                         joint_bias::Geometry &geometry, GeometryNodes &nodes)
 {
@@ -123,7 +174,7 @@ bool add_likelihood_row(StochasticNode const *child, const GraphView &view,
   return true;
 }
 
-bool configure(StochasticNode const *marker, const GraphView &view,
+bool configure(StochasticNode const *marker, const GraphView &view, const Graph &graph,
                joint_bias::Geometry &geometry, GeometryNodes &nodes)
 {
   const auto &par = marker->parents();
@@ -165,13 +216,20 @@ bool configure(StochasticNode const *marker, const GraphView &view,
     }
   }
 
-  for (StochasticNode const *child : view.stochasticChildren()) {
+  bool nested_child = false;
+  for (auto *child : view.stochasticChildren()) {
     if (child == marker) continue;
     // Nuisance branches may keep BayesTools' gated sampler. A marker naming
     // one of our own roots would declare an incompatible second owner.
     if (child->distribution()->name() == "dbt_gate" && observed_zero(child) &&
         child->parents().size() == 2 &&
         std::find(owned.begin(), owned.end(), child->parents().front()) == owned.end()) continue;
+    // The shared weight is held fixed. GraphView evaluates its normalized
+    // Beta density at each proposed bias label as a child likelihood term.
+    if (!nested_child && nested_weight_child(child, view, graph, nodes.omega)) {
+      nested_child = true;
+      continue;
+    }
     if (!add_likelihood_row(child, view, geometry, nodes)) return false;
   }
   return !geometry.rows.empty() && nodes.omega->length() % n_bias == 0 &&
@@ -339,7 +397,7 @@ std::vector<Sampler *> IndependentBiasJointFactory::makeSamplers(
     auto view = std::make_unique<GraphView>(roots, graph, true);
     joint_bias::Geometry geometry;
     GeometryNodes geometry_nodes;
-    if (!configure(marker, *view, geometry, geometry_nodes)) continue;
+    if (!configure(marker, *view, graph, geometry, geometry_nodes)) continue;
     auto sampler = std::make_unique<IndependentBiasJoint>(std::move(view), std::move(geometry),
                                                          std::move(geometry_nodes));
     std::vector<Sampler *> out = {sampler.get()};

@@ -19,7 +19,6 @@ ROBMA_OBJECTS = glmm-aghq.o \
 		  samplers/IndependentBiasJoint.o \
 		  samplers/GaussianJoint.o \
 		  samplers/JointCluster.o \
-		  samplers/CorrelatedBiasJoint.o \
 		  samplers/CorrectedSampler.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
@@ -39,14 +38,12 @@ samplers/CorrectedSampler.o: samplers/CorrectedSampler.h selnorm/selnorm-mv.h
 samplers/CoarseCorrectedBlock.o: samplers/CoarseCorrectedBlock.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
 RoBMA.o: samplers/CoarseCorrectedSlice.h samplers/CoarseCorrectedBlock.h
 RoBMA.o samplers/IndependentBiasJoint.o: samplers/IndependentBiasJoint.h
-samplers/IndependentBiasJoint.o samplers/CorrelatedBiasJoint.o: samplers/IndependentBiasProposal.h selnorm/selnorm-tail.h
-samplers/IndependentBiasJoint.o samplers/CorrelatedBiasJoint.o samplers/JointCluster.o: distributions/selnorm-jags-bounds.h
+samplers/IndependentBiasJoint.o: samplers/IndependentBiasProposal.h selnorm/selnorm-tail.h
+samplers/IndependentBiasJoint.o samplers/JointCluster.o: distributions/selnorm-jags-bounds.h
 RoBMA.o samplers/GaussianJoint.o: samplers/GaussianJoint.h
 samplers/GaussianJoint.o: samplers/GaussianJointKernel.h
 RoBMA.o samplers/JointCluster.o: samplers/JointCluster.h
 samplers/JointCluster.o: selnorm/selnorm.h
-RoBMA.o samplers/CorrelatedBiasJoint.o: samplers/CorrelatedBiasJoint.h
-samplers/CorrelatedBiasJoint.o: samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm.h selnorm/selnorm-mv.h selnorm/selnorm-fma.h
 r-selnorm.o: samplers/CorrectedSampler.h samplers/CoarseCorrectedBlock.h selnorm/selnorm-mv.h
 r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h
 
