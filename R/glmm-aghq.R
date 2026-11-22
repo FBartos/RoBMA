@@ -447,7 +447,11 @@
     row <- refine(s, recovery, endpoint_first)
     if (inherits(row, "condition") && alternate) {
       other <- refine(s, recovery, !endpoint_first)
-      if (!inherits(other, "RoBMA_glmm_endpoint_grid_unavailable")) row <- other
+      # If both rules refuse, keep the endpoint rule's refinement history
+      # irrespective of trial order. An unrepresentable endpoint grid has
+      # no such history, so report the ordinary rule's diagnostic instead.
+      if (!inherits(other, "condition") || inherits(row, "RoBMA_glmm_endpoint_grid_unavailable") ||
+          (!endpoint_first && !inherits(other, "RoBMA_glmm_endpoint_grid_unavailable"))) row <- other
     }
     if (inherits(row, "condition")) stop(row)
     value[s] <- row[["value"]]

@@ -304,6 +304,15 @@ test_that("row recovery starts with the rule that resolved the nuisance axis", {
     BayesTools::prior("gamma", list(2,1)), control, c(TRUE, TRUE))
   expect_equal(out$value, c(0,0))
   expect_true(length(single_row_rules) > 0L && all(single_row_rules))
+
+  # Both rules exhaust the theta ladder, but only the endpoint grid
+  # resolved the nuisance axis. Its diagnostic survives the retry order.
+  failed <- tryCatch(.glmm_grid_refine_column(
+    function(rows, nt, nu, endpoint) rep(1/sqrt(nt) + if (endpoint) 0 else 1/nu, length(rows)),
+    2L, "pois", 1L, BayesTools::prior("gamma", list(2, 1)), control, c(TRUE, TRUE)),
+    error = identity)
+  expect_s3_class(failed, "RoBMA_glmm_grid_nonconvergence")
+  expect_true(all(failed$nuisance_changes == 0))
 })
 
 test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {
