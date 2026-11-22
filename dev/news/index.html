@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9016</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9017</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -225,7 +225,7 @@
 <ul><li>rewrites the package around the unified <code>brma</code> class hierarchy. Single-model fits now use <code><a href="../reference/brma.html">brma()</a></code>, <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code>, <code><a href="../reference/bselmodel.html">bselmodel()</a></code>, <code><a href="../reference/bPET.html">bPET()</a></code>, and <code><a href="../reference/bPEESE.html">bPEESE()</a></code>; model-averaged fits use <code><a href="../reference/BMA.html">BMA()</a></code>, <code><a href="../reference/BMA.glmm.html">BMA.glmm()</a></code>, and <code><a href="../reference/RoBMA.html">RoBMA()</a></code>.</li>
 <li>removes the legacy <code>RoBMA.reg()</code>, <code>NoBMA()</code>, <code>NoBMA.reg()</code>, <code>BiBMA()</code>, and <code>BiBMA.reg()</code> constructors. Use <code>mods</code>, <code>scale</code>, and <code>cluster</code> in the new constructors, <code><a href="../reference/BMA.html">BMA()</a></code> for no-bias normal-likelihood model averaging, and <code><a href="../reference/BMA.glmm.html">BMA.glmm()</a></code> for GLMM model averaging.</li>
 <li>replaces old input aliases such as <code>d</code>, <code>r</code>, <code>logOR</code>, <code>OR</code>, <code>z</code>, <code>y</code>, <code>se</code>, <code>v</code>, <code>n</code>, <code>study_names</code>, <code>study_ids</code>, <code>weight</code>, and <code>transformation</code> with <code>yi</code>, <code>vi</code>/<code>sei</code>, <code>ni</code>, <code>slab</code>, <code>cluster</code>, <code>weights</code>, <code>measure</code>, <code>output_measure</code>, and <code>transform</code>.</li>
-<li>removes legacy helper APIs including <code>combine_data()</code>, <code>check_setup()</code>, <code>extract_posterior()</code>, <code>marginal_summary()</code>, <code>marginal_plot()</code>, <code>plot_models()</code>, <code>adjusted_effect()</code>, <code>as_zcurve()</code>, and the old z-curve plotting methods.</li>
+<li>removes legacy helper APIs including <code>combine_data()</code>, <code>check_setup()</code>, <code>extract_posterior()</code>, <code>marginal_summary()</code>, <code>marginal_plot()</code>, <code><a href="../reference/plot_models.html">plot_models()</a></code>, <code>adjusted_effect()</code>, <code>as_zcurve()</code>, and the old z-curve plotting methods.</li>
 <li>normal-likelihood fitting functions now require an explicit <code>measure</code> for fitted models. Use <code>measure = "GEN"</code> for generic effect sizes without a known unit-information scale.</li>
 <li>
 <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> for <code>brma</code> objects now focuses on extending MCMC samples, updating labels, and refreshing cached quantities, not changing model structure.</li>
@@ -557,7 +557,7 @@
 <div class="section level3">
 <h3 id="features-2-1">Features<a class="anchor" aria-label="anchor" href="#features-2-1"></a></h3>
 <ul><li>adding <code><a href="../reference/interpret.html">interpret()</a></code> function (issue <a href="https://github.com/FBartos/RoBMA/issues/11" class="external-link">#11</a>)</li>
-<li>adding effect size transformation via <code>output_scale</code> argument to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> and <code>plot_models()</code> functions</li>
+<li>adding effect size transformation via <code>output_scale</code> argument to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> and <code><a href="../reference/plot_models.html">plot_models()</a></code> functions</li>
 <li>better handling of effect size transformations and scaling - BayesTools style back-end functions with Jacobian transformations</li>
 </ul></div>
 </div>
@@ -577,7 +577,7 @@
 <li>better and improved automatic fitting procedure now enabled by default (can be turned of with <code>autofit = FALSE</code>)</li>
 <li>prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher’s z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen’s d by default, but both of them can be overwritten with the <code>prior_scale</code> and <code>transformation</code> arguments),</li>
 <li>new prior distributions, e.g., beta or fixed weight functions,</li>
-<li>estimates from individual models are now plotted with the <code>plot_models()</code> function and the forest plot can be obtained with the <code><a href="https://wviechtb.github.io/metafor/reference/forest.html" class="external-link">forest()</a></code> function,</li>
+<li>estimates from individual models are now plotted with the <code><a href="../reference/plot_models.html">plot_models()</a></code> function and the forest plot can be obtained with the <code><a href="https://wviechtb.github.io/metafor/reference/forest.html" class="external-link">forest()</a></code> function,</li>
 <li>the posterior distribution plots for the individual weights are no able supported, however, the weightfunction and the PET-PEESE publication bias adjustments can be visualized with the <code>plot.RoBMA()</code> function and <code>parameter = "weightfunction"</code> and <code>parameter = "PET-PEESE"</code>.</li>
 </ul></div>
 </div>

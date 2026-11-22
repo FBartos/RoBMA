@@ -50,9 +50,11 @@ combinations and posterior probabilities.
 
 ## Details
 
-Model families include ordinary mixtures, spike-and-slab priors, and
-declared Bernoulli inclusion gates of random-effect components. Fixed
-components without a model choice are omitted.
+Model families include ordinary mixtures, spike-and-slab priors,
+mixtures and spike-and-slab priors on ordered factor totals, mixtures on
+the heterogeneity allocation, and declared Bernoulli inclusion gates of
+random-effect components. Fixed components without a model choice are
+omitted.
 
 ## Examples
 

@@ -361,8 +361,10 @@ CRAN release: 2026-05-07
   `weights`, `measure`, `output_measure`, and `transform`.
 - removes legacy helper APIs including `combine_data()`,
   `check_setup()`, `extract_posterior()`, `marginal_summary()`,
-  `marginal_plot()`, `plot_models()`, `adjusted_effect()`,
-  `as_zcurve()`, and the old z-curve plotting methods.
+  `marginal_plot()`,
+  [`plot_models()`](https://fbartos.github.io/RoBMA/dev/reference/plot_models.md),
+  `adjusted_effect()`, `as_zcurve()`, and the old z-curve plotting
+  methods.
 - normal-likelihood fitting functions now require an explicit `measure`
   for fitted models. Use `measure = "GEN"` for generic effect sizes
   without a known unit-information scale.
@@ -923,7 +925,8 @@ CRAN release: 2021-11-03
   function (issue [\#11](https://github.com/FBartos/RoBMA/issues/11))
 - adding effect size transformation via `output_scale` argument to
   [`plot()`](https://rdrr.io/r/graphics/plot.default.html) and
-  `plot_models()` functions
+  [`plot_models()`](https://fbartos.github.io/RoBMA/dev/reference/plot_models.md)
+  functions
 - better handling of effect size transformations and scaling -
   BayesTools style back-end functions with Jacobian transformations
 
@@ -970,7 +973,8 @@ compatibility.
   arguments),
 - new prior distributions, e.g., beta or fixed weight functions,
 - estimates from individual models are now plotted with the
-  `plot_models()` function and the forest plot can be obtained with the
+  [`plot_models()`](https://fbartos.github.io/RoBMA/dev/reference/plot_models.md)
+  function and the forest plot can be obtained with the
   [`forest()`](https://wviechtb.github.io/metafor/reference/forest.html)
   function,
 - the posterior distribution plots for the individual weights are no

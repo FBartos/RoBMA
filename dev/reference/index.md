@@ -263,6 +263,8 @@
 - [`plot(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/dev/reference/plot.brma.md)
   [`lines(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/dev/reference/plot.brma.md)
   : Plots brma Object
+- [`plot_models()`](https://fbartos.github.io/RoBMA/dev/reference/plot_models.md)
+  : Plot posterior model probabilities
 - [`forest(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/dev/reference/forest.md)
   [`forest(`*`<metafor_forest.brma>`*`)`](https://fbartos.github.io/RoBMA/dev/reference/forest.md)
   : Forest Plot for brma Objects Using metafor
