@@ -843,9 +843,8 @@
 
   } else {
 
-    if (!extension) {
-      fit <- .sampler_request_record(fit, declarations[["requested"]])
-    }
+    requested <- if (extension) NULL else declarations[["requested"]]
+    fit <- .sampler_request_record(fit, requested)
     attr(fit, "selection_runtime") <- attr(
       attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE
     )

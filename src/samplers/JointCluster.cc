@@ -4,6 +4,7 @@
 
 #include <JRmath.h>
 #include <distribution/Distribution.h>
+#include <graph/ScalarLogicalNode.h>
 #include <graph/StochasticNode.h>
 #include <module/ModuleError.h>
 #include <rng/RNG.h>
@@ -110,6 +111,64 @@ bool beta_parameters(StochasticNode const *node)
 double scalar(Node const *node, unsigned int chain)
 {
   return node->value(chain)[0];
+}
+
+double const *categorical_weights(Node const *node, unsigned long count)
+{
+  auto const *cat = dynamic_cast<StochasticNode const *>(node);
+  if (!cat || cat->distribution()->name() != "dcat" || cat->length() != 1 ||
+      cat->lowerBound() || cat->upperBound() || cat->parents().size() != 1) return nullptr;
+  Node const *weights = cat->parents()[0];
+  if (!weights->isFixed() || weights->length() != count) return nullptr;
+  double const *p = weights->value(0);
+  double total = 0;
+  for (unsigned long i = 0; i < count; ++i) {
+    if (!(p[i] > 0 && std::isfinite(p[i]))) return nullptr;
+    total += p[i];
+  }
+  return std::isfinite(total) ? p : nullptr;
+}
+
+bool fixed_value(Node const *node, double value)
+{
+  return fixed_scalar(node) && scalar(node, 0) == value;
+}
+
+// Use JAGS' operation without the BUGS variable names, then match the
+// operands by identity. A dependency alone does not certify the alias.
+bool binary(Node const *node, const char *syntax)
+{
+  return dynamic_cast<ScalarLogicalNode const *>(node) != nullptr &&
+    node->parents().size() == 2 && node->deparse({"a", "b"}) == syntax;
+}
+
+bool gate_comparison(Node const *node, Node const *gate_node, double label)
+{
+  return binary(node, "(a==b)") && node->parents()[0] == gate_node &&
+    fixed_value(node->parents()[1], label);
+}
+
+bool matches_total_sd(Node const *physical, Node const *raw, Node const *gate_node, double label)
+{
+  if (physical == raw) return true;
+  if (!categorical_weights(gate_node, 2) || !binary(physical, "(a+b)")) return false;
+  const auto active = static_cast<unsigned int>(label) - 1;
+  Node const *slab = physical->parents()[active];
+  Node const *spike = physical->parents()[1 - active];
+  return binary(slab, "(a*b)") && slab->parents()[0] == raw &&
+    gate_comparison(slab->parents()[1], gate_node, label) &&
+    binary(spike, "(a*b)") && fixed_value(spike->parents()[0], 0) &&
+    gate_comparison(spike->parents()[1], gate_node, 3 - label);
+}
+
+bool matches_allocation(Node const *physical, Node const *raw)
+{
+  if (physical == raw) return true;
+  if (!binary(physical, "(a*b)") || physical->parents()[0] != raw) return false;
+  Node const *indicator = physical->parents()[1];
+  return fixed_value(indicator, 1) ||
+    (binary(indicator, "(a==b)") && fixed_value(indicator->parents()[1], 1) &&
+     categorical_weights(indicator->parents()[0], 1));
 }
 
 // Lower triangular Cholesky and triangular solves for the small fixed-effect
@@ -404,14 +463,8 @@ public:
   double logDensity() const override { return _view.logFullConditional(_chain); }
   void update(RNG *rng) override
   {
-    const double previous = value();
-    try {
-      if (!updateStep(rng) && state() != SLICER_OK) {
-        throwNodeError(_view.node(), "Joint cluster scalar refresh has a nonfinite density");
-      }
-    } catch (...) {
-      setValue(previous);
-      throw;
+    if (!updateStep(rng) && state() != SLICER_OK) {
+      throwNodeError(_view.node(), "Joint cluster scalar refresh has a nonfinite density");
     }
   }
 };
@@ -424,30 +477,24 @@ class JointCluster : public MutableSampleMethod {
   std::vector<std::unique_ptr<ScalarRefresh>> _slices;
   bool _adapting = true;
   unsigned long _ticks = 0;
-  Vec _current, _trial;
+  Vec _entry, _current, _trial;
 
   void finite_refresh(RNG *rng)
   {
     auto const &view = *_singletons[0];
-    double previous = scalar(view.node(), _chain);
     double labels[2] = {1, 2};
     std::array<double, 2> scores;
-    try {
-      for (unsigned int k = 0; k < 2; ++k) {
-        view.setValue(&labels[k], 1, _chain);
-        scores[k] = view.logFullConditional(_chain);
-      }
-      double maximum = std::max(scores[0], scores[1]);
-      if (!std::isfinite(maximum) || std::isnan(scores[0]) || std::isnan(scores[1])) {
-        throwNodeError(view.node(), "Joint cluster gate refresh has a nonfinite density");
-      }
-      double a = std::exp(scores[0] - maximum);
-      double b = std::exp(scores[1] - maximum);
-      view.setValue(&labels[rng->uniform() * (a + b) < a ? 0 : 1], 1, _chain);
-    } catch (...) {
-      view.setValue(&previous, 1, _chain);
-      throw;
+    for (unsigned int k = 0; k < 2; ++k) {
+      view.setValue(&labels[k], 1, _chain);
+      scores[k] = view.logFullConditional(_chain);
     }
+    double maximum = std::max(scores[0], scores[1]);
+    if (!std::isfinite(maximum) || std::isnan(scores[0]) || std::isnan(scores[1])) {
+      throwNodeError(view.node(), "Joint cluster gate refresh has a nonfinite density");
+    }
+    double a = std::exp(scores[0] - maximum);
+    double b = std::exp(scores[1] - maximum);
+    view.setValue(&labels[rng->uniform() * (a + b) < a ? 0 : 1], 1, _chain);
   }
 
   void moderator_refresh(RNG *rng)
@@ -466,14 +513,9 @@ class JointCluster : public MutableSampleMethod {
       // The factor slab is dormant. Check the likelihood as well so mistaken
       // declarations cannot turn this shortcut into an unconditional redraw.
       double old_score = view.logLikelihood(_chain);
-      try {
-        view.setValue(trial, _chain);
-        double new_score = view.logLikelihood(_chain);
-        if (!std::isnan(new_score) && std::log(rng->uniform()) < new_score - old_score) return;
-      } catch (...) {
-        view.setValue(original, _chain);
-        throw;
-      }
+      view.setValue(trial, _chain);
+      double new_score = view.logLikelihood(_chain);
+      if (!std::isnan(new_score) && std::log(rng->uniform()) < new_score - old_score) return;
       view.setValue(original, _chain);
       return;
     }
@@ -482,23 +524,18 @@ class JointCluster : public MutableSampleMethod {
     double cutoff = view.logLikelihood(_chain) - rng->exponential();
     double angle = full_turn * rng->uniform();
     double lo = angle - full_turn, hi = angle;
-    try {
-      for (;;) {
-        for (std::size_t j = 0; j < trial.size(); ++j) {
-          double center = _data->prior_mean[j + 1];
-          trial[j] = center + (original[j] - center) * std::cos(angle) + noise[j] * std::sin(angle);
-        }
-        view.setValue(trial, _chain);
-        if (view.logLikelihood(_chain) >= cutoff) return;
-        if (angle < 0) lo = angle;
-        else hi = angle;
-        double next = lo + (hi - lo) * rng->uniform();
-        if (next == angle || next == 0 || next <= lo || next >= hi) break;
-        angle = next;
+    for (;;) {
+      for (std::size_t j = 0; j < trial.size(); ++j) {
+        double center = _data->prior_mean[j + 1];
+        trial[j] = center + (original[j] - center) * std::cos(angle) + noise[j] * std::sin(angle);
       }
-    } catch (...) {
-      view.setValue(original, _chain);
-      throw;
+      view.setValue(trial, _chain);
+      if (view.logLikelihood(_chain) >= cutoff) return;
+      if (angle < 0) lo = angle;
+      else hi = angle;
+      double next = lo + (hi - lo) * rng->uniform();
+      if (next == angle || next == 0 || next <= lo || next >= hi) break;
+      angle = next;
     }
     view.setValue(original, _chain);
   }
@@ -508,14 +545,9 @@ class JointCluster : public MutableSampleMethod {
     if (!std::isfinite(adjustment) ||
         !std::all_of(_trial.begin(), _trial.end(), [](double x) { return std::isfinite(x); })) return;
     double before = _view.logFullConditional(_chain);
-    try {
-      _view.setValue(_trial, _chain);
-      double after = _view.logFullConditional(_chain);
-      if (std::isfinite(after) && std::log(rng->uniform()) < after - before + adjustment) return;
-    } catch (...) {
-      _view.setValue(_current, _chain);
-      throw;
-    }
+    _view.setValue(_trial, _chain);
+    double after = _view.logFullConditional(_chain);
+    if (std::isfinite(after) && std::log(rng->uniform()) < after - before + adjustment) return;
     _view.setValue(_current, _chain);
   }
 
@@ -598,7 +630,8 @@ class JointCluster : public MutableSampleMethod {
 public:
   JointCluster(GraphView const &view, Graph const &graph, unsigned int chain,
                std::shared_ptr<const FitData> data)
-    : _view(view), _chain(chain), _data(std::move(data)), _current(view.length()), _trial(view.length())
+    : _view(view), _chain(chain), _data(std::move(data)), _entry(view.length()),
+      _current(view.length()), _trial(view.length())
   {
     for (StochasticNode *node : view.nodes()) {
       _singletons.push_back(std::make_unique<SingletonGraphView>(node, graph));
@@ -611,13 +644,23 @@ public:
 
   void update(RNG *rng) override
   {
-    finite_refresh(rng);
-    for (auto &slice : _slices) slice->update(rng);
-    moderator_refresh(rng);
-    if (!_adapting && ++_ticks == _data->spacing) {
-      _ticks = 0;
-      group_update(rng);
-      if (_data->scale) scale_update(rng);
+    _view.getValue(_entry, _chain);
+    const auto ticks = _ticks;
+    try {
+      finite_refresh(rng);
+      for (auto &slice : _slices) slice->update(rng);
+      moderator_refresh(rng);
+      if (!_adapting && ++_ticks == _data->spacing) {
+        _ticks = 0;
+        group_update(rng);
+        if (_data->scale) scale_update(rng);
+      }
+    } catch (...) {
+      // Restore the owned coordinates and our cadence. JAGS retains the
+      // RNG stream and any adaptation already recorded by its slices.
+      _ticks = ticks;
+      _view.setValue(_entry, _chain);
+      throw;
     }
   }
 
@@ -718,12 +761,9 @@ bool collect_nodes(std::vector<Member> const &members, FitData &data,
       std::any_of(gamma.begin(), gamma.end(), [](auto node) { return node == nullptr; })) return false;
 
   auto gate_node = single[gate];
-  auto &parents = gate_node->parents();
-  if (gate_node->distribution()->name() != "dcat" || gate_node->length() != 1 ||
-      gate_node->lowerBound() || gate_node->upperBound() ||
-      parents.size() != 1 || parents[0]->length() != 2 || !parents[0]->isFixed()) return false;
-  double a = parents[0]->value(0)[0], b = parents[0]->value(0)[1];
-  if (!(a > 0 && b > 0 && std::isfinite(a + b))) return false;
+  const double *weights = categorical_weights(gate_node, 2);
+  if (!weights) return false;
+  double a = weights[0], b = weights[1];
   data.log_gate = {std::log(a) - std::log(a + b), std::log(b) - std::log(a + b)};
   if (single[intercept]->length() != 1 || single[moderator]->length() != data.width ||
       !normal_parameters(single[intercept], data.prior_mean, data.precision) ||
@@ -739,7 +779,10 @@ bool collect_nodes(std::vector<Member> const &members, FitData &data,
   if (data.scale) {
     Vec mean, precision;
     if (!normal_parameters(single[total_sd], mean, precision, true) ||
-        !beta_parameters(single[allocation])) return false;
+        !beta_parameters(single[allocation]) ||
+        !matches_total_sd(data.setup[physical_tau], single[total_sd], data.setup[heterogeneity_gate],
+                          scalar(data.setup[heterogeneity_label], 0)) ||
+        !matches_allocation(data.setup[physical_rho], single[allocation])) return false;
     nodes.push_back(single[total_sd]);
     nodes.push_back(single[allocation]);
   }

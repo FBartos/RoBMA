@@ -67,30 +67,36 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
 })
 
 .cluster_provider_model <- function(scale = FALSE, declare_scales = scale, observed = list(),
-                                    second_study = "u[2]", nonlinear = FALSE, tags = TRUE) {
+                                    second_study = "u[2]", location = "a", tags = TRUE,
+                                    scale_aliases = "", heterogeneity_gate = "2",
+                                    heterogeneity_label = 2L, scale_members = c("s", "r"),
+                                    cadence = 5L, initial = list()) {
 
-  location <- if (nonlinear) "sqrt(a)" else "a"
   scales <- if (scale) "s ~ dnorm(0, 1) T(0,)
                        r ~ dbeta(2, 2)" else ""
-  between <- if (scale) "s * sqrt(r)" else ".3"
-  precision <- if (scale) "1 / (1 + pow(s, 2) * (1 - r))" else "1"
-  physical <- if (scale) "s, r" else ".5, .36"
+  if (scale && !nzchar(scale_aliases)) scale_aliases <- "tau_value <- s
+                                                      rho_value <- r"
+  between <- if (scale) "tau_value * sqrt(rho_value)" else ".3"
+  precision <- if (scale) "1 / (1 + pow(tau_value, 2) * (1 - rho_value))" else "1"
+  physical <- if (scale) "tau_value, rho_value" else ".5, .36"
   declaration <- if (tags) paste0("
     m1 <- robma_cluster_member(g, 1, 1)
     m2 <- robma_cluster_member(a, 2, 1)
     m3 <- robma_cluster_member(b, 3, 1)
     m4 <- robma_cluster_member(u[1], 4, 1)
     m5 <- robma_cluster_member(", second_study, ", 4, 2)\n",
-    if (declare_scales) "m6 <- robma_cluster_member(s, 5, 1)
-                         m7 <- robma_cluster_member(r, 6, 1)\n",
+    if (declare_scales) paste0("m6 <- robma_cluster_member(", scale_members[1L], ", 5, 1)
+                               m7 <- robma_cluster_member(", scale_members[2L], ", 6, 1)\n"),
     "setup <- robma_cluster_setup(g, X, group, y, ones, ones, ones, -1, 1, 1, 0, 0, 1, 1, 2,
-                                  ", physical, ", 2, 2, 0, 0, 2, 5, ", as.integer(scale), ")\n"
+                                  ", physical, ", ", heterogeneity_gate, ", ", heterogeneity_label,
+                                  ", 0, 0, 2, ", cadence, ", ", as.integer(scale), ")\n"
   ) else ""
   model <- paste0("model {
     g ~ dcat(c(1, 1))
     a ~ dnorm(0, 1)
     b[1:2] ~ dmnorm(zero, P)
     ", scales, "
+    ", scale_aliases, "
     for (j in 1:2) { u[j] ~ dnorm(0, 1) }
     for (i in 1:4) {
       y[i] ~ dnorm(", location, " + equals(g, 2) * (b[1]*X[i] + b[2]*X[i+4]) + ",
@@ -101,7 +107,9 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
   data <- c(list(zero = c(0, 0), P = diag(2), group = c(1, 1, 2, 2),
                  y = c(.3, .25, -.13, .08), X = c(0, 1, 0, 1, 1, 0, 1, 0)), observed)
   if (tags) data[["ones"]] <- rep(1, 4)
-  inits <- list(a = 1e-6, g = 2L, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 7301L)
+  inits <- utils::modifyList(list(a = 1e-6, g = 2L, .RNG.name = "base::Mersenne-Twister",
+                                .RNG.seed = 7301L), initial)
+  if (!is.null(inits[[".RNG.state"]])) inits[[".RNG.seed"]] <- NULL
   con <- textConnection(model)
   on.exit(close(con))
   rjags::jags.model(con, data = data, inits = inits, n.chains = 1L, n.threads = 1L,
@@ -127,19 +135,137 @@ test_that("a clustered provider must supply distinct free roots for its requeste
   decline(.cluster_provider_model(scale = TRUE, observed = list(s = .5, r = .36)), roots)
 })
 
-test_that("a failed clustered scalar refresh restores its entry value", {
+test_that("a failed clustered update restores every owned coordinate", {
 
   skip_if_not_installed("rjags")
-  live <- .cluster_provider_model(nonlinear = TRUE)
-  expect_setequal(rjags::list.samplers(live)[["RoBMA::JointCluster"]],
-                   c("g", "a", "b", "u[1]", "u[2]"))
-  stats::update(live, n.iter = 1L, progress.bar = "none")
-  live$sync()
-  entry <- live$state()[[1L]][["a"]]
-  expect_true(entry > 0)
-  expect_error(stats::update(live, n.iter = 1L, progress.bar = "none"), "Invalid parent values")
-  live$sync()
-  expect_identical(live$state()[[1L]][["a"]], entry)
+  state <- function(model, internal = FALSE) {
+    model$sync()
+    model$state(internal = internal)[[1L]]
+  }
+  step <- function(model) {
+    tryCatch({
+      stats::update(model, n.iter = 1L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+  }
+  cases <- list(
+    list(location = "sqrt(a)"),
+    list(location = "a + sqrt(u[2])", initial = list(u = c(.1, .05))),
+    list(scale = TRUE, location = "a + sqrt(r - .35)",
+         initial = list(s = .5, r = .36, u = c(.1, .05)))
+  )
+  for (case in cases) {
+    live <- do.call(.cluster_provider_model, case)
+    owned <- c("g", "a", "b", "u[1]", "u[2]", if (isTRUE(case$scale)) c("s", "r"))
+    expect_named(rjags::list.samplers(live), "RoBMA::JointCluster")
+    expect_setequal(rjags::list.samplers(live)[[1L]], owned)
+
+    # Freeze the scalar widths at their initial values. A replay can then
+    # start from the current RNG state without reconstructing adaptation.
+    rjags::adapt(live, n.iter = 0L, end.adaptation = TRUE)
+    error <- NULL
+    for (iteration in 1:5) {
+      entry <- state(live)
+      error <- step(live)
+      if (!is.null(error)) break
+    }
+    expect_match(error, "Invalid parent values")
+    expect_identical(state(live), entry)
+    # Both models take the same refresh-only path before the grouped move
+    # is due, even if the fresh model starts at a different cadence tick.
+    if (iteration < 5L) {
+      case$initial <- state(live, internal = TRUE)
+      replay <- do.call(.cluster_provider_model, case)
+      rjags::adapt(replay, n.iter = 0L, end.adaptation = TRUE)
+      expect_identical(step(live), step(replay))
+      expect_identical(state(live, internal = TRUE), state(replay, internal = TRUE))
+    }
+  }
+})
+
+test_that("a failed grouped proposal keeps the clustered move due on the next sweep", {
+
+  skip_if_not_installed("rjags")
+  model <- function(cadence, initial = list(u = c(.1, 1), .RNG.seed = 210L)) {
+    live <- .cluster_provider_model(location = "a + sqrt(u[2] + .85)",
+                                    cadence = cadence, initial = initial)
+    rjags::adapt(live, n.iter = 0L, end.adaptation = TRUE)
+    live
+  }
+  state <- function(model, internal = TRUE) {
+    model$sync()
+    model$state(internal = internal)[[1L]]
+  }
+  advance <- function(model, n = 1L) {
+    stats::update(model, n.iter = n, progress.bar = "none")
+  }
+
+  live <- model(cadence = 3L)
+  refresh_only <- model(cadence = 100L)
+  advance(live, 2L)
+  advance(refresh_only, 2L)
+  expect_identical(state(live), state(refresh_only))
+  entry <- state(live, internal = FALSE)
+  expect_no_error(advance(refresh_only))
+  expect_error(advance(live), "Invalid parent values")
+  expect_identical(state(live, internal = FALSE), entry)
+
+  # Rebuild from the consumed RNG stream with and without a grouped move due.
+  initial <- state(live)
+  due <- model(cadence = 1L, initial = initial)
+  not_due <- model(cadence = 100L, initial = initial)
+  advance(due)
+  advance(not_due)
+  expect_false(identical(state(due), state(not_due)))
+  advance(live)
+  expect_identical(state(live), state(due))
+})
+
+test_that("clustered scales resolve the declared physical aliases exactly", {
+
+  skip_if_not_installed("rjags")
+  roots <- c("g", "a", "b", "u[1]", "u[2]", "s", "r")
+  aliases <- "h ~ dcat(c(1, 1))
+              rho_gate ~ dcat(c(1))
+              tau_value <- 0 * (h == 1) + s * (h == 2)
+              rho_value <- r * (rho_gate == 1)"
+  for (active in 1:2) {
+    syntax <- if (active == 1L) {
+      sub("0 * (h == 1) + s * (h == 2)", "s * (h == 1) + 0 * (h == 2)",
+          aliases, fixed = TRUE)
+    } else aliases
+    live <- .cluster_provider_model(scale = TRUE, scale_aliases = syntax,
+      heterogeneity_gate = "h", heterogeneity_label = active, initial = list(h = 3L - active))
+    expect_setequal(rjags::list.samplers(live)[["RoBMA::JointCluster"]], roots)
+  }
+
+  common <- list(scale = TRUE, heterogeneity_gate = "h", scale_aliases = aliases)
+  declined <- list(
+    utils::modifyList(common, list(heterogeneity_label = 1L)),
+    utils::modifyList(common, list(heterogeneity_gate = "other_h",
+      scale_aliases = paste(aliases, "other_h ~ dcat(c(1, 1))", sep = "\n"),
+      location = "a + (other_h - other_h)")),
+    utils::modifyList(common, list(scale_aliases = sub("0 *", ".1 *", aliases, fixed = TRUE))),
+    utils::modifyList(common, list(scale_aliases = sub("rho_gate == 1", "h == 1", aliases, fixed = TRUE))),
+    utils::modifyList(common, list(scale_members = c("aux_s", "r"),
+      scale_aliases = paste(aliases, "aux_s ~ dnorm(0, 1) T(0,)", sep = "\n"),
+      location = "a + (aux_s - aux_s)", initial = list(aux_s = .5))),
+    utils::modifyList(common, list(scale_members = c("s", "aux_r"),
+      scale_aliases = paste(aliases, "aux_r ~ dbeta(2, 2)", sep = "\n"),
+      location = "a + (aux_r - aux_r)", initial = list(aux_r = .36))),
+    utils::modifyList(common, list(scale_members = c("r", "s")))
+  )
+  for (case in declined) {
+    tagged <- do.call(.cluster_provider_model, case)
+    stock <- do.call(.cluster_provider_model, c(case, list(tags = FALSE)))
+    expect_identical(rjags::list.samplers(tagged), rjags::list.samplers(stock))
+    draw <- function(model) {
+      rjags::adapt(model, n.iter = 100L, end.adaptation = TRUE)
+      rjags::coda.samples(model, c("g", "a", "b", "u", "s", "r", "h"), n.iter = 40L, thin = 2L)
+    }
+    expect_identical(draw(tagged), draw(stock))
+    expect_identical(tagged$state(internal = TRUE), stock$state(internal = TRUE))
+  }
 })
 
 test_that("declined clustered tags preserve stock samplers, draws and RNG state", {
