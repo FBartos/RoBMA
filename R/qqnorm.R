@@ -61,6 +61,7 @@
 #' select draws deterministically and are ignored for other residual types.
 #' @param xlim x-axis limits. If not specified, limits are computed from data.
 #' @param ylim y-axis limits. If not specified, limits are computed from data.
+#' Unrepresentable automatic limits raise \code{RoBMA_qq_range_unavailable}.
 #' @param xlab title for the x-axis. If not specified, defaults to
 #' \code{"Theoretical Quantiles"}.
 #' @param ylab title for the y-axis. If not specified, defaults to

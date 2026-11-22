@@ -13,7 +13,19 @@ test_that("GVIF retains finite determinant ratios and diagnoses singular correla
   expect_equal(.vif_gvif(correlation, list(1L, 2L)),
                c(1, 1 + rho^2) / (1 - rho^2), tolerance = 1e-10)
   expect_error(.vif_gvif(matrix(1, 2, 2), list(1L)), class = "RoBMA_vif_unavailable")
+  expect_error(.vif_gvif(diag(c(1, 0)), list(1L)), class = "RoBMA_vif_unavailable")
   expect_identical(.vif_gvif(correlation, list(1:500)), 1)
+})
+
+test_that("VIF identifies aliased design columns before evaluating draws", {
+
+  dat <- data.frame(yi = c(.2, -.1, .4, .3, .1, -.2), sei = rep(.2, 6), x = 1:6)
+  dat$duplicate <- 2 * dat$x
+  fit <- suppressWarnings(brma.norm(yi = yi, sei = sei, mods = ~ x + duplicate,
+    data = dat, measure = "SMD", prior_heterogeneity = prior("point", list(0)),
+    chains = 2, adapt = 100, burnin = 100, sample = 100, seed = 101,
+    silent = TRUE, parallel = FALSE, autofit = FALSE))
+  expect_error(vif(fit), "Aliased columns:.*(duplicate|x)", class = "RoBMA_vif_unavailable")
 })
 
 test_that("VIF rejects data-only objects", {

@@ -136,6 +136,8 @@ vif <- function(object, ...) {
 #' The condition carries the draw positions (\code{rows}) and their
 #' \code{reciprocal_condition}.
 #'
+#' GVIF is undefined for a rank-deficient fitted design. Aliased columns
+#' are identified before evaluating individual posterior draws.
 #' An unrepresentable GVIF or a coefficient correlation matrix that is not
 #' positive definite at working precision raises \code{RoBMA_vif_unavailable},
 #' a \code{RoBMA_numerical_unavailable} condition.
@@ -270,6 +272,13 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     posterior_samples = sample_info[["posterior_samples"]])
 
   values_of <- function(design, rows) {
+    rank <- attr(design, "rank", exact = TRUE)
+    if (is.null(rank)) rank <- qr(design)$rank
+    if (rank < ncol(design)) {
+      aliased <- colnames(design)[qr(design)$pivot[seq.int(rank + 1L, ncol(design))]]
+      .vif_unavailable(paste0("GVIF is undefined for a rank-deficient fitted design. Aliased columns: ",
+                              paste(aliased, collapse = ", "), "."))
+    }
     assign <- attr(design, "assign")
     keep <- assign != 0L
     groups <- split(seq_len(sum(keep)), assign[keep])
@@ -483,35 +492,48 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # Compute GVIF/GVIF-adjusted table from the fixed-effect covariance.
 #
 # ---------------------------------------------------------------------------- #
+.vif_unavailable <- function(message) {
+
+  stop(errorCondition(message, class = c("RoBMA_vif_unavailable", "RoBMA_numerical_unavailable"),
+                      call = NULL))
+}
+
 .vif_gvif <- function(vcov, groups) {
 
   p <- ncol(vcov)
   if (p <= 1L) return(rep(1, length(groups)))
   if (all(lengths(groups) == p)) return(rep(1, length(groups)))
 
-  unavailable <- function(message) {
-    stop(errorCondition(message, class = c("RoBMA_vif_unavailable", "RoBMA_numerical_unavailable"),
-                        call = NULL))
-  }
   if (any(!is.finite(vcov)) || any(diag(vcov) <= 0)) {
-    unavailable("GVIF requires a finite coefficient covariance matrix with positive variances.")
+    .vif_unavailable("GVIF requires a finite coefficient covariance matrix with positive variances.")
   }
   correlation <- stats::cov2cor(vcov)
-  log_det <- function(x) {
+  factor_of <- function(x) {
     factor <- tryCatch(chol(x), error = function(e) NULL)
     if (is.null(factor) || any(!is.finite(diag(factor)))) {
-      unavailable("GVIF is unavailable because the coefficient correlation matrix is not positive definite at working precision.")
+      .vif_unavailable("GVIF is unavailable because the coefficient correlation matrix is not positive definite at working precision.")
     }
-    2 * sum(log(diag(factor)))
+    factor
   }
-  full <- log_det(correlation)
-  vapply(groups, function(columns) {
-    if (length(columns) == p) return(1)
-    value <- exp(log_det(correlation[columns, columns, drop = FALSE]) +
-                 log_det(correlation[-columns, -columns, drop = FALSE]) - full)
-    if (!is.finite(value)) unavailable("The generalized variance inflation factor exceeds numerical range.")
-    value
-  }, numeric(1L), USE.NAMES = FALSE)
+  factor <- factor_of(correlation)
+  # For a one-column term the determinant ratio is its precision diagonal.
+  # A single triangular inverse serves all such terms for this draw.
+  sizes <- lengths(groups)
+  individual <- if (any(sizes == 1L)) diag(chol2inv(factor))
+  if (all(sizes == 1L)) {
+    values <- unname(individual[unlist(groups, use.names = FALSE)])
+  } else {
+    log_det <- function(x) 2 * sum(log(diag(factor_of(x))))
+    full <- 2 * sum(log(diag(factor)))
+    values <- vapply(groups, function(columns) {
+      if (length(columns) == p) return(1)
+      if (length(columns) == 1L) return(individual[columns])
+      exp(log_det(correlation[columns, columns, drop = FALSE]) +
+          log_det(correlation[-columns, -columns, drop = FALSE]) - full)
+    }, numeric(1L), USE.NAMES = FALSE)
+  }
+  if (any(!is.finite(values))) .vif_unavailable("The generalized variance inflation factor exceeds numerical range.")
+  values
 }
 
 
