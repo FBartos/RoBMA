@@ -5,6 +5,22 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 
+test_that("Q-Q envelopes and padded ranges remain finite when representable", {
+
+  K <- 5L
+  level <- 100 - 2^-46
+  for (corrected in c(FALSE, TRUE)) {
+    env <- .qqnorm_envelope(K, level, corrected, 100L, FALSE, stats::qnorm(stats::ppoints(K)))
+    tail <- (100-level) / 200 / if (corrected) K else 1
+    expect_true(all(is.finite(c(env$lower, env$upper))))
+    expect_equal(stats::pbeta(stats::pnorm(env$upper, lower.tail = FALSE),
+                              K:1L, seq_len(K), log.p = TRUE),
+                 rep(log(tail), K), tolerance = 1e-12)
+  }
+  expect_equal(.qqnorm_y_range(c(-1e308, 1e308))/1e308, c(-1.1, 1.1))
+  expect_error(.qqnorm_y_range(c(-1.7e308, 1.7e308)), class = "RoBMA_qq_range_unavailable")
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")

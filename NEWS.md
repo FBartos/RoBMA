@@ -12,6 +12,8 @@
 - `plot_diagnostic()` and `plot_diagnostic_trace()` gain `statistic` and `batch_size` to trace batched inclusion probabilities, mixture-component probabilities, and switching rates
 - `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
+- Eligible independent selection and one-moderator Gaussian ensembles use joint updates by default, with automatic Gaussian updates limited to 800 estimates. `sampler.joint = "bias"` also supports additive selection meta-regressions.
+- `sampler.nested.weights` enables shared weights for nested selection models and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
@@ -21,6 +23,12 @@
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
+- GLMM log likelihoods, LOO and WAIC resolve sparse count cells more accurately with gamma, lognormal and inverse-gamma nuisance priors
+- dense three-outcome product selection models can recover a rejected normalizer using a bounded one-factor integral when the supplied covariance admits it
+- GVIF handles large coefficient matrices, uses the estimated design for fixed-zero intercepts and reports infinite inflation for terms with demonstrated exact overlap
+- radial and Q-Q plots retain near-100% bands and identify unrepresentable display ranges
+- selected-normal predictive moments retain rare selection bins whose Gaussian probabilities underflow, including hard selection in a far tail
+- predictive moments and residuals remain available when large finite selection weights overflow the unnormalized moment sums
 - selected-normal log tails and LOO-PIT residuals preserve positive probability immediately inside a selection cutoff
 - sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
 - multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs

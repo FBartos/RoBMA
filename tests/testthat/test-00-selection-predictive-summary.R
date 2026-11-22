@@ -65,6 +65,97 @@ source(testthat::test_path("helper-selection-kernel.R"))
 }
 
 
+test_that("selected moments retain bins with underflowing Gaussian probability", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  cuts <- c(stats::pnorm(1, lower.tail = FALSE), .5)
+  prior <- prior_weightfunction("one-sided", cuts, wf_fixed(c(1, .5, .25)))
+  # In y/se units N(-40, 1) has density phi(40) * exp(-40*y - y^2/2).
+  # Scale by the middle bin's weighted boundary density before integration.
+  # Below zero, its unconditional moments equal the full Gaussian moments
+  # to double precision (the omitted upper tail is smaller than 1e-348).
+  tail_integrals <- function(lo, hi) vapply(0:2, function(k) {
+    stats::integrate(function(y) y^k * exp(-40*y - y^2/2), lo, hi,
+                     abs.tol = 0, rel.tol = 1e-12)$value
+  }, numeric(1))
+  middle <- tail_integrals(0, 1)
+  upper  <- tail_integrals(1, Inf)
+  lower  <- c(1, -40, 1601)
+  balanced <- exp(log(1e300) + stats::pnorm(-40, log.p = TRUE))
+  for (weights in list(c(1, 1, 0), c(1, 1e300, 1e-100), c(1, 1e300, balanced))) {
+    moments <- middle + upper * (weights[1] / weights[2]) +
+      lower * exp(log(weights[3]) - log(weights[2]) - stats::dnorm(40, log = TRUE))
+    ref <- moments / moments[1]
+    for (direction in c("positive", "negative")) {
+      sign <- if (direction == "positive") 1 else -1
+      se <- .01
+      spec <- .selection_spec(list(outcome = list(bias = prior)), 0, se,
+                              effect_direction = direction, signed_data = FALSE)
+      args <- list(mean = matrix(sign * -40 * se), sd = matrix(se), sei = se,
+                   omega = matrix(weights, 1L), selection_spec = spec)
+      raw <- do.call(.selnorm_kernel_moments_matrix, args)
+      predictive <- do.call(.selnorm_kernel_predictive_summary_matrix,
+                            c(list(q = sign * se / 40), args))
+      expect_lt(abs(raw$second / (ref[3] * se^2) - 1), 1e-8)
+      for (value in list(raw, predictive)) {
+        expect_lt(abs(value$mean / (sign * se * ref[2]) - 1), 1e-8)
+        expect_lt(abs(value$variance / (se^2 * (ref[3] - ref[2]^2)) - 1), 1e-8)
+      }
+    }
+  }
+})
+
+test_that("hard selection retains excess and variance across the tail threshold", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  prior <- prior_weightfunction("one-sided", .5, wf_fixed(c(1, 0)))
+  spec <- .selection_spec(list(outcome = list(bias = prior)), 0, 1,
+                          effect_direction = "positive", signed_data = FALSE)
+  for (a in c(35, 36, 37.4, 37.6, 38.5, 40, 54, 1000)) {
+    # On s = a*y the density is proportional to exp(-s - s^2/(2*a^2)).
+    ints <- vapply(0:2, function(k) stats::integrate(function(s) {
+      s^k * exp(-s - .5*(s/a)^2)
+    }, 0, Inf, rel.tol = 1e-12)$value, numeric(1))
+    ref_mean <- ints[2L] / ints[1L] / a
+    ref_var <- (ints[3L] / ints[1L] - (ints[2L] / ints[1L])^2) / a^2
+    cell <- .selnorm_kernel_moments_matrix(matrix(-a), matrix(1), 1,
+                                            matrix(c(1, 0), 1), spec)
+    expect_lt(abs(cell$mean/ref_mean - 1), 1e-8)
+    expect_lt(abs(cell$variance/ref_var - 1), 1e-6)
+  }
+
+  # Two equally remote supported tails both contribute to the variance.
+  spec <- .test_two_sided_step_spec(0, 1)
+  static <- BayesTools::selection_native_static_args(spec)
+  cutoff <- static$z_lower[1L]
+  sd <- cutoff / 40
+  w <- numeric(spec$n_bins)
+  w[c(1L, length(w))] <- c(1, .5)
+  cell <- .selnorm_kernel_moments_matrix(matrix(0), matrix(sd), 1, matrix(w, 1), spec)
+  excess <- stats::integrate(function(s) s * exp(-s - .5*(s/40)^2), 0, Inf)$value /
+    stats::integrate(function(s) exp(-s - .5*(s/40)^2), 0, Inf)$value / 40
+  ref_mean <- sd * (40 + excess) / 3
+  ref_var <- sd^2 * (1 + 40 * (40 + excess)) - ref_mean^2
+  expect_lt(abs(cell$mean/ref_mean - 1), 1e-8)
+  expect_lt(abs(cell$variance/ref_var - 1), 1e-8)
+
+  # Use the actual stored cuts: their magnitudes can differ by one ulp.
+  # The peak log ratio factors exactly in outcome units. At 1e7 SDs the
+  # conditional excess is below 3e-14 in these units and the relative
+  # Mills-factor difference of the two tails is below 1e-15.
+  left <- utils::tail(static$z_upper, 1L)
+  sd <- cutoff / 1e7
+  mu <- 1e-18
+  w[length(w)] <- 1
+  cell <- .selnorm_kernel_moments_matrix(matrix(mu), matrix(sd), 1, matrix(w, 1), spec)
+  midpoint <- (cutoff + left) / 2
+  log_ratio <- (cutoff - left) * ((mu - midpoint) / sd^2)
+  ref_mean <- midpoint + (cutoff - left) / 2 * tanh(log_ratio / 2)
+  expect_lt(abs(cell$mean - ref_mean), 1e-12)
+})
+
 test_that("predictive cell summaries match an independent log-space reference", {
 
   skip_if_not(.has_native_selnorm_kernel())

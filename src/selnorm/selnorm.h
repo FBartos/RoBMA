@@ -313,7 +313,8 @@ void cpp_selnorm_kernel_moments(
 // partition evaluate each boundary once for all four; other cells, and cells
 // with a tail mass near underflow, with weights large enough that a bin
 // probability lost to underflow could matter, or whose shared moments would
-// lose more than four digits to cancellation, use those two kernels.
+// lose more than four digits to cancellation, use those two kernels. The
+// moment kernel shifts and scales rare bins before integrating their moments.
 void cpp_selnorm_kernel_predictive_summary(
   double q,
   double mean,

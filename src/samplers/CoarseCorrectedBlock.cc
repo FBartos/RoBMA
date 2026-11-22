@@ -3,9 +3,9 @@
 #include "CorrectedSampler.h"
 
 #include <BayesTools/factor_slice_kernel.h>
+#include <BayesTools/sampler_declarations.h>
 
 #include <graph/StochasticNode.h>
-#include <distribution/Distribution.h>
 #include <module/ModuleError.h>
 #include <rng/RNG.h>
 #include <sampler/GraphView.h>
@@ -34,46 +34,6 @@ namespace kernel = ::BayesTools::factor_slice;
 
 const char *const block_sampler_name = "RoBMA::CoarseCorrectedBlock";
 const double negative_infinity = -std::numeric_limits<double>::infinity();
-
-// ---- the declarations of BayesTools::JAGS_fit() (src/samplers/
-// BTSamplerDeclarations.cc of BayesTools, read the same way): a marker declares
-// the node it is a direct stochastic child of only when it is observed with
-// value 0 and its first parent is that node itself.
-
-std::vector<StochasticNode const *> markers_of(StochasticNode *node, char const *name)
-{
-  std::vector<StochasticNode const *> out;
-  for (StochasticNode const *child : *node->stochasticChildren()) {
-    if (child->distribution()->name() != name) continue;
-    std::vector<Node const *> const &parents = child->parents();
-    if (parents.size() < 2 || parents[0] != node) continue;
-    out.push_back(child);
-  }
-  return out;
-}
-
-bool observed_zero(StochasticNode const *marker)
-{
-  return isObserved(marker) && marker->length() == 1 && marker->value(0)[0] == 0.0;
-}
-
-bool has_gate_marker(StochasticNode *node)
-{
-  return !markers_of(node, "dbt_gate").empty();
-}
-
-// The id of the single valid dbt_block marker of the node (a fixed positive
-// integer up to 1e9), or 0.
-unsigned int block_id(StochasticNode *node)
-{
-  std::vector<StochasticNode const *> markers = markers_of(node, "dbt_block");
-  if (markers.size() != 1 || !observed_zero(markers[0])) return 0;
-  Node const *id = markers[0]->parents()[1];
-  if (!id->isFixed() || id->length() != 1) return 0;
-  const double value = id->value(0)[0];
-  if (!std::isfinite(value) || value < 1.0 || value != std::floor(value) || value > 1.0e9) return 0;
-  return static_cast<unsigned int>(value);
-}
 
 // ---- test hooks
 
@@ -559,8 +519,8 @@ std::vector<Sampler *> CoarseCorrectedBlockFactory::makeSamplers(
   for (StochasticNode *node : nodes) {
     if (node->length() != 1 || node->isDiscreteValued() || !node->fullRank() ||
         !isSupportFixed(node)) continue;
-    if (has_gate_marker(node)) continue;
-    const unsigned int id = block_id(node);
+    if (BayesTools::sampler_declarations::has_gate_marker(node)) continue;
+    const unsigned int id = BayesTools::sampler_declarations::block_id(node);
     if (id == 0) continue;
     double lower, upper;
     node->support(&lower, &upper, 1, 0);

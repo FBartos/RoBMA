@@ -54,8 +54,11 @@ It also scales the rank-one product deterministic work ceiling.}
 change for factor integration, or the largest nested-design relative
 change and 2.36 times the relative Monte Carlo standard error for a factor
 fallback and for the conditioned-sampling normalizer.
-Rank-one product interval refinement instead checks the conservative
-relative radius of the actual returned midpoint against both bounds.
+Rank-one product interval refinement checks the relative radius of the
+returned midpoint against both bounds. A rejected dense three-row
+product normalizer can also use this refinement with an auxiliary
+one-factor covariance, including near a zero residual variance.
+Acceptance bounds the error against the supplied covariance matrix.
 General covariance
 blocks and Gaussian event integrals use 2.36 times the relative Monte
 Carlo standard error alone. Dense covariance-envelope

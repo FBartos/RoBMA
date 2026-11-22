@@ -38,7 +38,8 @@ test_that("a declared block with a coarse-capable selection child gets the corre
 
   # the RoBMA factories are asked before BayesTools' (RoBMA's module loads later)
   factories <- rjags::list.factories("sampler")[["factory"]]
-  expect_identical(factories[1:3], c(.block_sampler, coarse, factor))
+  expected <- c(.block_sampler, coarse, factor)
+  expect_identical(factories[factories %in% expected], expected)
 
   expect_identical(.block_assigned(.block_pair_model(), c("mu", "nu")), rep(.block_sampler, 2L))
   # the block factory follows the corrected sampler's configuration

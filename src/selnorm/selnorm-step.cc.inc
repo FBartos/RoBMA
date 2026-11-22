@@ -89,7 +89,8 @@ double step_log_normalizer_score_space(const double *omega,
                                        double mean, double sd, double sei,
                                        int omega_stride,
                                        double requested_lower = -INFINITY,
-                                       double requested_upper = INFINITY)
+                                       double requested_upper = INFINITY,
+                                       double *max_log_weight = nullptr)
 {
   double log_mass = -INFINITY;
 
@@ -105,6 +106,8 @@ double step_log_normalizer_score_space(const double *omega,
     }
 
     if (w > 0) {
+      const double log_weight = std::log(w);
+      if (max_log_weight) *max_log_weight = std::max(*max_log_weight, log_weight);
       const double lower_z = data.trusted_step_partition ?
         data.z_lower[last] : data.z_lower[b];
       const double upper_z = data.z_upper[b];
@@ -113,7 +116,7 @@ double step_log_normalizer_score_space(const double *omega,
       if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
           !add_weighted_standard_normal_interval(
             std::max(lower, requested_lower), std::min(upper, requested_upper),
-            std::log(w), &log_mass
+            log_weight, &log_mass
           )) {
         return std::numeric_limits<double>::quiet_NaN();
       }
@@ -555,6 +558,153 @@ bool step_cdf_pair_logspace(const double *omega,
     std::isfinite(*inverse_weight) && *inverse_weight > 0;
 }
 
+// A half-bin starts at the point nearest the Gaussian mode. In units of
+// h = 1/max(1,a) sampling SDs, its density relative to that endpoint is
+// exp(-a*h*s - (h*s)^2/2), even when phi(a) itself has underflowed.
+struct StepMomentHalf {
+  double score;
+  double cut;
+  double log_mass;
+  double anchor;
+  double offset;
+  double variance;
+};
+
+bool step_half_moments(double a, double width_score, double cut, double anchor, double signed_sd,
+                       double log_weight, StepMomentHalf &half)
+{
+  if (!std::isfinite(a) || !(width_score > 0) || !std::isfinite(anchor)) return false;
+  const double h = 1 / std::max(1.0, a);
+  const double rate = std::min(a, 1.0);
+  // Beyond a log-density drop of 50 the omitted exponential second-moment
+  // fraction is at most (1 + 50 + 50^2/2)*exp(-50).
+  const double end = std::min(width_score / h,
+    100 / (rate + std::hypot(rate, 10*h)));
+  if (!(end > 0)) return false;
+
+  // Eight-point Gauss-Legendre on panels at most two scaled units wide.
+  // Integrate powers of u=s/end, so even a narrow bin has resolved moments.
+  static const double nodes[] = {.1834346424956498, .5255324099163290,
+                                  .7966664774136267, .9602898564975362};
+  static const double weights[] = {.3626837833783620, .3137066458778873,
+                                    .2223810344533745, .1012285362903763};
+  const int panels = std::max(1, static_cast<int>(std::ceil(end / 2)));
+  double mass = 0, first = 0, second = 0;
+  for (int p = 0; p < panels; ++p) {
+    for (int j = 0; j < 4; ++j) {
+      for (int sign = -1; sign <= 1; sign += 2) {
+        const double u = (p + .5 + sign * .5 * nodes[j]) / panels;
+        const double s = u * end;
+        const double z = h * s;
+        const double w = weights[j] * std::exp(-rate*s - .5*z*z);
+        mass += w;
+        first += w*u;
+        second += w*u*u;
+      }
+    }
+  }
+  const double location = first / mass;
+  const double spread = second / mass - location*location;
+  const double width = signed_sd * (h * end);
+  half.score = a;
+  half.cut = cut;
+  half.log_mass = log_weight + std::log(h) + std::log(end) + std::log(mass / (2*panels));
+  half.anchor = anchor;
+  half.offset = width * location;
+  const double half_sd = width * std::sqrt(spread);
+  half.variance = half_sd * half_sd;
+  return std::isfinite(half.log_mass) && std::isfinite(half.offset) && std::isfinite(half.variance);
+}
+
+bool step_rare_moments(const double *omega, const SelNormKernelData &data,
+                       double mean, double sd, double sei, int stride,
+                       double &result_mean, double &result_variance)
+{
+  std::vector<StepMomentHalf> halves;
+  for (int b = 0; b < data.n_bins; ++b) {
+    const double w = omega_at(omega, b + 1, stride);
+    const double zu = data.z_upper[b];
+    while (data.trusted_step_partition && b + 1 < data.n_bins &&
+           omega_at(omega, b + 2, stride) == w) ++b;
+    if (w == 0) continue;
+    const double zl = data.z_lower[b];
+    const double lo = stable_affine_score(zl, sei, mean, sd);
+    const double hi = stable_affine_score(zu, sei, mean, sd);
+    if (!(lo < hi)) return false;
+    const double log_w = std::log(w);
+    const double width_score = (zu - zl) * sei / sd;
+    if (lo < 0) {
+      StepMomentHalf half;
+      if (!step_half_moments(std::max(-hi, 0.0), hi < 0 ? width_score : -lo,
+                             zu, hi < 0 ? zu * sei : mean,
+                             -sd, log_w, half)) return false;
+      halves.push_back(half);
+    }
+    if (hi > 0) {
+      StepMomentHalf half;
+      if (!step_half_moments(std::max(lo, 0.0), lo > 0 ? width_score : hi,
+                             zl, lo > 0 ? zl * sei : mean,
+                             sd, log_w, half)) return false;
+      halves.push_back(half);
+    }
+  }
+  // Factor out the nearest endpoint density before adding log weights. This
+  // retains weight ratios even for equally remote tails on opposite sides.
+  if (halves.empty()) return false;
+  const auto nearest = std::min_element(halves.begin(), halves.end(),
+    [](const StepMomentHalf &x, const StepMomentHalf &y) { return x.score < y.score; });
+  double peak = -INFINITY, origin = 0;
+  for (auto &half : halves) {
+    if (nearest->score == 0) {
+      half.log_mass -= (.5 * half.score) * half.score;
+    } else if (half.cut != nearest->cut) {
+      // Factor the difference of squared distances in the supplied cuts.
+      // Opposing standardized scores can round to equal magnitudes even
+      // when the two peak densities differ appreciably. FastTwoSum keeps
+      // the rounding remainder of the midpoint before centering it on mu.
+      double x = .5 * half.cut, y = .5 * nearest->cut;
+      if (std::abs(x) < std::abs(y)) std::swap(x, y);
+      const double mid = x + y;
+      const double remainder = (x - mid) + y;
+      const double mid_offset = std::fma(mid, sei, -mean) + remainder * sei;
+      half.log_mass -= ((half.cut - nearest->cut) * sei / sd) * (mid_offset / sd);
+    }
+    if (half.log_mass > peak) {
+      peak = half.log_mass;
+      origin = half.anchor;
+    }
+  }
+  if (!std::isfinite(peak)) return false;
+  double total = 0, first = 0;
+  for (auto &half : halves) {
+    const double mass = std::exp(half.log_mass - peak);
+    if (mass == 0) continue;
+    half.offset += half.anchor - origin;
+    total += mass;
+    first += mass * half.offset;
+  }
+  const double offset = first / total;
+  result_mean = origin + offset;
+  result_variance = 0;
+  for (const auto &half : halves) {
+    const double p = std::exp(half.log_mass - peak) / total;
+    if (p == 0) continue;
+    const double delta = half.offset - offset;
+    result_variance += p * half.variance + (p * delta) * delta;
+  }
+  return std::isfinite(result_mean) && std::isfinite(result_variance);
+}
+
+// Multiply before applying the shared power-of-two scale, without losing a
+// small weight or overflowing the unscaled product.
+double scaled_moment_product(double weight_fraction, int shift, double value)
+{
+  int exponent = 0;
+  const double fraction = std::frexp(value, &exponent);
+  return std::scalbn(weight_fraction * fraction, shift + exponent);
+}
+
+template<bool scaled_scores = false>
 void step_moments_partition(const double *omega,
                             const SelNormKernelData &data,
                             double signed_mean, double sd, double sei,
@@ -562,7 +712,8 @@ void step_moments_partition(const double *omega,
                             double *denom, double *signed_first,
                             double *signed_second,
                             double *centered_first = NULL,
-                            double *centered_second = NULL)
+                            double *centered_second = NULL, int scale_exponent = 0,
+                            double *operand_sum = nullptr)
 {
   *denom         = 0;
   *signed_first  = 0;
@@ -586,32 +737,78 @@ void step_moments_partition(const double *omega,
     }
 
     if (w > 0) {
+      const double lower = data.z_lower[trusted_partition ? last : b];
+      const double upper = data.z_upper[b];
       double m0, m1, m2, centered_m1, centered_m2;
-      truncated_raw_moments(
-        (trusted_partition ? data.z_lower[last] : data.z_lower[b]) * sei,
-        data.z_upper[b] * sei,
-        signed_mean,
-        sd,
-        &m0,
-        &m1,
-        &m2,
-        &centered_m1,
-        &centered_m2
-      );
-
-      *denom         += w * m0;
-      *signed_first  += w * m1;
-      *signed_second += w * m2;
-      if (centered_first != NULL) {
-        *centered_first += w * centered_m1;
-      }
-      if (centered_second != NULL) {
-        *centered_second += w * centered_m2;
+      if constexpr (scaled_scores) {
+        const double a = stable_affine_score(lower, sei, signed_mean, sd);
+        const double b = stable_affine_score(upper, sei, signed_mean, sd);
+        truncated_raw_moments(a, b, 0, 1, &m0, &m1, &m2);
+        int exponent = 0;
+        const double fraction = std::frexp(w, &exponent);
+        const int shift = exponent - scale_exponent;
+        *denom         += scaled_moment_product(fraction, shift, m0);
+        *signed_first  += scaled_moment_product(fraction, shift, m1);
+        *signed_second += scaled_moment_product(fraction, shift, m2);
+        // Scale of all the operands in P, phi(a)-phi(b), and
+        // P+a*phi(a)-b*phi(b), before cancellation inside this bin.
+        double operands = a > 0 ? tail_at(a, 0, 1) : (b < 0 ? cdf_at(b, 0, 1) : m0);
+        if (std::isfinite(a)) operands += (1 + std::abs(a)) * std_phi(a);
+        if (std::isfinite(b)) operands += (1 + std::abs(b)) * std_phi(b);
+        *operand_sum += scaled_moment_product(fraction, shift, operands);
+      } else {
+        truncated_raw_moments(lower * sei, upper * sei, signed_mean, sd,
+                              &m0, &m1, &m2, &centered_m1, &centered_m2);
+        *denom         += w * m0;
+        *signed_first  += w * m1;
+        *signed_second += w * m2;
+        if (centered_first != NULL) *centered_first += w * centered_m1;
+        if (centered_second != NULL) *centered_second += w * centered_m2;
       }
     }
 
     b = trusted_partition ? last + 1 : b + 1;
   }
+}
+
+bool scaled_step_moments(const double *omega, const SelNormKernelData &data,
+                         double signed_mean, double sd, double sei, int stride,
+                         double log_normalizer, double *moment_mean,
+                         double *moment_second, double *moment_variance)
+{
+  // Raw weighted sums can overflow even though dividing by their common
+  // normalizer gives ordinary values. Retry in standard normal coordinates.
+  const double exponent = std::nearbyint(log_normalizer / M_LN2);
+  if (exponent < 2 * (std::numeric_limits<double>::min_exponent -
+                      std::numeric_limits<double>::digits) ||
+      exponent > 2 * std::numeric_limits<double>::max_exponent) return false;
+  double denom, signed_first, signed_second, operands = 0;
+  step_moments_partition<true>(omega, data, signed_mean, sd, sei, stride,
+    data.trusted_step_partition, &denom, &signed_first, &signed_second,
+    nullptr, nullptr, static_cast<int>(exponent), &operands);
+  if (!(denom > 0) || !std::isfinite(denom)) return false;
+  const double log_error = std::abs((std::log(denom) + exponent * M_LN2) - log_normalizer);
+  if (log_error > 64 * std::numeric_limits<double>::epsilon() *
+                  std::max(1.0, std::abs(log_normalizer))) return false;
+  const double shift = signed_first / denom;
+  const double second_score = signed_second / denom;
+  const double variance_score = std::fma(-shift, shift, second_score);
+  // A finite retry must also resolve the variance. A narrow, dominant bin
+  // can lose its digits inside the raw moments before the final subtraction.
+  // Limit the operand-to-result ratio as in the fused cell summary.
+  const double center_scale = 1 + std::abs(shift);
+  if (!(variance_score > 0) || !std::isfinite(operands) ||
+      (operands / denom) * center_scale * center_scale > 1e4 * variance_score) return false;
+  const double location = std::fma(sd, shift, signed_mean);
+  const double spread = sd * std::sqrt(variance_score);
+  const double variance = spread * spread;
+  const double second = std::fma(location, location, variance);
+  if (!std::isfinite(location) || !std::isfinite(variance) ||
+      (!moment_variance && !std::isfinite(second))) return false;
+  *moment_mean = data.effect_sign * location;
+  if (moment_variance) *moment_variance = variance;
+  if (std::isfinite(second)) *moment_second = second;
+  return true;
 }
 
 double step_normalizer_trusted_partition(
