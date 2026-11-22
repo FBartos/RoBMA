@@ -13,8 +13,10 @@
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @details Model families include ordinary mixtures, spike-and-slab priors,
-#' and declared Bernoulli inclusion gates of random-effect components. Fixed
-#' components without a model choice are omitted.
+#' mixtures and spike-and-slab priors on ordered factor totals, mixtures on
+#' the heterogeneity allocation, and declared Bernoulli inclusion gates of
+#' random-effect components. Fixed components without a model choice are
+#' omitted.
 #'
 #' @return A list of class \code{summary_models.RoBMA} with elements
 #' \code{name} and \code{type}. For \code{type = "marginal"}, element
@@ -167,18 +169,22 @@ as.data.frame.summary_models.RoBMA <- function(
 
 
 # Extract top-level model components used by summary_models().
-.summary_models_components <- function(object) {
+.summary_models_components <- function(object, include_fixed = FALSE) {
 
   prior_list <- attr(object[["fit"]], "prior_list")
   components <- list()
 
   effect_parameter <- if ("mu" %in% names(prior_list)) "mu" else "mu_intercept"
-  components <- .summary_models_add_component(
-    components = components,
-    prior_list = prior_list,
-    component  = "Effect",
-    parameter  = effect_parameter
-  )
+  if (effect_parameter == "mu" ||
+      .fitted_formula_has_intercept(object, "mu", required = FALSE)) {
+    components <- .summary_models_add_component(
+      components    = components,
+      prior_list    = prior_list,
+      component     = "Effect",
+      parameter     = effect_parameter,
+      include_fixed = include_fixed
+    )
+  }
 
   prior_terms <- .summary_formula_prior_terms(object, names(prior_list))
   prior_terms <- prior_terms[
@@ -186,6 +192,11 @@ as.data.frame.summary_models.RoBMA <- function(
     ,
     drop = FALSE
   ]
+  ordered <- intersect(prior_terms[["parameter"]][nzchar(prior_terms[["term"]])],
+    names(prior_list)[vapply(prior_list, BayesTools::is.prior.ordered, logical(1))])
+  ordered_specs <- if (length(ordered) > 0L) {
+    BayesTools::JAGS_ordered_parameter_spec(object[["fit"]], parameters = ordered)
+  }
   location_terms <- prior_terms[
     prior_terms[["formula_parameter"]] == "mu" &
       !prior_terms[["term"]] %in% c("", "intercept"),
@@ -196,20 +207,32 @@ as.data.frame.summary_models.RoBMA <- function(
     parameter <- location_terms[["parameter"]][[i]]
     component <- paste0("Location: ", location_terms[["term"]][[i]])
     components <- .summary_models_add_component(
-      components = components,
-      prior_list = prior_list,
-      component  = component,
-      parameter  = parameter
+      components    = components,
+      prior_list    = prior_list,
+      component     = component,
+      parameter     = parameter,
+      ordered       = ordered_specs[[parameter]],
+      include_fixed = include_fixed
     )
   }
 
   heterogeneity_parameter <- if ("tau" %in% names(prior_list)) "tau" else "log_tau_intercept"
   components <- .summary_models_add_component(
-    components = components,
-    prior_list = prior_list,
-    component  = "Heterogeneity",
-    parameter  = heterogeneity_parameter
+    components    = components,
+    prior_list    = prior_list,
+    component     = "Heterogeneity",
+    parameter     = heterogeneity_parameter,
+    include_fixed = include_fixed
   )
+  allocation_prior <- prior_list[["rho"]]
+  if (BayesTools::is.prior.mixture(allocation_prior) && length(allocation_prior) > 1L) {
+    components <- .summary_models_add_component(
+      components = components,
+      prior_list = prior_list,
+      component  = "Heterogeneity Allocation",
+      parameter  = "rho"
+    )
+  }
   components <- .summary_models_add_random_slab_components(
     components = components,
     prior_list = prior_list
@@ -235,18 +258,21 @@ as.data.frame.summary_models.RoBMA <- function(
       )
     )
     components <- .summary_models_add_component(
-      components = components,
-      prior_list = prior_list,
-      component  = component,
-      parameter  = parameter
+      components    = components,
+      prior_list    = prior_list,
+      component     = component,
+      parameter     = parameter,
+      ordered       = ordered_specs[[parameter]],
+      include_fixed = include_fixed
     )
   }
 
   components <- .summary_models_add_component(
-    components = components,
-    prior_list = prior_list,
-    component  = "Publication Bias",
-    parameter  = "bias"
+    components    = components,
+    prior_list    = prior_list,
+    component     = "Publication Bias",
+    parameter     = "bias",
+    include_fixed = include_fixed
   )
   components <- .summary_models_add_random_components(
     components = components,
@@ -276,26 +302,42 @@ as.data.frame.summary_models.RoBMA <- function(
       component  = component,
       parameter  = parameter
     )
+    components[[component]][["aliases"]] <- allocation
   }
 
   components
 }
 
-.summary_models_add_component <- function(components, prior_list, component, parameter) {
+.summary_models_add_component <- function(components, prior_list, component, parameter,
+                                          ordered = NULL, include_fixed = FALSE) {
 
-  if (!parameter %in% names(prior_list)) {
+  prior <- if (is.null(ordered)) prior_list[[parameter]] else ordered[["total_prior"]]
+  if (!BayesTools::is.prior.mixture(prior)) {
+    if (include_fixed && !is.null(prior)) {
+      components[[component]] <- list(
+        component = component,
+        parameter = parameter,
+        prior     = list(prior_list[[parameter]]),
+        fixed     = !BayesTools::is.prior.none(prior) &&
+          !isTRUE(.point_prior_value(prior) == 0)
+      )
+    }
     return(components)
   }
-  if (!BayesTools::is.prior.mixture(prior_list[[parameter]])) {
-    return(components)
-  }
 
-  prior <- prior_list[[parameter]]
+  indicator <- NULL
+  if (!is.null(ordered)) {
+    indicator <- ordered[["total_node"]][["spec"]][["indicator"]]
+    if (length(indicator) != 1L) {
+      .stop_refit_required("No fitted ordered total indicator for '", parameter,
+                           "'. Refit the model.")
+    }
+  }
   components[[component]] <- list(
     component        = component,
     parameter        = parameter,
     prior            = prior,
-    indicator        = NULL,
+    indicator        = indicator,
     indicator_offset = 0L,
     names            = .summary_models_prior_names(prior),
     hypothesis       = .summary_models_hypothesis(prior),
@@ -335,12 +377,16 @@ as.data.frame.summary_models.RoBMA <- function(
     } else {
       paste0("Random: ", paste(component_names, collapse = ", "))
     }
+    aliases <- c(component_names, quantities[["canonical_name"]][[i]],
+                 quantities[["owner_name"]][[i]])
     components[[component]] <- list(
       component        = component,
       parameter        = sub("_indicator$", "", indicator),
       prior            = vector("list", 2L),
       indicator        = indicator,
       indicator_offset = 1L,
+      selector         = quantities[["canonical_name"]][[i]],
+      aliases          = aliases[!is.na(aliases) & nzchar(aliases)],
       names            = c("Excluded", "Included"),
       hypothesis       = c("Null", "Alternative"),
       prior_probs      = c(1 - prior_probability, prior_probability)
@@ -541,6 +587,10 @@ as.data.frame.summary_models.RoBMA <- function(
 
 .summary_models_prior_probs <- function(prior) {
 
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    inclusion <- mean(attr(prior, "inclusion_prior", exact = TRUE))
+    return(ifelse(.summary_models_hypothesis(prior) == "Alternative", inclusion, 1 - inclusion))
+  }
   prior_probs <- attr(prior, "prior_weights")
   prior_probs <- prior_probs / sum(prior_probs)
 
@@ -556,6 +606,15 @@ as.data.frame.summary_models.RoBMA <- function(
     prior             = NULL,
     column            = column
   )
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    if (any(!indicators %in% c(0L, 1L))) {
+      stop("Invalid posterior inclusion indicator range: '",
+           if (is.null(column)) paste0(parameter, "_indicator") else column,
+           "'.", call. = FALSE)
+    }
+    hypotheses <- .summary_models_hypothesis(prior)
+    return(match(c("Null", "Alternative")[indicators + 1L], hypotheses))
+  }
   indicators <- indicators + offset
   if (any(!indicators %in% seq_len(length(prior)))) {
     indicator_name <- if (is.null(column)) {

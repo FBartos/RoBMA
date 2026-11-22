@@ -198,6 +198,7 @@ reference:
 - title: Plots
   contents:
   - plot.brma
+  - plot_models
   - forest.brma
   - as_metafor_forest
   - funnel.brma

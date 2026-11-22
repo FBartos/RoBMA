@@ -1335,6 +1335,18 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
     RoBMA.mv(yi = yi, V = vi, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
   })
 
+  ### Posterior model probabilities ----
+  # deltype is included as a single moderator. Its signed rows describe the
+  # conditional median of each delinquency type's deviation from the average level.
+  scenario_plot("posterior-model-moderator-levels", {
+    plot_models(fit_RoBMA_mv_diag_reg_cond, group_labels = TRUE, legend = TRUE,
+                plot_type = "ggplot")
+  })
+  scenario_plot("posterior-model-moderator-term", {
+    plot_models(fit_RoBMA_mv_diag_reg_cond, factor_view = c(mu_deltype = "terms"),
+                group_labels = TRUE, legend = TRUE, plot_type = "ggplot")
+  })
+
   ### Priors and summaries ----
   scenario_text("print-prior-fit_RoBMA_cond",         print_prior(fit_RoBMA_cond))
   scenario_text("print-prior-fit_RoBMA_cluster_cond", print_prior(fit_RoBMA_cluster_cond))

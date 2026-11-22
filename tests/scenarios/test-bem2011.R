@@ -263,6 +263,23 @@ testthat::test_that("Bem BMA models", {
   scenario_text("fit_BMA_summary_models",   {summary_models(fit_BMA)})
   scenario_text("fit_RoBMA_summary_models", {summary_models(fit_RoBMA)})
 
+  ### Posterior model probabilities ----
+  # Column widths are joint model probabilities. Start with overall bias
+  # inclusion, then show which bias adjustment each model uses.
+  scenario_text("posterior-model-probabilities", {
+    models <- summary_models(fit_RoBMA, type = "individual", include_mcmc_diagnostics = FALSE)
+    individual <- models[["individual"]]
+    models[["individual"]] <- individual[order(individual[["post_prob"]], decreasing = TRUE), ]
+    models
+  })
+  scenario_plot("posterior-model-matrix", {
+    plot_models(fit_RoBMA, legend = TRUE)
+  })
+  scenario_plot("posterior-model-bias-members", {
+    plot_models(fit_RoBMA, parameter = "bias", mixture_view = "individual",
+                plot_type = "ggplot")
+  })
+
   ### effect direction symmetry ----
   fit_RoBMA_reverse_coef       <- coef(fit_RoBMA_reverse)
   fit_RoBMA_reverse_coef["mu"] <- -fit_RoBMA_reverse_coef["mu"]

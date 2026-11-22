@@ -559,9 +559,9 @@ as.data.frame.summary.brma <- function(
 
   random_inclusion <- x[["inclusion_random"]]
   if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
-    random_inclusion <- .summary_inclusion_relabel_warnings(random_inclusion,
-      paste0("Heterogeneity: ", rownames(random_inclusion)))
-    rownames(random_inclusion) <- paste0("Heterogeneity: ", rownames(random_inclusion))
+    labels <- .summary_random_component_labels(rownames(random_inclusion))
+    random_inclusion <- .summary_inclusion_relabel_warnings(random_inclusion, labels)
+    rownames(random_inclusion) <- labels
     inclusion <- .summary_brma_combine_tables(
       tables = list(x[["inclusion_components"]], random_inclusion),
       title = "Component Inclusion"
@@ -574,6 +574,11 @@ as.data.frame.summary.brma <- function(
   }
 
   return(x[["inclusion_components"]])
+}
+
+.summary_random_component_labels <- function(labels) {
+
+  paste0("Heterogeneity: ", labels)
 }
 
 .summary_brma_prepare_print_sections <- function(x) {
