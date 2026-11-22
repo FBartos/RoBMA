@@ -136,8 +136,14 @@ vif <- function(object, ...) {
 #' The condition carries the draw positions (\code{rows}) and their
 #' \code{reciprocal_condition}.
 #'
-#' GVIF is undefined for a rank-deficient fitted design. Aliased columns
-#' are identified before evaluating individual posterior draws.
+#' The design contains only the estimated intercept and moderator coordinates.
+#' With a fixed-zero intercept the GVIF uses the through-origin design.
+#' A term with independent variation on its own has infinite GVIF when its
+#' column space demonstrably overlaps the other terms after accounting for
+#' any estimated intercept. Other identifiable terms are evaluated using a
+#' basis for the remaining column space. An infinite included draw makes
+#' the posterior mean infinite. Constant or internally aliased terms and
+#' ambiguous numerical rank raise \code{RoBMA_vif_unavailable}.
 #' An unrepresentable GVIF or a coefficient correlation matrix that is not
 #' positive definite at working precision raises \code{RoBMA_vif_unavailable},
 #' a \code{RoBMA_numerical_unavailable} condition.
@@ -271,20 +277,18 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   bias_classes <- .bias_design_classes(object, X = X,
     posterior_samples = sample_info[["posterior_samples"]])
 
+  fixed_intercept <- .location_omit_fixed_zero_intercept(object, transform_scaled = FALSE)
   values_of <- function(design, rows) {
-    rank <- attr(design, "rank", exact = TRUE)
-    if (is.null(rank)) rank <- qr(design)$rank
-    if (rank < ncol(design)) {
-      aliased <- colnames(design)[qr(design)$pivot[seq.int(rank + 1L, ncol(design))]]
-      .vif_unavailable(paste0("GVIF is undefined for a rank-deficient fitted design. Aliased columns: ",
-                              paste(aliased, collapse = ", "), "."))
-    }
     assign <- attr(design, "assign")
-    keep <- assign != 0L
-    groups <- split(seq_len(sum(keep)), assign[keep])
-    transform <- function(covariance) {
-      .vif_gvif(covariance[keep, keep, drop = FALSE], groups)
+    if (fixed_intercept && any(assign == 0L)) {
+      # This column is structural in the fitted coordinates. It is neither
+      # estimated nor a constraint on the independent factor-level columns.
+      design <- design[, assign != 0L, drop = FALSE]
+      assign <- assign[assign != 0L]
     }
+    plan <- .vif_design_plan(design, assign)
+    design <- plan$design
+    transform <- plan$transform
     if (is_known_v) {
       return(.vif_vcov_brma_mv(object, design, sample_info, rows, transform))
     }
@@ -496,6 +500,93 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 
   stop(errorCondition(message, class = c("RoBMA_vif_unavailable", "RoBMA_numerical_unavailable"),
                       call = NULL))
+}
+
+# A QR pivot proposes a basis. A small residual alone cannot establish an
+# exact alias. Certify the omitted column using the stored design values.
+.vif_in_design_span <- function(basis, y) {
+
+  if (all(y == 0)) return(TRUE)
+  if (!ncol(basis)) return(FALSE)
+  if (nrow(unique(cbind(basis, y))) == ncol(basis)) return(TRUE)
+  coef <- qr.coef(qr(basis), y)
+  size <- abs(coef) * apply(abs(basis), 2L, max)
+  if (any(!is.finite(size))) return(FALSE)
+  # Coefficient sizes only propose a smaller set of columns for the exact checks.
+  constant <- apply(basis, 2L, function(x) all(x == x[1L]))
+  use <- size > max(size) * sqrt(.Machine$double.eps) | constant
+  if (!any(use)) return(FALSE)
+  B <- basis[, use, drop = FALSE]
+  # r independent columns on exactly r distinct row profiles span every
+  # function of those profiles. Including y must introduce no new profile.
+  if (nrow(unique(cbind(B, y))) == ncol(B)) return(TRUE)
+  # A reversible binary rescaling is exact, including duplicate columns.
+  for (j in seq_len(ncol(B))) {
+    x <- B[, j]
+    i <- which.max(abs(x))
+    ratio <- y[i] / x[i]
+    if (!is.finite(ratio) || ratio == 0) next
+    scale <- sign(ratio) * 2^round(log2(abs(ratio)))
+    if (is.finite(scale) && scale != 0 && all(x * scale == y) && all(y / scale == x)) return(TRUE)
+  }
+  # Integer design identities can be checked exactly when every product
+  # and partial sum remains in the exact-integer range of a double.
+  if (all(B == trunc(B))) {
+    coefficients <- round(coef[use])
+    products <- sweep(B, 2L, coefficients, "*")
+    if (all(rowSums(abs(products)) < 2^52) && all(rowSums(products) == y)) return(TRUE)
+  }
+  FALSE
+}
+
+.vif_independent_columns <- function(X) {
+
+  if (!ncol(X)) return(integer())
+  q <- qr(X)
+  if (q$rank == ncol(X)) return(seq_len(ncol(X)))
+  basis <- sort(q$pivot[seq_len(q$rank)])
+  reduced <- X[, basis, drop = FALSE]
+  for (j in setdiff(seq_len(ncol(X)), basis)) {
+    if (!.vif_in_design_span(reduced, X[, j])) {
+      .vif_unavailable(paste0("The rank of the fitted design is ambiguous at working precision for column '",
+                              colnames(X)[j], "'. A finite GVIF cannot be distinguished from exact collinearity."))
+    }
+  }
+  basis
+}
+
+.vif_design_plan <- function(design, assign) {
+
+  base <- which(assign == 0L)
+  groups <- split(which(assign != 0L), assign[assign != 0L])
+  rank <- attr(design, "rank", exact = TRUE)
+  if (is.null(rank)) rank <- qr(design)$rank
+  basis <- seq_len(ncol(design))
+  infinite <- rep(FALSE, length(groups))
+  if (rank < ncol(design)) {
+    basis <- .vif_independent_columns(design)
+    for (j in seq_along(groups)) {
+      term <- groups[[j]]
+      own <- .vif_independent_columns(design[, c(base, term), drop = FALSE])
+      if (length(own) != length(base) + length(term)) {
+        .vif_unavailable(paste0("GVIF is undefined for a constant or internally aliased term: ",
+                                paste(colnames(design)[term], collapse = ", "), "."))
+      }
+      other <- .vif_independent_columns(design[, -term, drop = FALSE])
+      infinite[j] <- length(basis) - length(other) < length(term)
+    }
+  }
+  kept <- assign[basis] != 0L
+  finite_groups <- lapply(groups[!infinite], match, table = basis[kept])
+  transform <- function(covariance) {
+    result <- rep(Inf, length(groups))
+    if (length(finite_groups)) {
+      result[!infinite] <- .vif_gvif(covariance[kept, kept, drop = FALSE], finite_groups)
+    }
+    result
+  }
+  if (length(basis) < ncol(design)) design <- design[, basis, drop = FALSE]
+  list(design = design, transform = transform)
 }
 
 .vif_gvif <- function(vcov, groups) {

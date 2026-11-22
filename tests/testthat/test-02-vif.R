@@ -17,15 +17,32 @@ test_that("GVIF retains finite determinant ratios and diagnoses singular correla
   expect_identical(.vif_gvif(correlation, list(1:500)), 1)
 })
 
-test_that("VIF identifies aliased design columns before evaluating draws", {
+test_that("exact between-term overlap gives term-specific infinite GVIF", {
 
-  dat <- data.frame(yi = c(.2, -.1, .4, .3, .1, -.2), sei = rep(.2, 6), x = 1:6)
-  dat$duplicate <- 2 * dat$x
-  fit <- suppressWarnings(brma.norm(yi = yi, sei = sei, mods = ~ x + duplicate,
-    data = dat, measure = "SMD", prior_heterogeneity = prior("point", list(0)),
-    chains = 2, adapt = 100, burnin = 100, sample = 100, seed = 101,
-    silent = TRUE, parallel = FALSE, autofit = FALSE))
-  expect_error(vif(fit), "Aliased columns:.*(duplicate|x)", class = "RoBMA_vif_unavailable")
+  x <- c(-3, -2, -1, 0, 1, 3)
+  z <- c(1, 3, 4, 0, 2, -1)
+  design <- cbind(intercept = 1, x = x, duplicate = 2*x, z = z)
+  evaluate <- function(X, assign) {
+    plan <- .vif_design_plan(X, assign)
+    plan$transform(solve(crossprod(plan$design)))
+  }
+  expected <- 1/(1 - stats::cor(x, z)^2)
+  expect_equal(evaluate(design, 0:3), c(Inf, Inf, expected), tolerance = 1e-12)
+  expect_equal(evaluate(design, c(0L, 1L, 2L, 2L)), c(Inf, Inf))
+  expect_error(evaluate(design, c(0L, 1L, 1L, 2L)), "internally aliased",
+               class = "RoBMA_vif_unavailable")
+  expect_error(evaluate(cbind(intercept=1, x=x, constant=1), 0:2), "constant",
+               class = "RoBMA_vif_unavailable")
+  direction <- c(0, 0, 0, 1, -1, 0)
+  design[, "duplicate"] <- 2*x + 1e-10*direction
+  expect_error(evaluate(design, 0:3), "ambiguous", class = "RoBMA_vif_unavailable")
+  design[, "duplicate"] <- 2*x + 1e-3*direction
+  expect_true(all(is.finite(evaluate(design, 0:3))))
+
+  mixed <- .vif_summarize_draws(matrix(c(1, 1, Inf), ncol = 1L),
+    data.frame(term = "x", df = 1L), 1:3, probs = .5, include_samples = TRUE)
+  expect_identical(mixed$GVIF, Inf)
+  expect_equal(mixed[["CI_0.5"]], 1)
 })
 
 test_that("VIF rejects data-only objects", {
