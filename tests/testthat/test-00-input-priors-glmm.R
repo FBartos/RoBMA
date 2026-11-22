@@ -238,24 +238,41 @@ test_that("the estimate-unit GLMM likelihood of released nuisance families equal
   }
 })
 
-test_that("a gamma log-rate prior on a low-event cell stops with the grid nonconvergence class", {
+test_that("low-event GLMM cells integrate positive nuisance priors against independent oracles", {
 
   skip_on_cran()
-  # At 1200 nodes (the end of the refinement ladder) the prior-CDF grid is still
-  # about 4e-6 from the nested-QUADPACK value of this cell, so it cannot certify
-  # its 1e-6 tolerance. The 30-node grid of 4.0.0 returned a value 0.2 too low.
-  # The documented outcome is the typed refusal, which names a remedy.
+  # The original evenly parameterized prior-CDF rule exhausted 1200 nodes.
   stored <- BMA.glmm(
     x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
     data = test_data_pois, measure = "IRR",
     prior_lograte = BayesTools::prior("gamma", list(2, 1)), only_priors = TRUE
   )[["priors"]][["outcome"]][["phi"]]
-  condition <- tryCatch(
-    .outcome_pdf.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), stored),
-    error = identity)
-  expect_s3_class(condition, "RoBMA_glmm_grid_nonconvergence")
-  expect_s3_class(condition, "RoBMA_glmm_numerical_error")
-  expect_match(conditionMessage(condition), "a normal 'prior_lograte'", fixed = TRUE)
+  original <- .outcome_pdf.pois(4L, 3L, 20, 21, matrix(.2), matrix(.4), stored)
+  expect_lt(abs(as.numeric(original) - .glmm_oracle_pois(4L, 20, 3L, 21, .2, .4,
+    function(x) stats::dgamma(x, 2, rate = 1))), 1e-6)
+
+  families <- list(
+    list(stored, function(x) stats::dgamma(x, 2, rate = 1)),
+    list(BayesTools::prior("lognormal", list(0, 1)), function(x) stats::dlnorm(x)),
+    list(BayesTools::prior("invgamma", list(3, 1)), function(x) {
+      out <- numeric(length(x))
+      ok <- x > 0
+      out[ok] <- stats::dgamma(1/x[ok], 3, rate = 1) / x[ok]^2
+      out
+    })
+  )
+  for (family in families) {
+    value <- .outcome_pdf.pois(1L, 0L, 20, 20, matrix(0), matrix(.3), family[[1]])
+    oracle <- .glmm_oracle_pois(1L, 20, 0L, 20, 0, .3, family[[2]])
+    expect_lt(abs(as.numeric(value) - oracle), 1e-6)
+    expect_equal(sum(exp(.glmm_prior_quantile_grid(family[[1]], 30L)$log_weights)),
+                 1, tolerance = 1e-14)
+  }
+  base <- BayesTools::prior("lognormal", list(-2, 1), truncation = list(lower = 0, upper = 1))
+  value <- .outcome_pdf.binom(0L, 1L, 50L, 50L, matrix(.1), matrix(.3), base)
+  oracle <- .glmm_oracle_binom(0L, 50L, 1L, 50L, .1, .3,
+    function(x) stats::dlnorm(x, -2, 1)/stats::plnorm(1, -2, 1))
+  expect_lt(abs(as.numeric(value) - oracle), 1e-6)
 })
 
 test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {

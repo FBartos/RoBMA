@@ -64,9 +64,9 @@ than \code{1e-6} between refinements. Any nuisance prior without an adaptive rou
 (other than an untruncated beta base rate or an untruncated normal log-rate;
 truncated ones take the grid too) can fail to reach this, especially
 with few events or very large arms, and then stops with the error class
-\code{RoBMA_glmm_grid_nonconvergence} described below; gamma, lognormal, and
-inverse-gamma log-rate priors and lognormal base-rate priors are examples. A
-beta base-rate prior or a normal log-rate prior avoids it. The automatic
+\code{RoBMA_glmm_grid_nonconvergence} described below. For gamma, lognormal and
+inverse-gamma nuisance priors the grid concentrates nodes near both prior-CDF
+endpoints. The automatic
 computation after fitting (the \code{autocompute.loo} and \code{autocompute.waic}
 options) warns instead and returns the fit without LOO/WAIC.
 Numerical quadrature failures share class \code{RoBMA_glmm_numerical_error}.

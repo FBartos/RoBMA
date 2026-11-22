@@ -409,13 +409,30 @@
 
 .glmm_prior_quantile_grid <- function(prior, n) {
 
-  key <- .glmm_prior_grid_key(prior, n)
+  cluster_ends <- prior[["distribution"]] %in% c("gamma", "lognormal", "invgamma")
+  key <- .glmm_prior_grid_key(prior, n, if (cluster_ends) "sine-square" else "legendre")
   if (exists(key, envir = .glmm_prior_quantile_grid_cache, inherits = FALSE)) {
     return(get(key, envir = .glmm_prior_quantile_grid_cache, inherits = FALSE))
   }
 
-  gl      <- .gauss_legendre_nodes(n)
-  q_grid  <- as.numeric(BayesTools::quant(prior, gl[["nodes"]]))
+  gl <- .gauss_legendre_nodes(n)
+  u <- gl[["nodes"]]
+  log_weights <- gl[["log_weights"]]
+  if (cluster_ends) {
+    # Resolve likelihood mass close to a prior-CDF endpoint. For t in (0,1),
+    # u = sin(pi*t/2)^2 and du/dt = pi*sin(pi*t)/2. Evaluate the upper
+    # half via its small complement.
+    u <- ifelse(u <= .5, sinpi(u / 2)^2, 1 - sinpi((1 - u) / 2)^2)
+    weights <- gl[["weights"]] * (pi / 2) * sinpi(gl[["nodes"]])
+    log_weights <- log(weights / sum(weights))
+  }
+  q_grid <- as.numeric(BayesTools::quant(prior, u))
+  if (cluster_ends && (any(u <= 0 | u >= 1) || any(!is.finite(q_grid)))) {
+    # Truncation can round an extreme quantile to an endpoint. Retain the
+    # original rule when it still has representable nodes at this order.
+    q_grid <- as.numeric(BayesTools::quant(prior, gl[["nodes"]]))
+    log_weights <- gl[["log_weights"]]
+  }
 
   if (anyNA(q_grid) || any(!is.finite(q_grid))) {
     stop("The GLMM nuisance prior produced non-finite quadrature nodes.",
@@ -424,7 +441,7 @@
 
   out <- list(
     grid        = q_grid,
-    log_weights = gl[["log_weights"]]
+    log_weights = log_weights
   )
 
   assign(key, out, envir = .glmm_prior_quantile_grid_cache)

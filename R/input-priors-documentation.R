@@ -79,8 +79,8 @@
 #' adaptive route (other than an untruncated beta prior; a truncated beta prior
 #' takes the grid too) can fail to reach this, especially
 #' with few events or very large arms, and then stops with an error of class
-#' `RoBMA_glmm_grid_nonconvergence`, as a lognormal base-rate prior does on
-#' cells with few events. A beta prior avoids it. The automatic computation of
+#' `RoBMA_glmm_grid_nonconvergence`. The lognormal base-rate grid places
+#' extra nodes near both ends of the prior CDF for sparse cells. The automatic computation of
 #' LOO/WAIC after fitting warns instead and returns the fit without them.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
 #' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
@@ -96,8 +96,8 @@
 #' (other than an untruncated normal prior; a truncated normal prior takes the
 #' grid too) can fail to reach this, especially with few
 #' events or very large arms, and then stops with an error of class
-#' `RoBMA_glmm_grid_nonconvergence`, as gamma, lognormal, and inverse-gamma
-#' log-rate priors do on cells with few events. A normal prior avoids it. The
+#' `RoBMA_glmm_grid_nonconvergence`. Gamma, lognormal and inverse-gamma log-rate
+#' grids place extra nodes near both ends of the prior CDF for sparse cells. The
 #' automatic computation of LOO/WAIC after fitting warns instead and returns the
 #' fit without them.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).

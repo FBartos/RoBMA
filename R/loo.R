@@ -66,9 +66,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' log-rate; truncated ones take the grid too) can fail to reach this,
 #' especially with few events or very large arms, and then stops with an error of
 #' class \code{RoBMA_glmm_grid_nonconvergence} (also of class
-#' \code{RoBMA_glmm_numerical_error}); gamma, lognormal, and inverse-gamma
-#' log-rate priors and lognormal base-rate priors are examples. A beta base-rate
-#' prior or a normal log-rate prior avoids it. When the likelihood is computed
+#' \code{RoBMA_glmm_numerical_error}). For gamma, lognormal and inverse-gamma
+#' nuisance priors the grid concentrates nodes near both prior-CDF endpoints.
+#' When the likelihood is computed
 #' automatically after fitting (the \code{autocompute.loo} and
 #' \code{autocompute.waic} options), such a failure gives a warning and the fit
 #' is returned without LOO/WAIC; \code{add_loo()} then gives the same error.
@@ -736,9 +736,9 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' (other than an untruncated beta base rate or an untruncated normal log-rate;
 #' truncated ones take the grid too) can fail to reach this, especially
 #' with few events or very large arms, and then stops with the error class
-#' `RoBMA_glmm_grid_nonconvergence` described below; gamma, lognormal, and
-#' inverse-gamma log-rate priors and lognormal base-rate priors are examples. A
-#' beta base-rate prior or a normal log-rate prior avoids it. The automatic
+#' `RoBMA_glmm_grid_nonconvergence` described below. For gamma, lognormal and
+#' inverse-gamma nuisance priors the grid concentrates nodes near both prior-CDF
+#' endpoints. The automatic
 #' computation after fitting (the `autocompute.loo` and `autocompute.waic`
 #' options) warns instead and returns the fit without LOO/WAIC.
 #' Numerical quadrature failures share class `RoBMA_glmm_numerical_error`.
