@@ -150,9 +150,36 @@ bool normalize_log_tail_pair(double log_lower_mass, double log_upper_mass,
   return std::isfinite(*log_lower) && std::isfinite(*log_upper);
 }
 
+bool near_step_cut(double query_score, double cut_score)
+{
+  return std::isfinite(cut_score) && std::abs(query_score - cut_score) <= 1e-5;
+}
+
+// A partial bin is integrated in outcome units if subtracting the rounded
+// CDFs or standardized endpoints would lose its width. Around the midpoint
+// the first correction to the mean density is (z^2-1)*width^2/24.
+bool add_partial_step_mass(double query, double query_score, double cut, double cut_score,
+                           double sd, bool above_cut, double log_weight, double *log_mass)
+{
+  const double width = std::abs(query - cut);
+  const double dz = width / sd;
+  const double z_mid = cut_score + (above_cut ? .5 : -.5) * dz;
+  if (width > 0 && std::isfinite(width) && dz <= 1e-5 &&
+      std::abs(z_mid) * dz <= 1e-5) {
+    const double slope = z_mid * dz;
+    const double log_p = std::log(width) - std::log(sd) + dnorm(z_mid, 0, 1, true) +
+      std::log1p((slope * slope - dz * dz) / 24);
+    *log_mass = add_logspace(*log_mass, log_weight + log_p);
+    return !std::isnan(*log_mass);
+  }
+  const double lo = above_cut ? cut_score : query_score;
+  const double hi = above_cut ? query_score : cut_score;
+  return lo < hi && add_weighted_standard_normal_interval(lo, hi, log_weight, log_mass);
+}
+
 bool step_log_tail_pair_logspace(const double *omega,
                                  const SelNormKernelData &data,
-                                 double q_score, double mean, double sd,
+                                 double query, double q_score, double mean, double sd,
                                  double sei, int omega_stride,
                                  bool trusted_partition,
                                  double *log_lower, double *log_upper)
@@ -178,14 +205,21 @@ bool step_log_tail_pair_logspace(const double *omega,
       const double lower = stable_affine_score(lower_z, sei, mean, sd);
       const double upper = stable_affine_score(upper_z, sei, mean, sd);
       const double log_w = std::log(w);
-      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
-          !add_weighted_standard_normal_interval(
-            lower, std::min(upper, q_score), log_w, &log_lower_mass
-          ) ||
-          !add_weighted_standard_normal_interval(
-            std::max(lower, q_score), upper, log_w, &log_upper_mass
-          )) {
-        return false;
+      if (!(lower < upper)) return false;
+      if (near_step_cut(q_score, lower) || near_step_cut(q_score, upper)) {
+        const double raw_lower = lower_z * sei, raw_upper = upper_z * sei;
+        if (query <= raw_lower || query >= raw_upper) {
+          double *whole = query <= raw_lower ? &log_upper_mass : &log_lower_mass;
+          if (!add_weighted_standard_normal_interval(lower, upper, log_w, whole)) return false;
+        } else if (!add_partial_step_mass(query, q_score, raw_lower, lower, sd, true,
+                                          log_w, &log_lower_mass) ||
+                   !add_partial_step_mass(query, q_score, raw_upper, upper, sd, false,
+                                          log_w, &log_upper_mass)) return false;
+      } else {
+        if (!add_weighted_standard_normal_interval(lower, std::min(upper, q_score), log_w,
+                                                   &log_lower_mass) ||
+            !add_weighted_standard_normal_interval(std::max(lower, q_score), upper, log_w,
+                                                   &log_upper_mass)) return false;
       }
     } else if (w < 0 || std::isnan(w)) {
       return false;
@@ -214,6 +248,7 @@ bool step_log_tail_pair_from_plan(
   for (int g = 0; g < n_groups; ++g) {
     const double lower = lower_score[g];
     const double upper = upper_score[g];
+    if (near_step_cut(q_score, lower) || near_step_cut(q_score, upper)) return false;
     const double log_w = log_weight[g];
     if (!add_weighted_standard_normal_interval(
           lower, std::min(upper, q_score), log_w, &log_lower_mass

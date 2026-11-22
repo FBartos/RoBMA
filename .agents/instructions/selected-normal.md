@@ -35,6 +35,10 @@ Predictive variance consumes the kernel's direct centered variance. Raw second
 moments remain available to their callers, but are not subtracted from squared
 large means. Outer sampling mixtures and scalar moment integrals use a Gaussian
 location center and retain the existing numerical error and transition checks.
+For a continuous outcome query just inside a STEP cutoff, compute the partial
+bin mass from its width in outcome units. A query on a hard support boundary
+retains its exact zero tail. Fused summaries and cached plotting CDFs defer
+to that calculation when standardized endpoints cannot resolve the width.
 
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.

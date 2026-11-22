@@ -271,7 +271,8 @@ double cpp_selnorm_step_cdf_from_plan(
   const double *upper_score,
   const double *log_weight,
   int n_groups,
-  bool lower_tail = true
+  bool lower_tail,
+  const double *omega, int omega_stride
 );
 
 void cpp_selnorm_kernel_log_tail_pair(
