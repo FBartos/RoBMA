@@ -12,6 +12,8 @@
 - `plot_diagnostic()` and `plot_diagnostic_trace()` gain `statistic` and `batch_size` to trace batched inclusion probabilities, mixture-component probabilities, and switching rates
 - `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
+- Eligible ensembles can update publication-bias adjustments, moderator inclusion and heterogeneity jointly with their associated parameters
+- `sampler.nested.weights` enables shared weights for nested selection models and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
