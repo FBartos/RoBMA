@@ -64,8 +64,12 @@ predict(
   covariance through `V_new`. Product-only selection models require no
   publication-group column. Unadjusted normal selected latent
   predictions (`type = "estimate"`) require `sei` or `vi` in explicit
-  `newdata`. If an active selection branch uses `weight_rule = "best"`,
-  its publication groups must also be resolvable in the prediction data.
+  `newdata`. Gaussian sampling SEs used in prediction follow the ranges
+  in
+  [`data_input`](https://fbartos.github.io/RoBMA/dev/reference/data_input.md).
+  Exactly zero sampling SE is allowed where the prediction admits it. If
+  an active selection branch uses `weight_rule = "best"`, its
+  publication groups must also be resolvable in the prediction data.
   Fitted-row predictions reuse their publication-bias exemptions. For
   explicit new rows, supply a logical `bias_exempt` column when the fit
   contains exempt rows and the requested prediction uses publication

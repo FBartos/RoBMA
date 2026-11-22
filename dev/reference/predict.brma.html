@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9014</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -124,7 +124,9 @@ known-<code>V</code> <code><a href="brma.mv.html">brma.mv()</a></code> response 
 <code>newdata</code> also requires sampling covariance through <code>V_new</code>. Product-only
 selection models require no publication-group column. Unadjusted normal
 selected latent predictions (<code>type = "estimate"</code>) require <code>sei</code>
-or <code>vi</code> in explicit <code>newdata</code>. If an active
+or <code>vi</code> in explicit <code>newdata</code>. Gaussian sampling SEs used in
+prediction follow the ranges in <code><a href="data_input.html">data_input</a></code>. Exactly zero
+sampling SE is allowed where the prediction admits it. If an active
 selection branch uses <code>weight_rule = "best"</code>, its publication groups
 must also be resolvable in the prediction data.
 Fitted-row predictions reuse their publication-bias exemptions. For

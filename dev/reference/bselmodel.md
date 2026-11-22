@@ -58,7 +58,9 @@ bselmodel(
   a vector of effect sizes, or a formula with the effect size on the
   left-hand side and location moderators on the right-hand side (for
   example `yi ~ x1 + x2`). If a formula is supplied, `mods` must not be
-  specified.
+  specified. See
+  [data_input](https://fbartos.github.io/RoBMA/dev/reference/data_input.md)
+  for the supported ranges of effects and sampling SEs.
 
 - vi:
 

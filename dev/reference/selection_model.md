@@ -80,7 +80,16 @@ contains sampling standard errors and \\R\\ is their correlation matrix.
 Conditioning retains all of \\e\\; no residual sampling error is
 integrated separately. Covariance factorizations affect computation, not
 the selection model. Selection thresholds continue to use the original
-sampling standard errors.
+sampling standard errors. When sampling error is conditioned on, a
+positive integrated SD can be too small to resolve a changing selection
+weight at the reconstructed candidate mean. The likelihood then reports
+the row within its block, the integrated SD and the scale of the
+reconstruction. Check the random-effect scales and loadings for that
+row. An exactly fixed outcome uses its observed value at the cutoff. If
+\\A\\ is the sum of the absolute terms used to reconstruct the mean,
+this check applies for an integrated SD below \\10^{-12} A\\ and a
+distance to a relevant cutoff of at most \\10^{-10} A\\ in outcome
+units.
 
 When all outcome-generating sources are conditioned upon and weights are
 positive almost surely, selection weights cancel and the observed law is

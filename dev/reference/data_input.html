@@ -15,7 +15,7 @@ outcomes.'><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9013</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9014</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -86,7 +86,8 @@ outcomes.</p>
 <dl><dt id="arg-yi">yi<a class="anchor" aria-label="anchor" href="#arg-yi"></a></dt>
 <dd><p>a vector of effect sizes, or a formula with the effect size on the
 left-hand side and location moderators on the right-hand side (for example
-<code>yi ~ x1 + x2</code>). If a formula is supplied, <code>mods</code> must not be specified.</p></dd>
+<code>yi ~ x1 + x2</code>). If a formula is supplied, <code>mods</code> must not be specified.
+See data_input for the supported ranges of effects and sampling SEs.</p></dd>
 
 
 <dt id="arg-vi">vi<a class="anchor" aria-label="anchor" href="#arg-vi"></a></dt>
@@ -278,8 +279,32 @@ binomial GLMMs, it is computed as <code>ci + di</code>.</p></dd>
 <dd><p>a vector of the person-time in the control group.</p></dd>
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="supported-numerical-range">Supported numerical range<a class="anchor" aria-label="anchor" href="#supported-numerical-range"></a></h2>
 
-  </main></div>
+
+<p>For retained Gaussian observations, the absolute effect estimate and the
+sampling standard error can be at most 1,000 for named effect measures and
+\(10^9\) for <code>"GEN"</code>. Positive sampling standard errors must be at least
+\(10^{-6}\). These inclusive limits apply on the analysis scale, including
+the log scale for ratio measures, and use the marginal SE for covariance
+input. Zero and arbitrarily small effect estimates are valid. Predictions
+that admit exactly zero sampling variance retain that boundary.
+When both <code>vi</code> and <code>sei</code> are supplied, each retained value must meet
+its own bounds (squared SE limits for <code>vi</code>). Where both are present
+they must agree to double precision. The analysis uses the supplied
+variance, completing missing variances from the supplied SEs.
+An out-of-range finite value raises <code>RoBMA_data_outside_numerical_domain</code>
+(a <code>RoBMA_data_error</code>) with the original row, quantity and value.
+For general effects, change units consistently for estimates, SEs,
+covariances, outcome-scale priors and any supplied <code>prior_unit_information_sd</code>.
+For named measures, verify the measure, transformation and sampling
+uncertainty. These are practical
+input limits. Priors retain their specified support.</p>
+    </div>
+
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">
