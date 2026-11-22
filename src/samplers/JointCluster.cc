@@ -30,8 +30,8 @@ namespace jags {
 namespace RoBMA {
 namespace {
 
-constexpr char member_name[] = "drobma_cluster_member";
-constexpr char setup_name[] = "drobma_cluster_setup";
+constexpr char member_name[] = "robma_cluster_member";
+constexpr char setup_name[] = "robma_cluster_setup";
 constexpr char sampler_name[] = "RoBMA::JointCluster";
 constexpr double log_two_pi = 1.8378770664093455;
 
@@ -45,12 +45,6 @@ enum Setup { group_gate, design, groups, response, sampling_se, sampling_varianc
 using Params = std::vector<Node const *>;
 using Vec = std::vector<double>;
 using BayesTools::sampler_declarations::depends_on;
-using BayesTools::sampler_declarations::observed_zero;
-
-bool fixed_scalar(Node const *node)
-{
-  return node && node->isFixed() && node->length() == 1;
-}
 
 bool integer_between(double x, unsigned long first, unsigned long last)
 {
@@ -642,10 +636,9 @@ public:
   }
 };
 
-bool collect_setup(StochasticNode const *marker, FitData &data)
+bool collect_setup(Node const *tag, FitData &data)
 {
-  if (!observed_zero(marker)) return false;
-  data.setup = marker->parents();
+  data.setup = tag->parents();
   std::vector<unsigned long> sizes;
   for (Node const *parent : data.setup) sizes.push_back(parent->length());
   if (!valid_lengths(sizes)) return false;
@@ -768,30 +761,25 @@ public:
                                       Graph const &graph) const override
   {
     std::vector<Member> members;
-    StochasticNode const *setup_marker = nullptr;
+    Node const *setup = nullptr;
     for (StochasticNode *node : free) {
-      for (StochasticNode *child : *node->stochasticChildren()) {
-        auto const &p = child->parents();
-        auto const &name = child->distribution()->name();
-        if (p.empty() || p[0] != node) continue;
-        if (name == setup_name) {
-          if (setup_marker) return {};
-          setup_marker = child;
-        }
-        if (name == member_name) {
-          if (p.size() != 3 || !observed_zero(child) ||
-              !fixed_scalar(p[1]) || !fixed_scalar(p[2]) ||
-              !integer_between(scalar(p[1], 0), gate, allocation) ||
-              !integer_between(scalar(p[2], 0), 1, free.size())) return {};
-          members.push_back({node, static_cast<Role>(static_cast<int>(scalar(p[1], 0))),
-                             static_cast<unsigned long>(scalar(p[2], 0))});
-        }
+      for (Node const *tag : direct_terminal_tags(node, setup_name, setup_count, graph)) {
+        if (setup) return {};
+        setup = tag;
+      }
+      for (Node const *tag : direct_terminal_tags(node, member_name, 3, graph)) {
+        auto const &p = tag->parents();
+        if (!fixed_scalar(p[1]) || !fixed_scalar(p[2]) ||
+            !integer_between(scalar(p[1], 0), gate, allocation) ||
+            !integer_between(scalar(p[2], 0), 1, free.size())) return {};
+        members.push_back({node, static_cast<Role>(static_cast<int>(scalar(p[1], 0))),
+                           static_cast<unsigned long>(scalar(p[2], 0))});
       }
     }
-    if (!setup_marker) return {};
+    if (!setup) return {};
     auto data = std::make_shared<FitData>();
     std::vector<StochasticNode *> nodes;
-    if (!collect_setup(setup_marker, *data) || !collect_nodes(members, *data, nodes)) return {};
+    if (!collect_setup(setup, *data) || !collect_nodes(members, *data, nodes)) return {};
     for (StochasticNode *node : nodes) {
       for (StochasticNode *child : *node->stochasticChildren()) {
         auto const &name = child->distribution()->name();
@@ -803,7 +791,6 @@ public:
     std::size_t observations = 0;
     for (StochasticNode const *child : view->stochasticChildren()) {
       auto const &name = child->distribution()->name();
-      if (name == setup_name || name == member_name) continue;
       if (!isObserved(child) || child->length() != 1 ||
           (name != "dnorm" && name != "dselnorm_step_switch")) return {};
       ++observations;
@@ -826,33 +813,14 @@ public:
 };
 } // namespace
 
-ClusterMarker::ClusterMarker(bool setup)
-  : VectorDist(setup ? setup_name : member_name, setup ? static_cast<unsigned long>(setup_count) : 3),
+ClusterTag::ClusterTag(bool setup)
+  : JointSamplerTag(setup ? setup_name : member_name, setup ? static_cast<unsigned long>(setup_count) : 3),
     _setup(setup) {}
 
-double ClusterMarker::logDensity(double const *x, PDFType, std::vector<double const *> const &,
-                                 std::vector<unsigned long> const &) const
-{
-  return *x == 0 ? 0 : JAGS_NEGINF;
-}
-
-void ClusterMarker::randomSample(double *x, std::vector<double const *> const &,
-                                 std::vector<unsigned long> const &, RNG *) const { *x = 0; }
-
-void ClusterMarker::support(double *lo, double *hi, std::vector<double const *> const &,
-                            std::vector<unsigned long> const &) const { *lo = *hi = 0; }
-
-bool ClusterMarker::checkParameterLength(std::vector<unsigned long> const &sizes) const
+bool ClusterTag::checkParameterLength(std::vector<unsigned long> const &sizes) const
 {
   return _setup ? valid_lengths(sizes) : sizes.size() == 3 && sizes[0] >= 1 && sizes[1] == 1 && sizes[2] == 1;
 }
-
-bool ClusterMarker::checkParameterValue(std::vector<double const *> const &,
-                                         std::vector<unsigned long> const &) const { return true; }
-
-unsigned long ClusterMarker::length(std::vector<unsigned long> const &) const { return 1; }
-bool ClusterMarker::isSupportFixed(std::vector<bool> const &) const { return true; }
-bool ClusterMarker::isDiscreteValued(std::vector<bool> const &) const { return true; }
 
 SamplerFactory *joint_cluster_factory()
 {

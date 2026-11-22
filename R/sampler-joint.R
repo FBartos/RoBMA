@@ -23,7 +23,8 @@
       .sampler_joint_gaussian(prior_list, formula_design, data, sign, require_scaled = policy == "auto")
     }, sampler = "RoBMA::GaussianJoint"))
   }
-  if (policy == "auto" && !.is_data_mods(data) &&
+  if (policy %in% c("auto", "bias") &&
+      (!.is_data_mods(data) || (policy == "bias" && !.is_data_known_v(data))) &&
       inherits(fit_priors[["bias"]], "prior.bias_mixture") &&
       .sampler_joint_independent_selection(data)) {
     return(structure(function(prior_list, formula_design, data) {
@@ -106,10 +107,19 @@
 
 .sampler_joint_bias <- function(prior_list, formula_design, data, sign) {
 
+  location <- "mu"
+  intercept <- "mu"
+  moderators <- NULL
+  if (length(formula_design) > 0L) {
+    moderators <- .sampler_joint_bias_moderators(prior_list, formula_design, data)
+    if (is.null(moderators)) return(NULL)
+    location  <- moderators[["prior_names"]]
+    intercept <- moderators[["intercept"]]
+  }
   prior_names <- names(prior_list)
-  if (length(formula_design) != 0L || !all(c("mu", "bias") %in% prior_names) ||
-      !all(prior_names %in% c("mu", "bias", "tau")) || length(prior_list[["bias"]]) < 2L) return(NULL)
-  mu <- .sampler_joint_normal_mixture(prior_list, "mu")
+  if (!all(c(location, "bias") %in% prior_names) ||
+      !all(prior_names %in% c(location, "bias", "tau")) || length(prior_list[["bias"]]) < 2L) return(NULL)
+  mu <- .sampler_joint_normal_mixture(prior_list, intercept)
   if (is.null(mu)) return(NULL)
 
   # Heterogeneity is left in place. Its source law must be independent of
@@ -122,6 +132,7 @@
   }
 
   bias <- BayesTools::JAGS_mixture_sources(prior_list, "bias")
+  if (!is.null(moderators) && isTRUE(bias[["nested_weights"]])) return(NULL)
   branches <- bias[["branches"]]
   family_codes <- c(none = 0, selection = 1, PET = 2, PEESE = 3)
   codes <- unname(family_codes[vapply(branches, `[[`, character(1), "family")])
@@ -157,12 +168,18 @@
     if (branch[["family"]] == "selection") branch[["omega"]] else rep(one, n_bins)
   })
 
-  return(list(markers = list(list(
-    name         = "RoBMA_joint_bias",
-    distribution = "drobma_joint_bias",
-    arguments    = list(bias[["gate"]], mu[["gate"]], mu[["source"]], mu[["label"]],
-                        sign, codes, slopes, unlist(omega, use.names = FALSE))
-  )), data = stats::setNames(list(0, 1), c(zero, one))))
+  tag <- "robma_joint_bias"
+  arguments <- list(bias[["gate"]], mu[["gate"]], mu[["source"]], mu[["label"]],
+                    sign, codes, slopes, unlist(omega, use.names = FALSE))
+  marker_data <- stats::setNames(list(0, 1), c(zero, one))
+  if (!is.null(moderators)) {
+    tag <- "robma_joint_bias_moderated"
+    arguments <- c(arguments, list("sel_joint_singleton_y", moderators[["coefficients"]],
+                                   "RoBMA_joint_moderator_design"))
+    marker_data[["RoBMA_joint_moderator_design"]] <- moderators[["design"]]
+  }
+  return(list(markers = list(list(name = "RoBMA_joint_bias", tag = tag,
+                                 arguments = arguments)), data = marker_data))
 }
 
 
@@ -194,7 +211,7 @@
 
   return(list(markers = list(list(
     name         = "RoBMA_joint_gaussian",
-    distribution = "drobma_gaussian_joint",
+    tag          = "robma_gaussian_joint",
     arguments    = list(intercept[["gate"]], intercept[["source"]],
                         moderator[["gate"]], moderator[["source"]], tau[["gate"]], tau[["source"]],
                         c(intercept[["label"]], moderator[["label"]], tau[["label"]]),

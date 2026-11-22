@@ -43,6 +43,7 @@ samplers/IndependentBiasJoint.o samplers/JointCluster.o: distributions/selnorm-j
 RoBMA.o samplers/GaussianJoint.o: samplers/GaussianJoint.h
 samplers/GaussianJoint.o: samplers/GaussianJointKernel.h
 RoBMA.o samplers/JointCluster.o: samplers/JointCluster.h
+RoBMA.o samplers/IndependentBiasJoint.o samplers/GaussianJoint.o samplers/JointCluster.o: samplers/JointSamplerTag.h
 samplers/JointCluster.o: selnorm/selnorm.h
 r-selnorm.o: samplers/CorrectedSampler.h samplers/CoarseCorrectedBlock.h selnorm/selnorm-mv.h
 r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h

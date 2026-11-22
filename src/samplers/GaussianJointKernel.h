@@ -34,6 +34,67 @@ struct Conditional {
   long double slope_rhs = 0;
 };
 
+struct OrdinateBounds {
+  long double normalizer_lower;
+  long double normalizer_upper;
+  long double half_quadratic_lower;
+  long double half_quadratic_upper;
+  bool valid;
+};
+
+struct OrdinateWork {
+  long double normalizer = 0;
+  long double sum_abs_normalizer = 0;
+  long double twice_quadratic = 0;
+  long double design_squared_norm = 2;
+  long double rhs_squared_norm = 0;
+};
+
+// The augmented weighted design contains either or both identity prior rows.
+// Its least singular value is at least one. Guard the normalizing determinant
+// and residual norm against a normwise QR perturbation before applying bounds.
+inline OrdinateBounds enclose_ordinate(OrdinateWork const &work, std::size_t rows)
+{
+  // 64 rounded operations per row covers the two Givens rotations and the
+  // norm/normalizer accumulation. Allow for double-precision libm rounding as
+  // well, including builds where long double aliases double.
+  const long double roundoff =
+    64 * (static_cast<long double>(rows) + 2) * std::numeric_limits<long double>::epsilon() +
+    32 * std::numeric_limits<double>::epsilon();
+  const long double rho = roundoff * std::sqrt(work.design_squared_norm);
+  if (!(rho < 1) || !std::isfinite(work.normalizer) ||
+      !std::isfinite(work.sum_abs_normalizer) || !std::isfinite(work.twice_quadratic) ||
+      !std::isfinite(work.rhs_squared_norm)) {
+    return {0, 0, 0, 0, false};
+  }
+  const long double res = std::sqrt(work.twice_quadratic);
+  const long double rhs = std::sqrt(work.rhs_squared_norm);
+  // Singular-value perturbation bounds the determinant. Perturbing the
+  // column-space projector and right-hand side bounds the residual norm.
+  const long double normalizer_error =
+    roundoff * (1 + work.sum_abs_normalizer) - 2 * std::log1p(-rho);
+  const long double residual_error =
+    (roundoff * rhs + 2 * rho * rhs) / (1 - rho) + roundoff * (1 + res);
+  const long double residual_lower = std::max(0.0L, res - residual_error);
+  const long double residual_upper = res + residual_error;
+  const long double half_q_lower = 0.5L * residual_lower * residual_lower;
+  const long double half_q_upper = 0.5L * residual_upper * residual_upper;
+  if (!std::isfinite(normalizer_error) || !std::isfinite(half_q_upper)) {
+    return {0, 0, 0, 0, false};
+  }
+  const long double inf = std::numeric_limits<long double>::infinity();
+  const OrdinateBounds out{
+    std::nextafter(work.normalizer - normalizer_error, -inf),
+    std::nextafter(work.normalizer + normalizer_error, inf),
+    std::max(0.0L, std::nextafter(half_q_lower, -inf)),
+    std::nextafter(half_q_upper, inf),
+    true
+  };
+  if (!std::isfinite(out.normalizer_lower) || !std::isfinite(out.normalizer_upper) ||
+      !std::isfinite(out.half_quadratic_upper)) return {0, 0, 0, 0, false};
+  return out;
+}
+
 inline bool active(unsigned int cell, unsigned int coefficient)
 {
   return (cell >> coefficient) & 1U;
@@ -44,20 +105,31 @@ inline bool active(unsigned int cell, unsigned int coefficient)
 // whitened observation rows by Givens rotations. The residuals give the
 // marginal quadratic directly. Keeping the means on the prior rows avoids
 // subtracting two prior-scale values to restore a data-scale coefficient.
-inline Conditional evaluate(Model const &model, unsigned int cell, double tau)
+template <bool enclose = false>
+inline Conditional evaluate(Model const &model, unsigned int cell, double tau,
+                            OrdinateBounds *bounds = nullptr)
 {
   constexpr long double half_log_two_pi = 0.9189385332046727417803297364056176L;
   const long double intercept_scale = active(cell, 0) ? model.effect_sign * model.sd[0] : 0;
   const long double slope_scale = active(cell, 1) ? model.effect_sign * model.sd[1] : 0;
   Conditional out;
+  OrdinateWork work;
   out.intercept_rhs = static_cast<long double>(model.mean[0]) / model.sd[0];
   out.slope_rhs = static_cast<long double>(model.mean[1]) / model.sd[1];
+  if constexpr (enclose) {
+    if (intercept_scale != 0) work.rhs_squared_norm += out.intercept_rhs * out.intercept_rhs;
+    if (slope_scale != 0) work.rhs_squared_norm += out.slope_rhs * out.slope_rhs;
+  }
   for (Observation const &row : model.rows) {
     const long double sd = std::hypot(static_cast<long double>(row.se),
                                       static_cast<long double>(tau));
     const long double a = intercept_scale / sd;
     long double b = slope_scale * row.moderator / sd;
     long double rhs = row.y / sd;
+    if constexpr (enclose) {
+      work.design_squared_norm += a * a + b * b;
+      work.rhs_squared_norm += rhs * rhs;
+    }
     if (a != 0) {
       const long double r = std::hypot(out.intercept_precision_root, a);
       const long double c = out.intercept_precision_root / r;
@@ -79,10 +151,22 @@ inline Conditional evaluate(Model const &model, unsigned int cell, double tau)
       out.slope_rhs = c * slope_rhs + s * rhs;
       rhs = c * rhs - s * slope_rhs;
     }
-    out.log_likelihood -= half_log_two_pi + std::log(sd) + 0.5L * rhs * rhs;
+    const long double normalizer = half_log_two_pi + std::log(sd);
+    out.log_likelihood -= normalizer + 0.5L * rhs * rhs;
+    if constexpr (enclose) {
+      work.normalizer -= normalizer;
+      work.sum_abs_normalizer += std::fabs(normalizer);
+      work.twice_quadratic += rhs * rhs;
+    }
   }
-  out.log_likelihood -= std::log(out.intercept_precision_root)
-                       + std::log(out.slope_precision_root);
+  const long double log_precision = std::log(out.intercept_precision_root) +
+                                    std::log(out.slope_precision_root);
+  out.log_likelihood -= log_precision;
+  if constexpr (enclose) {
+    work.normalizer -= log_precision;
+    work.sum_abs_normalizer += std::fabs(log_precision);
+    *bounds = enclose_ordinate(work, model.rows.size());
+  }
   return out;
 }
 
@@ -106,6 +190,11 @@ public:
   static constexpr unsigned int scale_bins = slab_bins + 1;
   static constexpr unsigned int coefficient_cells = 4;
   static constexpr unsigned int cell_count = scale_bins * coefficient_cells;
+  struct Coverage {
+    long double log_bound;
+    unsigned int subintervals_per_bin;
+    bool certified;
+  };
 
   struct State {
     unsigned int coefficients;
@@ -167,11 +256,14 @@ public:
     long double cumulative = 0;
     for (unsigned int i = 0; i < cell_count; ++i) {
       const unsigned int j = _order[i];
-      cumulative += proposal_mass[j] / total;
-      _cdf[i] = cumulative;
-      _log_density[j] = std::log(proposal_mass[j] / total) + log_frequency(j % scale_bins);
+      const long double next = i == cell_count - 1 ? 1 : cumulative + proposal_mass[j] / total;
+      if (!(next > cumulative) || next > 1) return false;
+      _cdf[i] = next;
+      // Score and verify the actual CDF interval, including rounding and
+      // the last cell's remaining probability.
+      _log_density[j] = std::log(next - cumulative) + log_frequency(j % scale_bins);
+      cumulative = next;
     }
-    _cdf.back() = 1;
     return true;
   }
 
@@ -204,11 +296,144 @@ public:
     return _log_density[index(coefficients, bin)];
   }
 
+  static long double coverage_limit()
+  {
+    // P(no posterior refresh after 100 sweeps) <= .001 from every start.
+    return -std::log(-std::expm1(std::log(0.001L) / 100));
+  }
+
+  template <typename Quantile>
+  Coverage coverage(Model const &model, Quantile quantile) const
+  {
+    const long double limit = coverage_limit();
+    const long double coarse = coverage_bound(model, quantile, 1);
+    if (!std::isfinite(coarse)) return {coarse, 1, false};
+    if (coarse <= limit) return {coarse, 1, true};
+    const long double refined = coverage_bound(model, quantile, 4);
+    return {refined, 4, std::isfinite(refined) && refined <= limit};
+  }
+
+  // Exposed to the standalone numerical verification for the two stages.
+  template <typename Quantile>
+  long double coverage_bound(Model const &model, Quantile quantile,
+                             unsigned int subintervals_per_bin) const
+  {
+    const long double inf = std::numeric_limits<long double>::infinity();
+    if (subintervals_per_bin != 1 && subintervals_per_bin != 4) return inf;
+    const auto n_intervals = slab_bins * subintervals_per_bin;
+    const long double log_width = -std::log(static_cast<long double>(n_intervals));
+    const auto smallest_se = std::min_element(model.rows.begin(), model.rows.end(),
+      [](Observation const &a, Observation const &b) { return a.se < b.se; });
+    if (smallest_se == model.rows.end() || !(smallest_se->se > 0)) return inf;
+    std::vector<RankEdge> edges(n_intervals - 1);
+    for (unsigned int j = 1; j < n_intervals; ++j) {
+      const double survival = static_cast<double>(n_intervals - j) / n_intervals;
+      if (!rank_edge(model.sd[2], smallest_se->se, quantile, survival, edges[j - 1])) return inf;
+    }
+    long double log_evidence_lower = -inf;
+    long double log_weight_upper = -inf;
+    for (unsigned int cell = 0; cell < coefficient_cells; ++cell) {
+      OrdinateBounds atom;
+      evaluate<true>(model, cell, 0, &atom);
+      if (!atom.valid) return inf;
+      const long double log_atom = log_prior(model, cell, 0);
+      log_evidence_lower = add_log_mass(log_evidence_lower,
+        log_atom + atom.normalizer_lower - atom.half_quadratic_upper);
+      log_weight_upper = std::max(log_weight_upper,
+        log_atom + atom.normalizer_upper - atom.half_quadratic_lower - log_density(cell, 0));
+      const long double log_slab = log_prior(model, cell, 1);
+      OrdinateBounds left = atom;
+      for (unsigned int j = 1; j <= n_intervals; ++j) {
+        OrdinateBounds right = {-inf, -inf, 0, 0, true};
+        if (j < n_intervals) {
+          right = rank_edge_bounds(model, cell, edges[j - 1]);
+          if (!right.valid) return inf;
+        }
+        const unsigned int bin = 1 + (j - 1) / subintervals_per_bin;
+        // For t in [a,b], both the log prefactor and inverse quadratic
+        // decrease. An infinite right endpoint has N(b)=-Inf and Q(b)=0.
+        const long double lower = right.normalizer_lower - left.half_quadratic_upper;
+        const long double upper = left.normalizer_upper - right.half_quadratic_lower;
+        log_evidence_lower = add_log_mass(log_evidence_lower, log_slab + lower + log_width);
+        log_weight_upper = std::max(log_weight_upper, log_slab + upper - log_density(cell, bin));
+        left = right;
+      }
+    }
+    if (!std::isfinite(log_evidence_lower) || !std::isfinite(log_weight_upper)) return inf;
+    // Round the assembled log ratio outwards as well. Include cancellation
+    // between the ordinate and the evidence when setting the margin.
+    const long double error = 64 * n_intervals * std::numeric_limits<long double>::epsilon() *
+      (1 + std::fabs(log_evidence_lower) + std::fabs(log_weight_upper));
+    const long double bound = std::nextafter(log_weight_upper - log_evidence_lower + error, inf);
+    return bound >= 0 ? bound : inf;
+  }
+
 private:
   std::array<double, slab_bins - 1> _cuts;
   std::array<unsigned int, cell_count> _order;
   std::array<long double, cell_count> _cdf;
   std::array<long double, cell_count> _log_density;
+
+  struct RankEdge {
+    double tau;
+    long double left_dispersion_ratio;
+    long double right_dispersion_ratio;
+  };
+
+  static long double add_log_mass(long double a, long double b)
+  {
+    const long double lower = std::min(a, b);
+    const long double upper = std::max(a, b);
+    if (!std::isfinite(lower)) return upper;
+    return upper + std::log1p(std::exp(lower - upper));
+  }
+
+  template <typename Quantile>
+  static bool rank_edge(double tau_sd, double min_se, Quantile quantile,
+                        double survival, RankEdge &edge)
+  {
+    // Evaluate outward of the nominal rank edge, and independently check
+    // that the physical interval encloses it with a numerical margin.
+    constexpr double pad = 64 * std::numeric_limits<double>::epsilon();
+    const double lo = quantile(survival + pad);
+    const double tau = quantile(survival);
+    const double hi = quantile(survival - pad);
+    if (!(lo > 0 && lo < tau && tau < hi) || !std::isfinite(hi)) return false;
+    const long double scale = tau_sd * std::sqrt(2.0L);
+    if (!(std::erfc(lo / scale) > survival + pad / 2 &&
+          std::erfc(hi / scale) < survival - pad / 2)) return false;
+    const auto dispersion = [=](double at) {
+      return std::hypot(static_cast<long double>(min_se), static_cast<long double>(at));
+    };
+    constexpr long double margin = 1 + 8 * std::numeric_limits<long double>::epsilon();
+    const long double dispersion_at_tau = dispersion(tau);
+    edge = {tau, margin * dispersion_at_tau / dispersion(lo),
+                 margin * dispersion(hi) / dispersion_at_tau};
+    return true;
+  }
+
+  static OrdinateBounds rank_edge_bounds(Model const &model, unsigned int cell, RankEdge const &edge)
+  {
+    OrdinateBounds out;
+    evaluate<true>(model, cell, edge.tau, &out);
+    if (!out.valid) return out;
+    // C(t) = C(0) + t²I. Its eigenvalues have relative changes no larger
+    // than the variance changes at the smallest sampling SE. Enclose the
+    // log determinant and inverse quadratic across the padded edge using
+    // this ratio, with just one QR evaluation for the edge and cell.
+    const long double inf = std::numeric_limits<long double>::infinity();
+    const long double n = model.rows.size();
+    const long double left = edge.left_dispersion_ratio;
+    const long double right = edge.right_dispersion_ratio;
+    out.normalizer_lower = std::nextafter(out.normalizer_lower - n * std::log(right), -inf);
+    out.normalizer_upper = std::nextafter(out.normalizer_upper + n * std::log(left), inf);
+    out.half_quadratic_lower = std::max(0.0L,
+      std::nextafter(out.half_quadratic_lower / (right * right), -inf));
+    out.half_quadratic_upper = std::nextafter(out.half_quadratic_upper * left * left, inf);
+    out.valid = std::isfinite(out.normalizer_lower) && std::isfinite(out.normalizer_upper) &&
+                std::isfinite(out.half_quadratic_upper);
+    return out;
+  }
 
   static unsigned int index(unsigned int coefficients, unsigned int bin)
   {

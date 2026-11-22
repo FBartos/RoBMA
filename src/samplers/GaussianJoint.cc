@@ -10,7 +10,6 @@
 #include <sampler/ImmutableSampleMethod.h>
 #include <sampler/ImmutableSampler.h>
 #include <sampler/SamplerFactory.h>
-#include <util/nainf.h>
 
 #include <memory>
 #include <set>
@@ -22,7 +21,7 @@ namespace RoBMA {
 namespace {
 
 namespace kernel = ::robma_gaussian_joint;
-constexpr char marker_name[] = "drobma_gaussian_joint";
+constexpr char tag_name[] = "robma_gaussian_joint";
 constexpr char sampler_name[] = "RoBMA::GaussianJoint";
 constexpr unsigned int root_count = 6;
 constexpr unsigned int labels_parent = 6;
@@ -30,7 +29,7 @@ constexpr unsigned int moderator_parent = 7;
 constexpr unsigned int outcome_parent = 8;
 constexpr unsigned int se_parent = 9;
 constexpr unsigned int sign_parent = 10;
-constexpr unsigned int marker_length = 11;
+constexpr unsigned int tag_arity = 11;
 
 using Labels = std::array<double, 3>;
 
@@ -45,11 +44,6 @@ struct HalfNormalQuantile {
 bool has_distribution(StochasticNode const &node, const char *name)
 {
   return node.distribution()->name() == name && node.length() == 1;
-}
-
-bool fixed_scalar(Node const *node)
-{
-  return node != nullptr && node->length() == 1 && node->isFixed();
 }
 
 bool read_prior(StochasticNode const &gate, StochasticNode const &slab,
@@ -179,14 +173,13 @@ bool matching_precision(Node const *precision, GraphView const &view,
     fixed_value(heterogeneity->parents()[1], 2);
 }
 
-bool matching_observations(GraphView const &view, StochasticNode const *marker,
+bool matching_observations(GraphView const &view,
                            std::vector<StochasticNode const *> const &observed,
                            kernel::Model const &model, Labels const &labels)
 {
   std::set<StochasticNode const *> children(view.stochasticChildren().begin(),
                                             view.stochasticChildren().end());
-  if (observed.empty() || children.size() != observed.size() + 1 ||
-      children.erase(marker) != 1) {
+  if (observed.empty() || children.size() != observed.size()) {
     return false;
   }
   for (std::size_t i = 0; i < observed.size(); ++i) {
@@ -251,15 +244,12 @@ public:
   }
 };
 
-std::unique_ptr<Sampler> make_sampler(StochasticNode const *marker,
+std::unique_ptr<Sampler> make_sampler(Node const *tag,
                                      std::list<StochasticNode *> const &available,
                                      Graph const &graph)
 {
-  auto const &parents = marker->parents();
-  if (!isObserved(marker) || marker->value(0)[0] != 0 || parents.size() != marker_length) {
-    return nullptr;
-  }
-  for (unsigned int i = root_count; i < marker_length; ++i) {
+  auto const &parents = tag->parents();
+  for (unsigned int i = root_count; i < tag_arity; ++i) {
     if (!parents[i]->isFixed()) return nullptr;
   }
   std::vector<StochasticNode *> nodes;
@@ -293,9 +283,12 @@ std::unique_ptr<Sampler> make_sampler(StochasticNode const *marker,
     model.rows.push_back({y, se[i], moderator[i]});
   }
   auto view = std::make_unique<GraphView>(nodes, graph);
-  if (!matching_observations(*view, marker, observed, model, labels)) return nullptr;
+  if (!matching_observations(*view, observed, model, labels)) return nullptr;
   kernel::Proposal proposal;
-  if (!proposal.prepare(model, HalfNormalQuantile{model.sd[2]})) return nullptr;
+  const HalfNormalQuantile quantile{model.sd[2]};
+  if (!proposal.prepare(model, quantile) || !proposal.coverage(model, quantile).certified) {
+    return nullptr;
+  }
 
   auto method = std::make_unique<GaussianJoint>(view.get(), std::move(model),
                                                  std::move(proposal), labels);
@@ -310,16 +303,14 @@ public:
   std::vector<Sampler *> makeSamplers(std::list<StochasticNode *> const &nodes,
                                       Graph const &graph) const override
   {
-    std::set<StochasticNode const *> checked;
     for (StochasticNode *node : nodes) {
-      for (StochasticNode const *child : *node->stochasticChildren()) {
-        if (!has_distribution(*child, marker_name) || !checked.insert(child).second) continue;
-        auto sampler = make_sampler(child, nodes, graph);
-        if (sampler != nullptr) {
-          std::vector<Sampler *> claimed{sampler.get()};
-          sampler.release();
-          return claimed;
-        }
+      const auto tags = direct_terminal_tags(node, tag_name, tag_arity, graph);
+      if (tags.size() != 1) continue;
+      auto sampler = make_sampler(tags.front(), nodes, graph);
+      if (sampler != nullptr) {
+        std::vector<Sampler *> claimed{sampler.get()};
+        sampler.release();
+        return claimed;
       }
     }
     return {};
@@ -333,56 +324,15 @@ public:
 
 } // namespace
 
-GaussianJointMarker::GaussianJointMarker() : VectorDist(marker_name, marker_length) {}
+GaussianJointTag::GaussianJointTag() : JointSamplerTag(tag_name, tag_arity) {}
 
-double GaussianJointMarker::logDensity(const double *x, PDFType,
-                                       const std::vector<double const *> &,
-                                       const std::vector<unsigned long> &) const
+bool GaussianJointTag::checkParameterLength(const std::vector<unsigned long> &len) const
 {
-  return *x == 0 ? 0 : JAGS_NEGINF;
-}
-
-void GaussianJointMarker::randomSample(double *x, const std::vector<double const *> &,
-                                       const std::vector<unsigned long> &, RNG *) const
-{
-  *x = 0;
-}
-
-void GaussianJointMarker::support(double *lower, double *upper,
-                                  const std::vector<double const *> &,
-                                  const std::vector<unsigned long> &) const
-{
-  *lower = *upper = 0;
-}
-
-bool GaussianJointMarker::checkParameterLength(const std::vector<unsigned long> &len) const
-{
-  return len.size() == marker_length &&
+  return len.size() == tag_arity &&
     std::all_of(len.begin(), len.begin() + root_count, [](unsigned long n) { return n == 1; }) &&
     len[labels_parent] == 3 && len[moderator_parent] > 0 &&
     len[moderator_parent] == len[outcome_parent] && len[moderator_parent] == len[se_parent] &&
     len[sign_parent] == 1;
-}
-
-bool GaussianJointMarker::checkParameterValue(const std::vector<double const *> &,
-                                              const std::vector<unsigned long> &) const
-{
-  return true;
-}
-
-unsigned long GaussianJointMarker::length(const std::vector<unsigned long> &) const
-{
-  return 1;
-}
-
-bool GaussianJointMarker::isSupportFixed(const std::vector<bool> &) const
-{
-  return true;
-}
-
-bool GaussianJointMarker::isDiscreteValued(const std::vector<bool> &) const
-{
-  return true;
 }
 
 SamplerFactory *gaussian_joint_factory()

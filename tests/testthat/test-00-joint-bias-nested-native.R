@@ -25,14 +25,14 @@ skip_on_cran()
       y[i] ~ dselnorm_step_switch(mu, sd[i], se[i], 1, active, zlo, zhi,
                                   bin[i], 1, 1 - equals(bias, 1), 0)
     }
-    marker ~ drobma_joint_bias(bias, effect, raw, 2, direction, c(0, 1, 1),
+    tag <- robma_joint_bias(bias, effect, raw, 2, direction, c(0, 1, 1),
                                c(0, 0, 0), c(1, 1, 1, 1, coarse, fine))
     ", extra, "
   }")
   se <- c(.16, .25, .32, .50, .81)
   data <- c(list(se = se, y = se * c(2.3, 1.3, .7, .1, -1.3), bin = c(1L, 2L, 3L, 4L, 0L),
                  zlo = c(1.8, 1.15, .55, -1e300), zhi = c(1e300, 1.8, 1.15, .55),
-                 marker = 0, direction = direction), data)
+                 direction = direction), data)
   initial <- list(bias = 1L, effect = 2L, raw = -.19, a = .09, v = .28, u = .33, tau = .07,
                   .RNG.name = "base::Mersenne-Twister", .RNG.seed = 317L)
   if (observed) {

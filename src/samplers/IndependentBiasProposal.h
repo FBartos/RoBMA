@@ -112,14 +112,14 @@ struct Bin {
 // its first two local derivatives. The moment identities also underlie the
 // selected-normal kernel's shared tail and moment calculation.
 inline void normal_bins(const Geometry &geometry, const Row &row, double center,
-                        double sd, std::vector<Bin> &bins)
+                        double sd, std::vector<Bin> &bins, double offset = 0)
 {
   NormalBoundary upper = boundary(geometry.cuts.front());
   NormalBoundary upper_spike = upper;
   for (std::size_t i = 0; i < bins.size(); ++i) {
     const double cut = geometry.cuts[i + 1] * row.selection_se;
     const auto lower = boundary((cut - row.selection_sign * center) / sd);
-    const auto lower_spike = boundary(cut / sd);
+    const auto lower_spike = boundary((offset == 0 ? cut : cut - row.selection_sign * offset) / sd);
     const double central = interval_area(lower, upper);
     bins[i] = {central, interval_area(lower_spike, upper_spike),
                lower.density - upper.density,
@@ -158,17 +158,20 @@ inline void add_gaussian(Quadratic &term, double residual, double center,
 // If the expansion fails in a fixed nuisance state, both directions use the
 // product of the categorical masses and the raw Gaussian prior as the proposal.
 inline void propose(const Geometry &geometry, const std::vector<double> &total_sd,
-                    const double *slopes, const double *omega, Proposal &out, Scratch &scratch)
+                    const double *slopes, const double *omega, Proposal &out, Scratch &scratch,
+                    const double *offset = nullptr)
 {
   out.local = false;
   double precision = geometry.prior_precision;
   double weighted_center = precision * geometry.prior_mean;
   for (std::size_t i = 0; i < geometry.rows.size(); ++i) {
     if (!std::isfinite(total_sd[i]) || !(total_sd[i] > 0)) return;
+    const double y = offset == nullptr ? geometry.rows[i].outcome : geometry.rows[i].outcome - offset[i];
+    if (offset != nullptr && !std::isfinite(y)) return;
     const double inverse_sd = 1 / total_sd[i];
     const double row_precision = inverse_sd * inverse_sd;
     precision += row_precision;
-    weighted_center += row_precision * geometry.rows[i].outcome;
+    weighted_center += row_precision * y;
   }
   const double center = weighted_center / precision;
   if (!std::isfinite(center) || !std::isfinite(precision) || !(precision > 0)) return;
@@ -183,8 +186,14 @@ inline void propose(const Geometry &geometry, const std::vector<double> &total_s
     const double inverse_sd = 1 / sd;
     const double row_precision = inverse_sd * inverse_sd;
     const double log_height = -log_sqrt_two_pi - std::log(sd);
-    add_gaussian(gaussian, row.outcome, center, log_height, row_precision);
-    if (row.bin > 0) normal_bins(geometry, row, center, sd, bins);
+    const double y = offset == nullptr ? row.outcome : row.outcome - offset[i];
+    add_gaussian(gaussian, y, center, log_height, row_precision);
+    // Keep the original observed bin. The offset shifts the slab expansion
+    // center and the physical spike for the selected-normal denominators.
+    if (row.bin > 0) {
+      if (offset == nullptr) normal_bins(geometry, row, center, sd, bins);
+      else normal_bins(geometry, row, center + offset[i], sd, bins, offset[i]);
+    }
 
     for (std::size_t b = 0; b < terms.size(); ++b) {
       auto &term = terms[b];
@@ -192,11 +201,11 @@ inline void propose(const Geometry &geometry, const std::vector<double> &total_s
         case Family::unadjusted:
           continue;
         case Family::pet:
-          add_gaussian(term, row.outcome - slopes[b] * row.tilt_se, center,
+          add_gaussian(term, y - slopes[b] * row.tilt_se, center,
                        log_height, row_precision);
           continue;
         case Family::peese:
-          add_gaussian(term, row.outcome - slopes[b] * (row.tilt_se * row.tilt_se),
+          add_gaussian(term, y - slopes[b] * (row.tilt_se * row.tilt_se),
                        center, log_height, row_precision);
           continue;
         case Family::selection:
