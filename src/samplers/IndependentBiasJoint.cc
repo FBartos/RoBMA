@@ -33,19 +33,13 @@ using BayesTools::sampler_declarations::observed_zero;
 
 std::vector<double> categorical_log_mass(StochasticNode const *node)
 {
-  const auto &parents = node->parents();
-  if (node->length() != 1 || node->distribution()->name() != "dcat" ||
-      parents.size() != 1 || !isSupportFixed(node) || !parents[0]->isFixed()) return {};
-  const double *start = parents[0]->value(0);
-  const double *end = start + parents[0]->length();
-  const double sum = std::accumulate(start, end, 0.0);
-  if (!std::isfinite(sum) || !(sum > 0)) return {};
-  const double log_sum = std::log(sum);
+  const auto weights = categorical_weights(node);
+  if (!weights || !isSupportFixed(node)) return {};
+  const double log_sum = std::log(weights.total);
   std::vector<double> out;
-  out.reserve(parents[0]->length());
-  for (; start != end; ++start) {
-    if (!std::isfinite(*start) || !(*start > 0)) return {};
-    out.push_back(std::log(*start) - log_sum);
+  out.reserve(weights.size);
+  for (unsigned long i = 0; i < weights.size; ++i) {
+    out.push_back(std::log(weights.values[i]) - log_sum);
   }
   return out;
 }

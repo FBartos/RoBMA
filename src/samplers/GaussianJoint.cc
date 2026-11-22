@@ -49,18 +49,12 @@ bool has_distribution(StochasticNode const &node, const char *name)
 bool read_prior(StochasticNode const &gate, StochasticNode const &slab,
                 unsigned int role, double active_label, kernel::Model &model)
 {
-  if (!has_distribution(gate, "dcat") || !has_distribution(slab, "dnorm") ||
-      gate.lowerBound() != nullptr || gate.upperBound() != nullptr ||
-      gate.parents().size() != 1 || gate.parents()[0]->length() != 2 ||
-      !gate.parents()[0]->isFixed() ||
+  const auto gate_weights = categorical_weights(&gate, 2);
+  if (!gate_weights || !has_distribution(slab, "dnorm") ||
       !(active_label == 1 || active_label == 2)) {
     return false;
   }
-  const double *weights = gate.parents()[0]->value(0);
-  if (!std::isfinite(weights[0]) || !std::isfinite(weights[1]) ||
-      !(weights[0] > 0 && weights[1] > 0) || !std::isfinite(weights[0] + weights[1])) {
-    return false;
-  }
+  const double *weights = gate_weights.values;
   const unsigned int on = static_cast<unsigned int>(active_label) - 1;
   const long double log_total = std::log(static_cast<long double>(weights[0]) + weights[1]);
   model.log_prior[role][0] = std::log(static_cast<long double>(weights[1 - on])) - log_total;

@@ -70,7 +70,7 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
                                     second_study = "u[2]", location = "a", tags = TRUE,
                                     scale_aliases = "", heterogeneity_gate = "2",
                                     heterogeneity_label = 2L, scale_members = c("s", "r"),
-                                    cadence = 5L, initial = list()) {
+                                    cadence = 5L, initial = list(), pet_setup = "0") {
 
   scales <- if (scale) "s ~ dnorm(0, 1) T(0,)
                        r ~ dbeta(2, 2)" else ""
@@ -89,7 +89,7 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
                                m7 <- robma_cluster_member(", scale_members[2L], ", 6, 1)\n"),
     "setup <- robma_cluster_setup(g, X, group, y, ones, ones, ones, -1, 1, 1, 0, 0, 1, 1, 2,
                                   ", physical, ", ", heterogeneity_gate, ", ", heterogeneity_label,
-                                  ", 0, 0, 2, ", cadence, ", ", as.integer(scale), ")\n"
+                                  ", ", pet_setup, ", 0, 2, ", cadence, ", ", as.integer(scale), ")\n"
   ) else ""
   model <- paste0("model {
     g ~ dcat(c(1, 1))
@@ -286,4 +286,35 @@ test_that("declined clustered tags preserve stock samplers, draws and RNG state"
     expect_identical(draw(tagged), draw(stock))
     expect_identical(tagged$state(internal = TRUE), stock$state(internal = TRUE))
   }
+})
+
+test_that("clustered proposal arguments must be current in the sampling graph", {
+
+  skip_if_not_installed("rjags")
+  make <- function(location, pet_setup = "pet_alias", tags = TRUE) {
+    .cluster_provider_model(location = location, pet_setup = pet_setup, tags = tags,
+      scale_aliases = "p ~ dnorm(0, 1)
+                       pet_alias <- p * 1",
+      initial = list(p = .1))
+  }
+  draw <- function(model) {
+    rjags::adapt(model, n.iter = 100L, end.adaptation = TRUE)
+    rjags::coda.samples(model, c("g", "a", "b", "u", "p"), n.iter = 40L, thin = 2L)
+  }
+
+  # The stochastic slope is informative, but its private alias is not.
+  tagged <- make("a + p")
+  stock <- make("a + p", tags = FALSE)
+  expect_identical(rjags::list.samplers(tagged), rjags::list.samplers(stock))
+  expect_identical(draw(tagged), draw(stock))
+  expect_identical(tagged$state(internal = TRUE), stock$state(internal = TRUE))
+
+  # The same alias is safe once the likelihood itself uses it.
+  live <- make("a + pet_alias")
+  direct <- make("a + pet_alias", pet_setup = "p")
+  owners <- rjags::list.samplers(live)
+  expect_setequal(owners[["RoBMA::JointCluster"]], c("g", "a", "b", "u[1]", "u[2]"))
+  expect_identical(owners, rjags::list.samplers(direct))
+  expect_identical(draw(live), draw(direct))
+  expect_identical(live$state(internal = TRUE), direct$state(internal = TRUE))
 })
