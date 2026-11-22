@@ -8,6 +8,13 @@ skip_refit_if_cached("RoBMA")
 
 
 test_that("RoBMA handles default model", {
+
+  skip_if_fit_not_active("dat.lehmann2018_RoBMA")
+  # Keep the seeded interpretation and plot references on their original sampler.
+  joint <- RoBMA.get_option("sampler.joint")
+  withr::defer(RoBMA.options(sampler.joint = joint))
+  RoBMA.options(sampler.joint = "off")
+
   data(dat.lehmann2018, package = "metadat")
   fit <- RoBMA(
     yi = yi, vi = vi,
