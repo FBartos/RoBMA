@@ -425,16 +425,18 @@
       stop(e)
     })
   }
-  attempt <- function(rows, ladder) {
-    regular <- refine(rows, ladder, FALSE)
-    if (!inherits(regular, "condition") || !alternate) return(regular)
-    endpoint <- refine(rows, ladder, TRUE)
-    if (inherits(endpoint, "RoBMA_glmm_endpoint_grid_unavailable")) return(regular)
-    endpoint
+  regular <- refine(seq_len(n), control, FALSE)
+  if (!inherits(regular, "condition")) return(regular)
+  endpoint_first <- FALSE
+  if (alternate) {
+    endpoint <- refine(seq_len(n), control, TRUE)
+    if (!inherits(endpoint, "condition")) return(endpoint)
+    # If only the endpoint rule resolved the nuisance axis, start with it
+    # when separating out the draws that need further theta refinement.
+    endpoint_first <- inherits(endpoint, "RoBMA_glmm_grid_nonconvergence") &&
+      any(regular$nuisance_changes > control$tolerance) &&
+      all(endpoint$nuisance_changes <= control$tolerance)
   }
-
-  full <- attempt(seq_len(n), control)
-  if (!inherits(full, "condition")) return(full)
   # Only a subset of the posterior draws may need a higher theta order or
   # the alternate rule. Each retained value passes the complete refinement.
   recovery <- .glmm_grid_recovery_control(control)
@@ -442,7 +444,11 @@
   theta_order <- nuisance_order <- 0L
   max_change <- 0
   for (s in seq_len(n)) {
-    row <- attempt(s, recovery)
+    row <- refine(s, recovery, endpoint_first)
+    if (inherits(row, "condition") && alternate) {
+      other <- refine(s, recovery, !endpoint_first)
+      if (!inherits(other, "RoBMA_glmm_endpoint_grid_unavailable")) row <- other
+    }
     if (inherits(row, "condition")) stop(row)
     value[s] <- row[["value"]]
     theta_order <- max(theta_order, row[["theta_order"]])

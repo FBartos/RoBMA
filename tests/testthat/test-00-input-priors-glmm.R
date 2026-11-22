@@ -291,6 +291,21 @@ test_that("low-event GLMM cells integrate positive nuisance priors against indep
     BayesTools::prior("gamma", list(8, 2))), class = "RoBMA_glmm_grid_nonconvergence")
 })
 
+test_that("row recovery starts with the rule that resolved the nuisance axis", {
+
+  single_row_rules <- logical()
+  evaluate <- function(rows, theta_order, nuisance_order, cluster_ends) {
+    if (length(rows) == 1L) single_row_rules <<- c(single_row_rules, cluster_ends)
+    theta_error <- if (theta_order < 65L) 1/theta_order else 0
+    rep(theta_error + if (cluster_ends) 0 else 1/nuisance_order, length(rows))
+  }
+  control <- .glmm_grid_control(theta_orders = c(3L,5L,7L), nuisance_orders = c(3L,5L,7L))
+  out <- .glmm_grid_refine_column(evaluate, 2L, "pois", 1L,
+    BayesTools::prior("gamma", list(2,1)), control, c(TRUE, TRUE))
+  expect_equal(out$value, c(0,0))
+  expect_true(length(single_row_rules) > 0L && all(single_row_rules))
+})
+
 test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {
 
   skip_on_cran()
