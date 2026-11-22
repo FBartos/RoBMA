@@ -17,12 +17,16 @@ static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
 #include "distributions/DSELNORMSAMPLINGCONDITIONED.h"
 #include "samplers/CoarseCorrectedSlice.h"
 #include "samplers/CoarseCorrectedBlock.h"
+#include "samplers/IndependentBiasJoint.h"
+#include "samplers/GaussianJoint.h"
+#include "samplers/JointCluster.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
 
     // JAGS module class
     class RoBMAModule : public Module {
+      IndependentBiasJointFactory independent_bias_joint;
       public:
         RoBMAModule();
         ~RoBMAModule();
@@ -51,6 +55,14 @@ namespace jags {
       // claim their blocks before BayesTools' factor slice factory.
       insert(coarse_corrected_slice_factory());
       insert(coarse_corrected_block_factory());
+      insert(new IndependentBiasJointTag(false));
+      insert(new IndependentBiasJointTag(true));
+      insert(&independent_bias_joint);
+      insert(new GaussianJointTag);
+      insert(gaussian_joint_factory());
+      insert(new ClusterTag(false));
+      insert(new ClusterTag(true));
+      insert(joint_cluster_factory());
     }
 
     // destructor (executed when unloading the module)

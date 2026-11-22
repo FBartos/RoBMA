@@ -33,6 +33,15 @@ Use this rule across simple, location-scale, multilevel and known-V models.
 Average GVIF and its adjusted root separately. Keep empirical posterior
 coefficient correlation as a separate diagnostic.
 
+For each active member, omit a structural fixed-zero intercept from the
+estimated design. A term with full variation of its own has infinite GVIF
+when it shares a demonstrated design direction with the other terms after
+accounting for an estimated intercept. Calculate identifiable terms on an
+independent basis for the same nuisance span. Included infinite draws contribute
+to the posterior mean and quantiles. Absent terms keep their inclusion mask.
+A constant or internally aliased term, or a numerical rank loss that cannot
+be distinguished from near-collinearity, raises a classed diagnostic.
+
 **Why.** Users expect a Bayesian summary under the familiar diagnostic name,
 consistent with posterior-averaged `hatvalues()`. A plug-in at mean heterogeneity,
 VIF of the mean covariance, and mean draw-wise VIF are different nonlinear

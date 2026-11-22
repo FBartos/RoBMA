@@ -69,7 +69,8 @@ Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 
 \item{xlim}{x-axis limits. If not specified, limits are computed from data.}
 
-\item{ylim}{y-axis limits. If not specified, limits are computed from data.}
+\item{ylim}{y-axis limits. If not specified, limits are computed from data.
+Unrepresentable automatic limits raise \code{RoBMA_qq_range_unavailable}.}
 
 \item{xlab}{title for the x-axis. If not specified, defaults to
 \code{"Theoretical Quantiles"}.}

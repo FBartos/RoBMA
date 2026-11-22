@@ -279,11 +279,14 @@ test_that("direct random-effect SDs and scalar structured correlations join the 
   # an SD nor a correlation is not eligible
   half_normal <- BayesTools::prior("normal", list(0, 1), list(0, Inf))
   as_random   <- function(...) do.call(structure, c(list(half_normal), list(...)))
-  expect_true(.sampler_block_eligible(as_random(random_sd = TRUE)))
-  expect_true(.sampler_block_eligible(as_random(random_correlation = TRUE)))
-  expect_false(.sampler_block_eligible(as_random(random_sd = TRUE, random_summary = "sd")))
-  expect_false(.sampler_block_eligible(as_random(random_sd = TRUE, random_allocation = "heterogeneity")))
-  expect_false(.sampler_block_eligible(as_random(random_summary = "sd")))
+  declared <- function(prior) {
+    "candidate" %in% .sampler_block_members(list(mu = half_normal, tau = half_normal, candidate = prior))[[1L]]
+  }
+  expect_true(declared(as_random(random_sd = TRUE)))
+  expect_true(declared(as_random(random_correlation = TRUE)))
+  expect_false(declared(as_random(random_sd = TRUE, random_summary = "sd")))
+  expect_false(declared(as_random(random_sd = TRUE, random_allocation = "heterogeneity")))
+  expect_false(declared(as_random(random_summary = "sd")))
 })
 
 
@@ -307,6 +310,26 @@ test_that("regularized moderators join the block by coefficient, centered shrink
               set_contrast_factor_predictors = "meandif", only_priors = TRUE),
     gates = FALSE, blocks = list(c("mu_intercept", "mu_x", "tau", "omega")),
     label = "bselmodel regularized meandif")
+})
+
+test_that("block sources decline bound R-squared slopes and retain fixed weight priors", {
+
+  compiled <- BayesTools::JAGS_formula(
+    ~ x, parameter = "mu", data = data.frame(x = c(-1, 0, 2)),
+    prior_list = list(
+      intercept = BayesTools::prior("normal", list(0, 1)),
+      signal = BayesTools::prior_R2(terms = "x", model = BayesTools::R2_model(sigma = 1))
+    )
+  )
+  expect_true(BayesTools::is.prior.R2(compiled[["prior_list"]][["mu_x"]]))
+  priors <- c(compiled[["prior_list"]], list(
+    tau = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
+    omega = BayesTools::prior_weightfunction("one-sided", steps = .025,
+                                             weights = BayesTools::wf_fixed(c(1, .5)))
+  ))
+  members <- .sampler_block_members(priors)[[1L]]
+  expect_false("mu_x" %in% members)
+  expect_true(all(c("mu_intercept", "tau", "omega") %in% members))
 })
 
 
@@ -558,6 +581,7 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   .fit(object)
   expect_false(forwarded[["sampler_gates"]])
   expect_true(is.function(forwarded[["sampler_blocks"]]))
+  expect_null(forwarded[["sampler_joint"]])
   # a selection fit collects the corrected sampler's record from every process
   expect_true(is.function(forwarded[["runtime_report"]]))
 
@@ -567,11 +591,26 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   expect_false(forwarded[["sampler_gates"]])
   expect_null(forwarded[["sampler_blocks"]])
 
+  joint <- RoBMA(yi = yi, vi = vi, data = setup[["data"]], measure = "SMD", only_priors = TRUE)
+  RoBMA.options(sampler.joint = "auto", sampler.nested.weights = FALSE,
+                sampler.probabilities = "tau_indicator")
+  .fit(joint)
+  expect_true(is.function(forwarded[["sampler_joint"]]))
+  expect_identical(forwarded[["jags_modules"]], "RoBMA")
+  expect_identical(forwarded[["sampler_probabilities"]], "tau_indicator")
+  expect_false(forwarded[["sampler_nested_weights"]])
+
+  RoBMA.options(sampler.nested.weights = TRUE)
+  .fit(joint)
+  expect_true(forwarded[["sampler_nested_weights"]])
+  expect_true(is.function(forwarded[["sampler_joint"]]))
+
   # an extension replays the stored model and passes no declaration; it passes
   # the report explicitly (fits saved before the record store none)
   object[["fit"]] <- list("extension probe")
   .fit(object, extend = TRUE)
-  expect_false(any(c("sampler_gates", "sampler_blocks") %in% names(forwarded)))
+  expect_false(any(c("sampler_gates", "sampler_blocks", "sampler_joint", "sampler_nested_weights",
+                     "sampler_probabilities") %in% names(forwarded)))
   expect_true(is.function(forwarded[["runtime_report"]]))
 
   # other fits pass no report
@@ -579,6 +618,37 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   .fit(ordinary)
   expect_true("runtime_report" %in% names(forwarded))
   expect_null(forwarded[["runtime_report"]])
+})
+
+test_that("the sampler report gives the ownership common to all workers", {
+
+  active <- data.frame(Node = c("tau", "gate"), Sampler = rep("RoBMA::GaussianJoint", 2L))
+  other  <- data.frame(Node = c("tau", "gate"), Sampler = c("base::RealSlicer", "base::Finite"))
+  fit <- structure(list(
+    samplers = active,
+    samplers_by_worker = list(list(chains = 1L, samplers = active), list(chains = 2L, samplers = other))
+  ), sampler_declarations = list(joint = list()))
+  requested <- list(joint = "gaussian", specialized = TRUE, nested_weights = FALSE,
+                    probabilities = "gate")
+  recorded <- attr(.sampler_request_record(fit, requested), "sampler_declarations")[["robma"]]
+  expect_identical(recorded[["joint"]][["status"]], "mixed")
+  expect_length(recorded[["joint"]][["nodes"]], 0L)
+  expect_identical(recorded[["probabilities"]][["sampler"]], "mixed")
+  expect_identical(recorded[["probabilities"]][["status"]], "unavailable")
+})
+
+test_that("the automatic sampler report distinguishes a graph decline from a native refusal", {
+
+  requested <- list(joint = "auto", joint_sampler = "RoBMA::GaussianJoint", specialized = TRUE,
+                    nested_weights = FALSE, probabilities = character())
+  fit <- list(samplers = data.frame(Node = "tau", Sampler = "base::RealSlicer"))
+  status <- function(fit) {
+    recorded <- attr(.sampler_request_record(fit, requested), "sampler_declarations")[["robma"]]
+    recorded[["joint"]][["status"]]
+  }
+  expect_identical(status(fit), "graph_declined")
+  attr(fit, "sampler_declarations") <- list(joint = list(markers = "marker"))
+  expect_identical(status(fit), "native_declined")
 })
 
 
