@@ -89,7 +89,8 @@ double step_log_normalizer_score_space(const double *omega,
                                        double mean, double sd, double sei,
                                        int omega_stride,
                                        double requested_lower = -INFINITY,
-                                       double requested_upper = INFINITY)
+                                       double requested_upper = INFINITY,
+                                       double *max_log_weight = nullptr)
 {
   double log_mass = -INFINITY;
 
@@ -105,6 +106,8 @@ double step_log_normalizer_score_space(const double *omega,
     }
 
     if (w > 0) {
+      const double log_weight = std::log(w);
+      if (max_log_weight) *max_log_weight = std::max(*max_log_weight, log_weight);
       const double lower_z = data.trusted_step_partition ?
         data.z_lower[last] : data.z_lower[b];
       const double upper_z = data.z_upper[b];
@@ -113,7 +116,7 @@ double step_log_normalizer_score_space(const double *omega,
       if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
           !add_weighted_standard_normal_interval(
             std::max(lower, requested_lower), std::min(upper, requested_upper),
-            std::log(w), &log_mass
+            log_weight, &log_mass
           )) {
         return std::numeric_limits<double>::quiet_NaN();
       }
@@ -500,6 +503,125 @@ bool step_cdf_pair_logspace(const double *omega,
   return std::isfinite(*p1) && *p1 >= 0 && *p1 <= 1 &&
     std::isfinite(*p2) && *p2 >= 0 && *p2 <= 1 &&
     std::isfinite(*inverse_weight) && *inverse_weight > 0;
+}
+
+// A half-bin starts at the point nearest the Gaussian mode. In units of
+// h = 1/max(1,a) sampling SDs, its density relative to that endpoint is
+// exp(-a*h*s - (h*s)^2/2), even when phi(a) itself has underflowed.
+struct StepMomentHalf {
+  double score;
+  double log_mass;
+  double anchor;
+  double offset;
+  double variance;
+};
+
+bool step_half_moments(double a, double b, double anchor, double signed_sd,
+                       double log_weight, StepMomentHalf &half)
+{
+  if (!std::isfinite(a) || !(a < b) || !std::isfinite(anchor)) return false;
+  const double h = 1 / std::max(1.0, a);
+  const double rate = std::min(a, 1.0);
+  // Beyond a log-density drop of 50 the omitted exponential second-moment
+  // fraction is at most (1 + 50 + 50^2/2)*exp(-50).
+  const double end = std::min((b - a) / h,
+    100 / (rate + std::hypot(rate, 10*h)));
+  if (!(end > 0)) return false;
+
+  // Eight-point Gauss-Legendre on panels at most two scaled units wide.
+  // Integrate powers of u=s/end, so even a narrow bin has resolved moments.
+  static const double nodes[] = {.1834346424956498, .5255324099163290,
+                                  .7966664774136267, .9602898564975362};
+  static const double weights[] = {.3626837833783620, .3137066458778873,
+                                    .2223810344533745, .1012285362903763};
+  const int panels = static_cast<int>(std::ceil(end / 2));
+  double mass = 0, first = 0, second = 0;
+  for (int p = 0; p < panels; ++p) {
+    for (int j = 0; j < 4; ++j) {
+      for (int sign = -1; sign <= 1; sign += 2) {
+        const double u = (p + .5 + sign * .5 * nodes[j]) / panels;
+        const double s = u * end;
+        const double z = h * s;
+        const double w = weights[j] * std::exp(-rate*s - .5*z*z);
+        mass += w;
+        first += w*u;
+        second += w*u*u;
+      }
+    }
+  }
+  const double location = first / mass;
+  const double spread = second / mass - location*location;
+  const double width = signed_sd * (h * end);
+  half.score = a;
+  half.log_mass = log_weight + std::log(h) + std::log(end) + std::log(mass / (2*panels));
+  half.anchor = anchor;
+  half.offset = width * location;
+  const double half_sd = width * std::sqrt(spread);
+  half.variance = half_sd * half_sd;
+  return std::isfinite(half.log_mass) && std::isfinite(half.offset) && std::isfinite(half.variance);
+}
+
+bool step_rare_moments(const double *omega, const SelNormKernelData &data,
+                       double mean, double sd, double sei, int stride,
+                       double &result_mean, double &result_variance)
+{
+  std::vector<StepMomentHalf> halves;
+  double nearest = INFINITY;
+  for (int b = 0; b < data.n_bins; ++b) {
+    const double w = omega_at(omega, b + 1, stride);
+    const double zu = data.z_upper[b];
+    while (data.trusted_step_partition && b + 1 < data.n_bins &&
+           omega_at(omega, b + 2, stride) == w) ++b;
+    if (w == 0) continue;
+    const double zl = data.z_lower[b];
+    const double lo = stable_affine_score(zl, sei, mean, sd);
+    const double hi = stable_affine_score(zu, sei, mean, sd);
+    if (!(lo < hi)) return false;
+    const double log_w = std::log(w);
+    if (lo < 0) {
+      StepMomentHalf half;
+      if (!step_half_moments(std::max(-hi, 0.0), -lo, hi < 0 ? zu * sei : mean,
+                             -sd, log_w, half)) return false;
+      nearest = std::min(nearest, half.score);
+      halves.push_back(half);
+    }
+    if (hi > 0) {
+      StepMomentHalf half;
+      if (!step_half_moments(std::max(lo, 0.0), hi, lo > 0 ? zl * sei : mean,
+                             sd, log_w, half)) return false;
+      nearest = std::min(nearest, half.score);
+      halves.push_back(half);
+    }
+  }
+  // Factor out the nearest endpoint density before adding log weights. This
+  // retains weight ratios even for equally remote tails on opposite sides.
+  double peak = -INFINITY, origin = 0;
+  for (auto &half : halves) {
+    half.log_mass -= (half.score - nearest) * (.5*half.score + .5*nearest);
+    if (half.log_mass > peak) {
+      peak = half.log_mass;
+      origin = half.anchor;
+    }
+  }
+  if (!std::isfinite(peak)) return false;
+  double total = 0, first = 0;
+  for (auto &half : halves) {
+    const double mass = std::exp(half.log_mass - peak);
+    if (mass == 0) continue;
+    half.offset += half.anchor - origin;
+    total += mass;
+    first += mass * half.offset;
+  }
+  const double offset = first / total;
+  result_mean = origin + offset;
+  result_variance = 0;
+  for (const auto &half : halves) {
+    const double p = std::exp(half.log_mass - peak) / total;
+    if (p == 0) continue;
+    const double delta = half.offset - offset;
+    result_variance += p * half.variance + (p * delta) * delta;
+  }
+  return std::isfinite(result_mean) && std::isfinite(result_variance);
 }
 
 void step_moments_partition(const double *omega,
