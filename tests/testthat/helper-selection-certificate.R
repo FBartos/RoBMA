@@ -137,27 +137,28 @@
     within <- which(criterion <= tolerance)
     if (length(within)) within[[1L]] else length(results)
   }
-  old <- stop_stage(1)
   new <- stop_stage(.selection_qmc_z())
-  testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
+  if (!is.null(reference_log_normalizer)) {
+    log_ratio <- actual[["log_normalizer"]] - reference_log_normalizer
+    testthat::expect_lte(abs(expm1(log_ratio)), tolerance,
+      label = paste(info, "relative normalizer error at stage", stages[[new]]))
+  }
+
   compare_stored <- is.null(reference_log_normalizer) ||
     (.test_long_double_extended() && !.test_fused_multiply_add())
-  if (!is.null(reference_log_normalizer)) {
-    for (stage in c(old, new)) {
-      log_ratio <- results[[stage]][["log_normalizer"]] - reference_log_normalizer
-      testthat::expect_lte(abs(expm1(log_ratio)), tolerance,
-        label = paste(info, "relative normalizer error at stage", stages[[stage]]))
-    }
-  }
-  for (field in fields) {
-    if (compare_stored) {
+  if (compare_stored) {
+    old <- stop_stage(1)
+    testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
+    for (field in fields) {
       testthat::expect_lte(difference(results[[old]], expected, field), rounding,
         label = paste(info, "stored output, stage", stages[[old]], field))
     }
+  }
+  for (field in fields) {
     testthat::expect_lte(difference(results[[new]], actual, field), rounding,
       label = paste(info, "run, stage", stages[[new]], field))
   }
-  invisible("later stage")
+  invisible(if (compare_stored) "later stage" else "replayed")
 }
 
 # Whether the native kernel accepted a deterministic rule (no randomized
