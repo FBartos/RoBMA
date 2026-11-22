@@ -116,11 +116,15 @@
 #
 # The fields are compared to `rounding` in absolute terms: they are the log normalizer and
 # log density and errors relative to the normalizer, so rounding of the normalizer's sums
-# moves all of them by the same absolute amount. Blocks 17, 24, 25 and 37 are
-# sensitive to last-bit input changes. In block 37, changing one mean or SD by
+# moves all of them by the same absolute amount. Outside the sensitive blocks
+# (17, 24, 25 and 37), one-ulp input perturbations moved the fields by up to
+# 4.3e-9. Changes to the proposals or QMC design moved them by at least 8e-8.
+# In #92 the non-FMA Linux build differed from the Windows reference by at most
+# 2.3e-10. The same arithmetic gate applies on Intel macOS, where the full
+# fixture suite has not been measured. In block 37, changing one mean or SD by
 # one ulp moved the stage-128 log normalizer by as much as 0.0011. The stored
-# log normalizer differs by 1.05e-5 on Ubuntu 26.04 (FMA) and by up to 6e-4 on Apple
-# silicon. Keep the stored comparison on builds with the original arithmetic.
+# log normalizer differs by 1.05e-5 on Ubuntu 26.04 (FMA) and by up to 6e-4
+# on Apple silicon.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
                                               rounding = 5e-9, info = "", reference_log_normalizer = NULL) {
