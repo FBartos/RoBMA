@@ -136,6 +136,10 @@ vif <- function(object, ...) {
 #' The condition carries the draw positions (\code{rows}) and their
 #' \code{reciprocal_condition}.
 #'
+#' An unrepresentable GVIF or a coefficient correlation matrix that is not
+#' positive definite at working precision raises \code{RoBMA_vif_unavailable},
+#' a \code{RoBMA_numerical_unavailable} condition.
+#'
 #' For generalized linear mixed models, this is a working effect-size-scale
 #' diagnostic based on the fitted model's approximate sampling variances. It is
 #' not a VIF derived directly from the binomial or Poisson information matrix.
@@ -483,12 +487,30 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 
   p <- ncol(vcov)
   if (p <= 1L) return(rep(1, length(groups)))
+  if (all(lengths(groups) == p)) return(rep(1, length(groups)))
+
+  unavailable <- function(message) {
+    stop(errorCondition(message, class = c("RoBMA_vif_unavailable", "RoBMA_numerical_unavailable"),
+                        call = NULL))
+  }
+  if (any(!is.finite(vcov)) || any(diag(vcov) <= 0)) {
+    unavailable("GVIF requires a finite coefficient covariance matrix with positive variances.")
+  }
   correlation <- stats::cov2cor(vcov)
-  determinant <- det(correlation)
+  log_det <- function(x) {
+    factor <- tryCatch(chol(x), error = function(e) NULL)
+    if (is.null(factor) || any(!is.finite(diag(factor)))) {
+      unavailable("GVIF is unavailable because the coefficient correlation matrix is not positive definite at working precision.")
+    }
+    2 * sum(log(diag(factor)))
+  }
+  full <- log_det(correlation)
   vapply(groups, function(columns) {
     if (length(columns) == p) return(1)
-    det(correlation[columns, columns, drop = FALSE]) *
-      det(correlation[-columns, -columns, drop = FALSE]) / determinant
+    value <- exp(log_det(correlation[columns, columns, drop = FALSE]) +
+                 log_det(correlation[-columns, -columns, drop = FALSE]) - full)
+    if (!is.finite(value)) unavailable("The generalized variance inflation factor exceeds numerical range.")
+    value
   }, numeric(1L), USE.NAMES = FALSE)
 }
 

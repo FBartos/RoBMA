@@ -112,6 +112,10 @@ draw used) is unavailable: the call stops with an error of class
 The condition carries the draw positions (\code{rows}) and their
 \code{reciprocal_condition}.
 
+An unrepresentable GVIF or a coefficient correlation matrix that is not
+positive definite at working precision raises \code{RoBMA_vif_unavailable},
+a \code{RoBMA_numerical_unavailable} condition.
+
 For generalized linear mixed models, this is a working effect-size-scale
 diagnostic based on the fitted model's approximate sampling variances. It is
 not a VIF derived directly from the binomial or Poisson information matrix.

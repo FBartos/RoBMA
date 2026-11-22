@@ -359,7 +359,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     if (!is.null(env_data)) {
       all_y <- c(all_y, env_data$lower, env_data$upper)
     }
-    ylim <- grDevices::extendrange(all_y, f = 0.05)
+    ylim <- .qqnorm_y_range(all_y)
   }
 
   # axis labels
@@ -423,6 +423,23 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 }
 
 
+.qqnorm_y_range <- function(values) {
+
+  bounds <- range(values)
+  if (is.finite(diff(bounds))) {
+    limits <- grDevices::extendrange(r = bounds, f = .05)
+  } else {
+    padding <- .05 * bounds[2L] - .05 * bounds[1L]
+    limits <- bounds + c(-padding, padding)
+  }
+  if (any(!is.finite(limits))) {
+    stop(errorCondition("Automatic Q-Q plot limits exceed numerical range. Supply finite 'ylim'.",
+                        class = c("RoBMA_qq_range_unavailable", "RoBMA_numerical_unavailable"),
+                        call = NULL))
+  }
+  limits
+}
+
 # ---------------------------------------------------------------------------- #
 # .qqnorm_envelope
 # ---------------------------------------------------------------------------- #
@@ -447,7 +464,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 .qqnorm_envelope <- function(K, level, bonferroni, reps, smooth, qq_x) {
 
   # compute alpha (with optional Bonferroni correction)
-  alpha <- 1 - level / 100
+  alpha <- (100 - level) / 100
   if (bonferroni) {
     alpha <- alpha / K
   }
@@ -458,11 +475,9 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     shape1 = index,
     shape2 = K + 1L - index
   ))
-  upper <- stats::qnorm(stats::qbeta(
-    1 - alpha / 2,
-    shape1 = index,
-    shape2 = K + 1L - index
-  ))
+  # The complementary beta order statistic has the two shapes exchanged.
+  # Reflection gives the upper normal quantile without rounding 1-alpha/2 to 1.
+  upper <- -rev(lower)
 
   # smooth bounds (skip if too few points)
   if (smooth && K >= 4) {

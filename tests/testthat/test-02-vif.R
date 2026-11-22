@@ -5,6 +5,17 @@ source(testthat::test_path("helper-contracts.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-metafor.R"))
 
+test_that("GVIF retains finite determinant ratios and diagnoses singular correlation", {
+
+  # The diagonal of the inverse AR(1) correlation has closed-form entries.
+  rho <- .9
+  correlation <- rho ^ abs(outer(1:500, 1:500, "-"))
+  expect_equal(.vif_gvif(correlation, list(1L, 2L)),
+               c(1, 1 + rho^2) / (1 - rho^2), tolerance = 1e-10)
+  expect_error(.vif_gvif(matrix(1, 2, 2), list(1L)), class = "RoBMA_vif_unavailable")
+  expect_identical(.vif_gvif(correlation, list(1:500)), 1)
+})
+
 test_that("VIF rejects data-only objects", {
 
   dat <- data.frame(

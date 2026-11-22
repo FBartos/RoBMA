@@ -275,9 +275,9 @@ galbraith.brma <- function(x, ...) {
   vi <- .outcome_data_vi(x)
 
   # confidence level
-  alpha  <- 1 - level / 100
-  z_crit <- stats::qnorm(1 - alpha / 2)
-  probs  <- c(alpha / 2, 1 - alpha / 2)
+  tail_p <- (100 - level) / 200
+  z_crit <- stats::qnorm(tail_p, lower.tail = FALSE)
+  probs  <- c(tail_p, 1 - tail_p)
 
   # get pooled effect estimate
   mu_samples <- pooled_effect(x, probs = probs)
@@ -405,6 +405,11 @@ galbraith.brma <- function(x, ...) {
   }
 
   # z-axis tick positions
+  if (any(!is.finite(c(xlim, zlim, ci.xpos, ya.xpos, xaxismax * beta_plot)))) {
+    stop(errorCondition("Radial plot coordinates exceed numerical range. Check the axis limits and outcome units.",
+                        class = c("RoBMA_radial_range_unavailable", "RoBMA_numerical_unavailable"),
+                        call = NULL))
+  }
   if (is.null(atz)) {
     atz <- pretty(zlim)
   }
