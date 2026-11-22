@@ -42,6 +42,7 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' zero on the z-axis. Defaults to \code{FALSE}.
 #' @param xlim x-axis limits. If not specified, limits are computed from data.
 #' @param zlim z-axis limits. If not specified, limits are computed from data.
+#' Unrepresentable arc or band coordinates raise \code{RoBMA_radial_range_unavailable}.
 #' @param xlab title for the x-axis. If not specified, a default label is used.
 #' @param zlab title for the z-axis. If not specified, a default label is used.
 #' @param atz numeric vector of positions for tick marks on the z-axis (left
@@ -275,9 +276,9 @@ galbraith.brma <- function(x, ...) {
   vi <- .outcome_data_vi(x)
 
   # confidence level
-  alpha  <- 1 - level / 100
-  z_crit <- stats::qnorm(1 - alpha / 2)
-  probs  <- c(alpha / 2, 1 - alpha / 2)
+  tail_p <- (100 - level) / 200
+  z_crit <- stats::qnorm(tail_p, lower.tail = FALSE)
+  probs  <- c(tail_p, 1 - tail_p)
 
   # get pooled effect estimate
   mu_samples <- pooled_effect(x, probs = probs)
@@ -404,6 +405,12 @@ galbraith.brma <- function(x, ...) {
     )
   }
 
+  # Finite endpoints can overflow when expanded to the outer arc or band.
+  if (any(!is.finite(c(xlim, zlim, ci.xpos, ya.xpos, xaxismax * beta_plot)))) {
+    stop(errorCondition("Radial plot coordinates exceed numerical range. Check the axis limits and outcome units.",
+                        class = c("RoBMA_radial_range_unavailable", "RoBMA_numerical_unavailable"),
+                        call = NULL))
+  }
   # z-axis tick positions
   if (is.null(atz)) {
     atz <- pretty(zlim)

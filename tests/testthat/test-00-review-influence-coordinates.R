@@ -247,6 +247,7 @@ test_that("VIF omits a fixed-zero intercept from the posterior correlation", {
   expect_identical(warnings, character())
 
   # the correlation of the three independent level draws
+  expect_equal(result$vif$GVIF, 1)
   correlation <- result[["posterior_correlation"]]
   expect_identical(rownames(correlation), levels)
   expect_identical(colnames(correlation), levels)
