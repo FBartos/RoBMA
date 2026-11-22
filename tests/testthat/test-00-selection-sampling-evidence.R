@@ -1,20 +1,22 @@
-.sampling_selection_evidence_fixture <- function(estimate = "integrate") {
+.sampling_selection_evidence_fixture <- function(estimate = "integrate", yi = c(.4, -.2),
+                                                units = 1, rule = "product") {
 
-  dat <- data.frame(yi = c(.4, -.2), sei = c(.8, 1.1), paper = c("a", "a"))
+  dat <- data.frame(yi = units * yi, sei = units * c(.8, 1.1), paper = c("a", "a"))
   object <- bselmodel(
     yi = yi, sei = sei, data = dat, measure = "GEN", effect_direction = "positive",
-    prior_unit_information_sd = 1, only_priors = TRUE,
-    prior_effect = BayesTools::prior("normal", list(0, 1)),
-    prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
+    prior_unit_information_sd = units, only_priors = TRUE,
+    prior_effect = BayesTools::prior("normal", list(0, units)),
+    prior_heterogeneity = BayesTools::prior("normal", list(0, units), truncation = list(lower = 0)),
     prior_bias = BayesTools::prior_weightfunction(
       "one-sided", .5, BayesTools::wf_fixed(c(1, .2)),
       model = BayesTools::selection_model(estimate_random_effects = estimate,
-        known_sampling_variance = "condition", group = "paper")
+        known_sampling_variance = "condition", weight_rule = rule, group = "paper")
     ),
     selection_control = set_selection_likelihood_control(relative_tolerance = 1e-6)
   )
   samples <- rbind(c(.2, .4, .5, -1, .3, -.4), c(-.1, .7, -.2, .6, -.5, .2))
   colnames(samples) <- c("mu", "tau", paste0("theta[", 1:2, "]"), paste0("sampling_z[", 1:2, "]"))
+  samples[, c("mu", "tau")] <- units * samples[, c("mu", "tau")]
   context <- .iwmde_context_ensure_caches(structure(list(
     object = object, data = object$data, priors = object$priors, posterior_samples = samples,
     flat_prior_list = .create_fit_priors(object$data, object$priors), formula_fit = object$fit,
@@ -68,6 +70,52 @@ test_that("sampling-conditioned joint evidence replays Gaussian augmentation at 
   expect_equal(grid, reference, tolerance = 1e-12)
 })
 
+
+test_that("changing GEN units preserves the conditioned selection model", {
+
+  score <- function(units) {
+    fixture <- .sampling_selection_evidence_fixture(yi = c(0, -.2), units = units)
+    object <- fixture$object
+    setup <- .log_lik_posterior_setup(object$fit, fixture$samples, object$data, object$priors,
+                                      "estimate", NULL)
+    state <- .selection_conditioned_sampling_state(setup)
+    list(log_lik = state$log_lik + nrow(fixture$dat) * log(units), log_mass = state$log_normalizer)
+  }
+  reference <- score(1)
+  for (units in c(1e-4, 1e4)) expect_equal(score(units), reference, tolerance = 1e-12)
+})
+
+test_that("joint scoring and scalar bridge replay report the same unresolved cutoff", {
+
+  fixture <- .sampling_selection_evidence_fixture(yi = c(0, -.2))
+  object <- fixture$object
+  samples <- fixture$samples[1L, , drop = FALSE]
+  samples[, "tau"] <- 1e-20
+  setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
+  fit_data <- .marglik_add_selection_bridge_data(.create_fit_data(object$data, object$priors),
+    object$priors, "positive", object$data)
+  parameters <- list(mu = samples[1L, "mu"], tau = samples[1L, "tau"],
+    theta = unname(samples[1L, 3:4]), sampling_z = unname(samples[1L, 5:6]))
+  plan <- .marglik_conditioned_sampling_plan(object$data)
+  expect_false(is.null(plan))
+  err <- tryCatch(.selection_conditioned_sampling_state(setup), error = identity)
+  expect_match(conditionMessage(err), "integrated SD")
+  expect_error(.log_posterior(parameters, fit_data, is_scale = FALSE, is_multilevel = FALSE,
+    is_weights = FALSE, is_known_v = FALSE, is_PET = FALSE, is_PEESE = FALSE,
+    is_weightfunction = TRUE, effect_direction = "positive", outcome_type = "norm",
+    model_data = object$data, bridge_context = list(nodes = samples[1L, ]),
+    selection_fit = object$fit, selection_priors = object$priors, sampling_conditioned_plan = plan),
+    conditionMessage(err), fixed = TRUE)
+
+  # With both estimates in one best-rule publication, estimate and group
+  # deletion both require the full-data retained context.
+  best <- .sampling_selection_evidence_fixture(yi = c(0, -.2), rule = "best")$object
+  joint <- .log_lik_posterior_setup(best$fit, samples, best$data, best$priors, "estimate", NULL)
+  expect_error(.selection_conditioned_sampling_estimate_targets(joint, "log_density"),
+               "integrated SD", fixed = TRUE)
+  expect_error(.selection_conditioned_sampling_deletion_loglik(joint, list(1:2)),
+               "integrated SD", fixed = TRUE)
+})
 
 test_that("sampling-conditioned row deletion integrates the deleted sampling error", {
 
@@ -448,6 +496,7 @@ test_that("multi-row sampling deletion keeps both variance shares of its conditi
   setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
   V <- matrix(.3, 3L, 3L) + diag(c(.34, .91, .7))
   state <- list(e = matrix(c(0, 0, 2^80), 1L), baseline_mu = matrix(0, 1L, 3L),
+    fixed_outcome = matrix(FALSE, 1L, 3L),
     sampling_covariance = V, integrated_covariance = array(diag(2^-60, 3L), c(1L, 3L, 3L)),
     log_normalizer = matrix(0, 1L, length(.data_selection_execution_plan(setup$data)$row_blocks)))
   centres <- list()
@@ -524,6 +573,7 @@ test_that("native and dependent-block deletion centre their integrals on both va
   setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
   V <- matrix(.3, 3L, 3L) + diag(c(.34, .91, .7))
   state <- list(e = matrix(c(0, 0, 2^80), 1L), baseline_mu = matrix(0, 1L, 3L),
+    fixed_outcome = matrix(FALSE, 1L, 3L),
     sampling_covariance = V, integrated_covariance = array(diag(2^-60, 3L), c(1L, 3L, 3L)),
     total_covariance = array(V + diag(2^-60, 3L), c(1L, 3L, 3L)),
     log_normalizer = matrix(0, 1L, length(.data_selection_execution_plan(setup$data)$row_blocks)))
@@ -672,6 +722,7 @@ test_that("conditioned-sampling deletion distinguishes deterministic and failed 
   attr(setup$data, "selection_execution_plan") <- plan
   candidate <- tcrossprod(c(.5, -.5))
   state <- list(e = matrix(-.1, 1L, 2L), baseline_mu = setup$mu,
+    fixed_outcome = matrix(FALSE, 1L, 2L),
     sampling_covariance = matrix(1, 2L, 2L), integrated_covariance = array(candidate, c(1L, 2L, 2L)),
     total_covariance = array(matrix(1, 2L, 2L) + candidate, c(1L, 2L, 2L)))
   testthat::local_mocked_bindings(.selection_conditioned_sampling_state = function(setup) state,

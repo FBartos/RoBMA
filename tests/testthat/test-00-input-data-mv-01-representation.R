@@ -1200,7 +1200,7 @@ test_that("brma.mv validates vi and sei after row selection", {
         prior_unit_information_sd = 1,
         only_data                 = TRUE
       ),
-      "positive finite squared sampling variances"
+      class = "RoBMA_data_outside_numerical_domain"
     )
   }
 })
@@ -1262,9 +1262,11 @@ test_that("diagonal completion preserves original missingness and retained valid
       "brma.mv() input 'sei' must contain positive finite values.", fixed = TRUE)
   }
   for (value in c(1e-200, 1e200)) {
-    expect_error(construct(c(NA, 0.04, 0.09), c(value, 0.2, 0.3)),
-      "brma.mv() input 'sei' must have positive finite squared sampling variances.",
-      fixed = TRUE)
+    e <- tryCatch(construct(c(NA, 0.04, 0.09), c(value, 0.2, 0.3)),
+                  RoBMA_data_error = identity)
+    expect_s3_class(e, "RoBMA_data_outside_numerical_domain")
+    expect_identical(e$quantity, "sei")
+    expect_identical(e$value, value)
   }
 })
 

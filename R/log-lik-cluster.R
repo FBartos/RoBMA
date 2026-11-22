@@ -232,6 +232,9 @@
     covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
     ordinary <- all(diag(covariance)[eligible] == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
+    fixed_outcome <- state[["fixed_outcome"]][draw, ]
+    retained_mean <- baseline[draw, ] + errors[draw, ]
+    retained_mean[fixed_outcome] <- y[fixed_outcome]
     context <- BayesTools::selection_context_subset_rows(selection, draw)
     weight_groups <- if (context[["vector_rule"]] == 0L) list(seq_len(K)) else groups
     log_weights <- function(values) {
@@ -311,12 +314,16 @@
         }
         log_denominator <- outside_weight - sum(state[["log_normalizer"]][draw, !affected])
       }
-      normalizer <- function(error_values) {
+      normalizer <- function(error_values, given_outcomes) {
 
         n <- nrow(error_values)
         current <- .selection_conditioned_sampling_replicate_setup(setup, state, draw, n)
-        means <- matrix(baseline[draw, ] + errors[draw, ], n, K, byrow = TRUE)
+        means <- matrix(retained_mean, n, K, byrow = TRUE)
         means[, deleted] <- sweep(error_values, 2L, baseline[draw, deleted], "+")
+        if (given_outcomes) {
+          fixed <- deleted[fixed_outcome[deleted]]
+          means[, fixed] <- rep(y[fixed], each = n)
+        }
         mass <- .selection_conditioned_sampling_normalizer(current, direction * means)[["log_mass"]]
         if (any(!is.finite(mass))) {
           stop("Selection deletion is unavailable because a retained sampling context has zero selection mass.",
@@ -341,10 +348,10 @@
                      2L, random[["mean"]], "+")
           proposed <- matrix(y, nrow(e), K, byrow = TRUE)
           proposed[, deleted] <- sweep(e + u, 2L, baseline[draw, deleted], "+")
-          log_weights(proposed) - normalizer(e)
+          log_weights(proposed) - normalizer(e, given_outcomes = FALSE)
         } else rep(log_denominator, points * scrambles)
         e_given_y <- sweep(normals %*% posterior_root, 2L, posterior_mean, "+")
-        numerator <- -normalizer(e_given_y)
+        numerator <- -normalizer(e_given_y, given_outcomes = TRUE)
         denominator_scale <- max(denominator)
         numerator_scale <- max(numerator)
         denominator <- rowMeans(matrix(exp(denominator - denominator_scale), scrambles, points))

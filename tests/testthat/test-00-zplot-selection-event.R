@@ -1,10 +1,9 @@
 .zplot_event_context <- function(rule, two_sided = FALSE, weights = c(1, .2), S = 1L,
-                                 sei = c(.8, 1.2)) {
+                                 sei = c(.8, 1.2),
+                                 p_cut = if (two_sided) 2 * stats::pnorm(-1) else .5) {
 
-  cutoff <- if (two_sided) 1 else 0
   prior <- BayesTools::prior_weightfunction(
-    if (two_sided) "two-sided" else "one-sided",
-    if (two_sided) 2 * stats::pnorm(-cutoff) else .5,
+    if (two_sided) "two-sided" else "one-sided", p_cut,
     BayesTools::wf_fixed(weights),
     model = BayesTools::selection_model(weight_rule = rule, group = "paper")
   )
@@ -61,6 +60,39 @@ test_that("full-event z projections retain product and best normalization", {
         sei, context, FALSE, plan)
       expect_equal(reversed, got, tolerance = 1e-12)
     }
+  }
+})
+
+
+test_that("queried z densities respect product and best cutoff coordinates", {
+
+  cut <- stats::qnorm(.05, lower.tail = FALSE)
+  scales <- (1:100) / 100
+  sei <- c(scales[which((cut * scales) / scales < cut)[1L]], 1)
+  expect_lt((cut * sei[1L]) / sei[1L], cut)
+  # The first row is selected and the second is exempt. Both have a standard
+  # normal z density before selection, so their mixture is analytic.
+  mu <- matrix(0, 1L, 2L)
+  covariance <- matrix(c(sei[1L]^2, 0, sei[2L]^2), 1L)
+  control <- set_selection_likelihood_control(points_per_scramble = 8L, max_points_per_scramble = 8L)
+  plan <- c(control, list(designs = list(),
+    quadrature = .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS),
+    factor_quadrature = .selection_joint_factor_quadrature_rules()))
+  qmc <- BayesTools::selection_qmc_design(4L, 8L, control$scrambles, control$seed)
+  for (mode in 0:2) for (sign in c(-1L, 1L)) {
+    p_cut <- if (mode == 2L) .1 else .05
+    context <- .zplot_event_context(if (mode == 0L) "product" else "best",
+      two_sided = mode == 2L, sei = sei, p_cut = p_cut)
+    context$sign <- sign
+    context$bias_exempt <- c(FALSE, TRUE)
+    z <- sign * (cut + c(-1, 0, 1) * .Machine$double.eps)
+    leading <- if (mode == 0L) sign * z >= cut else abs(z * sei[1L]) >= cut * sei[1L]
+    expected <- stats::dnorm(z) * (1 + ifelse(leading, 1, .2) / (p_cut + (1 - p_cut) * .2)) / 2
+    full <- .zplot_full_event_projection(z, mu, covariance, sei, context, FALSE, plan)
+    factor <- .selection_factor_projection(mu, matrix(sei^2, 1L), matrix(numeric(), 1L, 0L),
+      sei, context, plan, z, FALSE, rep(1L, 2L), qmc)
+    expect_equal(as.numeric(full), expected, tolerance = 1e-12)
+    expect_equal(as.numeric(factor$density), expected, tolerance = 1e-12)
   }
 })
 

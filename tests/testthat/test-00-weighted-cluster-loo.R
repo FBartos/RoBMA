@@ -255,10 +255,10 @@ test_that("weighted location-scale regression scores use the evaluated row-speci
 
 test_that("weighted predictive residual moments refuse extreme location draws", {
 
-  object <- brma(yi = c(2^53, 1), sei = c(1, 1), weights = c(2, 1), cluster = c(1, 1),
+  object <- brma(yi = c(0, 1), sei = c(1, 1), weights = c(2, 1), cluster = c(1, 1),
     measure = "GEN", only_data = TRUE)
   object$priors <- list(outcome = list(bias = NULL))
-  setup <- list(S = 2L, K = 2L, yi = c(2^53, 1), mu = rbind(c(2^53 - 1, 0), c(-2^53, 0)),
+  setup <- list(S = 2L, K = 2L, yi = c(0, 1), mu = rbind(c(2^53 - 1, 0), c(-2^53, 0)),
     sei = c(1, 1), tau_within = matrix(0, 2L, 2L), tau_between = rbind(c(1, 1), c(0, 0)),
     weights = c(2, 1), cluster = list(1:2), data = object$data, priors = object$priors,
     effect_direction = "positive", outcome_type = "norm", is_weightfunction = FALSE)

@@ -1704,6 +1704,7 @@ set_selection_likelihood_control <- function(
   factors          <- .selection_conditioned_sampling_factors(setup)
   context          <- .selection_conditioned_sampling_context(setup)
   covariance       <- vector("list", length(plan[["row_blocks"]]))
+  fixed_outcome    <- factors[["diagonal"]] == 0
   e                <- correction <- matrix(0, S, K)
   block_log_lik    <- log_normalizer <- matrix(0, S, length(plan[["row_blocks"]]))
   diagnostics      <- vector("list", length(plan[["row_blocks"]]))
@@ -1717,6 +1718,7 @@ set_selection_likelihood_control <- function(
     covariance[[index]] <- array(0, c(S, length(rows), length(rows)))
     for (draw in seq_len(S)) {
       L <- matrix(loading[draw, , ], length(rows), rank)
+      if (rank) fixed_outcome[draw, rows] <- fixed_outcome[draw, rows] & rowSums(L != 0) == 0L
       covariance[[index]][draw, , ] <- diag(factors[["diagonal"]][draw, rows],
         length(rows)) + tcrossprod(L)
       C <- V + .block_covariance_sub(retained_random_covariance, draw, rows)
@@ -1763,7 +1765,7 @@ set_selection_likelihood_control <- function(
        baseline_mu = baseline, sampling_covariance = plan[["sampling_covariance"]],
        total_covariance = total_covariance,
        log_lik = rowSums(block_log_lik), block_log_lik = block_log_lik,
-       log_normalizer = log_normalizer, candidate_factors = factors,
+       log_normalizer = log_normalizer, candidate_factors = factors, fixed_outcome = fixed_outcome,
        diagnostics = diagnostics)
 }
 

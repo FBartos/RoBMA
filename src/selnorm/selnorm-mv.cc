@@ -9,6 +9,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iterator>

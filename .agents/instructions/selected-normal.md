@@ -117,6 +117,21 @@ consume resolved source metadata rather than infer conditioning from monitoring.
 Product normalizers factor only for conditionally independent
 rows. Best uses the weight at the smallest actual p-value, including nonmonotone
 weights; thresholds use original sampling SEs.
+At a cutoff, product weights compare the signed standardized outcome with
+the z cutoff. Best weights compare the signed or absolute outcome with the
+cutoff in outcome units. Use the supplied z for a product density queried
+on the z scale. In sampling-conditioned likelihoods, a row with zero
+integrated diagonal and zero integrated loadings takes its observed value
+exactly when that outcome is given. During deletion, a proposed outcome or
+sampling error still varies under its conditional law.
+For a positive integrated row SD below 1e-12 times the sum of absolute
+reconstruction terms, the full-data likelihood refuses locations within
+1e-10 times that sum of a changing cutoff in outcome units. Exempt rows,
+constant steps and best-rule cuts already won by a fixed publication member
+do not trigger the check. JAGS, bridge replay and deletion targets requiring
+the full-data post-fit state propagate the calculation error. Fresh deleted
+contexts use their own normalizer. Preserve the positive source and its prior
+support.
 Both rules omit exempt outcomes from the publication event. Product uses only
 eligible factors; best takes the smallest eligible p-value in each publication.
 An empty event has weight and normalizer one. Preserve the Gaussian density

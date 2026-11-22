@@ -57,6 +57,14 @@ formatting, including aligned related assignments/arguments and the blank line
 after a function's opening brace. Prefer existing imports and do not add
 tidyverse dependencies.
 
+Use the Gaussian data domain documented in `?data_input` when implementing and
+reviewing numerical work. Test boundaries on the retained data in the units
+of the selected measure, including marginal SEs for known covariance inputs.
+For an out-of-domain example, verify the public refusal. Within the domain,
+verify the statistical target and any operation-specific accuracy diagnostic.
+Small observed effects and structural zeros are legitimate. Numerical limits
+on data do not change prior support or truncate an MCMC proposal.
+
 ## Development and backend
 
 Requires R >= 4.3.0, C++17, JAGS >= 5.0.0 and rjags >= 5-5.

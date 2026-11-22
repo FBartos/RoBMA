@@ -462,7 +462,7 @@ test_that("a cached normalization with closed-form rows serves a second ordinate
 # narrow row's mean, a quarter of a broad-lattice step from a node. The
 # independent reference is the mixture of the rows' conditional normals
 # (mpmath, 60 digits).
-.cf_seed <- function(divisor = 32) {
+.cf_seed <- function(divisor = 32, unit_multiplier = 1) {
 
   control <- .density_control_normalize("qCMDE")
   control <- .hypothesis_density_control_fill(control)
@@ -482,12 +482,17 @@ test_that("a cached normalization with closed-form rows serves a second ordinate
   offset <- .25 * step
   ybar   <- offset / diff(rev(mean_factors))
   conditional_means <- mean_factors * ybar
+  ybar <- unit_multiplier * ybar
+  sei <- unit_multiplier * sei
+  tau_broad <- unit_multiplier * tau_broad
+  conditional_means <- unit_multiplier * conditional_means
+  conditional_sds <- unit_multiplier * conditional_sds
   object <- BMA.norm(
     yi = rep(ybar, K), sei = rep(sei, K), measure = "GEN",
-    prior_effect = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+    prior_effect = BayesTools::prior("normal", list(mean = 0, sd = unit_multiplier)),
     prior_effect_null = NULL,
     prior_heterogeneity = BayesTools::prior("cauchy",
-      list(location = 0, scale = 1), truncation = list(lower = 0, upper = Inf)),
+      list(location = 0, scale = unit_multiplier), truncation = list(lower = 0, upper = Inf)),
     prior_heterogeneity_null = BayesTools::prior("point", list(location = 0)),
     only_priors = TRUE, silent = TRUE
   )
@@ -597,12 +602,15 @@ test_that("rows a hundred million times narrower than the step are normalized by
 
   .iwmde_qcmde_cache_clear()
   withr::defer(.iwmde_qcmde_cache_clear())
-  seed <- .cf_seed(divisor = 1e8)
+  # A change of GEN units preserves every width ratio and puts the narrow
+  # sampling SE inside the public domain. The density acquires its Jacobian.
+  unit_multiplier <- 2048
+  seed <- .cf_seed(divisor = 1e8, unit_multiplier = unit_multiplier)
   value <- seed$value
 
   # mpmath, 60 digits, as above with the rows' SD = step / 1e8. Every lattice
   # point lies at least 1e7 widths from a narrow row's centre.
-  expected <- 598935951.668174094285044618791566085282258921
+  expected <- 598935951.668174094285044618791566085282258921 / unit_multiplier
   expect_equal(.cf_seed_mixture(seed, value), expected, tolerance = 1e-12)
   ordinate <- .cf_seed_ordinate(seed, value)
   expect_equal(ordinate[["ordinate"]], expected, tolerance = 1e-6)
@@ -614,7 +622,7 @@ test_that("rows a hundred million times narrower than the step are normalized by
   # lattice cannot resolve them, so the ordinate is not the exact one).
   original <- .iwmde_qcmde_normal_prior_parameters
   for (misreport in list(function(form) {form$sd <- 2 * form$sd; form},
-                         function(form) {form$mean <- form$mean + .5; form})) {
+                         function(form) {form$mean <- form$mean + .5 * unit_multiplier; form})) {
     .iwmde_qcmde_cache_clear()
     testthat::local_mocked_bindings(
       .iwmde_qcmde_normal_prior_parameters = function(prior) {

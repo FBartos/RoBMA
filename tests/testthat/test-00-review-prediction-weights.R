@@ -150,9 +150,11 @@ test_that("augmentation provenance follows reconstruction and represented varian
   expect_null(attr(value, "RoBMA_target")$latent_augmentation)
   expect_null(.selection_postfit_target_metadata(omitted$data)$latent_augmentation)
   expect_null(.brma_mv_marglik_target_metadata(omitted)$latent_augmentation)
-  tiny <- bselmodel(yi = c(.8, -.1, .3), vi = c(1e-100, .09, .05),
+  tiny <- bselmodel(yi = c(.8, -.1, .3), vi = c(1e-12, .09, .05),
     weights = c(1e308, 1.5, 4), measure = "GEN", prior_unit_information_sd = 1,
     only_priors = TRUE)
+  # Previously fitted objects can contain smaller SEs than new fits admit.
+  tiny$data$outcome$sei[1L] <- 1e-50
   expect_error(.prediction_weight_state(tiny, samples),
     "Fitted Gaussian conditioning variance is numerically unavailable", fixed = TRUE)
 })

@@ -181,6 +181,45 @@ test_that("declared rank-one events retain zero-residual and point-mass boundari
   }
 })
 
+test_that("fixed outcomes use the observed rule's cutoff in conditional event masses", {
+
+  cut <- stats::qnorm(.025, lower.tail = FALSE)
+  cluster <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  factor <- .selection_joint_factor_quadrature_rules()
+  # At the first SE, (se * cut) / se rounds below cut. At the second,
+  # one outcome ulp below se * cut still divides back to cut.
+  for (se in c(.129, 4.059)) {
+    boundary <- se * cut
+    ulp <- 2^(floor(log2(boundary)) - 52)
+    y <- boundary + c(-ulp, 0, ulp)
+    expect_false(identical(y / se >= cut, y >= boundary))
+    for (sign in c(-1L, 1L)) for (rule in 0:2) {
+      two_sided <- rule == 2L
+      bounds <- if (two_sided) c(Inf, cut, -cut, -Inf) else c(Inf, cut, -Inf)
+      weights <- if (two_sided) c(1, .2, 1) else c(1, .2)
+      mass <- .Call("RoBMA_selnorm_conditioned_normalizer_batch",
+        cbind(sign * y, 0), cbind(rep(0, 3L), 1), matrix(numeric(), 3L, 0L),
+        0L, c(se, 1), matrix(weights, 3L, length(weights), byrow = TRUE),
+        tail(bounds, -1L), head(bounds, -1L), sign, 1L, FALSE, rule,
+        c(1L, 1L), .5, 2L, 2L, 2L, .005,
+        cluster$nodes, cluster$log_weights, as.double(cluster$orders),
+        factor$nodes, factor$log_weights, as.double(factor$orders),
+        NULL, PACKAGE = "RoBMA")$log_normalizer
+
+      # The other outcome is independently standard normal. Its weight
+      # matters under best selection only when the fixed row misses the cut.
+      p <- if (two_sided) .05 else .025
+      varying <- p + .2 * (1 - p)
+      expected <- if (rule == 0L) {
+        ifelse(y / se >= cut, 1, .2) * varying
+      } else {
+        ifelse(y >= boundary, 1, varying)
+      }
+      expect_equal(mass, log(expected), tolerance = 1e-14)
+    }
+  }
+})
+
 test_that("factor and cluster normalizers share the conditional Gaussian event law", {
 
   mean <- c(-.1, .24)

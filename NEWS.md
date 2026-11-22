@@ -2,6 +2,7 @@
 ### Breaking changes
 - RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
+- Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
 
 ### Features
@@ -20,6 +21,8 @@
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
+- sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
+- multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
 - selection models with many estimates on one random effect are no longer refused or slow on Apple silicon
