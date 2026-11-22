@@ -1,6 +1,6 @@
 ## development version
 ### Breaking changes
-- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools
+- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools. Thanks to [Martyn Plummer](https://github.com/FBartos/RoBMA/pull/80) for the original JAGS 5 C++ API patch and to [Matt Denwood](https://github.com/FBartos/RoBMA/pull/119) for the rjags compiler-flag and module-loading patch. Both contributions were incorporated into the JAGS 5 migration.
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
