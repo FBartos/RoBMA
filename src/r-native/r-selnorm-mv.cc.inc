@@ -246,7 +246,7 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
     // it is not a Monte Carlo standard error or a rigorous total error bound.
     REAL(quadrature_error)[s] = integration.used_envelope ?
       integration.covariance_width + 2.0 * integration.quadrature_change +
-      integration.tail_bound + integration.cdf_relative_error : 0.0;
+      integration.tail_bound + integration.cdf_relative_error : integration.rank_one_relative_error;
     if (integration_rules.bounded_cdf) {
       REAL(cdf_error)[s] = integration.cdf_relative_error;
       REAL(cdf_log_error)[s] = integration.cdf_log_error;
@@ -446,6 +446,7 @@ static SEXP selnorm_mnorm_step_batch(
   }
   SEXP density = PROTECT(allocate_selnorm_matrix(REALSXP, S, Z));
   SEXP integration_diagnostics = PROTECT(project ? R_NilValue : allocate_selnorm_matrix(REALSXP, S, 4));
+  SEXP triple_radius = PROTECT(!project && K >= 3 ? Rf_allocVector(REALSXP, S) : R_NilValue);
   SEXP cdf_error = PROTECT(integration_rules.bounded_cdf ? Rf_allocVector(REALSXP, S) : R_NilValue);
   SEXP cdf_log_error = PROTECT(integration_rules.bounded_cdf ? Rf_allocVector(REALSXP, S) : R_NilValue);
   if (!project) {
@@ -561,6 +562,7 @@ static SEXP selnorm_mnorm_step_batch(
       REAL(integration_diagnostics)[s + S] = integration.quadrature_change;
       REAL(integration_diagnostics)[s + 2 * S] = integration.covariance_width;
       REAL(integration_diagnostics)[s + 3 * S] = integration.tail_bound;
+      if (triple_radius != R_NilValue) REAL(triple_radius)[s] = integration.rank_one_relative_error;
       if (integration_rules.bounded_cdf) {
         REAL(cdf_error)[s] = integration.cdf_relative_error;
         REAL(cdf_log_error)[s] = integration.cdf_log_error;
@@ -594,6 +596,7 @@ static SEXP selnorm_mnorm_step_batch(
         REAL(log_normalizer)[s] = REAL(log_normalizer)[s - 1];
         for (int column = 0; column < 4; ++column)
           REAL(integration_diagnostics)[s + S * column] = REAL(integration_diagnostics)[s - 1 + S * column];
+        if (triple_radius != R_NilValue) REAL(triple_radius)[s] = REAL(triple_radius)[s - 1];
         if (integration_rules.bounded_cdf) {
           REAL(cdf_error)[s] = REAL(cdf_error)[s - 1];
           REAL(cdf_log_error)[s] = REAL(cdf_log_error)[s - 1];
@@ -652,6 +655,10 @@ static SEXP selnorm_mnorm_step_batch(
     SET_STRING_ELT(names, 2, Rf_mkChar("log_normalizer"));
     SET_VECTOR_ELT(output, 3, integration_diagnostics);
     SET_STRING_ELT(names, 3, Rf_mkChar("integration_diagnostics"));
+    if (triple_radius != R_NilValue &&
+        std::any_of(REAL(triple_radius), REAL(triple_radius) + S, [](double x) { return x > 0; })) {
+      Rf_setAttrib(integration_diagnostics, Rf_install("rank_one_relative_error"), triple_radius);
+    }
     if (integration_rules.bounded_cdf) {
       Rf_setAttrib(integration_diagnostics, Rf_install("cdf_relative_error"), cdf_error);
       Rf_setAttrib(integration_diagnostics, Rf_install("cdf_log_error"), cdf_log_error);
@@ -659,7 +666,7 @@ static SEXP selnorm_mnorm_step_batch(
   }
   Rf_setAttrib(output, R_NamesSymbol, names);
 
-  UNPROTECT(9);
+  UNPROTECT(10);
   return output;
 }
 

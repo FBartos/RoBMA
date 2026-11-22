@@ -2,25 +2,146 @@
 # sampler-declarations.R
 # ============================================================================ #
 #
-# The sampler declarations RoBMA passes to BayesTools::JAGS_fit()
-# ('sampler_gates', 'sampler_blocks'). They choose which sampler of the
-# BayesTools JAGS module updates which node; the model, the priors, the
-# likelihood and the posterior are unchanged. RoBMA only decides what to
-# declare: BayesTools writes the markers, expands each prior to its nodes and
-# declines blocks of fewer than two nodes.
+# RoBMA passes declarations to BayesTools::JAGS_fit() for sampler ownership,
+# probability recording and the selection-weight representation. Joint
+# declarations use the bound priors and data that the backend has compiled.
 #
 # ============================================================================ #
 
 
-# The declarations of a fresh fit, from the data, priors and fit priors of
-# .fit(): gates for the branches of a publication-bias mixture, and one factor
-# slice block for selection models with estimated heterogeneity.
+# The declarations of a fresh fit, from the data, priors and fit priors of .fit().
 .fit_sampler_declarations <- function(data, priors, fit_priors) {
 
+  module_samplers <- .sampler_module_samplers()
+  requested <- list(
+    joint          = RoBMA.get_option("sampler.joint"),
+    nested_weights = RoBMA.get_option("sampler.nested.weights"),
+    probabilities  = RoBMA.get_option("sampler.probabilities"),
+    specialized    = module_samplers
+  )
+  nested_weights  <- module_samplers && requested[["nested_weights"]] &&
+    inherits(fit_priors[["bias"]], "prior.bias_mixture") &&
+    .is_priors_weightfunction(priors) && !.selection_all_sources_conditioned(data)
+  joint <- .sampler_joint_declared(data, fit_priors, requested[["joint"]])
+  requested[["joint_sampler"]] <- attr(joint, "sampler", exact = TRUE)
+
   return(list(
-    sampler_gates  = .sampler_gates_declared(fit_priors),
-    sampler_blocks = .sampler_blocks_declared(data, priors)
+    sampler_gates           = .sampler_gates_declared(fit_priors),
+    sampler_blocks          = .sampler_blocks_declared(data, priors),
+    sampler_joint           = joint,
+    sampler_nested_weights = nested_weights,
+    sampler_probabilities   = if (module_samplers) requested[["probabilities"]] else character(),
+    requested               = requested
   ))
+}
+
+
+# Keep the original request and refresh ownership from the last successful run.
+# The backend keeps the markers, nested layout and probability monitor plans.
+.sampler_request_record <- function(fit, requested = NULL) {
+
+  declarations <- attr(fit, "sampler_declarations", exact = TRUE)
+  if (is.null(requested)) requested <- declarations[["robma"]][["request"]]
+  if (is.null(requested)) return(fit)
+
+  record <- list()
+  workers      <- fit[["samplers_by_worker"]]
+  assignments <- if (is.null(workers)) list(fit[["samplers"]]) else lapply(workers, `[[`, "samplers")
+  disabled     <- !requested[["specialized"]]
+  disabled_reason <- "The 'jags.default' sampler policy disables specialized samplers."
+  policy       <- requested[["joint"]]
+  expected     <- switch(policy, auto = requested[["joint_sampler"]], bias = "RoBMA::IndependentBiasJoint",
+                         gaussian = "RoBMA::GaussianJoint",
+                         clustered = "RoBMA::JointCluster", clustered.scale = "RoBMA::JointCluster")
+  if (!is.null(expected)) {
+    claimed <- lapply(assignments, function(table) table[["Node"]][table[["Sampler"]] == expected])
+    owned   <- Reduce(intersect, claimed)
+    mixed   <- any(!vapply(claimed, setequal, logical(1), y = owned))
+    budget  <- requested[["joint_budget"]]
+    status <- if (disabled) "disabled" else if (mixed) "mixed" else if (length(owned) > 0L) "active" else
+      if (!is.null(budget)) "budget_bypassed" else
+      if (is.null(declarations[["joint"]])) "graph_declined" else "native_declined"
+    reason <- switch(status,
+      disabled = disabled_reason,
+      mixed = "Workers assigned different nodes to the joint sampler. See the per-worker sampler assignments.",
+      budget_bypassed = sprintf(
+        "The fit has %d retained estimates and exceeds the automatic Gaussian joint sampler limit of %d.",
+        budget[["rows"]], budget[["limit"]]),
+      graph_declined = switch(expected,
+        "RoBMA::IndependentBiasJoint" = paste(
+          "This update requires independent step-selection rows and eligible effect and bias mixtures.",
+          "Moderated fits require a supported additive design and ordinary selection weights."),
+        "RoBMA::GaussianJoint" = if (policy == "auto")
+          "This update requires an unweighted independent Gaussian fit, one standardized numeric moderator and eligible normal mixtures." else
+          "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
+        "This update requires an eligible clustered fit with one factor moderator and supported prior laws."),
+      native_declined = if (expected == "RoBMA::GaussianJoint")
+        "The compiled graph or Gaussian proposal coverage did not qualify. See the fit's sampler assignments." else
+        "The native sampler did not claim the declared nodes. See the fit's sampler assignments."
+    )
+    record[["joint"]] <- list(policy = policy, status = status, reason = reason, sampler = expected, nodes = owned)
+  }
+
+  if (requested[["nested_weights"]]) {
+    nested <- declarations[["nested_weights"]]
+    if (is.null(nested)) nested <- list(realized = FALSE, branches = integer(),
+      reason = if (disabled) disabled_reason else "The fit has no applicable selection-weight mixture.")
+    record[["nested_weights"]] <- nested
+  }
+
+  if (length(requested[["probabilities"]]) > 0L) {
+    requested_nodes <- requested[["probabilities"]]
+    nodes <- declarations[["probabilities"]][["node"]]
+    if (is.null(nodes)) nodes <- requested_nodes
+    end_state <- fit[["end_state"]]
+    chains <- if (is.null(workers)) list(seq_along(end_state)) else lapply(workers, `[[`, "chains")
+    owners <- vapply(nodes, function(node) {
+      node_owners <- unique(vapply(seq_along(assignments), function(worker) {
+        .sampler_probability_owner(node, assignments[[worker]], end_state[chains[[worker]]])
+      }, character(1)))
+      if (length(node_owners) == 1L) node_owners[[1L]] else "mixed"
+    }, character(1), USE.NAMES = FALSE)
+    recorded <- vapply(nodes, function(node) {
+      inherits(fit[["sampler_probabilities"]][[node]], "mcmc.list")
+    }, logical(1))
+    # The backend resolves fitted aliases when it binds the monitor. A recorded
+    # trace identifies the actual finite sampler even when JAGS reports another
+    # spelling for its stochastic node in the assignment table.
+    owners[recorded] <- "BayesTools::Finite"
+    record[["probabilities"]] <- data.frame(
+      node = nodes, requested_node = requested_nodes, sampler = owners, status = if (disabled) "disabled" else
+        ifelse(recorded, "active", "unavailable"),
+      reason = if (disabled) disabled_reason else
+        ifelse(recorded, NA_character_, "The fitted sampler supplies no conditional branch probabilities.")
+    )
+  }
+  if (length(record) > 0L) {
+    record[["request"]] <- requested
+    declarations[["robma"]] <- record
+    attr(fit, "sampler_declarations") <- declarations
+  }
+  return(fit)
+}
+
+
+# JAGS can report the bare or indexed spelling of a singleton. Its final
+# state establishes the shape even for coordinates omitted from monitoring.
+.sampler_probability_owner <- function(node, table, states) {
+
+  index <- match(node, table[["Node"]])
+  if (!is.na(index)) return(table[["Sampler"]][[index]])
+
+  base <- sub("\\[1\\]$", "", node)
+  if (grepl("[", base, fixed = TRUE) || length(states) == 0L ||
+      !all(vapply(states, function(state) {
+        value <- state[[base]]
+        is.numeric(value) && length(value) == 1L && length(dim(value)) <= 1L
+      }, logical(1)))) return(NA_character_)
+
+  alias <- if (node == base) paste0(base, "[1]") else base
+  index <- match(alias, table[["Node"]])
+  if (is.na(index)) return(NA_character_)
+  return(table[["Sampler"]][[index]])
 }
 
 
@@ -78,8 +199,7 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 
 
 # Whether the samplers of the JAGS modules may be declared at all:
-# 'selection.sampler = "jags.default"' keeps only the samplers JAGS assigns,
-# whatever 'sampler.gates' and 'sampler.blocks' say.
+# 'selection.sampler = "jags.default"' keeps only the samplers JAGS assigns.
 .sampler_module_samplers <- function() {
 
   return(!isTRUE(RoBMA.get_option("selection.sampler") %in% "jags.default"))
@@ -130,17 +250,17 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     return(NULL)
   }
 
-  # RoBMA's unit-level latent parameters are never members, whatever their prior
+  # BayesTools resolves stochastic leaves. Keep supported empty priors in the
+  # declaration so it retains the model-level grouping of the supplied priors.
+  sources      <- BayesTools::JAGS_sampler_sources(prior_list)
+  eligible     <- unique(sources[["prior"]][sources[["status"]] %in% c("eligible", "empty")])
   unit_latents <- c("theta", "gamma", "sampling_z", "pi", "phi")
-  eligible     <- vapply(prior_list, .sampler_block_eligible, logical(1))
-  members      <- setdiff(names(prior_list)[eligible], unit_latents)
+  members      <- setdiff(eligible, unit_latents)
 
   if (.sampler_is_ensemble(prior_list)) {
     # Model-averaged fits: the plain allocation SD and the Dirichlet allocation
     # weights of a random-effect variance allocation only.
-    members <- members[vapply(prior_list[members], function(prior) {
-      .sampler_is_allocation_sd(prior) || .sampler_is_allocation_weights(prior)
-    }, logical(1))]
+    members <- members[vapply(prior_list[members], .sampler_is_allocation_block_prior, logical(1))]
   }
 
   if (length(members) < 2L) {
@@ -151,19 +271,6 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 }
 
 
-# Priors that are never declared, whatever their role: mixtures (bias
-# mixtures included), spike-and-slab, ordered (totals included), point and
-# discrete priors, and inclusion priors of random-effect components.
-.sampler_prior_guarded <- function(prior) {
-
-  return(BayesTools::is.prior.mixture(prior) ||
-           BayesTools::is.prior.spike_and_slab(prior) ||
-           BayesTools::is.prior.ordered(prior) ||
-           BayesTools::is.prior.point(prior) ||
-           BayesTools::is.prior.discrete(prior) ||
-           !is.null(attr(prior, "random_allocation_inclusion", exact = TRUE)))
-}
-
 .sampler_prior_scalar <- function(prior) {
 
   return(BayesTools::is.prior.simple(prior) &&
@@ -171,66 +278,14 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
            !BayesTools::is.prior.vector(prior))
 }
 
-# Random-effect metadata BayesTools attaches to formula priors.
-.sampler_prior_random_metadata <- function(prior) {
+# An ensemble only groups the SD and Dirichlet weights of variance allocations.
+.sampler_is_allocation_block_prior <- function(prior) {
 
-  attributes <- c("random_sd", "random_correlation", "random_allocation_sd",
-                  "random_allocation", "random_allocation_inclusion", "random_summary")
-  return(any(vapply(attributes, function(attribute) {
-    !is.null(attr(prior, attribute, exact = TRUE))
-  }, logical(1))))
-}
-
-.sampler_is_allocation_sd <- function(prior) {
-
-  return(!.sampler_prior_guarded(prior) && .sampler_prior_scalar(prior) &&
-           isTRUE(attr(prior, "random_allocation_sd", exact = TRUE)))
-}
-
-.sampler_is_allocation_weights <- function(prior) {
-
-  return(!.sampler_prior_guarded(prior) && BayesTools::is.prior.vector(prior) &&
-           !is.null(attr(prior, "random_allocation", exact = TRUE)) &&
-           !isTRUE(attr(prior, "random_allocation_sd", exact = TRUE)) &&
+  if (isTRUE(attr(prior, "random_allocation_sd", exact = TRUE))) {
+    return(.sampler_prior_scalar(prior))
+  }
+  return(!is.null(attr(prior, "random_allocation", exact = TRUE)) &&
            identical(prior[["distribution"]], "dirichlet"))
-}
-
-# A direct random-effect SD or a scalar structured correlation (e.g. of cs() or
-# hcs()) with a simple continuous scalar prior, outside any allocation.
-.sampler_is_random_scalar <- function(prior) {
-
-  return(!.sampler_prior_guarded(prior) && .sampler_prior_scalar(prior) &&
-           (isTRUE(attr(prior, "random_sd", exact = TRUE)) ||
-              isTRUE(attr(prior, "random_correlation", exact = TRUE))) &&
-           is.null(attr(prior, "random_allocation", exact = TRUE)) &&
-           is.null(attr(prior, "random_summary", exact = TRUE)))
-}
-
-# Priors that may join a block: simple continuous scalar priors and treatment
-# or independent factor priors without random-effect metadata, a single weight
-# function, the plain allocation SD and the Dirichlet allocation weights, and
-# direct random-effect SDs and scalar structured correlations with simple
-# continuous scalar priors. Vector priors (mean-difference and orthonormal
-# factors, mnormal, mt), other random-effect priors (factor or vector SDs; LKJ
-# correlations are not prior-list entries) and the guarded priors are not.
-# The ensemble filter of .sampler_block_members() keeps only the allocation
-# parameters of model-averaged fits.
-.sampler_block_eligible <- function(prior) {
-
-  if (.sampler_prior_guarded(prior)) {
-    return(FALSE)
-  }
-  if (.sampler_is_allocation_sd(prior) || .sampler_is_allocation_weights(prior)) {
-    return(TRUE)
-  }
-  if (.sampler_prior_random_metadata(prior)) {
-    return(.sampler_is_random_scalar(prior))
-  }
-
-  return(.sampler_prior_scalar(prior) ||
-           (BayesTools::is.prior.factor(prior) && !BayesTools::is.prior.vector(prior) &&
-              (BayesTools::is.prior.treatment(prior) || BayesTools::is.prior.independent(prior))) ||
-           BayesTools::is.prior.weightfunction(prior))
 }
 
 

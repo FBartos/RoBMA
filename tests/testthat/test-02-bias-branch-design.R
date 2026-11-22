@@ -315,11 +315,18 @@ test_that("known-V product-space VIF averages the draws of each design class", {
     check.attributes = FALSE
   )
 
-  table <- suppressWarnings(
-    vif(object, posterior_correlation = FALSE, max_samples = 40)
-  )[["vif"]]
+  result <- suppressWarnings(
+    vif(object, posterior_correlation = FALSE, max_samples = 40, include_samples = TRUE)
+  )
+  table <- result$vif
   expect_identical(table[["term"]], c("x", "PET", "PEESE"))
-  expect_true(all(is.finite(table[["GVIF"]])))
+  # Two distinct design profiles: each active bias term is exactly affine
+  # in x. The location-only member has a single non-intercept predictor.
+  expect_identical(nrow(unique(union)), 2L)
+  expect_equal(table$GVIF, rep(Inf, 3L))
+  x_draws <- result$samples$GVIF[result$samples$term == "x"]
+  expect_equal(x_draws[kinds == "none"], rep(1, sum(kinds == "none")))
+  expect_true(all(is.infinite(x_draws[kinds != "none"])))
 })
 
 

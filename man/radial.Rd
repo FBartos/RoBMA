@@ -37,7 +37,8 @@ zero on the z-axis. Defaults to \code{FALSE}.}
 
 \item{xlim}{x-axis limits. If not specified, limits are computed from data.}
 
-\item{zlim}{z-axis limits. If not specified, limits are computed from data.}
+\item{zlim}{z-axis limits. If not specified, limits are computed from data.
+Unrepresentable arc or band coordinates raise \code{RoBMA_radial_range_unavailable}.}
 
 \item{xlab}{title for the x-axis. If not specified, a default label is used.}
 

@@ -11,6 +11,23 @@ sampling law. For likelihood-only nodes, verify observed deviance with
 See [maintainer decisions](decision-rationale.md) for why loose requests retain
 the deterministic calibration cap and why this does not certify QMC accuracy.
 
+## Dense three-outcome normalizers
+
+For a dense three-outcome product selection block, a failed QMC normalizer
+can be recovered with a bounded rank-one integral. This requires positive
+off-diagonal covariances and positive weights. At or near a zero uniqueness,
+an auxiliary factor can move its loadings inward to resolve the transition.
+Its positive unique variances are used only for quadrature. A negative
+uniqueness beyond roundoff leaves the original diagnostic in place. The
+determinant divided by the sum of the principal two-row minors bounds the
+smallest auxiliary covariance eigenvalue from below, including near a zero
+uniqueness.
+Check the perturbation between the represented factor covariance and the
+supplied matrix, then combine its relative error multiplicatively with the
+integral enclosure radius. The combined radius must meet the original
+tolerance using the supplied work budget. This also applies to the unrestricted
+Gaussian event. A truncated event or projected density has a different target.
+
 ## Effect Direction
 
 JAGS returns `mu`, `theta`, and random effects on the original fitted scale,
@@ -35,6 +52,10 @@ Predictive variance consumes the kernel's direct centered variance. Raw second
 moments remain available to their callers, but are not subtracted from squared
 large means. Outer sampling mixtures and scalar moment integrals use a Gaussian
 location center and retain the existing numerical error and transition checks.
+When the STEP normalizer divided by the largest weight falls below 1e-280,
+compute moments on either side of the Gaussian mode in coordinates anchored
+at the nearest point of each bin. Combine within-bin and between-bin variance
+with relative log masses so that a rare selected tail retains its contribution.
 
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.
@@ -617,6 +638,22 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   The released `"coarse_corrected"` and `"default"` are deprecated aliases of
   `"slice.coarse"` and `"jags.default"`; settings frozen in fits keep their
   string and `.selection_sampler_corrected()` reads both spellings.
+
+Joint JAGS updates use the bound prior sources and the selection execution
+plan that generated the observations. A joint factory must claim every
+stochastic coordinate it writes. Check its actual assignment on the compiled
+fit and on a saved-fit extension. The scientific likelihood includes every
+selection normalizer, the original covariance, and the declared prior mass of
+each label. Use proposal approximations only with an exact target correction.
+The Gaussian moderator update requires the exact conjugate observation graph.
+
+For mixing comparisons, keep the previously enabled gated and corrected
+samplers in the control. Charge model compilation, adaptation, burn-in and
+monitored sampling. Count physical crossings separately from the Monte Carlo
+error of a posterior model probability. A recorded conditional probability
+belongs to the update at which its indicator was drawn. Sum disjoint labels
+from that one update to estimate a family probability. Use the monitored
+joint indicators for events spanning different updates.
 
 Known limits: blocks routed to the Smolyak grid (chains of rank three or more
 and other supports the certificate rejects) keep the per-transition rule, so

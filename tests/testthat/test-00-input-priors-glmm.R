@@ -238,24 +238,81 @@ test_that("the estimate-unit GLMM likelihood of released nuisance families equal
   }
 })
 
-test_that("a gamma log-rate prior on a low-event cell stops with the grid nonconvergence class", {
+test_that("low-event GLMM cells integrate positive nuisance priors against independent oracles", {
 
   skip_on_cran()
-  # At 1200 nodes (the end of the refinement ladder) the prior-CDF grid is still
-  # about 4e-6 from the nested-QUADPACK value of this cell, so it cannot certify
-  # its 1e-6 tolerance. The 30-node grid of 4.0.0 returned a value 0.2 too low.
-  # The documented outcome is the typed refusal, which names a remedy.
+  # The original evenly parameterized prior-CDF rule exhausted 1200 nodes.
   stored <- BMA.glmm(
     x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
     data = test_data_pois, measure = "IRR",
     prior_lograte = BayesTools::prior("gamma", list(2, 1)), only_priors = TRUE
   )[["priors"]][["outcome"]][["phi"]]
-  condition <- tryCatch(
-    .outcome_pdf.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), stored),
+  value <- .outcome_pdf.pois(4L, 3L, 20, 21, matrix(.2), matrix(.4), stored)
+  expect_lt(abs(as.numeric(value) - .glmm_oracle_pois(4L, 20, 3L, 21, .2, .4,
+    function(x) stats::dgamma(x, 2, rate = 1))), 1e-6)
+
+  families <- list(
+    list(stored, function(x) stats::dgamma(x, 2, rate = 1)),
+    list(BayesTools::prior("lognormal", list(0, 1)), function(x) stats::dlnorm(x)),
+    list(BayesTools::prior("invgamma", list(3, 1)), function(x) {
+      out <- numeric(length(x))
+      ok <- x > 0
+      out[ok] <- stats::dgamma(1/x[ok], 3, rate = 1) / x[ok]^2
+      out
+    })
+  )
+  for (family in families) {
+    value <- .outcome_pdf.pois(1L, 0L, 20, 20, matrix(0), matrix(.3), family[[1]])
+    oracle <- .glmm_oracle_pois(1L, 20, 0L, 20, 0, .3, family[[2]])
+    expect_lt(abs(as.numeric(value) - oracle), 1e-6)
+    summed <- .outcome_pdf_sum.pois(1L, 0L, 20, 20, matrix(0), matrix(.3), family[[1]])
+    expect_lt(abs(as.numeric(summed) - oracle), 1e-6)
+  }
+  base <- BayesTools::prior("lognormal", list(-2, 1), truncation = list(lower = 0, upper = 1))
+  value <- .outcome_pdf.binom(0L, 1L, 50L, 50L, matrix(.1), matrix(.3), base)
+  oracle <- .glmm_oracle_binom(0L, 50L, 1L, 50L, .1, .3,
+    function(x) stats::dlnorm(x, -2, 1)/stats::plnorm(1, -2, 1))
+  expect_lt(abs(as.numeric(value) - oracle), 1e-6)
+
+  # With large arms, a sharply concentrated interior likelihood needs the
+  # ordinary rule's interior node spacing. At zero effect and tau its
+  # nuisance integral is a beta density times the original prior density.
+  n <- 100000L
+  x <- 20000L
+  value <- .outcome_pdf.binom(x, x, n, n, matrix(0), matrix(0), base)
+  density <- function(u) stats::dlnorm(stats::qbeta(u, 2*x+1, 2*(n-x)+1), -2, 1) /
+    stats::plnorm(1, -2, 1)
+  oracle <- 2*lchoose(n, x) + lbeta(2*x+1, 2*(n-x)+1) +
+    log(stats::integrate(density, 0, 1, rel.tol = 1e-10)$value)
+  expect_lt(abs(as.numeric(value) - oracle), 1e-6)
+  grid <- .glmm_prior_quantile_grid(stored, 100L, cluster_ends = TRUE)
+  expect_lt(abs(sum(exp(grid$log_weights)*grid$grid) - 2), 1e-5)
+  expect_error(.outcome_pdf.pois(1L, 0L, 20, 20, matrix(0), matrix(.3),
+    BayesTools::prior("gamma", list(8, 2))), class = "RoBMA_glmm_grid_nonconvergence")
+})
+
+test_that("row recovery starts with the rule that resolved the nuisance axis", {
+
+  single_row_rules <- logical()
+  evaluate <- function(rows, theta_order, nuisance_order, cluster_ends) {
+    if (length(rows) == 1L) single_row_rules <<- c(single_row_rules, cluster_ends)
+    theta_error <- if (theta_order < 65L) 1/theta_order else 0
+    rep(theta_error + if (cluster_ends) 0 else 1/nuisance_order, length(rows))
+  }
+  control <- .glmm_grid_control(theta_orders = c(3L,5L,7L), nuisance_orders = c(3L,5L,7L))
+  out <- .glmm_grid_refine_column(evaluate, 2L, "pois", 1L,
+    BayesTools::prior("gamma", list(2,1)), control, c(TRUE, TRUE))
+  expect_equal(out$value, c(0,0))
+  expect_true(length(single_row_rules) > 0L && all(single_row_rules))
+
+  # Both rules exhaust the theta ladder, but only the endpoint grid
+  # resolved the nuisance axis. Its diagnostic survives the retry order.
+  failed <- tryCatch(.glmm_grid_refine_column(
+    function(rows, nt, nu, endpoint) rep(1/sqrt(nt) + if (endpoint) 0 else 1/nu, length(rows)),
+    2L, "pois", 1L, BayesTools::prior("gamma", list(2, 1)), control, c(TRUE, TRUE)),
     error = identity)
-  expect_s3_class(condition, "RoBMA_glmm_grid_nonconvergence")
-  expect_s3_class(condition, "RoBMA_glmm_numerical_error")
-  expect_match(conditionMessage(condition), "a normal 'prior_lograte'", fixed = TRUE)
+  expect_s3_class(failed, "RoBMA_glmm_grid_nonconvergence")
+  expect_true(all(failed$nuisance_changes == 0))
 })
 
 test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {

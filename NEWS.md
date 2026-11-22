@@ -1,6 +1,6 @@
 ## development version
 ### Breaking changes
-- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools
+- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools. Thanks to [Martyn Plummer](https://github.com/FBartos/RoBMA/pull/80) for the original JAGS 5 C++ API patch and to [Matt Denwood](https://github.com/FBartos/RoBMA/pull/119) for the rjags compiler-flag and module-loading patch. Both contributions were incorporated into the JAGS 5 migration.
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
@@ -14,6 +14,8 @@
 - `plot_diagnostic()` and `plot_diagnostic_trace()` gain `statistic` and `batch_size` to trace batched inclusion probabilities, mixture-component probabilities, and switching rates
 - `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
+- Eligible independent selection and one-moderator Gaussian ensembles use joint updates by default, with automatic Gaussian updates limited to 800 estimates. `sampler.joint = "bias"` also supports additive selection meta-regressions.
+- `sampler.nested.weights` enables shared weights for nested selection models and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
@@ -23,6 +25,11 @@
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
+- GLMM log likelihoods, LOO and WAIC resolve sparse count cells more accurately with gamma, lognormal and inverse-gamma nuisance priors
+- dense three-outcome product selection models can recover a rejected normalizer using a bounded one-factor integral when the supplied covariance admits it
+- GVIF handles large coefficient matrices, uses the estimated design for fixed-zero intercepts and reports infinite inflation for terms with demonstrated exact overlap
+- radial and Q-Q plots retain near-100% bands and identify unrepresentable display ranges
+- selected-normal predictive moments retain rare selection bins whose Gaussian probabilities underflow, including hard selection in a far tail
 - sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
 - multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
