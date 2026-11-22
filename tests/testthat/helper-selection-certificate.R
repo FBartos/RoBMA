@@ -116,11 +116,11 @@
 #
 # The fields are compared to `rounding` in absolute terms: they are the log normalizer and
 # log density and errors relative to the normalizer, so rounding of the normalizer's sums
-# moves all of them by the same absolute amount. One-ulp perturbations of a block's means
-# and SDs move them by up to 4.3e-9, except that an occasional perturbation of blocks 17, 24,
-# 25 and 37 of the stored reference moves a stage by up to 6.6e-4. For block 37 the
-# stored stage differs across Linux, Windows and Apple silicon. Check its old and new
-# stages against an independent normalizer and replay the stopping rule on each platform.
+# moves all of them by the same absolute amount. Blocks 17, 24, 25 and 37 are
+# sensitive to last-bit input changes. In block 37, changing one mean or SD by
+# one ulp moved the stage-128 log normalizer by as much as 0.0011. The stored
+# log normalizer differs by 1.05e-5 on Ubuntu 26.04 (FMA) and by up to 6e-4 on Apple
+# silicon. Keep the stored comparison on builds with the original arithmetic.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
                                               rounding = 5e-9, info = "", reference_log_normalizer = NULL) {
@@ -140,6 +140,8 @@
   old <- stop_stage(1)
   new <- stop_stage(.selection_qmc_z())
   testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
+  compare_stored <- is.null(reference_log_normalizer) ||
+    (.test_long_double_extended() && !.test_fused_multiply_add())
   if (!is.null(reference_log_normalizer)) {
     for (stage in c(old, new)) {
       log_ratio <- results[[stage]][["log_normalizer"]] - reference_log_normalizer
@@ -148,7 +150,7 @@
     }
   }
   for (field in fields) {
-    if (is.null(reference_log_normalizer)) {
+    if (compare_stored) {
       testthat::expect_lte(difference(results[[old]], expected, field), rounding,
         label = paste(info, "stored output, stage", stages[[old]], field))
     }
