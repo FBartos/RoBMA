@@ -113,22 +113,6 @@ double scalar(Node const *node, unsigned int chain)
   return node->value(chain)[0];
 }
 
-double const *categorical_weights(Node const *node, unsigned long count)
-{
-  auto const *cat = dynamic_cast<StochasticNode const *>(node);
-  if (!cat || cat->distribution()->name() != "dcat" || cat->length() != 1 ||
-      cat->lowerBound() || cat->upperBound() || cat->parents().size() != 1) return nullptr;
-  Node const *weights = cat->parents()[0];
-  if (!weights->isFixed() || weights->length() != count) return nullptr;
-  double const *p = weights->value(0);
-  double total = 0;
-  for (unsigned long i = 0; i < count; ++i) {
-    if (!(p[i] > 0 && std::isfinite(p[i]))) return nullptr;
-    total += p[i];
-  }
-  return std::isfinite(total) ? p : nullptr;
-}
-
 bool fixed_value(Node const *node, double value)
 {
   return fixed_scalar(node) && scalar(node, 0) == value;
@@ -679,7 +663,7 @@ public:
   }
 };
 
-bool collect_setup(Node const *tag, FitData &data)
+bool collect_setup(Node const *tag, Graph const &graph, FitData &data)
 {
   data.setup = tag->parents();
   std::vector<unsigned long> sizes;
@@ -689,6 +673,12 @@ bool collect_setup(Node const *tag, FitData &data)
                         observed_bin, lower, upper, telescope, intercept_label,
                         moderator_label, heterogeneity_label, study_count, cadence, scale_enabled}) {
     if (!data.setup[i]->isFixed()) return false;
+  }
+  // A terminal tag does not make its private arguments informative. JAGS
+  // updates only the nodes in the sampling graph before the proposal reads them.
+  for (unsigned int i : {omega, mode, intercept_gate, physical_tau, physical_rho,
+                        heterogeneity_gate, pet, peese}) {
+    if (!data.setup[i]->isFixed() && !graph.contains(data.setup[i])) return false;
   }
 
   if (!integer_between(scalar(data.setup[study_count], 0), 2, sizes[groups]) ||
@@ -761,10 +751,10 @@ bool collect_nodes(std::vector<Member> const &members, FitData &data,
       std::any_of(gamma.begin(), gamma.end(), [](auto node) { return node == nullptr; })) return false;
 
   auto gate_node = single[gate];
-  const double *weights = categorical_weights(gate_node, 2);
+  const auto weights = categorical_weights(gate_node, 2);
   if (!weights) return false;
-  double a = weights[0], b = weights[1];
-  data.log_gate = {std::log(a) - std::log(a + b), std::log(b) - std::log(a + b)};
+  const double log_total = std::log(weights.total);
+  data.log_gate = {std::log(weights.values[0]) - log_total, std::log(weights.values[1]) - log_total};
   if (single[intercept]->length() != 1 || single[moderator]->length() != data.width ||
       !normal_parameters(single[intercept], data.prior_mean, data.precision) ||
       !normal_parameters(single[moderator], data.prior_mean, data.precision)) return false;
@@ -822,7 +812,7 @@ public:
     if (!setup) return {};
     auto data = std::make_shared<FitData>();
     std::vector<StochasticNode *> nodes;
-    if (!collect_setup(setup, *data) || !collect_nodes(members, *data, nodes)) return {};
+    if (!collect_setup(setup, graph, *data) || !collect_nodes(members, *data, nodes)) return {};
     for (StochasticNode *node : nodes) {
       for (StochasticNode *child : *node->stochasticChildren()) {
         auto const &name = child->distribution()->name();

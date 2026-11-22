@@ -42,6 +42,11 @@ struct OrdinateBounds {
   bool valid;
 };
 
+struct IntervalBounds {
+  long double lower;
+  long double upper;
+};
+
 struct OrdinateWork {
   long double normalizer = 0;
   long double sum_abs_normalizer = 0;
@@ -98,6 +103,63 @@ inline OrdinateBounds enclose_ordinate(OrdinateWork const &work, std::size_t row
 inline bool active(unsigned int cell, unsigned int coefficient)
 {
   return (cell >> coefficient) & 1U;
+}
+
+inline long double upper_round(long double value)
+{
+  return std::nextafter(value, std::numeric_limits<long double>::infinity());
+}
+
+inline IntervalBounds enclose_interval(OrdinateBounds const &left, OrdinateBounds const &right,
+                                       long double left_tau_lower, long double right_tau_upper,
+                                       long double min_variance_lower, long double mean_diagonal_upper,
+                                       long double n)
+{
+  // Both the log prefactor and inverse quadratic decrease with tau.
+  // At infinity the right prefactor is -Inf and the right quadratic is zero.
+  IntervalBounds result{right.normalizer_lower - left.half_quadratic_upper,
+                        left.normalizer_upper - right.half_quadratic_lower};
+  const long double inf = std::numeric_limits<long double>::infinity();
+  const long double left_tau_sq = left_tau_lower * left_tau_lower;
+  if (!std::isfinite(left_tau_sq) || !(min_variance_lower > 0)) return result;
+  const long double variance_sum = min_variance_lower + std::nextafter(left_tau_sq, 0.0L);
+  if (!std::isfinite(variance_sum)) return result;
+  const long double dispersion_sq = std::nextafter(variance_sum, 0.0L);
+  if (!(dispersion_sq > 0)) return result;
+  const long double quadratic = upper_round(2 * left.half_quadratic_upper);
+  const long double left_upper = upper_round(left.normalizer_upper - left.half_quadratic_lower);
+
+  if (!std::isfinite(right_tau_upper)) {
+    // Jensen gives tr(C^-1) >= n / mean(diag(C)). The ratio of the mean
+    // eigenvalue to its lower bound is decreasing in u=tau². If the
+    // quadratic times this ratio is below n, log L decreases on the tail.
+    const long double ratio = upper_round(upper_round(mean_diagonal_upper +
+      upper_round(left_tau_sq)) / dispersion_sq);
+    if (std::isfinite(left_upper) && upper_round(quadratic * ratio) < n) {
+      result.upper = std::min(result.upper, left_upper);
+    }
+    return result;
+  }
+
+  // In u=tau², (log L)'' lies between -Q(a)/(min_variance+a)^2 and
+  // n/[2(min_variance+a)^2]. Those curvature limits enclose the difference
+  // from the endpoint secant. Enlarge b-a using the padded physical edges.
+  const long double tau_difference = upper_round(right_tau_upper - left_tau_lower);
+  const long double tau_sum = upper_round(right_tau_upper + left_tau_lower);
+  const long double width = upper_round(upper_round(tau_difference * tau_sum) / dispersion_sq);
+  const long double width_sq = upper_round(width * width);
+  const long double lower_error = upper_round(upper_round(n / 16) * width_sq);
+  const long double upper_error = upper_round(upper_round(quadratic / 8) * width_sq);
+  const long double endpoint_lower = std::min(
+    std::nextafter(left.normalizer_lower - left.half_quadratic_upper, -inf),
+    std::nextafter(right.normalizer_lower - right.half_quadratic_upper, -inf));
+  const long double endpoint_upper = std::max(left_upper,
+    upper_round(right.normalizer_upper - right.half_quadratic_lower));
+  const long double lower = std::nextafter(endpoint_lower - lower_error, -inf);
+  const long double upper = upper_round(endpoint_upper + upper_error);
+  if (std::isfinite(lower)) result.lower = std::max(result.lower, lower);
+  if (std::isfinite(upper)) result.upper = std::min(result.upper, upper);
+  return result;
 }
 
 // Scale each coefficient by its prior SD. QR starts with the identity prior
@@ -325,6 +387,24 @@ public:
     const auto smallest_se = std::min_element(model.rows.begin(), model.rows.end(),
       [](Observation const &a, Observation const &b) { return a.se < b.se; });
     if (smallest_se == model.rows.end() || !(smallest_se->se > 0)) return inf;
+    const long double n = model.rows.size();
+    const long double min_se = smallest_se->se;
+    const long double min_variance = min_se * min_se;
+    const long double min_variance_lower =
+      std::isfinite(min_variance) ? std::nextafter(min_variance, 0.0L) : 0;
+    long double sampling_trace = 0;
+    long double slope_trace = 0;
+    for (const Observation &row : model.rows) {
+      const long double se = row.se;
+      const long double slope_sd = upper_round(std::fabs(row.moderator) *
+                                               static_cast<long double>(model.sd[1]));
+      sampling_trace = upper_round(sampling_trace + upper_round(se * se));
+      slope_trace = upper_round(slope_trace + upper_round(slope_sd * slope_sd));
+    }
+    const long double intercept_sd = model.sd[0];
+    const long double sampling_mean = upper_round(sampling_trace / n);
+    const long double intercept_mean = upper_round(intercept_sd * intercept_sd);
+    const long double slope_mean = upper_round(slope_trace / n);
     std::vector<RankEdge> edges(n_intervals - 1);
     for (unsigned int j = 1; j < n_intervals; ++j) {
       const double survival = static_cast<double>(n_intervals - j) / n_intervals;
@@ -343,20 +423,24 @@ public:
         log_atom + atom.normalizer_upper - atom.half_quadratic_lower - log_density(cell, 0));
       const long double log_slab = log_prior(model, cell, 1);
       OrdinateBounds left = atom;
+      long double left_tau_lower = 0;
+      const long double mean_diagonal_upper = upper_round(sampling_mean +
+        upper_round((active(cell, 0) ? intercept_mean : 0) + (active(cell, 1) ? slope_mean : 0)));
       for (unsigned int j = 1; j <= n_intervals; ++j) {
         OrdinateBounds right = {-inf, -inf, 0, 0, true};
+        long double right_tau_upper = inf;
         if (j < n_intervals) {
           right = rank_edge_bounds(model, cell, edges[j - 1]);
           if (!right.valid) return inf;
+          right_tau_upper = edges[j - 1].upper_tau;
         }
         const unsigned int bin = 1 + (j - 1) / subintervals_per_bin;
-        // For t in [a,b], both the log prefactor and inverse quadratic
-        // decrease. An infinite right endpoint has N(b)=-Inf and Q(b)=0.
-        const long double lower = right.normalizer_lower - left.half_quadratic_upper;
-        const long double upper = left.normalizer_upper - right.half_quadratic_lower;
-        log_evidence_lower = add_log_mass(log_evidence_lower, log_slab + lower + log_width);
-        log_weight_upper = std::max(log_weight_upper, log_slab + upper - log_density(cell, bin));
+        const auto interval = enclose_interval(left, right, left_tau_lower, right_tau_upper,
+                                               min_variance_lower, mean_diagonal_upper, n);
+        log_evidence_lower = add_log_mass(log_evidence_lower, log_slab + interval.lower + log_width);
+        log_weight_upper = std::max(log_weight_upper, log_slab + interval.upper - log_density(cell, bin));
         left = right;
+        if (j < n_intervals) left_tau_lower = edges[j - 1].lower_tau;
       }
     }
     if (!std::isfinite(log_evidence_lower) || !std::isfinite(log_weight_upper)) return inf;
@@ -376,6 +460,8 @@ private:
 
   struct RankEdge {
     double tau;
+    double lower_tau;
+    double upper_tau;
     long double left_dispersion_ratio;
     long double right_dispersion_ratio;
   };
@@ -407,7 +493,7 @@ private:
     };
     constexpr long double margin = 1 + 8 * std::numeric_limits<long double>::epsilon();
     const long double dispersion_at_tau = dispersion(tau);
-    edge = {tau, margin * dispersion_at_tau / dispersion(lo),
+    edge = {tau, lo, hi, margin * dispersion_at_tau / dispersion(lo),
                  margin * dispersion(hi) / dispersion_at_tau};
     return true;
   }

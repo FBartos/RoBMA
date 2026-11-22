@@ -843,7 +843,12 @@
 
   } else {
 
-    requested <- if (extension) NULL else declarations[["requested"]]
+    requested <- NULL
+    if (!extension) {
+      requested <- declarations[["requested"]]
+      auto_dispatch <- attr(declarations[["sampler_joint"]], "auto_dispatch", exact = TRUE)
+      requested[["joint_budget"]] <- auto_dispatch[["budget"]]
+    }
     fit <- .sampler_request_record(fit, requested)
     attr(fit, "selection_runtime") <- attr(
       attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE

@@ -135,6 +135,64 @@ double half_normal_quantile(double probability, double sd)
   return (lower + upper) / 2 * sd;
 }
 
+void check_interval_envelopes(kernel::Model const &model)
+{
+  constexpr unsigned int ranks = 64;
+  constexpr unsigned int interior_points = 6;
+  const long double inf = std::numeric_limits<long double>::infinity();
+  const auto n = model.rows.size();
+  for (unsigned int cell = 0; cell < kernel::Proposal::coefficient_cells; ++cell) {
+    long double min_variance = inf;
+    long double trace = 0;
+    for (const auto &row : model.rows) {
+      const long double se = row.se;
+      const long double x = row.moderator;
+      min_variance = std::min(min_variance, se * se);
+      const long double intercept = kernel::active(cell, 0) ? model.sd[0] : 0;
+      const long double slope = kernel::active(cell, 1) ? model.sd[1] * x : 0;
+      trace += se * se + intercept * intercept + slope * slope;
+    }
+    // Widen the endpoints and variance summaries before applying the
+    // enclosure. The likelihood at interior points comes from dense C.
+    const auto bound = [&](kernel::OrdinateBounds const &a, kernel::OrdinateBounds const &b,
+                           long double tau_a, long double tau_b) {
+      return kernel::enclose_interval(a, b, tau_a * (1 - 1e-12L), tau_b * (1 + 1e-12L),
+                                      min_variance * (1 - 1e-12L), trace / n * (1 + 1e-12L), n);
+    };
+    kernel::OrdinateBounds left;
+    double tau_a = 0;
+    kernel::evaluate<true>(model, cell, tau_a, &left);
+    for (unsigned int j = 1; j < ranks; ++j) {
+      kernel::OrdinateBounds right;
+      const double tau_b = half_normal_quantile(static_cast<double>(ranks - j) / ranks, model.sd[2]);
+      kernel::evaluate<true>(model, cell, tau_b, &right);
+      if (!left.valid || !right.valid) throw std::runtime_error("Cannot bound an interval endpoint.");
+      const auto interval = bound(left, right, tau_a, tau_b);
+      for (unsigned int k = 0; k <= interior_points; ++k) {
+        const long double fraction = static_cast<long double>(k) / interior_points;
+        const double tau = std::sqrt((1 - fraction) * tau_a * tau_a + fraction * tau_b * tau_b);
+        const long double ll = observation_space(model, cell, tau).log_likelihood;
+        if (!(interval.lower <= ll && ll <= interval.upper)) {
+          throw std::runtime_error("Gaussian interval does not enclose the dense likelihood.");
+        }
+      }
+      left = right;
+      tau_a = tau_b;
+    }
+    const kernel::OrdinateBounds infinity{-inf, -inf, 0, 0, true};
+    const auto tail = bound(left, infinity, tau_a, inf);
+    for (double multiplier : {1.0, 1.00001, 1.001, 1.01, 1.1, 1.5, 2.0, 4.0, 16.0, 128.0}) {
+      if (!(observation_space(model, cell, tau_a * multiplier).log_likelihood <= tail.upper)) {
+        throw std::runtime_error("Gaussian tail does not enclose the dense likelihood.");
+      }
+    }
+    const auto fallback = kernel::enclose_interval(left, infinity, tau_a, inf, 0, trace / n, n);
+    if (fallback.upper != left.normalizer_upper || fallback.lower != -inf) {
+      throw std::runtime_error("Gaussian interval used a missing variance bound.");
+    }
+  }
+}
+
 // Integrate the independent dense target and inspect the full proposal-weight
 // surface over a finer prior-rank mesh than either preparation stage.
 template <typename Quantile>
@@ -263,6 +321,15 @@ int main()
     model.effect_sign = sign;
     check_conditionals(model);
     check_proposal(model);
+  }
+  check_interval_envelopes(model);
+
+  // Equal sampling variances in the spike cell approach either curvature
+  // extreme, with the residual quadratic zero or very large.
+  model.mean = {{0, 0}};
+  for (double y : {0.0, 10.0, 0.1}) {
+    model.rows = {{y, .2, -1.3}, {-y, .2, -.77}, {y, .2, .42}, {-y, .2, .74}};
+    check_interval_envelopes(model);
   }
   check_location_cancellation();
   check_unqualified_coverage(0.55, 0.005, 8);

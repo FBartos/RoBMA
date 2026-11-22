@@ -57,11 +57,16 @@
     claimed <- lapply(assignments, function(table) table[["Node"]][table[["Sampler"]] == expected])
     owned   <- Reduce(intersect, claimed)
     mixed   <- any(!vapply(claimed, setequal, logical(1), y = owned))
+    budget  <- requested[["joint_budget"]]
     status <- if (disabled) "disabled" else if (mixed) "mixed" else if (length(owned) > 0L) "active" else
+      if (!is.null(budget)) "budget_bypassed" else
       if (is.null(declarations[["joint"]])) "graph_declined" else "native_declined"
     reason <- switch(status,
       disabled = disabled_reason,
       mixed = "Workers assigned different nodes to the joint sampler. See the per-worker sampler assignments.",
+      budget_bypassed = sprintf(
+        "The fit has %d retained estimates and exceeds the automatic Gaussian joint sampler limit of %d.",
+        budget[["rows"]], budget[["limit"]]),
       graph_declined = switch(expected,
         "RoBMA::IndependentBiasJoint" = paste(
           "This update requires independent step-selection rows and eligible effect and bias mixtures.",

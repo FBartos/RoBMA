@@ -11,7 +11,7 @@ skip_on_cran()
 # on/off fit pins identical draws but cannot observe that the memo answered a
 # call; a key that never matched would pass it. That a stored call hits, and
 # that any changed input misses, is pinned at the level of the header by the
-# compiled probe in the first test (stored_call_hits, mutated_element_misses,
+# compiled memo probe (stored_call_hits, mutated_element_misses,
 # restored_call_hits, ...).
 
 .node_memo_repository_file <- function(...) {
@@ -31,6 +31,29 @@ skip_on_cran()
   list(command = strsplit(config("CXX17"), "[[:space:]]+")[[1L]],
        standard = config("CXX17STD"))
 }
+
+test_that("the Gaussian joint kernel agrees with the independent dense reference", {
+
+  compiler <- .node_memo_compiler()
+  skip_if(length(compiler$command) == 0L || !nzchar(Sys.which(compiler$command[[1L]])),
+          "A C++ compiler is required.")
+
+  work <- normalizePath(withr::local_tempdir(), winslash = "/", mustWork = TRUE)
+  probe <- file.path(work, if (.Platform$OS.type == "windows") "gaussian-check.exe" else "gaussian-check")
+  build <- suppressWarnings(system2(
+    compiler$command[[1L]],
+    c(compiler$command[-1L], compiler$standard, "-O2",
+      shQuote(testthat::test_path("fixtures", "gaussian-joint-kernel-check.cc")),
+      "-o", shQuote(probe)),
+    stdout = TRUE, stderr = TRUE
+  ))
+  built <- is.null(attr(build, "status", exact = TRUE)) && file.exists(probe)
+  expect_true(built, info = paste(build, collapse = "\n"))
+  if (built) {
+    output <- suppressWarnings(system2(probe, stdout = TRUE, stderr = TRUE))
+    expect_true(is.null(attr(output, "status", exact = TRUE)), info = paste(output, collapse = "\n"))
+  }
+})
 
 
 test_that("the node memo key covers every input and the map stays bounded", {

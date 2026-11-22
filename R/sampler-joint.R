@@ -19,9 +19,10 @@
   sign <- if (.data_effect_direction(data) == "negative") -1 else 1
   if (policy %in% c("auto", "gaussian") && !.is_data_known_v(data) &&
       .is_data_mods(data) && is.null(fit_priors[["bias"]])) {
+    auto_dispatch <- if (policy == "auto") new.env(parent = emptyenv()) else NULL
     return(structure(function(prior_list, formula_design, data) {
-      .sampler_joint_gaussian(prior_list, formula_design, data, sign, require_scaled = policy == "auto")
-    }, sampler = "RoBMA::GaussianJoint"))
+      .sampler_joint_gaussian(prior_list, formula_design, data, sign, auto_dispatch)
+    }, sampler = "RoBMA::GaussianJoint", auto_dispatch = auto_dispatch))
   }
   if (policy %in% c("auto", "bias") &&
       (!.is_data_mods(data) || (policy == "bias" && !.is_data_known_v(data))) &&
@@ -183,7 +184,9 @@
 }
 
 
-.sampler_joint_gaussian <- function(prior_list, formula_design, data, sign, require_scaled = FALSE) {
+.sampler_joint_gaussian_auto_max_rows <- 800L
+
+.sampler_joint_gaussian <- function(prior_list, formula_design, data, sign, auto_dispatch = NULL) {
 
   if (!identical(names(formula_design), "mu")) return(NULL)
   design <- formula_design[["mu"]]
@@ -202,12 +205,19 @@
       length(slope_data) != 1L || !setequal(names(prior_list), c(intercept_prior, slope_prior, "tau")) ||
       !is.numeric(data[[slope_data]]) || !is.null(dim(data[[slope_data]])) ||
       length(data[[slope_data]]) != data[["K"]] || !all(data[["sei"]] > 0)) return(NULL)
-  if (require_scaled && !slope_prior %in% names(design[["formula_scale"]])) return(NULL)
+  automatic <- !is.null(auto_dispatch)
+  if (automatic && !slope_prior %in% names(design[["formula_scale"]])) return(NULL)
 
   intercept <- .sampler_joint_normal_mixture(prior_list, intercept_prior)
   moderator <- .sampler_joint_normal_mixture(prior_list, slope_prior)
   tau       <- .sampler_joint_normal_mixture(prior_list, "tau", tau = TRUE)
   if (is.null(intercept) || is.null(moderator) || is.null(tau)) return(NULL)
+
+  max_rows <- .sampler_joint_gaussian_auto_max_rows
+  if (automatic && data[["K"]] > max_rows) {
+    auto_dispatch[["budget"]] <- list(rows = data[["K"]], limit = max_rows)
+    return(NULL)
+  }
 
   return(list(markers = list(list(
     name         = "RoBMA_joint_gaussian",
