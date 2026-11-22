@@ -67,7 +67,8 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' especially with few events or very large arms, and then stops with an error of
 #' class \code{RoBMA_glmm_grid_nonconvergence} (also of class
 #' \code{RoBMA_glmm_numerical_error}). For gamma, lognormal and inverse-gamma
-#' nuisance priors the grid concentrates nodes near both prior-CDF endpoints.
+#' nuisance priors, a second grid concentrates nodes near both prior-CDF
+#' endpoints when the ordinary grid fails to converge.
 #' When the likelihood is computed
 #' automatically after fitting (the \code{autocompute.loo} and
 #' \code{autocompute.waic} options), such a failure gives a warning and the fit
@@ -737,8 +738,8 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' truncated ones take the grid too) can fail to reach this, especially
 #' with few events or very large arms, and then stops with the error class
 #' `RoBMA_glmm_grid_nonconvergence` described below. For gamma, lognormal and
-#' inverse-gamma nuisance priors the grid concentrates nodes near both prior-CDF
-#' endpoints. The automatic
+#' inverse-gamma nuisance priors, a second grid concentrates nodes near both
+#' prior-CDF endpoints when the ordinary grid fails to converge. The automatic
 #' computation after fitting (the `autocompute.loo` and `autocompute.waic`
 #' options) warns instead and returns the fit without LOO/WAIC.
 #' Numerical quadrature failures share class `RoBMA_glmm_numerical_error`.

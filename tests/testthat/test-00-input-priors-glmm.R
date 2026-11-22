@@ -247,8 +247,8 @@ test_that("low-event GLMM cells integrate positive nuisance priors against indep
     data = test_data_pois, measure = "IRR",
     prior_lograte = BayesTools::prior("gamma", list(2, 1)), only_priors = TRUE
   )[["priors"]][["outcome"]][["phi"]]
-  original <- .outcome_pdf.pois(4L, 3L, 20, 21, matrix(.2), matrix(.4), stored)
-  expect_lt(abs(as.numeric(original) - .glmm_oracle_pois(4L, 20, 3L, 21, .2, .4,
+  value <- .outcome_pdf.pois(4L, 3L, 20, 21, matrix(.2), matrix(.4), stored)
+  expect_lt(abs(as.numeric(value) - .glmm_oracle_pois(4L, 20, 3L, 21, .2, .4,
     function(x) stats::dgamma(x, 2, rate = 1))), 1e-6)
 
   families <- list(
@@ -265,14 +265,30 @@ test_that("low-event GLMM cells integrate positive nuisance priors against indep
     value <- .outcome_pdf.pois(1L, 0L, 20, 20, matrix(0), matrix(.3), family[[1]])
     oracle <- .glmm_oracle_pois(1L, 20, 0L, 20, 0, .3, family[[2]])
     expect_lt(abs(as.numeric(value) - oracle), 1e-6)
-    expect_equal(sum(exp(.glmm_prior_quantile_grid(family[[1]], 30L)$log_weights)),
-                 1, tolerance = 1e-14)
+    summed <- .outcome_pdf_sum.pois(1L, 0L, 20, 20, matrix(0), matrix(.3), family[[1]])
+    expect_lt(abs(as.numeric(summed) - oracle), 1e-6)
   }
   base <- BayesTools::prior("lognormal", list(-2, 1), truncation = list(lower = 0, upper = 1))
   value <- .outcome_pdf.binom(0L, 1L, 50L, 50L, matrix(.1), matrix(.3), base)
   oracle <- .glmm_oracle_binom(0L, 50L, 1L, 50L, .1, .3,
     function(x) stats::dlnorm(x, -2, 1)/stats::plnorm(1, -2, 1))
   expect_lt(abs(as.numeric(value) - oracle), 1e-6)
+
+  # With large arms, a sharply concentrated interior likelihood needs the
+  # ordinary rule's interior node spacing. At zero effect and tau its
+  # nuisance integral is a beta density times the original prior density.
+  n <- 100000L
+  x <- 20000L
+  value <- .outcome_pdf.binom(x, x, n, n, matrix(0), matrix(0), base)
+  density <- function(u) stats::dlnorm(stats::qbeta(u, 2*x+1, 2*(n-x)+1), -2, 1) /
+    stats::plnorm(1, -2, 1)
+  oracle <- 2*lchoose(n, x) + lbeta(2*x+1, 2*(n-x)+1) +
+    log(stats::integrate(density, 0, 1, rel.tol = 1e-10)$value)
+  expect_lt(abs(as.numeric(value) - oracle), 1e-6)
+  grid <- .glmm_prior_quantile_grid(stored, 100L, cluster_ends = TRUE)
+  expect_lt(abs(sum(exp(grid$log_weights)*grid$grid) - 2), 1e-5)
+  expect_error(.outcome_pdf.pois(1L, 0L, 20, 20, matrix(0), matrix(.3),
+    BayesTools::prior("gamma", list(8, 2))), class = "RoBMA_glmm_grid_nonconvergence")
 })
 
 test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {

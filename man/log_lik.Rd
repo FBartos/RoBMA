@@ -65,8 +65,8 @@ than \code{1e-6} between refinements. Any nuisance prior without an adaptive rou
 truncated ones take the grid too) can fail to reach this, especially
 with few events or very large arms, and then stops with the error class
 \code{RoBMA_glmm_grid_nonconvergence} described below. For gamma, lognormal and
-inverse-gamma nuisance priors the grid concentrates nodes near both prior-CDF
-endpoints. The automatic
+inverse-gamma nuisance priors, a second grid concentrates nodes near both
+prior-CDF endpoints when the ordinary grid fails to converge. The automatic
 computation after fitting (the \code{autocompute.loo} and \code{autocompute.waic}
 options) warns instead and returns the fit without LOO/WAIC.
 Numerical quadrature failures share class \code{RoBMA_glmm_numerical_error}.
