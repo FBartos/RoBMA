@@ -45,7 +45,7 @@
 
   member <- function(node, role, slot) {
     list(name = paste0("RoBMA_cluster_member_", role, "_", slot),
-         distribution = "drobma_cluster_member", arguments = list(node, role, slot))
+         tag = "robma_cluster_member", arguments = list(node, role, slot))
   }
   markers <- c(list(member(group[["gate"]], 1L, 1L),
                     member(mu[["source"]], 2L, 1L),
@@ -64,7 +64,7 @@
     RoBMA_cluster_bin     = rows[["bin"]]
   )
   markers[[length(markers) + 1L]] <- list(
-    name = "RoBMA_cluster_setup", distribution = "drobma_cluster_setup",
+    name = "RoBMA_cluster_setup", tag = "robma_cluster_setup",
     arguments = list(group[["gate"]], "RoBMA_cluster_X", "RoBMA_cluster_study",
                      "RoBMA_cluster_y", "RoBMA_cluster_se", "RoBMA_cluster_var",
                      "RoBMA_cluster_bin", rows[["lower"]], rows[["upper"]],

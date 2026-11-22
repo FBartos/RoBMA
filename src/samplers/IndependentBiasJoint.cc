@@ -3,6 +3,9 @@
 
 #include "../distributions/selnorm-jags-bounds.h"
 
+#include <BayesTools/sampler_declarations.h>
+#include <graph/AggNode.h>
+#include <graph/DeterministicNode.h>
 #include <graph/Graph.h>
 #include <graph/StochasticNode.h>
 #include <rng/RNG.h>
@@ -22,18 +25,11 @@ namespace jags::RoBMA {
 
 namespace {
 
-constexpr char marker_name[] = "drobma_joint_bias";
+constexpr char tag_name[] = "robma_joint_bias";
+constexpr char moderated_tag_name[] = "robma_joint_bias_moderated";
 constexpr char sampler_name[] = "RoBMA::IndependentBiasJoint";
 
-bool fixed_scalar(Node const *node)
-{
-  return node->length() == 1 && node->isFixed();
-}
-
-bool observed_zero(StochasticNode const *node)
-{
-  return node->length() == 1 && isObserved(node) && node->value(0)[0] == 0;
-}
+using BayesTools::sampler_declarations::observed_zero;
 
 std::vector<double> categorical_log_mass(StochasticNode const *node)
 {
@@ -72,6 +68,9 @@ struct GeometryNodes {
   Node const *slopes = nullptr;
   Node const *omega = nullptr;
   std::vector<Node const *> total_sd;
+  std::vector<DeterministicNode *> proposal_inputs;
+  Node const *coefficients = nullptr;
+  std::vector<double> design;
   int slab_label = 0;
   int location_sign = 0;
 };
@@ -95,6 +94,30 @@ std::set<Node const *> stochastic_inputs(Node const *node)
     pending.insert(pending.end(), parents.begin(), parents.end());
   }
   return inputs;
+}
+
+bool unowned_input(Node const *node, const GraphView &view, const Graph &graph)
+{
+  const auto inputs = stochastic_inputs(node);
+  const auto &owned = view.nodes();
+  return std::all_of(inputs.begin(), inputs.end(), [&](const Node *input) {
+    return (input->isFixed() || graph.contains(input)) &&
+      std::find(owned.begin(), owned.end(), input) == owned.end();
+  });
+}
+
+// A terminal tag's private aggregates are outside JAGS' sampling graph.
+// Refresh those inputs in parent-first order without touching the scientific
+// graph or consuming RNG. The sampler owns none of their stochastic inputs.
+void collect_proposal_inputs(Node const *node, const Graph &graph,
+                             std::set<Node const *> &seen,
+                             std::vector<DeterministicNode *> &inputs)
+{
+  if (node->isFixed() || graph.contains(node) || !seen.insert(node).second) return;
+  const auto *derived = dynamic_cast<DeterministicNode const *>(node);
+  if (derived == nullptr) return;
+  for (const auto *parent : node->parents()) collect_proposal_inputs(parent, graph, seen, inputs);
+  inputs.push_back(const_cast<DeterministicNode *>(derived));
 }
 
 bool nested_weight_child(StochasticNode *node, const GraphView &view, const Graph &graph,
@@ -174,13 +197,43 @@ bool add_likelihood_row(StochasticNode const *child, const GraphView &view,
   return true;
 }
 
-bool configure(StochasticNode const *marker, const GraphView &view, const Graph &graph,
+// Read the actual likelihood nodes in singleton order. A model can contain
+// identical outcomes and standard errors, so data values cannot identify rows.
+bool bind_moderated_rows(Node const *tag, const GraphView &view, const Graph &graph,
+                         joint_bias::Geometry &geometry, GeometryNodes &nodes,
+                         std::set<StochasticNode const *> &rows)
+{
+  const auto &par = tag->parents();
+  const auto n_rows = par[8]->length();
+  const auto n_coef = par[9]->length();
+  const auto n_design = par[10]->length();
+  if (n_rows == 0 || n_coef == 0 || n_design % n_rows != 0 || n_design / n_rows != n_coef ||
+      !unowned_input(par[9], view, graph) || !par[10]->isFixed()) return false;
+  const auto *design = par[10]->value(0);
+  if (!std::all_of(design, design + n_design, [](double x) { return std::isfinite(x); })) return false;
+  nodes.coefficients = par[9];
+  nodes.design.assign(design, design + n_design);
+
+  const auto *aggregate = dynamic_cast<AggNode const *>(par[8]);
+  if (n_rows > 1 && aggregate == nullptr) return false;
+  const auto &children = view.stochasticChildren();
+  for (unsigned long i = 0; i < n_rows; ++i) {
+    if (aggregate != nullptr && aggregate->offsets()[i] != 0) return false;
+    const Node *entry = aggregate == nullptr ? par[8] : aggregate->parents()[i];
+    const auto *child = dynamic_cast<StochasticNode const *>(entry);
+    if (child == nullptr || std::find(children.begin(), children.end(), child) == children.end() ||
+        !rows.insert(child).second || !add_likelihood_row(child, view, geometry, nodes)) return false;
+  }
+  return true;
+}
+
+bool configure(Node const *tag, const GraphView &view, const Graph &graph,
                joint_bias::Geometry &geometry, GeometryNodes &nodes)
 {
-  const auto &par = marker->parents();
+  const auto &par = tag->parents();
   const auto &owned = view.nodes();
   if (!fixed_scalar(par[3]) || !fixed_scalar(par[4]) || !par[5]->isFixed() ||
-      view.isDependent(par[6]) || view.isDependent(par[7])) return false;
+      !unowned_input(par[6], view, graph) || !unowned_input(par[7], view, graph)) return false;
   const double slab = par[3]->value(0)[0];
   const double sign = par[4]->value(0)[0];
   if ((slab != 1 && slab != 2) || (sign != 1 && sign != -1)) return false;
@@ -216,14 +269,21 @@ bool configure(StochasticNode const *marker, const GraphView &view, const Graph 
     }
   }
 
+  const bool moderated = par.size() == 11;
+  std::set<StochasticNode const *> moderated_rows;
+  if (moderated && !bind_moderated_rows(tag, view, graph, geometry, nodes, moderated_rows)) return false;
+
   bool nested_child = false;
   for (auto *child : view.stochasticChildren()) {
-    if (child == marker) continue;
     // Nuisance branches may keep BayesTools' gated sampler. A marker naming
     // one of our own roots would declare an incompatible second owner.
     if (child->distribution()->name() == "dbt_gate" && observed_zero(child) &&
         child->parents().size() == 2 &&
         std::find(owned.begin(), owned.end(), child->parents().front()) == owned.end()) continue;
+    if (moderated) {
+      if (moderated_rows.count(child) == 0) return false;
+      continue;
+    }
     // The shared weight is held fixed. GraphView evaluates its normalized
     // Beta density at each proposed bias label as a child likelihood term.
     if (!nested_child && nested_weight_child(child, view, graph, nodes.omega)) {
@@ -232,6 +292,10 @@ bool configure(StochasticNode const *marker, const GraphView &view, const Graph 
     }
     if (!add_likelihood_row(child, view, geometry, nodes)) return false;
   }
+  std::set<Node const *> proposal_nodes;
+  collect_proposal_inputs(nodes.slopes, graph, proposal_nodes, nodes.proposal_inputs);
+  collect_proposal_inputs(nodes.omega, graph, proposal_nodes, nodes.proposal_inputs);
+  if (moderated) collect_proposal_inputs(nodes.coefficients, graph, proposal_nodes, nodes.proposal_inputs);
   return !geometry.rows.empty() && nodes.omega->length() % n_bias == 0 &&
     nodes.omega->length() / n_bias == geometry.cuts.size() - 1;
 }
@@ -239,11 +303,13 @@ bool configure(StochasticNode const *marker, const GraphView &view, const Graph 
 class IndependentBiasJoint : public Sampler {
   struct Chain {
     std::vector<double> total_sd;
+    std::vector<double> offset;
     joint_bias::Proposal proposal;
     joint_bias::Scratch scratch;
 
-    explicit Chain(const joint_bias::Geometry &geometry)
-      : total_sd(geometry.rows.size()), proposal(geometry.log_prior.size()), scratch(geometry) {}
+    Chain(const joint_bias::Geometry &geometry, bool moderated)
+      : total_sd(geometry.rows.size()), offset(moderated ? geometry.rows.size() : 0),
+        proposal(geometry.log_prior.size()), scratch(geometry) {}
   };
 
   GraphView const *_view;
@@ -259,17 +325,29 @@ public:
   {
     const unsigned int chains = _view->nodes()[0]->nchain();
     _chains.reserve(chains);
-    for (unsigned int i = 0; i < chains; ++i) _chains.emplace_back(_geometry);
+    for (unsigned int i = 0; i < chains; ++i) _chains.emplace_back(_geometry, _nodes.coefficients != nullptr);
   }
 
   void update(unsigned int chain, RNG *rng) override
   {
     auto &work = _chains[chain];
+    for (auto *input : _nodes.proposal_inputs) input->randomSample(nullptr, chain);
     for (std::size_t i = 0; i < _nodes.total_sd.size(); ++i) {
       work.total_sd[i] = _nodes.total_sd[i]->value(chain)[0];
     }
+    // The bound physical coefficients are excluded from the owned block.
+    // Read them on this chain and sweep while keeping q fixed in both directions.
+    if (_nodes.coefficients != nullptr) {
+      const auto *coefficients = _nodes.coefficients->value(chain);
+      const auto p = _nodes.coefficients->length();
+      for (std::size_t i = 0; i < work.offset.size(); ++i) {
+        const auto *row = _nodes.design.data() + i * p;
+        work.offset[i] = _nodes.location_sign * std::inner_product(row, row + p, coefficients, 0.0);
+      }
+    }
     joint_bias::propose(_geometry, work.total_sd, _nodes.slopes->value(chain),
-                        _nodes.omega->value(chain), work.proposal, work.scratch);
+                        _nodes.omega->value(chain), work.proposal, work.scratch,
+                        work.offset.empty() ? nullptr : work.offset.data());
     const auto &q = work.proposal;
 
     const auto &roots = _view->nodes();
@@ -326,63 +404,34 @@ public:
   std::string name() const override { return sampler_name; }
 };
 
-StochasticNode const *declared_marker(StochasticNode *node, const Graph &graph)
+Node const *declared_tag(StochasticNode *node, const Graph &graph)
 {
-  StochasticNode const *marker = nullptr;
-  for (StochasticNode const *child : *node->stochasticChildren()) {
-    if (child->distribution()->name() != marker_name || !graph.contains(child) ||
-        !observed_zero(child) || child->parents().size() != 8 || child->parents().front() != node) continue;
-    if (marker) return nullptr;
-    marker = child;
-  }
-  return marker;
+  const auto basic = direct_terminal_tags(node, tag_name, 8, graph);
+  const auto moderated = direct_terminal_tags(node, moderated_tag_name, 11, graph);
+  if (basic.size() + moderated.size() != 1) return nullptr;
+  return basic.empty() ? moderated.front() : basic.front();
 }
 
 } // namespace
 
-DIndependentBiasJointMarker::DIndependentBiasJointMarker() : VectorDist(marker_name, 8) {}
+IndependentBiasJointTag::IndependentBiasJointTag(bool moderated)
+  : JointSamplerTag(moderated ? moderated_tag_name : tag_name, moderated ? 11 : 8) {}
 
-double DIndependentBiasJointMarker::logDensity(
-    double const *x, PDFType, std::vector<double const *> const &,
-    std::vector<unsigned long> const &) const
+bool IndependentBiasJointTag::checkParameterLength(std::vector<unsigned long> const &len) const
 {
-  return *x == 0 ? 0 : JAGS_NEGINF;
-}
-
-void DIndependentBiasJointMarker::randomSample(double *x, std::vector<double const *> const &,
-    std::vector<unsigned long> const &, RNG *) const
-{
-  *x = 0;
-}
-
-void DIndependentBiasJointMarker::support(double *lower, double *upper,
-    std::vector<double const *> const &, std::vector<unsigned long> const &) const
-{
-  *lower = *upper = 0;
-}
-
-bool DIndependentBiasJointMarker::checkParameterLength(std::vector<unsigned long> const &len) const
-{
-  return len.size() == 8 && std::all_of(len.begin(), len.begin() + 5,
+  return (len.size() == 8 || len.size() == 11) && std::all_of(len.begin(), len.begin() + 5,
     [](unsigned long n) { return n == 1; });
 }
-
-bool DIndependentBiasJointMarker::checkParameterValue(std::vector<double const *> const &,
-    std::vector<unsigned long> const &) const { return true; }
-bool DIndependentBiasJointMarker::checkParameterDiscrete(std::vector<bool> const &) const { return true; }
-bool DIndependentBiasJointMarker::isDiscreteValued(std::vector<bool> const &) const { return true; }
-bool DIndependentBiasJointMarker::isSupportFixed(std::vector<bool> const &) const { return true; }
-unsigned long DIndependentBiasJointMarker::length(std::vector<unsigned long> const &) const { return 1; }
 
 std::vector<Sampler *> IndependentBiasJointFactory::makeSamplers(
     std::list<StochasticNode *> const &nodes, Graph const &graph) const
 {
   for (auto *bias : nodes) {
     if (bias->distribution()->name() != "dcat") continue;
-    auto *marker = declared_marker(bias, graph);
-    if (!marker) continue;
+    const auto *tag = declared_tag(bias, graph);
+    if (!tag) continue;
 
-    const auto &parents = marker->parents();
+    const auto &parents = tag->parents();
     std::vector<StochasticNode *> roots = {bias};
     for (unsigned int i = 1; i < 3; ++i) {
       auto entry = std::find(nodes.begin(), nodes.end(), parents[i]);
@@ -397,7 +446,7 @@ std::vector<Sampler *> IndependentBiasJointFactory::makeSamplers(
     auto view = std::make_unique<GraphView>(roots, graph, true);
     joint_bias::Geometry geometry;
     GeometryNodes geometry_nodes;
-    if (!configure(marker, *view, graph, geometry, geometry_nodes)) continue;
+    if (!configure(tag, *view, graph, geometry, geometry_nodes)) continue;
     auto sampler = std::make_unique<IndependentBiasJoint>(std::move(view), std::move(geometry),
                                                          std::move(geometry_nodes));
     std::vector<Sampler *> out = {sampler.get()};

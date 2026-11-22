@@ -123,17 +123,53 @@ struct SeededUniform {
   double uniform() { return draws(generator); }
 };
 
+double half_normal_quantile(double probability, double sd)
+{
+  double lower = 0;
+  double upper = 20;
+  for (unsigned int i = 0; i < 70; ++i) {
+    const double mid = (lower + upper) / 2;
+    if (std::erfc(mid / std::sqrt(2.0)) > probability) lower = mid;
+    else upper = mid;
+  }
+  return (lower + upper) / 2 * sd;
+}
+
+// Integrate the independent dense target and inspect the full proposal-weight
+// surface over a finer prior-rank mesh than either preparation stage.
+template <typename Quantile>
+void check_coverage_bound(kernel::Model const &model, kernel::Proposal const &proposal,
+                          Quantile quantile)
+{
+  constexpr unsigned int ranks = 2048;
+  long double normalizer = 0;
+  long double largest = 0;
+  for (unsigned int cell = 0; cell < kernel::Proposal::coefficient_cells; ++cell) {
+    const long double log_gate = model.log_prior[0][cell % 2] +
+                                 model.log_prior[1][cell > 1];
+    const auto atom = observation_space(model, cell, 0);
+    const long double atom_mass = std::exp(log_gate + model.log_prior[2][0] + atom.log_likelihood);
+    normalizer += atom_mass;
+    largest = std::max(largest, atom_mass / std::exp(proposal.log_density(cell, 0)));
+    for (unsigned int j = 0; j < ranks; ++j) {
+      const double tau = quantile((ranks - j - 0.5) / ranks);
+      const auto exact = observation_space(model, cell, tau);
+      const unsigned int bin = 1 + j / (ranks / kernel::Proposal::slab_bins);
+      const long double target = std::exp(log_gate + model.log_prior[2][1] + exact.log_likelihood);
+      normalizer += target / ranks;
+      largest = std::max(largest, target / std::exp(proposal.log_density(cell, bin)));
+    }
+  }
+  const auto result = proposal.coverage(model, quantile);
+  if (!result.certified || !(largest / normalizer < std::exp(result.log_bound))) {
+    throw std::runtime_error("Gaussian coverage did not bound the dense reference.");
+  }
+}
+
 void check_proposal(kernel::Model const &model)
 {
   const auto quantile = [&](double probability) {
-    double lower = 0;
-    double upper = 20;
-    for (unsigned int i = 0; i < 70; ++i) {
-      const double mid = (lower + upper) / 2;
-      if (std::erfc(mid / std::sqrt(2.0)) > probability) lower = mid;
-      else upper = mid;
-    }
-    return (lower + upper) / 2 * model.sd[2];
+    return half_normal_quantile(probability, model.sd[2]);
   };
   kernel::Proposal proposal;
   if (!proposal.prepare(model, quantile)) throw std::runtime_error("Proposal preparation failed.");
@@ -171,6 +207,7 @@ void check_proposal(kernel::Model const &model)
     check(previous[0] + proposed[1] + std::min(0.0L, candidate.log_ratio - current.log_ratio),
           proposed[0] + previous[1] + std::min(0.0L, current.log_ratio - candidate.log_ratio));
   }
+  check_coverage_bound(model, proposal, quantile);
 }
 
 void check_location_cancellation()
@@ -186,6 +223,27 @@ void check_location_cancellation()
   check(kernel::restore_coefficients(model, at, 0, 0)[0], 0.7L);
   check(kernel::restore_coefficients(model, at, 1, 0)[0], 0.9L);
   check(at.log_likelihood, -0.5L * (log_two_pi + 1) - std::log(1e50L));
+}
+
+void check_unqualified_coverage(double amplitude, double se, unsigned int size)
+{
+  kernel::Model model;
+  model.effect_sign = 1;
+  model.mean = {{0, 0}};
+  model.sd = {{0.707106781186548, 0.353553390593274, 0.02}};
+  model.log_prior.fill({{std::log(0.5L), std::log(0.5L)}});
+  for (unsigned int i = 0; i < size / 2; ++i) {
+    const double y = i % 2 == 0 ? amplitude : -amplitude;
+    model.rows.push_back({y, se, -static_cast<double>(i + 1)});
+    model.rows.push_back({y, se, static_cast<double>(i + 1)});
+  }
+  const auto quantile = [&](double probability) {
+    return half_normal_quantile(probability, model.sd[2]);
+  };
+  kernel::Proposal proposal;
+  if (!proposal.prepare(model, quantile) || proposal.coverage(model, quantile).certified) {
+    throw std::runtime_error("Gaussian coverage qualified a poorly covered posterior.");
+  }
 }
 
 } // namespace
@@ -207,4 +265,6 @@ int main()
     check_proposal(model);
   }
   check_location_cancellation();
+  check_unqualified_coverage(0.55, 0.005, 8);
+  check_unqualified_coverage(5.5e-6, 1.1e-6, 48);
 }

@@ -50,3 +50,41 @@ test_that("automatic Gaussian sampling uses the compiled standardized moderator"
   RoBMA.options(selection.sampler = "slice", sampler.blocks = FALSE)
   expect_equal(sum(assigned(fit())), 6L)
 })
+
+test_that("poor Gaussian proposal coverage leaves the ordinary samplers and RNG draws intact", {
+
+  skip_on_cran()
+  previous <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, previous), add = TRUE)
+  RoBMA.options(sampler.probabilities = character(), selection.sampler = "slice.coarse")
+  fixture <- function(amplitude, se, half_rows) {
+    x <- seq_len(half_rows)
+    y <- rep(c(-amplitude, amplitude), length.out = half_rows)
+    data.frame(y = c(y, rev(y)), se = se, x = c(-rev(x), x))
+  }
+  fit <- function(dat, policy) {
+    RoBMA.options(sampler.joint = policy)
+    BMA(yi = y, sei = se, mods = ~ x, data = dat, measure = "SMD",
+        prior_effect = BayesTools::prior("normal", list(0, .7071068)),
+        prior_mods = BayesTools::prior("normal", list(0, .3535534)),
+        prior_heterogeneity = BayesTools::prior("normal", list(0, .02), list(0, Inf)),
+        chains = 1L, adapt = 500L, burnin = 50L, sample = 100L, seed = 708L,
+        convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))[["fit"]]
+  }
+
+  tail <- fixture(.55, .005, 4L)
+  first_rank_bin <- fixture(5.5e-6, 1.1e-6, 24L)
+  for (dat in list(tail, first_rank_bin)) {
+    base <- fit(dat, "off")
+    for (policy in c("auto", "gaussian")) {
+      declined <- fit(dat, policy)
+      declarations <- attr(declined, "sampler_declarations", exact = TRUE)
+      marker <- declarations[["joint"]][["markers"]][[1L]]
+      expect_identical(marker[["tag"]], "robma_gaussian_joint")
+      expect_identical(declarations[["robma"]][["joint"]][["status"]], "native_declined")
+      expect_identical(declined[["samplers"]], base[["samplers"]])
+      expect_identical(declined[["mcmc"]], base[["mcmc"]])
+      expect_identical(declined[["end_state"]], base[["end_state"]])
+    }
+  }
+})

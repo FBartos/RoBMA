@@ -1,11 +1,15 @@
 skip_on_cran()
 
 .joint_bias_native_fit <- function(extra = "", slopes = "c(pet, 0, 0)", power = 1,
-                                   chains = 1L) {
+                                   chains = 1L, zero_offset = FALSE, declare = TRUE) {
 
   setup <- .selection_runtime_setup()
   .JAGS_run_runtime_setup <- getFromNamespace(".JAGS_run_runtime_setup", "BayesTools")
   .JAGS_run_runtime_setup(setup, 1L)
+  tag <- if (zero_offset) "robma_joint_bias_moderated" else "robma_joint_bias"
+  extra_args <- if (zero_offset) ", y, 0, c(0, 0, 0)" else ""
+  declaration <- if (declare) paste0("tag <- ", tag, "(bias, effect, raw, 1, -1, c(2, 1, 0), ",
+    slopes, ", c(1, 1, 1, weights, 1, 1, 1)", extra_args, ")") else ""
   syntax <- paste0("model {
     bias ~ dcat(c(1, 2, 1))
     effect ~ dcat(c(3, 1))
@@ -20,14 +24,13 @@ skip_on_cran()
       y[i] ~ dselnorm_step_switch(location[i], total_sd[i], se[i], power,
                                   active, z_lower, z_upper, bin[i], 1, equals(bias, 2), 0)
     }
-    marker ~ drobma_joint_bias(bias, effect, raw, 1, -1, c(2, 1, 0), ", slopes, ",
-                             c(1, 1, 1, weights, 1, 1, 1))
+    ", declaration, "
     ", extra, "
   }")
   data <- list(y = c(.4, .1, .7), total_sd = c(.2, .4, .65), se = c(.2, .4, .6),
                tilt = c(.2, 0, .6), power = power, weights = c(1, .8, .35),
                z_lower = c(1.7, .6, -1e300), z_upper = c(1e300, 1.7, .6),
-               bin = c(1, 0, 2), marker = 0)
+               bin = c(1, 0, 2))
   if (nzchar(extra)) data$extra <- 0
   inits <- lapply(seq_len(chains), function(chain) {
     list(bias = 3L, effect = 2L, raw = .1, .RNG.name = "base::Mersenne-Twister",
@@ -54,6 +57,7 @@ test_that("the native joint-bias factory exclusively owns the declared coordinat
   declined <- list(
     .joint_bias_native_fit(extra = "extra ~ dnorm(raw, 1)"),
     .joint_bias_native_fit(extra = "extra ~ dbt_gate(raw, 1)"),
+    .joint_bias_native_fit(extra = "extra ~ dnorm(tag, 1)"),
     .joint_bias_native_fit(slopes = "c(raw, 0, 0)"),
     .joint_bias_native_fit(power = 2)
   )
@@ -62,6 +66,100 @@ test_that("the native joint-bias factory exclusively owns the declared coordinat
     expect_false("RoBMA::IndependentBiasJoint" %in% names(samplers))
     expect_setequal(unlist(samplers, use.names = FALSE), c("bias", "effect", "raw"))
   }
+})
+
+.moderated_joint_bias_native_fit <- function(coefficients = "c(beta1, beta2)",
+                                             outcomes = "y", design = "design", declare = TRUE) {
+
+  setup <- .selection_runtime_setup()
+  .JAGS_run_runtime_setup <- getFromNamespace(".JAGS_run_runtime_setup", "BayesTools")
+  .JAGS_run_runtime_setup(setup, 1L)
+  declaration <- if (declare) paste0("tag <- robma_joint_bias_moderated(bias, effect, raw, 1, -1, c(2, 1, 0),
+      c(pet, 0, 0), c(1, 1, 1, weights, 1, 1, 1), ", outcomes, ", ", coefficients, ", ", design, ")") else ""
+  syntax <- paste0("model {
+    bias ~ dcat(c(1, 2, 1))
+    effect ~ dcat(c(3, 1))
+    raw ~ dnorm(.13, 2.5)
+    beta1 ~ dnorm(0, 1)
+    beta2 ~ dnorm(0, 1)
+    covariates[1] <- beta1
+    covariates[2] <- beta2
+    covariates[3] <- 0
+    covariates[4] <- 0
+    covariates[5] <- beta2
+    covariates[6] <- beta1
+    mu <- -raw * equals(effect, 1)
+    for (j in 1:3) {
+      active[j] <- weights[j] * equals(bias, 2) + 1 - equals(bias, 2)
+    }
+    for (i in 1:3) {
+      location[i] <- mu - beta1 * x1[i] - beta2 * x2[i] + pet * tilt[i] * equals(bias, 1)
+      y[i] ~ dselnorm_step_switch(location[i], total_sd[i], se[i], 1,
+                                  active, z_lower, z_upper, bin[i], 1, equals(bias, 2), 0)
+    }
+    ", declaration, "
+  }")
+  x <- cbind(c(-1, .25, .75), c(.5, -.5, .5))
+  data <- list(y = c(.4, .4, .7), total_sd = c(.3, .3, .65), se = c(.2, .2, .6),
+               tilt = c(.2, 0, .6), pet = 1.2, weights = c(1, .8, .35),
+               z_lower = c(1.7, .6, -1e300), z_upper = c(1e300, 1.7, .6),
+               bin = c(1, 0, 2), x1 = x[, 1L], x2 = x[, 2L])
+  if (declare && design == "design") data$design <- c(t(x))
+  con <- textConnection(syntax)
+  on.exit(close(con))
+  inits <- list(bias = 3L, effect = 2L, raw = .1, beta1 = .2, beta2 = -.25,
+                .RNG.name = "base::Mersenne-Twister", .RNG.seed = 2554L)
+  rjags::jags.model(con, data = data, inits = inits, n.chains = 1L, n.adapt = 0L, quiet = TRUE)
+}
+
+test_that("moderated joint bias owns the original block and reads only unowned coefficients", {
+
+  skip_if_not_installed("rjags")
+  fit <- .moderated_joint_bias_native_fit()
+  owners <- rjags::list.samplers(fit)
+  expect_setequal(owners[["RoBMA::IndependentBiasJoint"]], c("bias", "effect", "raw"))
+  expect_setequal(unlist(owners, use.names = FALSE), c("bias", "effect", "raw", "beta1", "beta2"))
+  draws <- as.matrix(rjags::coda.samples(fit, c("effect", "raw", "mu"),
+                                        n.iter = 20L, progress.bar = "none"))
+  expect_equal(draws[, "mu"], -draws[, "raw"] * (draws[, "effect"] == 1L))
+
+  for (declined in list(
+    .moderated_joint_bias_native_fit(coefficients = "c(beta1, raw)"),
+    .moderated_joint_bias_native_fit(outcomes = "y[1:2]"),
+    .moderated_joint_bias_native_fit(outcomes = "c(y[1], y[1], y[3])"),
+    .moderated_joint_bias_native_fit(design = "covariates"))) {
+    owners <- rjags::list.samplers(declined)
+    expect_false("RoBMA::IndependentBiasJoint" %in% names(owners))
+    expect_setequal(unlist(owners, use.names = FALSE), c("bias", "effect", "raw", "beta1", "beta2"))
+  }
+})
+
+test_that("a zero moderator offset replays the unmoderated joint update", {
+
+  skip_if_not_installed("rjags")
+  fits <- list(.joint_bias_native_fit()$model, .joint_bias_native_fit(zero_offset = TRUE)$model)
+  draws <- lapply(fits, function(fit) {
+    expect_named(rjags::list.samplers(fit), "RoBMA::IndependentBiasJoint")
+    as.matrix(rjags::coda.samples(fit, c("bias", "effect", "raw"), n.iter = 30L, progress.bar = "none"))
+  })
+  expect_identical(draws[[1L]], draws[[2L]])
+})
+
+test_that("native-declined bias tags preserve ordinary owners, draws and RNG state", {
+
+  skip_if_not_installed("rjags")
+  variants <- list(
+    function(tag) .joint_bias_native_fit(power = 2, declare = tag)$model,
+    function(tag) .moderated_joint_bias_native_fit(coefficients = "c(beta1, raw)", declare = tag)
+  )
+  run <- function(fit) {
+    owners <- rjags::list.samplers(fit)
+    expect_false("RoBMA::IndependentBiasJoint" %in% names(owners))
+    draws <- rjags::coda.samples(fit, c("bias", "effect", "raw", "mu"), n.iter = 30L,
+                                progress.bar = "none")
+    list(owners = owners, draws = draws, state = fit$state(internal = TRUE))
+  }
+  for (variant in variants) expect_identical(run(variant(TRUE)), run(variant(FALSE)))
 })
 
 test_that("the public independent joint bias update works with or without the nested weight layout", {

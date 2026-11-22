@@ -47,7 +47,8 @@
   disabled     <- !requested[["specialized"]]
   disabled_reason <- "The 'jags.default' sampler policy disables specialized samplers."
   policy       <- requested[["joint"]]
-  expected     <- switch(policy, auto = requested[["joint_sampler"]], gaussian = "RoBMA::GaussianJoint",
+  expected     <- switch(policy, auto = requested[["joint_sampler"]], bias = "RoBMA::IndependentBiasJoint",
+                         gaussian = "RoBMA::GaussianJoint",
                          clustered = "RoBMA::JointCluster", clustered.scale = "RoBMA::JointCluster")
   if (!is.null(expected)) {
     claimed <- lapply(assignments, function(table) table[["Node"]][table[["Sampler"]] == expected])
@@ -59,12 +60,16 @@
       disabled = disabled_reason,
       mixed = "Workers assigned different nodes to the joint sampler. See the per-worker sampler assignments.",
       graph_declined = switch(expected,
-        "RoBMA::IndependentBiasJoint" = "This update requires independent step-selection rows and eligible effect and bias mixtures.",
+        "RoBMA::IndependentBiasJoint" = paste(
+          "This update requires independent step-selection rows and eligible effect and bias mixtures.",
+          "Moderated fits require a supported additive design and ordinary selection weights."),
         "RoBMA::GaussianJoint" = if (policy == "auto")
           "This update requires an unweighted independent Gaussian fit, one standardized numeric moderator and eligible normal mixtures." else
           "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
         "This update requires an eligible clustered fit with one factor moderator and supported prior laws."),
-      native_declined = "The native sampler did not claim the declared nodes. See the fit's sampler assignments."
+      native_declined = if (expected == "RoBMA::GaussianJoint")
+        "The compiled graph or Gaussian proposal coverage did not qualify. See the fit's sampler assignments." else
+        "The native sampler did not claim the declared nodes. See the fit's sampler assignments."
     )
     record[["joint"]] <- list(policy = policy, status = status, reason = reason, sampler = expected, nodes = owned)
   }

@@ -4,6 +4,9 @@
 # Add --oracle-only for quadrature without packages or fits. --cases selects a
 # regular expression, --baseline disables joint owners, and --seed-offset
 # selects a distinct set of fits for checking discrepancies in a new panel.
+# The opt-in `bias_moderated` and `bias_moderated_reflected` cases add a
+# known fixed moderator coefficient and one protected row for tractable
+# quadrature while exercising the public `sampler.joint = "bias"` policy.
 # A fit replicate is one independent serial chain. The one-chain R-hat notice
 # is expected. The comparison reports replicate-jackknife MCSEs and observed
 # support, with no pass/fail threshold on realized Monte Carlo errors.
@@ -49,6 +52,8 @@ bias <- list(
 effect <- list(weight = c(.72, 1.31), mean = 0, sd = .65)
 tau <- list(weight = c(1.17, .64), sd = .25)
 moderator <- list(weight = c(.65, 1.47), mean = -.08, sd = .44)
+moderated_coefficient <- .32
+protected <- seq_len(nrow(dat)) == nrow(dat)
 moments <- c("mass", "mu", "mu2", "mu_negative", "tau", "tau2", "PET", "PET2", "PEESE", "PEESE2")
 moderator_moments <- c("beta", "beta2", "beta_negative", "mu_beta")
 
@@ -94,20 +99,21 @@ normal_location <- function(y, variance, slab, location) {
 
 # Integrate every physical interval of the step function against the normal
 # distribution. Two-sided curves use both mirrored intervals independently.
-selected_factor <- function(mu, sd, se, spec, observed_weight) {
+selected_factor <- function(mu, sd, se, spec, observed_weight, offset = numeric(length(se))) {
   cutoffs <- qnorm(spec$steps / if (spec$side == "two-sided") 2 else 1,
                   lower.tail = FALSE)
   upper <- c(Inf, cutoffs)
   lower <- c(cutoffs, if (spec$side == "two-sided") 0 else -Inf)
   log_factor <- numeric(length(mu))
   for (study in seq_along(se)) {
+    location <- mu + offset[study]
     normalizer <- numeric(length(mu))
     for (bin in seq_along(spec$omega)) {
       lo <- se[study] * lower[bin]
       hi <- se[study] * upper[bin]
-      probability <- pnorm(hi, mu, sd[study]) - pnorm(lo, mu, sd[study])
+      probability <- pnorm(hi, location, sd[study]) - pnorm(lo, location, sd[study])
       if (spec$side == "two-sided") {
-        probability <- probability + pnorm(-lo, mu, sd[study]) - pnorm(-hi, mu, sd[study])
+        probability <- probability + pnorm(-lo, location, sd[study]) - pnorm(-hi, location, sd[study])
       }
       normalizer <- normalizer + spec$omega[bin] * probability
     }
@@ -116,9 +122,9 @@ selected_factor <- function(mu, sd, se, spec, observed_weight) {
   exp(log_factor)
 }
 
-selected_moments <- function(normal, sd, se, spec, observed_weight, rule) {
+selected_moments <- function(normal, sd, se, spec, observed_weight, rule, offset) {
   if (normal$sd == 0) {
-    return(c(selected_factor(0, sd, se, spec, observed_weight), 0, 0, 0))
+    return(c(selected_factor(0, sd, se, spec, observed_weight, offset), 0, 0, 0))
   }
   # Split at physical zero so the signed probability has a smooth integrand.
   # ±10 standard deviations leave a negligible tail even after multiplication
@@ -127,7 +133,7 @@ selected_moments <- function(normal, sd, se, spec, observed_weight, rule) {
   integrate_part <- function(lower, upper) {
     nodes <- rescale_rule(rule, lower, upper)
     mu <- normal$mean + normal$sd * nodes$x
-    mass <- nodes$w * dnorm(nodes$x) * selected_factor(mu, sd, se, spec, observed_weight)
+    mass <- nodes$w * dnorm(nodes$x) * selected_factor(mu, sd, se, spec, observed_weight, offset)
     c(sum(mass), sum(mu * mass), sum(mu^2 * mass))
   }
   negative <- integrate_part(-10, crossing)
@@ -135,12 +141,14 @@ selected_moments <- function(normal, sd, se, spec, observed_weight, rule) {
   c(negative + positive, negative[[1L]])
 }
 
-bias_reference <- function(n) {
+bias_reference <- function(n, moderated = FALSE) {
   rule <- legendre(n)
   location_rule <- legendre(2L * n)
   tau_rule <- prior_rule(rule, function(p) tau$sd * qnorm((1 + p) / 2))
   cells <- expand.grid(bias = names(bias), effect = 0:1, heterogeneity = 0:1,
                        stringsAsFactors = FALSE)
+  eligible <- if (moderated) !protected else rep(TRUE, nrow(dat))
+  offset <- if (moderated) moderated_coefficient * dat$x else numeric(nrow(dat))
   values <- lapply(seq_len(nrow(cells)), function(i) {
     cell <- cells[i, ]
     label <- cell$bias
@@ -149,18 +157,19 @@ bias_reference <- function(n) {
     selection <- !is.null(spec$omega)
     if (selection) {
       p <- if (spec$side == "two-sided") 2 * pnorm(-abs(dat$z)) else pnorm(-dat$z)
-      observed_weight <- spec$omega[1L + findInterval(p, spec$steps)]
+      observed_weight <- spec$omega[1L + findInterval(p[eligible], spec$steps)]
     }
     slopes <- if (is.null(spec$scale)) list(x = 0, w = 1) else
       prior_rule(rule, function(p) spec$scale * tan(pi * p / 2))
     heterogeneity <- if (cell$heterogeneity == 0L) list(x = 0, w = 1) else tau_rule
-    covariate <- switch(label, PET = dat$sei, PEESE = dat$sei^2, rep(0, nrow(dat)))
+    covariate <- eligible * switch(label, PET = dat$sei, PEESE = dat$sei^2, rep(0, nrow(dat)))
     at_tau <- lapply(heterogeneity$x, function(t) {
       variance <- dat$sei^2 + t^2
       at_slope <- vapply(slopes$x, function(slope) {
-        normal <- normal_location(dat$yi - slope * covariate, variance, slab, effect)
+        normal <- normal_location(dat$yi - offset - slope * covariate, variance, slab, effect)
         m <- if (selection) {
-          selected_moments(normal, sqrt(variance), dat$sei, spec, observed_weight, location_rule)
+          selected_moments(normal, sqrt(variance[eligible]), dat$sei[eligible], spec,
+                           observed_weight, location_rule, offset[eligible])
         } else {
           c(1, normal$mean, normal$mean^2 + normal$sd^2,
             if (slab) pnorm(-normal$mean / normal$sd) else 0)
@@ -265,8 +274,10 @@ endpoints <- function(cells) {
   do.call(rbind, results)
 }
 
-cases <- c("bias", "bias_permuted", "bias_reflected", "gaussian", "gaussian_permuted")
-cases <- grep(option("cases", "."), cases, value = TRUE)
+all_cases <- c("bias", "bias_permuted", "bias_reflected", "gaussian", "gaussian_permuted",
+               "bias_moderated", "bias_moderated_reflected")
+cases <- grep(option("cases", "^(bias|bias_permuted|bias_reflected|gaussian|gaussian_permuted)$"),
+              all_cases, value = TRUE)
 stopifnot(length(cases) > 0L)
 
 # Verifies that the synthetic observations straddle all effective cutoffs.
@@ -277,10 +288,14 @@ stopifnot(all(vapply(cutoffs, function(z) {
   any(dat$z > z & dat$z < z + .02) && any(dat$z < z & dat$z > z - .02)
 }, logical(1L))))
 
-reference_cases <- intersect(c("bias", "bias_reflected", "gaussian"), sub("_permuted$", "", cases))
-if (any(grepl("^bias", reference_cases))) {
+reference_cases <- unique(sub("_permuted$", "", cases))
+if (any(reference_cases %in% c("bias", "bias_reflected"))) {
   bias_low <- bias_reference(24L)
   bias_high <- bias_reference(48L)
+}
+if (any(grepl("^bias_moderated", reference_cases))) {
+  moderated_low <- bias_reference(24L, moderated = TRUE)
+  moderated_high <- bias_reference(48L, moderated = TRUE)
 }
 reflect <- function(cells) {
   # Reflect both the outcomes and their selection direction. Only the signed
@@ -290,8 +305,12 @@ reflect <- function(cells) {
   cells
 }
 reference <- lapply(reference_cases, function(case) {
-  low <- switch(case, bias = bias_low, bias_reflected = reflect(bias_low), gaussian = gaussian_reference(24L))
-  high <- switch(case, bias = bias_high, bias_reflected = reflect(bias_high), gaussian = gaussian_reference(48L))
+  low <- switch(case, bias = bias_low, bias_reflected = reflect(bias_low),
+    bias_moderated = moderated_low, bias_moderated_reflected = reflect(moderated_low),
+    gaussian = gaussian_reference(24L))
+  high <- switch(case, bias = bias_high, bias_reflected = reflect(bias_high),
+    bias_moderated = moderated_high, bias_moderated_reflected = reflect(moderated_high),
+    gaussian = gaussian_reference(48L))
   targets <- endpoints(high)
   low_targets <- endpoints(low)
   targets$reference <- targets$numerator / targets$denominator
@@ -324,9 +343,10 @@ normal <- function(spec) {
 
 public_fit <- function(case, seed) {
   has_bias <- grepl("^bias", case)
+  moderated <- grepl("^bias_moderated", case)
   permuted <- grepl("permuted$", case)
   reflected <- grepl("reflected$", case)
-  joint <- if (baseline) "off" else if (has_bias) "auto" else "gaussian"
+  joint <- if (baseline) "off" else if (moderated) "bias" else if (has_bias) "auto" else "gaussian"
   if ("sampler.joint" %in% names(RoBMA::RoBMA.options())) {
     RoBMA::RoBMA.options(sampler.joint = joint, sampler.nested.weights = FALSE,
                         sampler.probabilities = character())
@@ -337,6 +357,7 @@ public_fit <- function(case, seed) {
 
   input <- dat
   if (reflected) input$yi <- -input$yi
+  input$protected <- protected
   effect_prior <- list(point(effect$weight[1L]), normal(effect))
   moderator_prior <- list(point(moderator$weight[1L]), normal(moderator))
   tau_prior <- list(point(tau$weight[1L]), BayesTools::prior("normal", list(0, tau$sd),
@@ -360,6 +381,9 @@ public_fit <- function(case, seed) {
         BayesTools::prior_weightfunction(spec$side, spec$steps,
           BayesTools::wf_fixed(spec$omega), prior_weights = spec$weight))
     })
+    if (moderated) common <- c(common, list(mods = ~ x, bias_exempt = quote(protected),
+      standardize_continuous_predictors = FALSE, prior_mods_null = list(x = FALSE),
+      prior_mods = list(x = BayesTools::prior("point", list(if (reflected) -moderated_coefficient else moderated_coefficient)))))
     fit <- do.call(RoBMA::RoBMA, c(common, list(prior_bias = bias_priors[-1L],
       prior_bias_null = bias_priors[[1L]], effect_direction = if (reflected) "negative" else "positive")))
   } else {
@@ -377,7 +401,7 @@ public_fit <- function(case, seed) {
   if (baseline) {
     stopifnot(nrow(sampler) == 0L)
   } else {
-    sources <- if (has_bias) "mu" else c("mu_intercept", "mu_x", "tau")
+    sources <- if (moderated) "mu_intercept" else if (has_bias) "mu" else c("mu_intercept", "mu_x", "tau")
     expected_nodes <- c(paste0(sources, "_indicator"), paste0(sources, "_component_", match(2L, order)))
     if (has_bias) expected_nodes <- c("bias_indicator", expected_nodes)
     if (length(unique(sampler$Index.No)) != 1L || !setequal(expected_nodes, sampler$Node) ||
@@ -389,7 +413,7 @@ public_fit <- function(case, seed) {
   }
 
   raw <- as.matrix(coda::as.mcmc.list(backend)[[1L]])
-  location <- if (has_bias) "mu" else "mu_intercept"
+  location <- if (has_bias && !moderated) "mu" else "mu_intercept"
   mu <- raw[, location]
   t <- raw[, "tau"]
   slab_label <- match(2L, order)
@@ -458,8 +482,7 @@ for (case in cases) {
   for (rep in seq_len(reps)) {
     cat(prefix, "replicate", rep, "of", reps, "\n")
     flush.console()
-    seed <- seed_offset + 78301L + 1297L * rep + 70001L * match(case, c(
-      "bias", "bias_permuted", "bias_reflected", "gaussian", "gaussian_permuted"))
+    seed <- seed_offset + 78301L + 1297L * rep + 70001L * match(case, all_cases)
     result <- public_fit(case, seed)
     fits[[rep]] <- transform(result$endpoints, replicate = rep, seed = seed)
     if (rep == 1L) utils::write.csv(result$samplers, file.path(out, paste0(prefix, "-owners.csv")),

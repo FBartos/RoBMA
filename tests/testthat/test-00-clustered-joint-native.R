@@ -42,7 +42,7 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
 
   ordinary <- fit_cluster("negative")
   expect_length(owned(ordinary), 0L)
-  expect_false(grepl("drobma_cluster_setup", ordinary[["fit"]][["model"]], fixed = TRUE))
+  expect_false(grepl("robma_cluster_setup", ordinary[["fit"]][["model"]], fixed = TRUE))
 
   one_bias <- BayesTools::prior_weightfunction("one-sided", .05, BayesTools::wf_fixed(c(1, .4)))
   singleton <- fit_cluster(prior_bias = one_bias, prior_bias_null = NULL)
@@ -54,8 +54,8 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
   # A malformed native declaration with two markers naming the same study
   # slot must fall through as an entire block. No stochastic source is lost.
   original <- scaled[["fit"]]
-  broken <- sub("drobma_cluster_member\\(gamma\\[1\\], [^,]+, [^)]+\\)",
-                "drobma_cluster_member(gamma[1], 4, 2)", original[["model"]])
+  broken <- sub("robma_cluster_member\\(gamma\\[1\\], [^,]+, [^)]+\\)",
+                "robma_cluster_member(gamma[1], 4, 2)", original[["model"]])
   expect_false(identical(broken, original[["model"]]))
   con <- textConnection(broken)
   on.exit(close(con), add = TRUE)
@@ -67,36 +67,40 @@ test_that("clustered opt-in owns the gate, full Gaussian slab and all study effe
 })
 
 .cluster_provider_model <- function(scale = FALSE, declare_scales = scale, observed = list(),
-                                    second_study = "u[2]", nonlinear = FALSE) {
+                                    second_study = "u[2]", nonlinear = FALSE, tags = TRUE) {
 
   location <- if (nonlinear) "sqrt(a)" else "a"
   scales <- if (scale) "s ~ dnorm(0, 1) T(0,)
                        r ~ dbeta(2, 2)" else ""
-  markers <- if (declare_scales) "m6 ~ drobma_cluster_member(s, 5, 1)
-                                    m7 ~ drobma_cluster_member(r, 6, 1)" else ""
+  between <- if (scale) "s * sqrt(r)" else ".3"
+  precision <- if (scale) "1 / (1 + pow(s, 2) * (1 - r))" else "1"
   physical <- if (scale) "s, r" else ".5, .36"
+  declaration <- if (tags) paste0("
+    m1 <- robma_cluster_member(g, 1, 1)
+    m2 <- robma_cluster_member(a, 2, 1)
+    m3 <- robma_cluster_member(b, 3, 1)
+    m4 <- robma_cluster_member(u[1], 4, 1)
+    m5 <- robma_cluster_member(", second_study, ", 4, 2)\n",
+    if (declare_scales) "m6 <- robma_cluster_member(s, 5, 1)
+                         m7 <- robma_cluster_member(r, 6, 1)\n",
+    "setup <- robma_cluster_setup(g, X, group, y, ones, ones, ones, -1, 1, 1, 0, 0, 1, 1, 2,
+                                  ", physical, ", 2, 2, 0, 0, 2, 5, ", as.integer(scale), ")\n"
+  ) else ""
   model <- paste0("model {
     g ~ dcat(c(1, 1))
     a ~ dnorm(0, 1)
     b[1:2] ~ dmnorm(zero, P)
+    ", scales, "
     for (j in 1:2) { u[j] ~ dnorm(0, 1) }
     for (i in 1:4) {
-      y[i] ~ dnorm(", location, " + equals(g, 2) * (b[1]*X[i] + b[2]*X[i+4]) + .3*u[group[i]], 1)
+      y[i] ~ dnorm(", location, " + equals(g, 2) * (b[1]*X[i] + b[2]*X[i+4]) + ",
+                     between, " * u[group[i]], ", precision, ")
     }
-    m1 ~ drobma_cluster_member(g, 1, 1)
-    m2 ~ drobma_cluster_member(a, 2, 1)
-    m3 ~ drobma_cluster_member(b, 3, 1)
-    m4 ~ drobma_cluster_member(u[1], 4, 1)
-    m5 ~ drobma_cluster_member(", second_study, ", 4, 2)
-    ", scales, "
-    ", markers, "
-    setup ~ drobma_cluster_setup(g, X, group, y, ones, ones, ones, -1, 1, 1, 0, 0, 1, 1, 2,
-                                   ", physical, ", 2, 2, 0, 0, 2, 5, ", as.integer(scale), ")
+    ", declaration, "
   }")
-  data <- c(list(zero = c(0, 0), P = diag(2), group = c(1, 1, 2, 2), ones = rep(1, 4),
-                 y = c(.3, .25, -.13, .08), X = c(0, 1, 0, 1, 1, 0, 1, 0),
-                 m1 = 0, m2 = 0, m3 = 0, m4 = 0, m5 = 0, setup = 0), observed)
-  if (declare_scales) data <- c(data, list(m6 = 0, m7 = 0))
+  data <- c(list(zero = c(0, 0), P = diag(2), group = c(1, 1, 2, 2),
+                 y = c(.3, .25, -.13, .08), X = c(0, 1, 0, 1, 1, 0, 1, 0)), observed)
+  if (tags) data[["ones"]] <- rep(1, 4)
   inits <- list(a = 1e-6, g = 2L, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 7301L)
   con <- textConnection(model)
   on.exit(close(con))
@@ -136,4 +140,24 @@ test_that("a failed clustered scalar refresh restores its entry value", {
   expect_error(stats::update(live, n.iter = 1L, progress.bar = "none"), "Invalid parent values")
   live$sync()
   expect_identical(live$state()[[1L]][["a"]], entry)
+})
+
+test_that("declined clustered tags preserve stock samplers, draws and RNG state", {
+
+  skip_if_not_installed("rjags")
+  for (config in list(list(scale = FALSE, second_study = "u[1]"),
+                      list(scale = TRUE, declare_scales = FALSE),
+                      list(scale = TRUE, observed = list(s = .5)),
+                      list(scale = TRUE, observed = list(s = .5, r = .36)))) {
+    tagged <- do.call(.cluster_provider_model, config)
+    stock <- do.call(.cluster_provider_model, c(config, list(tags = FALSE)))
+    expect_identical(rjags::list.samplers(tagged), rjags::list.samplers(stock))
+    expect_true("bugs::ConjugateNormal" %in% names(rjags::list.samplers(stock)))
+    draw <- function(model) {
+      rjags::adapt(model, n.iter = 100L, end.adaptation = TRUE)
+      rjags::coda.samples(model, c("g", "a", "b", "u"), n.iter = 40L, thin = 2L)
+    }
+    expect_identical(draw(tagged), draw(stock))
+    expect_identical(tagged$state(internal = TRUE), stock$state(internal = TRUE))
+  }
 })

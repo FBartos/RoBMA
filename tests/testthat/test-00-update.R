@@ -382,11 +382,11 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
   )
 })
 
-# A tiny ordinary model fitted with a non-default adaptation, and the
+# A tiny normal model fitted with a non-default adaptation, and the
 # settings that reach the direct JAGS driver while extending it.
-.adaptation_fit <- function(...) {
+.adaptation_fit <- function(..., constructor = brma.norm) {
 
-  suppressWarnings(brma.norm(
+  suppressWarnings(constructor(
     yi = c(0.10, 0.25, 0.05, 0.32, 0.18), sei = c(0.08, 0.10, 0.07, 0.12, 0.09),
     measure = "GEN", prior_unit_information_sd = 1, chains = 2, adapt = 300, burnin = 100, sample = 100,
     seed = 11, silent = TRUE, ...
@@ -399,9 +399,12 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
   original <- getFromNamespace(".bt_rjags_run", "BayesTools")
   testthat::local_mocked_bindings(
     .bt_rjags_run = function(model, data, inits, monitor, adapt, burnin, sample,
-                             thin, cl, silent, live_model = NULL) {
-      calls[[length(calls) + 1L]] <<- list(adapt = adapt, burnin = burnin, parallel = !is.null(cl))
-      original(model, data, inits, monitor, adapt, burnin, sample, thin, cl, silent, live_model)
+                            thin, cl, silent, live_model = NULL, probability_plan = NULL) {
+      calls[[length(calls) + 1L]] <<- list(
+        adapt = adapt, burnin = burnin, parallel = !is.null(cl), probability_plan = probability_plan
+      )
+      original(model, data, inits, monitor, adapt, burnin, sample, thin, cl, silent,
+               live_model = live_model, probability_plan = probability_plan)
     },
     .package = "BayesTools",
     .env = env
@@ -418,6 +421,9 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
 
 test_that("extensions inherit the initial adaptation, preserve the draws, and add no burn-in", {
 
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  RoBMA.options(sampler.probabilities = character())
   fit   <- .adaptation_fit()
   calls <- .record_jags_runs()
 
@@ -433,6 +439,7 @@ test_that("extensions inherit the initial adaptation, preserve the draws, and ad
   )
   expect_identical(lapply(calls(), `[[`, "burnin"), rep(list(0L), 4))
   expect_identical(lapply(calls(), `[[`, "parallel"), rep(list(FALSE), 4))
+  expect_identical(lapply(calls(), `[[`, "probability_plan"), rep(list(NULL), 4))
 
   # an explicit value equal to the initial one gives identical draws, an
   # override other draws; no extension changes the stored setting
@@ -465,6 +472,32 @@ test_that("extensions inherit the initial adaptation, preserve the draws, and ad
   saveRDS(fit, saved)
   expect_identical(.draws_by_chain(update(readRDS(saved), sample_extend = 20)), .draws_by_chain(omitted))
   expect_identical(calls()[[5L]][["adapt"]], 300L)
+})
+
+test_that("extensions retain the probability plan captured at the initial fit", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  RoBMA.options(selection.sampler = "slice", sampler.joint = "off",
+                sampler.probabilities = "mu_indicator")
+  calls <- .record_jags_runs()
+  fit <- .adaptation_fit(constructor = RoBMA, model_type = "PP")
+  plan <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["probabilities"]]
+  expect_identical(plan[["node"]], "mu_indicator")
+  before <- fit[["fit"]][["sampler_probabilities"]][["mu_indicator"]]
+  expect_s3_class(before, "mcmc.list")
+
+  RoBMA.options(sampler.probabilities = character())
+  extended <- update(fit, sample_extend = 20)
+  expect_identical(lapply(calls(), `[[`, "probability_plan"), rep(list(plan), 2L))
+
+  after <- extended[["fit"]][["sampler_probabilities"]][["mu_indicator"]]
+  expect_s3_class(after, "mcmc.list")
+  expect_identical(vapply(after, nrow, integer(1)), c(120L, 120L))
+  expect_identical(
+    lapply(after, function(chain) as.matrix(chain)[seq_len(100L), , drop = FALSE]),
+    lapply(before, as.matrix)
+  )
 })
 
 test_that("automatic extensions of a fit use its adaptation", {

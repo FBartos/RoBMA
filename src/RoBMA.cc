@@ -55,12 +55,13 @@ namespace jags {
       // claim their blocks before BayesTools' factor slice factory.
       insert(coarse_corrected_slice_factory());
       insert(coarse_corrected_block_factory());
-      insert(new DIndependentBiasJointMarker);
+      insert(new IndependentBiasJointTag(false));
+      insert(new IndependentBiasJointTag(true));
       insert(&independent_bias_joint);
-      insert(new GaussianJointMarker);
+      insert(new GaussianJointTag);
       insert(gaussian_joint_factory());
-      insert(new ClusterMarker(false));
-      insert(new ClusterMarker(true));
+      insert(new ClusterTag(false));
+      insert(new ClusterTag(true));
       insert(joint_cluster_factory());
     }
 
