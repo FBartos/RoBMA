@@ -28,6 +28,7 @@ test_that("exact between-term overlap gives term-specific infinite GVIF", {
   }
   expected <- 1/(1 - stats::cor(x, z)^2)
   expect_equal(evaluate(design, 0:3), c(Inf, Inf, expected), tolerance = 1e-12)
+  expect_equal(evaluate(cbind(1, x, 2*x, 3*x), 0:3), rep(Inf, 3L))
   expect_equal(evaluate(design, c(0L, 1L, 2L, 2L)), c(Inf, Inf))
   expect_error(evaluate(design, c(0L, 1L, 1L, 2L)), "internally aliased",
                class = "RoBMA_vif_unavailable")

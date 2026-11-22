@@ -528,6 +528,13 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     if (!is.finite(ratio) || ratio == 0) next
     scale <- sign(ratio) * 2^round(log2(abs(ratio)))
     if (is.finite(scale) && scale != 0 && all(x * scale == y) && all(y / scale == x)) return(TRUE)
+    # Integer cross-products also certify ratios such as 3a/(2a), even if
+    # a different pivot survives when the original a is removed.
+    if (all(x == trunc(x)) && all(y == trunc(y))) {
+      left <- x * y[i]
+      right <- y * x[i]
+      if (all(abs(left) < 2^52) && all(abs(right) < 2^52) && all(left == right)) return(TRUE)
+    }
   }
   # Integer design identities can be checked exactly when every product
   # and partial sum remains in the exact-integer range of a double.
