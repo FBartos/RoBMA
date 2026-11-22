@@ -60,8 +60,8 @@ snapshots and scenario fingerprints did not detect the slowdown. Every native
 relink can change placement. Tested function alignment, page offsets and moving
 `glmm-aghq.o` to the end of the link order did not reliably prevent the slowdown.
 
-**Link order.** `glmm-aghq.o` is linked first in `OBJECTS` of all three Makevars
-files since 4.1.0 (maintainer decision 2026-10-20), because that placement
+**Link order.** `glmm-aghq.o` is linked first in `OBJECTS`
+since 4.1.0 (maintainer decision 2026-10-20), because that placement
 restored the base speed of the binomial kernel. With the object after
 `selnorm/selnorm.o`, an unrelated edit to `selnorm.o` made the same object code
 run the binomial probe (`.glmm_binom_aghq()`, S = 600, K = 8) up to about 45%
@@ -84,7 +84,5 @@ is the only placement change shipped, and no padding or alignment workaround is.
 Keep the numerical implementation and settings unchanged; any further placement
 change needs evidence for that linked image and a maintainer decision.
 
-**Note on `src/Makevars.win`.** R 4.6.0 is UCRT and reads `src/Makevars.ucrt`,
-so `src/Makevars.win` does not affect the build on this machine (its
-`-D_GLIBCXX_USE_CXX11_ABI=0` is therefore not applied here). Keep `OBJECTS`
-consistent across all three files anyway; other R builds read the other two.
+The Windows and Unix makefiles get JAGS flags from rjags. Their shared
+`src/Makevars.common` owns the object list and link order.

@@ -89,8 +89,8 @@ test_that("shared-gate allocation grids use declared continuous covariance plans
                        .2, .8, 1, .6, .4), nrow = 3L, byrow = TRUE,
                     dimnames = list(NULL, c("mu_intercept", source, gate,
                                             paste0(weight, "[", 1:2, "]"))))
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- result$prior_list
   attr(fit, "formula_design") <- list(mu = design)
   fit <- BayesTools:::.bt_attach_parameter_map(fit)

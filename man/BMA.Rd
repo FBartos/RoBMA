@@ -51,7 +51,8 @@ BMA(
 \arguments{
 \item{yi}{a vector of effect sizes, or a formula with the effect size on the
 left-hand side and location moderators on the right-hand side (for example
-\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.
+See \link{data_input} for the supported ranges of effects and sampling SEs.}
 
 \item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
 supplied for normal models.}

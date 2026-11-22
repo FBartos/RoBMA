@@ -43,17 +43,17 @@ extern "C" double Rf_dnorm4(double, double, double, int);
 // Private implementation fragments share one anonymous namespace and are kept in
 // this order so helper symbols stay internal to this translation unit.
 namespace {
-#include "r-selnorm-common.cc.inc"
-#include "r-selnorm-funnel-common.cc.inc"
-#include "r-selnorm-cluster.cc.inc"
+#include "r-native/r-selnorm-common.cc.inc"
+#include "r-native/r-selnorm-funnel-common.cc.inc"
+#include "r-native/r-selnorm-cluster.cc.inc"
 }
 
-#include "r-selnorm-loglik.cc.inc"
-#include "r-selnorm-mv.cc.inc"
-#include "r-selnorm-sampling-conditioned.cc.inc"
-#include "r-selnorm-kernel.cc.inc"
-#include "r-selnorm-funnel-zcurve.cc.inc"
-#include "r-native-probe.cc.inc"
+#include "r-native/r-selnorm-loglik.cc.inc"
+#include "r-native/r-selnorm-mv.cc.inc"
+#include "r-native/r-selnorm-sampling-conditioned.cc.inc"
+#include "r-native/r-selnorm-kernel.cc.inc"
+#include "r-native/r-selnorm-funnel-zcurve.cc.inc"
+#include "r-native/r-native-probe.cc.inc"
 
 // Standard-normal upper tail as the selection kernels evaluate it, exposed so
 // the package tests can certify the batched approximation against pnorm over a
@@ -707,7 +707,7 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   coarse.log_weight_step = REAL(settings)[2];
   coarse.max_rules = static_cast<unsigned int>(REAL(settings)[3]);
   std::vector<double const *> par(20);
-  std::vector<unsigned int> len(20);
+  std::vector<unsigned long> len(20);
   for (int i = 0; i < 20; ++i) {
     SEXP element = VECTOR_ELT(parameters, i);
     check_real(element, "parameter");
@@ -758,20 +758,20 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
     for (int i = 0; i < rows; ++i) obs_bin[static_cast<std::size_t>(i)] = static_cast<int>(par[7][i]);
     try {
       surrogate = factor ?
-        factor_distribution.surrogateLogDensity(x_values, length, jags::PDF_LIKELIHOOD,
-          par, len, nullptr, nullptr, coarse) :
-        cluster_distribution.surrogateLogDensity(x_values, length, jags::PDF_LIKELIHOOD,
-          par, len, nullptr, nullptr, coarse);
+        factor_distribution.surrogateLogDensity(x_values, jags::PDF_LIKELIHOOD,
+          par, len, coarse) :
+        cluster_distribution.surrogateLogDensity(x_values, jags::PDF_LIKELIHOOD,
+          par, len, coarse);
     } catch (const std::exception &failure) {
       surrogate_error = failure.what();
       if (surrogate_error.empty()) surrogate_error = "evaluation failed";
     }
     try {
       exact = factor ?
-        factor_distribution.logDensity(x_values, length, jags::PDF_LIKELIHOOD,
-          par, len, nullptr, nullptr) :
-        cluster_distribution.logDensity(x_values, length, jags::PDF_LIKELIHOOD,
-          par, len, nullptr, nullptr);
+        factor_distribution.logDensity(x_values, jags::PDF_LIKELIHOOD,
+          par, len) :
+        cluster_distribution.logDensity(x_values, jags::PDF_LIKELIHOOD,
+          par, len);
     } catch (const std::exception &failure) {
       exact_error = failure.what();
       if (exact_error.empty()) exact_error = "evaluation failed";

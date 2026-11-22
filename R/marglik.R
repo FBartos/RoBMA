@@ -860,8 +860,15 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   auxiliary <- direction * plan[["sampling_loading"]] * z[plan[["sampling_indices"]]]
   integrated <- as.numeric(tau) * theta
   fraction <- (plan[["sampling_sd"]] / as.numeric(total_sd))^2
-  context_mean <- as.numeric(mu) + auxiliary + fraction *
-    (plan[["yi"]] - as.numeric(mu) - auxiliary - integrated)
+  correction <- fraction * (plan[["yi"]] - as.numeric(mu) - auxiliary - integrated)
+  # Route delicate reconstructions to the joint kernel, which checks the
+  # actual changing cuts. The wider routing margin also covers rounding in
+  # the scalar and Cholesky forms of the same Gaussian update.
+  magnitude <- abs(mu) + abs(auxiliary) + abs(correction)
+  delicate <- tau > 0 & tau <= 1e-10 * magnitude
+  delicate[selection[["bias_exempt"]]] <- FALSE
+  if (any(delicate)) return(NULL)
+  context_mean <- as.numeric(mu) + auxiliary + correction
   # Bridge selection metadata use signed observations and sign = 1.
   means <- matrix(direction * context_mean, 1L, K)
   log_mass <- .selection_step_log_norm_matrix(means, tau, data[["sei"]], selection)

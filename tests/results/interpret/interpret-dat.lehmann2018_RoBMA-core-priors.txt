@@ -1,9 +1,9 @@
 Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
-Effect inclusion: moderate evidence against the effect (BF01 = 7.511).
+Effect inclusion: weak evidence against the effect (BF01 = 2.953).
 Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf > 1999.000).
-Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 54.556).
-Pooled effect: model-averaged mean standardized mean difference = 0.006, 95% CrI [-0.016, 0.138].
-Pooled heterogeneity: model-averaged mean tau = 0.304, 95% CrI [0.229, 0.386].
+Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 10.364).
+Pooled effect: model-averaged mean standardized mean difference = 0.027, 95% CrI [-0.059, 0.233].
+Pooled heterogeneity: model-averaged mean tau = 0.306, 95% CrI [0.231, 0.391].
 
 Prior distributions:
 mu:

@@ -942,6 +942,9 @@
       }
       next
     }
+    fixed <- state[["fixed_outcome"]][draw, ]
+    retained_mean <- baseline[draw, ] + errors[draw, ]
+    retained_mean[fixed] <- y[fixed]
     for (row in seq_len(K)) {
       if (!any(vapply(out, function(value) is.na(value[draw, row]), logical(1L)))) next
       v_e <- sampling[["variance"]][row]
@@ -960,14 +963,14 @@
       cuts <- sort(unique(c(context[["z_lower"]], context[["z_upper"]]) * sei))
       cuts <- cuts[is.finite(cuts)]
       cache <- new.env(parent = emptyenv())
-      log_normalizer <- function(e) {
+      log_normalizer <- function(candidate_mean) {
 
-        key <- paste(format(e, digits = 17), collapse = "/")
+        key <- paste(format(candidate_mean, digits = 17), collapse = "/")
         if (exists(key, envir = cache, inherits = FALSE)) return(get(key, envir = cache))
-        n <- length(e)
+        n <- length(candidate_mean)
         current <- .selection_conditioned_sampling_replicate_setup(setup, state, draw, n)
-        means <- matrix(baseline[draw, ] + errors[draw, ], n, K, byrow = TRUE)
-        means[, row] <- baseline[draw, row] + e
+        means <- matrix(retained_mean, n, K, byrow = TRUE)
+        means[, row] <- candidate_mean
         result <- .selection_conditioned_sampling_normalizer(current, direction * means)
         mass <- result[["log_mass"]]
         if (any(!is.finite(mass))) {
@@ -977,7 +980,7 @@
         assign(key, mass, envir = cache)
         mass
       }
-      anchor <- log_normalizer(errors[draw, row])
+      anchor <- log_normalizer(retained_mean[row])
       integrate_probabilities <- function(fun, boundaries, moment_scale = NULL) {
 
         parts <- length(boundaries) - 1L
@@ -1037,7 +1040,7 @@
           means, matrix(v_u, n, 1L), sei, contexts, plan,
           lower = lower, upper = upper
         )[["log_mass"]]
-        value <- exp(mass + anchor - log_normalizer(e))
+        value <- exp(mass + anchor - log_normalizer(baseline[draw, row] + e))
         if (!is.null(moment)) {
           moments <- if (v_u == 0) {
             list(mean = means, variance = matrix(0, n, 1L))
@@ -1060,11 +1063,17 @@
         stop("Selection estimate deletion is unavailable because its conditional selection event cannot be normalized.",
              call. = FALSE)
       }
+      # Given the evaluated outcome, the candidate location is that exact
+      # value only if this row has no integrated source in the selection law.
+      reciprocal_at <- function(outcome) {
+
+        if (fixed[row]) return(exp(anchor - log_normalizer(outcome)))
+        conditional_mean <- .gaussian_summand_conditional_mean(m_e, v_e, v_u, outcome - location)
+        integrate_gaussian(function(e) exp(anchor - log_normalizer(baseline[draw, row] + e)),
+                           conditional_mean, v_e * v_u / variance)
+      }
       if ("log_density" %in% components) {
-        conditional_mean <- .gaussian_summand_conditional_mean(m_e, v_e, v_u, y[row] - location)
-        conditional_variance <- v_e * v_u / variance
-        reciprocal <- integrate_gaussian(function(e) exp(anchor - log_normalizer(e)),
-                                          conditional_mean, conditional_variance)
+        reciprocal <- reciprocal_at(y[row])
         weight <- context[["omega"]][1L, context[["obs_bin_by_sample"]][1L]]
         out[["log_density"]][draw, row] <- stats::dnorm(y[row], mean, sqrt(variance), log = TRUE) +
           log(weight) + log(reciprocal) - log(normalizer)
@@ -1091,10 +1100,7 @@
             contexts <- BayesTools::selection_context_subset_rows(context, rep(1L, length(p)))
             log_weights <- .selection_joint_log_weight(matrix(proposed, length(p), 1L), sei, contexts)
             vapply(seq_along(proposed), function(i) {
-              conditional_mean <- .gaussian_summand_conditional_mean(m_e, v_e, v_u, proposed[i] - location)
-              reciprocal <- integrate_gaussian(function(e) exp(anchor - log_normalizer(e)),
-                conditional_mean, v_e * v_u / variance)
-              exp(log_weights[i] + log(reciprocal) - log(normalizer))
+              exp(log_weights[i] + log(reciprocal_at(proposed[i])) - log(normalizer))
             }, numeric(1L))
           }, boundaries)
           log_probability <- log_base + log(ratio)

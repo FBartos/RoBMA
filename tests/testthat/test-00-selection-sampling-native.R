@@ -245,6 +245,107 @@ test_that("exempt conditioned blocks keep fixed and integrated eligible outcomes
   }
 })
 
+test_that("sampling-conditioned likelihoods keep fixed outcomes on their observed cutoffs", {
+
+  # The integrated random slope is zero on row 1. The retained sampling
+  # errors are correlated, so row 2 still needs the full joint update.
+  V       <- matrix(c(1, .5, .5, 1), 2L)
+  loading <- matrix(c(0, .5), 2L)
+  total   <- V + tcrossprod(loading)
+  e0      <- c(1, .5)
+  u0      <- c(0, .25)
+  omega   <- c(1, .2)
+  for (cut in c(0, .1)) {
+    yi   <- c(cut, -.0625)
+    # At zero the solve loses a small mean against e0; at .1 even
+    # mean + (yi - mean) can round below the observed value.
+    mean <- c(if (cut == 0) -2^-55 else 1, 0)
+    args <- .sampling_native_arguments(mean, c(0, 0), loading, omega, points = 2L)
+    args$z_lower <- c(cut, -Inf)
+    args$z_upper <- c(Inf, cut)
+    delta <- drop(solve(total, yi - mean - e0 - u0))
+    e     <- drop(e0 + V %*% delta)
+    p2    <- pnorm(cut, mean[2L] + e[2L], loading[2L], lower.tail = FALSE)
+    gaussian <- mvtnorm::dmvnorm(yi, mean, total, log = TRUE)
+
+    # Row 1 is in the leading bin. Product selection therefore depends
+    # only on row 2, and the best bin in their publication is always first.
+    rules <- if (cut == 0) 0:1 else 0:2
+    for (rule in rules) {
+      args$vector_rule <- rule
+      out <- do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch",
+        yi, args$means, V[lower.tri(V, diag = TRUE)], args$diagonal,
+        args$loading, args$rank, matrix(e0, 1L), matrix(u0, 1L),
+        args$sei, args$omega, args$z_lower, args$z_upper, c(1L, 2L)),
+        unname(args[9:length(args)]), list(PACKAGE = "RoBMA")))
+      mass <- if (rule == 0L) omega[1L] * p2 + omega[2L] * (1 - p2) else 1
+      weight <- if (rule == 0L) omega[2L] else 1
+      expect_equal(out$log_normalizer, log(mass), tolerance = 1e-13)
+      expect_equal(out$log_lik, gaussian + log(weight) - log(mass), tolerance = 1e-13)
+      expect_equal(drop(out$delta), delta, tolerance = 1e-13)
+      expect_equal(drop(out$e_star), c(yi[1L] - mean[1L], e[2L]), tolerance = 1e-13)
+    }
+  }
+})
+
+test_that("conditioned selection refuses unresolved positive variation at a changing cutoff", {
+
+  V <- matrix(c(1, .5, .5, 1), 2L)
+  evaluate <- function(sd, cut = 0, y1 = cut, rule = 0L, omega = c(1, .2),
+                       exempt = FALSE, factor = FALSE, fixed_winner = FALSE, sign = 1L) {
+    y <- sign * c(y1, if (fixed_winner) cut + .5 else cut - .0625)
+    mu <- sign * c(.3, cut)
+    e0 <- sign * c(1, .5)
+    s <- c(sd, if (fixed_winner) 0 else .5)
+    u0 <- sign * c(.7, .5) * s
+    args <- .sampling_native_arguments(mu, if (factor) c(0, 0) else s^2,
+      if (factor) diag(s) else matrix(0, 2L, 0L), omega, sign, rule, points = 2L)
+    args$z_lower <- c(cut, -Inf)
+    args$z_upper <- c(Inf, cut)
+    bins <- ifelse(sign * y >= cut, 1L, 2L)
+    if (exempt) bins[1L] <- 0L
+    out <- do.call(.Call, c(list("RoBMA_selnorm_sampling_conditioned_batch",
+      y, args$means, V[lower.tri(V, diag = TRUE)], args$diagonal, args$loading,
+      args$rank, matrix(e0, 1L), matrix(u0, 1L), args$sei, args$omega,
+      args$z_lower, args$z_upper, bins), unname(args[9:length(args)]), list(PACKAGE = "RoBMA")))
+    if (rule == 0L && !exempt) {
+      # Center at the cutoff first. This independent form retains the
+      # integrated auxiliary at a nonzero tie, even when its SD is tiny.
+      delta <- drop(solve(V + diag(s^2), y - mu - e0 - u0))
+      offset <- (sign * y - cut) - sign * (u0 + s^2 * delta)
+      p <- as.numeric(offset >= 0)
+      p[s > 0] <- pnorm(offset[s > 0] / s[s > 0])
+      expect_equal(out$log_normalizer, sum(log(omega[1L] * p + omega[2L] * (1 - p))),
+                   tolerance = 5e-5)
+    }
+    out$log_lik
+  }
+  for (cut in c(0, qnorm(.025, lower.tail = FALSE))) {
+    for (sign in c(-1L, 1L)) {
+      expect_true(is.finite(evaluate(0, cut, sign = sign)))
+      expect_true(is.finite(evaluate(1e-10, cut, sign = sign)))
+      expect_true(is.finite(evaluate(1e-20, cut, y1 = cut + .001, sign = sign)))
+      expect_error(evaluate(1e-20, cut, sign = sign), "row 1 in its likelihood block: integrated SD")
+    }
+  }
+  for (rule in 0:2) {
+    expect_error(evaluate(1e-20, .1, rule = rule, factor = TRUE), "integrated SD")
+    expect_true(is.finite(evaluate(1e-20, .1, rule = rule, omega = c(1, 1))))
+    expect_true(is.finite(evaluate(1e-20, .1, rule = rule, exempt = TRUE)))
+  }
+  for (rule in 1:2)
+    expect_true(is.finite(evaluate(1e-20, .1, rule = rule, fixed_winner = TRUE)))
+
+  # Pin both sides of the SD ratio and the distance band. The reconstruction
+  # scale at these nearby inputs differs from the zero-SD tie only by O(1e-9).
+  delta <- drop(solve(V + diag(c(0, .25)), c(0, -.0625) - c(.3, 0) - c(1, .5) - c(0, .25)))
+  magnitude <- .3 + 1 + sum(abs(V[1L, ] * delta))
+  expect_error(evaluate(.9e-12 * magnitude), "integrated SD")
+  expect_true(is.finite(evaluate(1.1e-12 * magnitude)))
+  expect_error(evaluate(1e-20, y1 = .9e-10 * magnitude), "integrated SD")
+  expect_true(is.finite(evaluate(1e-20, y1 = 1.1e-10 * magnitude)))
+})
+
 test_that("whole-sampling likelihoods use relative nonmonotone selection weights", {
 
   args <- .sampling_native_arguments(c(.1, -.2), c(.25, .49), omega = c(1, .15, 2.5))
@@ -565,6 +666,13 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
     "se[1:4],w[1:2],lo[1:2],hi[1:2],bins[1:4],1,1,0,0,",
     "grp[1:4],qmc[1:Q],8,8,8,tol,cn,cl,co,fn,fl,fo) }"
   )
+  run_node <- function(data) {
+    connection <- textConnection(syntax)
+    on.exit(close(connection))
+    model <- rjags::jags.model(connection, data = data, inits = list(beta = 0),
+                              n.chains = 1L, n.adapt = 0L, quiet = TRUE)
+    stats::update(model, 1L, progress.bar = "none")
+  }
   for (criterion in c("mcse", "change")) {
     if (criterion == "change") {
       design <- array(args$qmc, c(8L, 8L, 8L))
@@ -596,16 +704,15 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
                  cn = args$cluster_nodes, cl = args$cluster_log_weights, co = args$cluster_orders,
                  fn = args$factor_nodes, fl = args$factor_log_weights,
                  fo = args$factor_orders)
-    local({
-      connection <- textConnection(syntax)
-      on.exit(close(connection))
-      expect_error({
-        model <- rjags::jags.model(connection, data = data, inits = list(beta = 0),
-                                  n.chains = 1L, n.adapt = 0L, quiet = TRUE)
-        stats::update(model, 1L, progress.bar = "none")
-      }, expected, fixed = TRUE)
-    })
+    expect_error(run_node(data), expected, fixed = TRUE)
   }
+  # A working-precision failure must stop JAGS instead of assigning the
+  # proposal zero likelihood. Row 1 still has positive integrated variance.
+  loading[1L, ] <- 0
+  data$L <- as.vector(loading)
+  data$d[1L] <- 1e-40
+  data$e0[1L] <- 1
+  expect_error(run_node(data), "integrated SD 1e-20 at z cutoff 0", fixed = TRUE)
 })
 
 test_that("projection diagnostics include denominator uncertainty in every ratio", {

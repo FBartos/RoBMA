@@ -8,9 +8,30 @@
 #' arguments for binomial (`measure = "OR"`) or Poisson (`measure = "IRR"`)
 #' outcomes.
 #'
+#' @section Supported numerical range:
+#' For retained Gaussian observations, the absolute effect estimate and the
+#' sampling standard error can be at most 1,000 for named effect measures and
+#' \eqn{10^9} for `"GEN"`. Positive sampling standard errors must be at least
+#' \eqn{10^{-6}}. These inclusive limits apply on the analysis scale, including
+#' the log scale for ratio measures, and use the marginal SE for covariance
+#' input. Zero and arbitrarily small effect estimates are valid. Predictions
+#' that admit exactly zero sampling variance retain that boundary.
+#' When both `vi` and `sei` are supplied, each retained value must meet
+#' its own bounds (squared SE limits for `vi`). Where both are present
+#' they must agree to double precision. The analysis uses the supplied
+#' variance, completing missing variances from the supplied SEs.
+#' An out-of-range finite value raises `RoBMA_data_outside_numerical_domain`
+#' (a `RoBMA_data_error`) with the original row, quantity and value.
+#' For general effects, change units consistently for estimates, SEs,
+#' covariances, outcome-scale priors and any supplied `prior_unit_information_sd`.
+#' For named measures, verify the measure, transformation and sampling
+#' uncertainty. These are practical
+#' input limits. Priors retain their specified support.
+#'
 #' @param yi a vector of effect sizes, or a formula with the effect size on the
 #' left-hand side and location moderators on the right-hand side (for example
 #' `yi ~ x1 + x2`). If a formula is supplied, `mods` must not be specified.
+#' See [data_input] for the supported ranges of effects and sampling SEs.
 #' @param vi a vector of sampling variances. Either `vi` or `sei` must be
 #' supplied for normal models.
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
@@ -321,7 +342,7 @@ NULL
   outcome_type       <- outcome_result$outcome_type
   effect_direction   <- outcome_result$effect_direction
   known_V_input      <- outcome_result$known_V_input
-  known_V_hidden     <- outcome_result$known_V_hidden
+  sampling_inputs    <- outcome_result$sampling_inputs
 
   bias_exempt <- .get_variable(.call, data, .envir, "bias_exempt")
   if (!is.null(bias_exempt)) {
@@ -476,6 +497,19 @@ NULL
     effect_direction <- if (stats::median(data_outcome[["yi"]], na.rm = TRUE) >= 0) "positive" else "negative"
   }
 
+  if (outcome_type == "norm") {
+    rows <- which(keep_rows)
+    if (is.null(sampling_inputs)) {
+      .check_gaussian_data_domain(data_outcome[["yi"]], NULL, measure, rows,
+                                  vi = outcome_result$known_V_diagonal[rows], variance_name = "diag(V)")
+    } else {
+      data_outcome[["sei"]] <- .retained_sampling_se(
+        sampling_inputs, rows, data_outcome[["yi"]], measure,
+        multivariate = class == "mv", allow_zero = skip_validation && class == "norm"
+      )
+    }
+  }
+
   # Validate predictor variables (after subsetting and NA dropping)
   # Skip validation when processing newdata (skip_validation = TRUE)
   .check_and_list_data.validate_predictors(data_mods, "mods", skip_validation)
@@ -506,10 +540,6 @@ NULL
   ### Create output object
   known_V <- NULL
   if (!is.null(known_V_input)) {
-    .check_and_list_data.mv_validate_hidden_inputs(
-      hidden    = known_V_hidden,
-      keep_rows = keep_rows
-    )
     known_V <- .known_v_prepare(
       V                        = known_V_input,
       keep_rows                = keep_rows,
@@ -565,7 +595,8 @@ NULL
   difference <- abs(x - y)
   scale      <- pmax(abs(x), abs(y))
 
-  return(difference == 0 | difference <= .Machine$double.eps * scale)
+  return(is.finite(x) & is.finite(y) &
+         (difference == 0 | difference <= .Machine$double.eps * scale))
 }
 
 
@@ -659,6 +690,42 @@ NULL
 }
 
 
+.check_gaussian_data_domain <- function(yi, sei, measure, rows, vi = NULL, variance_name = "vi") {
+
+  maximum <- if (measure == "GEN") 1e9 else 1000
+  minimum_se <- 1e-6
+  outside_yi <- abs(yi) > maximum
+  # Zero sampling variance has its own rules for fitting and prediction.
+  outside_se <- if (is.null(sei)) rep(FALSE, length(rows)) else
+    is.finite(sei) & sei > 0 & (sei < minimum_se | sei > maximum)
+  outside <- outside_yi | outside_se
+  if (!is.null(vi)) {
+    outside <- outside | (is.finite(vi) & vi > 0 & (vi < minimum_se^2 | vi > maximum^2))
+  }
+  outside <- which(outside)
+  if (!length(outside)) return(invisible(NULL))
+
+  i <- outside[[1L]]
+  quantity <- if (outside_yi[[i]]) "yi" else if (outside_se[[i]]) "sei" else "vi"
+  value <- switch(quantity, yi = yi[[i]], sei = sei[[i]], vi = vi[[i]])
+  lower <- switch(quantity, yi = -maximum, sei = minimum_se, vi = minimum_se^2)
+  upper <- if (quantity == "vi") maximum^2 else maximum
+  if (quantity == "vi") quantity <- variance_name
+  remedy <- if (measure == "GEN") {
+    paste("Rescale the effects, SEs, covariances, outcome-scale priors,",
+          "and any supplied 'prior_unit_information_sd' consistently.")
+  } else {
+    "Check the effect measure, its analysis scale, and the sampling uncertainty."
+  }
+  stop(structure(list(
+    message = sprintf("Input row %d has '%s' = %.17g outside the supported range [%g, %g] for measure '%s'. %s",
+                      rows[[i]], quantity, value, lower, upper, measure, remedy),
+    call = NULL, row = rows[[i]], quantity = quantity, value = value,
+    measure = measure, lower = lower, upper = upper
+  ), class = c("RoBMA_data_outside_numerical_domain", "RoBMA_data_error", "error", "condition")))
+}
+
+
 # Internal function to extract and validate outcome variables for normal likelihood models
 # Handles yi, vi/sei, ni, weights, cluster, slab, and yi as formula
 #
@@ -730,40 +797,21 @@ NULL
 
   k <- length(yi)
 
-  # Validate vi (sampling variance)
-  # When skip_validation = TRUE (newdata), allow vi = 0 for prediction at zero variance
+  # Check shape now. Numerical checks use only the rows retained for analysis.
   if (!is.null(vi))
-    BayesTools::check_real(vi, "vi", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
+    BayesTools::check_real(vi, "vi", check_length = k, allow_NA = TRUE)
 
-  # Validate sei (standard error)
-  # When skip_validation = TRUE (newdata), allow sei = 0 for prediction at zero SE
   if (!is.null(sei))
-    BayesTools::check_real(sei, "sei", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
+    BayesTools::check_real(sei, "sei", check_length = k, allow_NA = TRUE)
 
-  # Convert vi to sei or vice versa
-  if (is.null(sei) && !is.null(vi)) {
-    sei <- sqrt(vi)
-  } else if (is.null(vi) && !is.null(sei)) {
-    vi <- sei^2
-  } else if (is.null(vi) && is.null(sei)) {
+  if (is.null(vi) && is.null(sei)) {
     stop("Either 'vi' (variance) or 'sei' (standard error) must be provided.", call. = FALSE)
-  } else {
-    # Both provided - check consistency
-    if (any(!.sampling_variance_matches_se(vi, sei), na.rm = TRUE))
-      stop("The provided 'vi' and 'sei' values are inconsistent.", call. = FALSE)
-    missing_sei <- is.na(sei)
-    sei[missing_sei] <- sqrt(vi[missing_sei])
   }
-
-  represented_vi  <- sei^2
-  unrepresentable <- !is.na(sei) & sei > 0 &
-    (!is.finite(represented_vi) | represented_vi == 0)
-  if (any(unrepresentable)) {
-    stop(
-      "Positive 'sei' values must have positive finite squared sampling variances.",
-      call. = FALSE
-    )
-  }
+  sampling_inputs <- list(vi = vi, sei = sei)
+  # Only missingness is needed before row selection.
+  missing_scale <- .sampling_input_missing(vi, sei)
+  sei <- numeric(k)
+  sei[missing_scale] <- NA_real_
 
   # Validate ni (sample sizes)
   # When skip_validation = TRUE (newdata), allow ni = 0
@@ -794,6 +842,7 @@ NULL
     slab_provided      = optional$slab_provided,
     cluster_provided   = optional$cluster_provided,
     na_check_cols      = c("yi", "sei"),  # Only check these columns for NAs
+    sampling_inputs    = sampling_inputs,
     effect_direction   = effect_direction,
     outcome_type       = "norm"
   ))
@@ -854,7 +903,7 @@ NULL
     stop("The dimensions of 'V' must match the length of 'yi'.", call. = FALSE)
   }
   missing_for_na <- known_V_input[["missing_for_na"]]
-  sei            <- numeric(k)
+  sei <- numeric(k)
   sei[missing_for_na] <- NA_real_
 
   if (!is.null(ni))
@@ -895,7 +944,8 @@ NULL
     effect_direction   = effect_direction,
     outcome_type       = "norm",
     known_V_input      = known_V_input[["V"]],
-    known_V_hidden     = known_V_input[["hidden"]]
+    known_V_diagonal   = known_V_input[["diagonal"]],
+    sampling_inputs    = known_V_input[["sampling_inputs"]]
   ))
 }
 
@@ -915,10 +965,12 @@ NULL
          call. = FALSE)
   }
   if (has_V) {
+    diagonal <- .known_v_input_diagonal(V)
     return(list(
-      V              = V,
-      missing_for_na = is.na(.known_v_input_diagonal(V)),
-      hidden         = NULL
+      V               = V,
+      diagonal        = diagonal,
+      missing_for_na  = is.na(diagonal),
+      sampling_inputs = NULL
     ))
   }
 
@@ -929,32 +981,15 @@ NULL
     .check_and_list_data.mv_hidden_input_structure(sei, "sei", k)
   }
 
+  diagonal <- if (has_vi) vi else sei^2
   if (has_vi && has_sei) {
-    missing_vi  <- is.na(vi)
-    missing_sei <- is.na(sei)
-    missing_for_na <- missing_vi & missing_sei
-
-    # Complete only representable positive inputs. Invalid present values and
-    # failed conversions remain in the retained-row validation record.
-    complete_vi <- missing_vi & is.finite(sei) & sei > 0
-    represented_vi <- sei[complete_vi]^2
-    represented_rows <- which(complete_vi)[
-      is.finite(represented_vi) & represented_vi > 0
-    ]
-    vi[represented_rows] <- sei[represented_rows]^2
-    complete_sei <- missing_sei & is.finite(vi) & vi > 0
-    sei[complete_sei] <- sqrt(vi[complete_sei])
-  } else {
-    missing_for_na <- if (has_vi) is.na(vi) else is.na(sei)
+    missing_vi <- is.na(vi)
+    diagonal[missing_vi] <- sei[missing_vi]^2
   }
-
   return(list(
-    V              = if (has_vi) vi else sei^2,
-    missing_for_na = missing_for_na,
-    hidden         = list(
-      vi  = if (has_vi)  vi  else NULL,
-      sei = if (has_sei) sei else NULL
-    )
+    V               = diagonal,
+    missing_for_na  = .sampling_input_missing(vi, sei),
+    sampling_inputs = list(vi = vi, sei = sei)
   ))
 }
 
@@ -973,57 +1008,44 @@ NULL
 }
 
 
-# Validate hidden diagonal inputs after row selection.
-.check_and_list_data.mv_validate_hidden_inputs <- function(hidden, keep_rows) {
+.sampling_input_missing <- function(vi, sei) {
 
-  if (is.null(hidden)) {
-    return(invisible(TRUE))
-  }
-  if (!is.logical(keep_rows) || anyNA(keep_rows)) {
-    stop("Internal error: invalid hidden known-V row selector.", call. = FALSE)
-  }
+  if (is.null(vi)) return(is.na(sei))
+  if (is.null(sei)) return(is.na(vi))
+  is.na(vi) & is.na(sei)
+}
 
-  vi  <- hidden[["vi"]]
-  sei <- hidden[["sei"]]
-  if (!is.null(sei)) {
-    sei <- sei[keep_rows]
-    # A present 'sei' that cannot define a sampling variance is reported before
-    # the 'vi' it failed to complete; missing entries are checked after 'vi'.
-    present <- !is.na(sei)
-    if (any(present & (!is.finite(sei) | sei <= 0))) {
-      stop("brma.mv() input 'sei' must contain positive finite values.",
-           call. = FALSE)
-    }
-    represented_vi <- sei^2
-    if (any(present & (!is.finite(represented_vi) | represented_vi <= 0))) {
-      stop(
-        "brma.mv() input 'sei' must have positive finite squared ",
-        "sampling variances.",
-        call. = FALSE
-      )
-    }
-  }
-  if (!is.null(vi)) {
-    vi <- vi[keep_rows]
-    if (any(!is.finite(vi)) || any(vi <= 0)) {
-      stop("brma.mv() input 'vi' must contain positive finite values.",
-           call. = FALSE)
-    }
-  }
-  if (!is.null(sei)) {
-    if (any(!is.finite(sei))) {
-      stop("brma.mv() input 'sei' must contain positive finite values.",
-           call. = FALSE)
-    }
-  }
-  if (!is.null(vi) && !is.null(sei)) {
-    if (any(!.sampling_variance_matches_se(vi, sei))) {
-      stop("brma.mv() inputs 'vi' and 'sei' must be consistent.",
-           call. = FALSE)
+
+.retained_sampling_se <- function(inputs, rows, yi, measure, multivariate, allow_zero) {
+
+  inputs <- lapply(inputs, `[`, rows)
+  vi  <- inputs[["vi"]]
+  sei <- inputs[["sei"]]
+  for (name in names(inputs)) {
+    value <- inputs[[name]]
+    if (any(!is.na(value) & (!is.finite(value) | value < 0 | (!allow_zero & value == 0)))) {
+      if (multivariate) {
+        stop("brma.mv() input '", name, "' must contain positive finite values.", call. = FALSE)
+      }
+      BayesTools::check_real(value, name, check_length = 0, allow_NA = TRUE, lower = 0, allow_bound = allow_zero)
+      if (!is.null(vi) && !is.null(sei)) {
+        stop("Non-missing '", name, "' values must be finite.", call. = FALSE)
+      }
+      stop("Positive 'sei' values must have positive finite squared sampling variances.", call. = FALSE)
     }
   }
 
-  return(invisible(TRUE))
+  .check_gaussian_data_domain(yi, sei, measure, rows, vi = vi)
+  if (is.null(sei)) return(sqrt(vi))
+  if (is.null(vi)) return(sei)
+  paired <- !is.na(vi) & !is.na(sei)
+  if (any(!.sampling_variance_matches_se(vi[paired], sei[paired]))) {
+    if (multivariate) stop("brma.mv() inputs 'vi' and 'sei' must be consistent.", call. = FALSE)
+    stop("The provided 'vi' and 'sei' values are inconsistent.", call. = FALSE)
+  }
+  from_vi <- !is.na(vi)
+  sei[from_vi] <- sqrt(vi[from_vi])
+  sei
 }
 
 

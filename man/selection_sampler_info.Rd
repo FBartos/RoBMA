@@ -127,9 +127,10 @@ sampler, split by reason into \code{fallback_few_proposals},
 \code{fallback_surrogate_exact} and \code{fallback_low_acceptance};
 \code{sampling_proposed} and \code{sampling_accepted}, the proposals made
 after adaptation by samplers that stayed corrected and the proposals whose
-correction accepted them (unchanged values included), counting burn-in,
-retained and extension draws and the closing draws the sampler makes after
-recording the chain end; \code{sampling_judged}, the sum over the samplers
+correction accepted them (unchanged values included), counting burn-in
+and all sampling iterations through the end of each chain or extension,
+including iterations between retained draws when thinning;
+\code{sampling_judged}, the sum over the samplers
 of their proposals times their acceptance rate per direction (rate^(1/d)
 for a block of d parameters, the accepted proposals of a scalar sampler,
 over each backend run); \code{acceptance_rate}, the judged, per-direction

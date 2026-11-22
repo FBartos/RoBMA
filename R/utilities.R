@@ -224,20 +224,7 @@ RoBMA.get_option <- function(name) {
   return(RoBMA.private[[name]])
 }
 
-# export the function directly to suppress import warnings
-.runjags__findjags <- function() runjags::findjags()
-
-# adapted from the runjags package version 2.2.0
 RoBMA.private <- new.env()
-
-assign("defaultoptions",  list(
-  jagspath = expression(.runjags__findjags())
-), envir = RoBMA.private)
-
-assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
-assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
-assign("min_jags_major",  4,                              envir = RoBMA.private)
-assign("max_jags_major",  4,                              envir = RoBMA.private)
 
 .RoBMA_default_max_cores <- function() {
 

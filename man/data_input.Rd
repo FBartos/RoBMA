@@ -6,7 +6,8 @@
 \arguments{
 \item{yi}{a vector of effect sizes, or a formula with the effect size on the
 left-hand side and location moderators on the right-hand side (for example
-\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.
+See \link{data_input} for the supported ranges of effects and sampling SEs.}
 
 \item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
@@ -153,4 +154,26 @@ Normal models use approximate effect-size estimates supplied through
 arguments for binomial (\code{measure = "OR"}) or Poisson (\code{measure = "IRR"})
 outcomes.
 }
+\section{Supported numerical range}{
+
+For retained Gaussian observations, the absolute effect estimate and the
+sampling standard error can be at most 1,000 for named effect measures and
+\eqn{10^9} for \code{"GEN"}. Positive sampling standard errors must be at least
+\eqn{10^{-6}}. These inclusive limits apply on the analysis scale, including
+the log scale for ratio measures, and use the marginal SE for covariance
+input. Zero and arbitrarily small effect estimates are valid. Predictions
+that admit exactly zero sampling variance retain that boundary.
+When both \code{vi} and \code{sei} are supplied, each retained value must meet
+its own bounds (squared SE limits for \code{vi}). Where both are present
+they must agree to double precision. The analysis uses the supplied
+variance, completing missing variances from the supplied SEs.
+An out-of-range finite value raises \code{RoBMA_data_outside_numerical_domain}
+(a \code{RoBMA_data_error}) with the original row, quantity and value.
+For general effects, change units consistently for estimates, SEs,
+covariances, outcome-scale priors and any supplied \code{prior_unit_information_sd}.
+For named measures, verify the measure, transformation and sampling
+uncertainty. These are practical
+input limits. Priors retain their specified support.
+}
+
 \keyword{internal}

@@ -20,8 +20,7 @@ namespace jags {
 namespace RoBMA {
 
 namespace {
-// The memo is single-threaded like the sampler that fills it and is never
-// destroyed: a static destructor would run while the DLL unloads.
+// Process-lifetime storage avoids static destruction while the DLL unloads.
 SelNormNodeMemo &cluster_node_memo()
 {
   static SelNormNodeMemo *memo = new SelNormNodeMemo();
@@ -33,11 +32,11 @@ DSELNORMCLUSTERSTEP::DSELNORMCLUSTERSTEP() :
   VectorDist("dselnorm_cluster_step", 20) {}
 
 bool DSELNORMCLUSTERSTEP::checkParameterLength(
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   if (len.size() != 20) return false;
   const unsigned int maximum = std::numeric_limits<int>::max();
-  for (unsigned int length : len) if (length > maximum) return false;
+  for (unsigned long length : len) if (length > maximum) return false;
   if (len[0] == 0 || len[0] > maximum / len[0]) return false;
   if (len[1] != len[0] || len[2] != len[0] ||
       len[3] != len[0] || len[7] != len[0] || len[4] == 0 ||
@@ -54,14 +53,14 @@ bool DSELNORMCLUSTERSTEP::checkParameterLength(
 
 bool DSELNORMCLUSTERSTEP::checkParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   return checkDynamicParameterValue(par, len) && checkControlParameterValue(par, len);
 }
 
 bool DSELNORMCLUSTERSTEP::checkDynamicParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[4]);
@@ -79,7 +78,7 @@ bool DSELNORMCLUSTERSTEP::checkDynamicParameterValue(
 
 bool DSELNORMCLUSTERSTEP::checkControlParameterValue(
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
   const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[4]);
@@ -123,26 +122,21 @@ bool DSELNORMCLUSTERSTEP::checkControlParameterValue(
 }
 
 double DSELNORMCLUSTERSTEP::logDensity(
-    double const *x, unsigned int length, PDFType type,
+    double const *x, PDFType type,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const
+    std::vector<unsigned long> const &len) const
 {
-  // A call whose inputs all equal the previous stored call of this node
-  // returns that density (see selnorm-node-memo.h). Bounds do not exist for
-  // vector nodes and are not read; a call that has any is not memoized.
   SelNormMemoInput memo_inputs[selnorm_step_memo_inputs];
   double memo_scalars[selnorm_step_memo_scalars];
-  const bool memoized = selnorm_node_memo_enabled() &&
-    lower == nullptr && upper == nullptr;
+  const bool memoized = selnorm_node_memo_enabled();
   if (memoized) {
-    selnorm_step_memo_collect(x, length, static_cast<int>(type), par, len,
+    selnorm_step_memo_collect(x, len[0], static_cast<int>(type), par, len,
                               memo_inputs, memo_scalars);
     double remembered = 0.0;
     if (cluster_node_memo().find(x, memo_inputs, selnorm_step_memo_inputs,
                                  &remembered)) return remembered;
   }
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[4]);
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
@@ -187,20 +181,19 @@ double DSELNORMCLUSTERSTEP::logDensity(
 }
 
 double DSELNORMCLUSTERSTEP::surrogateLogDensity(
-    double const *x, unsigned int length, PDFType type,
+    double const *x, PDFType type,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper,
+    std::vector<unsigned long> const &len,
     SelNormCoarseSettings const &settings, bool *surrogate_not_exact) const
 {
   // Reuse the exact projected normalizer for a partially selected block.
   // The coarse ladders below assume every observation participates.
-  for (unsigned int i = 0; i < length; ++i) {
-    if (par[7][i] == 0) return logDensity(x, length, type, par, len, lower, upper);
+  for (unsigned long i = 0; i < len[0]; ++i) {
+    if (par[7][i] == 0) return logDensity(x, type, par, len);
   }
   // Neither reads nor stores the node memo: a surrogate value is not the exact
   // density the memo holds for these inputs.
-  const int k = static_cast<int>(length);
+  const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[4]);
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
@@ -221,7 +214,7 @@ double DSELNORMCLUSTERSTEP::surrogateLogDensity(
   );
   // Without an available rule the surrogate is the exact density, memo and
   // diagnostics gate included; its exceptions propagate as the exact one's.
-  if (exact_fallback) return logDensity(x, length, type, par, len, lower, upper);
+  if (exact_fallback) return logDensity(x, type, par, len);
   // A coarse rule's normalizer (the NORMAL kernel's is the exact one, zero).
   if (surrogate_not_exact != nullptr && kernel_mode != SELKERNEL_NORMAL &&
       std::isfinite(log_normalizer)) {
@@ -231,10 +224,9 @@ double DSELNORMCLUSTERSTEP::surrogateLogDensity(
 }
 
 void DSELNORMCLUSTERSTEP::randomSample(
-    double *x, unsigned int length,
+    double *x,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper, RNG *rng) const
+    std::vector<unsigned long> const &len, RNG *rng) const
 {
   throw std::runtime_error(
     "'dselnorm_cluster_step' supports observed nodes only; sampling unobserved selected nodes is unsupported."
@@ -242,29 +234,20 @@ void DSELNORMCLUSTERSTEP::randomSample(
 }
 
 void DSELNORMCLUSTERSTEP::support(
-    double *lower, double *upper, unsigned int length,
+    double *lower, double *upper,
     std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const
+    std::vector<unsigned long> const &len) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
+  for (unsigned long i = 0; i < len[0]; ++i) {
     lower[i] = JAGS_NEGINF;
     upper[i] = JAGS_POSINF;
   }
 }
 
-unsigned int DSELNORMCLUSTERSTEP::length(
-    std::vector<unsigned int> const &len) const
+unsigned long DSELNORMCLUSTERSTEP::length(
+    std::vector<unsigned long> const &len) const
 {
   return len[0];
-}
-
-void DSELNORMCLUSTERSTEP::typicalValue(
-    double *x, unsigned int length,
-    std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const
-{
-  for (unsigned int i = 0; i < length; ++i) x[i] = par[0][i];
 }
 
 bool DSELNORMCLUSTERSTEP::isSupportFixed(

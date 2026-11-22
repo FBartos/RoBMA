@@ -234,7 +234,13 @@ with_draw_metadata <- function(x, ..., class = NULL) {
 # geometry and contract, as JAGS_fit() attaches them.
 as_bayestools_fit <- function(fit) {
 
-  class(fit) <- unique(c("BayesTools_fit", class(fit)))
+  if (inherits(fit, "mcmc.list")) {
+    metadata <- attributes(fit)
+    metadata <- metadata[setdiff(names(metadata), c("class", "names"))]
+    fit <- list(mcmc = coda::mcmc.list(lapply(fit, identity)), sample = nrow(fit[[1L]]))
+    for (name in names(metadata)) attr(fit, name) <- metadata[[name]]
+  }
+  class(fit) <- "BayesTools_fit"
   designs <- attr(fit, "formula_design", exact = TRUE)
   scales <- attr(fit, "formula_scale", exact = TRUE)
   for(parameter in names(designs)){
@@ -598,10 +604,10 @@ nested_allocation_random_object <- function(varying_draws = FALSE) {
     samples[, root_weights] <- cbind(share, 1 - share)
     samples[, split_weights] <- cbind(1 - share, share)
   }
-  # A runjags-like fit, so that prior draws can replace its draws.
+  # A BayesTools fit whose draws can be replaced with prior draws.
   fit <- structure(
     list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = if (varying_draws) 20L else 4L),
-    class = c("runjags", "list")
+    class = "BayesTools_fit"
   )
   attr(fit, "prior_list") <- prior_list
   attr(fit, "formula_design") <- list(mu = result[["formula_design"]])

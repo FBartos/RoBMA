@@ -34,7 +34,9 @@
 #'   \code{newdata} also requires sampling covariance through \code{V_new}. Product-only
 #'   selection models require no publication-group column. Unadjusted normal
 #'   selected latent predictions (\code{type = "estimate"}) require \code{sei}
-#'   or \code{vi} in explicit \code{newdata}. If an active
+#'   or \code{vi} in explicit \code{newdata}. Gaussian sampling SEs used in
+#'   prediction follow the ranges in \code{\link{data_input}}. Exactly zero
+#'   sampling SE is allowed where the prediction admits it. If an active
 #'   selection branch uses \code{weight_rule = "best"}, its publication groups
 #'   must also be resolvable in the prediction data.
 #'   Fitted-row predictions reuse their publication-bias exemptions. For
@@ -502,7 +504,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     )
     newdata <- .predict_known_v_newdata_add_vi(
       newdata = newdata_frame,
-      V_new   = .known_v_diagonal(known_V_new)
+      V_new   = .known_v_diagonal(known_V_new),
+      measure = .measure(object)
     )
   }
 
@@ -1690,8 +1693,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     state <- .selection_conditioned_sampling_posterior(setup)
     sources <- state[["sources"]]
     source_means <- state[["source_means"]]
-    latent_mean <- matrix(data[["outcome"]][["yi"]], S, K, byrow = TRUE) -
-      state[["e"]] - bias_offset
+    observed <- matrix(data[["outcome"]][["yi"]], S, K, byrow = TRUE)
+    latent_mean <- observed - state[["e"]] - bias_offset
     estimate_mean <- zero
     for (source in model[["sources"]][["random"]]) {
       if (identical(source[["role"]], "estimate")) {
@@ -1701,7 +1704,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     singleton_blocks <- .block_covariance_singleton_blocks(K)
     covariance <- .block_covariance_zero(S, K, singleton_blocks)
     return(list(
-      means = latent_mean + state[["e"]] + bias_offset,
+      means = observed,
       latent_means = latent_mean, random_mean = latent_mean - fixed_mu,
       estimate_mean = estimate_mean, sampling_mean = state[["e"]],
       random_covariance = covariance, sampling_covariance = covariance,

@@ -553,12 +553,12 @@ std::vector<Sampler *> CoarseCorrectedBlockFactory::makeSamplers(
   const bool fixed_order = test_fixed_order.load(std::memory_order_relaxed);
 
   // The members of BayesTools' factor slice factory (BTFactorSlice.cc): scalar,
-  // continuous, unobserved nodes with df > 0 and a fixed support with
+  // continuous, unobserved full-rank nodes with a fixed support with
   // lower < upper, without a gate marker, with one valid block marker.
   std::map<unsigned int, std::vector<StochasticNode *> > blocks;
   for (StochasticNode *node : nodes) {
-    if (node->length() != 1 || node->isDiscreteValued() || node->df() == 0 ||
-        isObserved(node) || !isSupportFixed(node)) continue;
+    if (node->length() != 1 || node->isDiscreteValued() || !node->fullRank() ||
+        !isSupportFixed(node)) continue;
     if (has_gate_marker(node)) continue;
     const unsigned int id = block_id(node);
     if (id == 0) continue;

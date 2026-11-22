@@ -1,5 +1,5 @@
          model implementation intercept study_tau2 estimate_tau2 tau2_total
 1 correlated V        metafor 0.3618150 0.07044614     0.1507769  0.2212231
-2 correlated V          RoBMA 0.3556371 0.08245693     0.1516116  0.2340685
+2 correlated V          RoBMA 0.3580821 0.08098410     0.1511961  0.2321802
 3   diagonal V        metafor 0.4267994 0.18787022     0.1119921  0.2998623
-4   diagonal V          RoBMA 0.4138570 0.18746938     0.1143275  0.3017969
+4   diagonal V          RoBMA 0.4148700 0.18758270     0.1140612  0.3016439

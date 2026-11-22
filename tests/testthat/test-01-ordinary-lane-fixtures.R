@@ -326,6 +326,17 @@ test_that("random correlation fits are cached", {
     chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
     silent = TRUE
   ))
+  # The correlation tests need both positive SDs and the gate's zero-SD state.
+  # Keep whole chains so their row indices also apply to the derived draws.
+  gate <- "mu__xRE_ALLOCx_heterogeneity__include_component_1_indicator"
+  for (extension in 0:4) {
+    gate_draws <- fit[["fit"]][["mcmc"]][[1L]][, gate]
+    if (all(c(0, 1) %in% gate_draws)) break
+    if (extension == 4L) {
+      stop("Random-correlation fixture did not visit both heterogeneity gate states in 4,300 draws.")
+    }
+    fit <- suppressWarnings(stats::update(fit, sample_extend = 1000L))
+  }
   save_fit("lane_random_correlation_gated", fit, info = list(data = dat))
   expect_true(all(vapply(keys, is_cached_fit_valid, logical(1))))
 })

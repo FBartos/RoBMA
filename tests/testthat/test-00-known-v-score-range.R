@@ -93,21 +93,25 @@ test_that("rank-zero dense covariance scores and ordinary controls preserve thei
 
 test_that("joint R singleton scores preserve finite Gaussian log densities", {
 
-  cases <- list(c(1e308, 0), c(1e300, 1e155), c(1, 1.5e154), c(2, .5), c(1, 2e154))
+  cases <- list(c(1e18, 0), c(1e18, 1e9), c(1, 1.5e154), c(2, .5), c(1, 2e154))
   for (mixed in c(FALSE, TRUE)) {
     for (case in cases) {
       variance <- case[[1L]]
       residual <- case[[2L]]
       V <- diag(c(1, 1, variance))
       if (mixed) V[1L, 2L] <- V[2L, 1L] <- .2
-      y <- c(0, 0, residual)
-      object <- brma.mv(yi = y, V = V, measure = "GEN",
+      # Use admissible data, including the maximum GEN sampling SE. An
+      # unbounded moderator coefficient can still produce a large residual.
+      dat <- data.frame(y = rep(0, 3), x = c(0, 0, 1))
+      object <- brma.mv(yi = y, V = V, mods = ~ x, data = dat, measure = "GEN",
+        standardize_continuous_predictors = FALSE,
         prior_unit_information_sd = 1,
         prior_effect = BayesTools::prior("point", list(location = 0)),
+        prior_mods = BayesTools::prior("normal", list(mean = 0, sd = 1)),
         only_priors = TRUE, silent = TRUE)
       setup <- .log_lik_evaluated_setup(fit = object$fit, data = object$data,
         priors = object$priors, unit = "estimate", data_hash = NULL,
-        mu_samples = matrix(0, 1L, 3L), tau_within_samples = matrix(0, 1L, 3L),
+        mu_samples = matrix(-residual * dat$x, 1L, 3L), tau_within_samples = matrix(0, 1L, 3L),
         tau_between_samples = NULL, posterior_samples = NULL)
       context <- list(data = object$data, predictor_cache = new.env(parent = emptyenv()))
       expected <- -log(2 * pi) - if (mixed) .5 * log(.96) else 0

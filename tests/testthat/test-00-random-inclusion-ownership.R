@@ -25,8 +25,8 @@ test_that("a random inclusion gate belongs only to its declared block", {
     gate = c(0, 1, 0, 1), sd = c(.6, .7, .8, .9)
   )
   colnames(samples)[2:4] <- c(source, gate, sd_name)
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  class(fit) <- c("BayesTools_fit", class(fit))
+  fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- result[["prior_list"]]
   attr(fit, "formula_design") <- list(mu = design)
   fit <- BayesTools:::.bt_attach_parameter_map(fit)

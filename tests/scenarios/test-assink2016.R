@@ -715,7 +715,7 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   })
   scenario_plot("bPET-posterior-location", {
     plot(fit_bPET.mv_V, "mu", prior = TRUE, xlim = c(-1, 1))
-    lines(fit_bPET.mv_V, "mu", density_method = "IWMDE", lty = 2)
+    lines(fit_bPET.mv_V, "mu", density_method = "IWMDE", lty = 2, density_control = list(samples = 2000))
     lines(fit_bPET.mv, "mu", col = "blue")
     lines(fit_bPET.mv, "mu", density_method = "qCMDE", col = "blue", lty = 2, density_control = list(samples = 2000))
   })

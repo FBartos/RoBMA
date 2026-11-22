@@ -302,9 +302,9 @@ test_that("standardized random-effect quantities are classified on the fitted sc
   attr(chains, "formula_scale")  <- list(mu = compiled[["formula_scale"]])
   carrier <- as_bayestools_fit(chains)
   fit <- structure(
-    list(mcmc = chains, sample = nrow(draws), summary.pars = list(mutate = NULL),
+    list(mcmc = chains, sample = nrow(draws),
          monitor = colnames(draws)),
-    class = c("runjags", "BayesTools_fit", "list")
+    class = "BayesTools_fit"
   )
   for (name in c("prior_list", "formula_design", "formula_scale", "parameter_map")) {
     attr(fit, name) <- attr(carrier, name)

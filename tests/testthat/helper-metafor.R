@@ -59,6 +59,32 @@
   )
 }
 
+.expect_bcg_glmm_reg_residuals <- function(fit_brma, fit_metafor) {
+
+  # The BCG fixture uses treatment coding with alternate allocation as the
+  # reference. Retain the trial order and compute the observed log ORs from
+  # the original four cells, all positive in this dataset.
+  dat <- metadat::dat.bcg
+  observed <- log((dat$tpos * dat$cneg) / (dat$tneg * dat$cpos))
+  design <- cbind(1, dat$alloc == "random", dat$alloc == "systematic")
+  testthat::expect_identical(as.character(fit_brma$data$mods$alloc), as.character(dat$alloc))
+  testthat::expect_equal(as.numeric(fit_metafor$yi), observed, tolerance = 1e-12)
+
+  # RoBMA subtracts posterior mean location; metafor subtracts the ML
+  # location. Each group has its own shift between these fitted values.
+  coefficients <- c("mu_intercept", "mu_alloc[1]", "mu_alloc[2]")
+  draws <- do.call(rbind, lapply(fit_brma$fit$mcmc, function(chain) {
+    as.matrix(chain)[, coefficients, drop = FALSE]
+  }))
+  bayes_location <- drop(design %*% colMeans(draws))
+  ml_location <- drop(design %*% stats::coef(fit_metafor)[c("intrcpt", "allocrandom", "allocsystematic")])
+  bayes_residual <- as.numeric(stats::residuals(fit_brma))
+  ml_residual <- as.numeric(stats::residuals(fit_metafor))
+  testthat::expect_equal(bayes_residual, observed - bayes_location, tolerance = 1e-12)
+  testthat::expect_equal(ml_residual, observed - ml_location, tolerance = 1e-12)
+  testthat::expect_equal(bayes_residual - ml_residual, ml_location - bayes_location, tolerance = 1e-12)
+}
+
 .expect_residual_table_equal <- function(name, actual, expected, tolerance,
                                          cols = c("resid", "se", "z"),
                                          rows = NULL, z_tolerance = tolerance,
@@ -208,8 +234,12 @@ expect_residuals_match_metafor <- function(case) {
   }
 
   if (kind %in% c("glmm", "glmm_reg")) {
-    .expect_residuals_equal(name, residuals(fit_brma), residuals(fit_metafor),
-                            tolerance, "outcome residuals")
+    if (name == "bcg_glmm_reg") {
+      .expect_bcg_glmm_reg_residuals(fit_brma, fit_metafor)
+    } else {
+      .expect_residuals_equal(name, residuals(fit_brma), residuals(fit_metafor),
+                              tolerance, "outcome residuals")
+    }
     testthat::expect_error(
       residuals(fit_brma, type = "pearson"),
       "Pearson residuals are only available for normal outcome models",

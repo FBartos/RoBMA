@@ -60,9 +60,8 @@ ConfigurationStore &configuration_store()
 
 // The live corrected samplers of this process, and the lowest window rate of
 // those destroyed since the last clearing read of the report. Registration,
-// destruction and the report's read take the mutex; window counters change only
-// inside updates, which JAGS runs on the thread that also reads the report
-// between runs.
+// destruction and report reads take the mutex. Each chain updates its own
+// sampler's window, and the R caller reads the windows between JAGS runs.
 struct SamplerRegistry {
   std::mutex mutex;
   std::vector<CorrectedSamplerWindow *> live;

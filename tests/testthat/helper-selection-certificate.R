@@ -116,21 +116,23 @@
 #
 # The fields are compared to `rounding` in absolute terms: they are the log normalizer and
 # log density and errors relative to the normalizer, so rounding of the normalizer's sums
-# moves all of them by the same absolute amount. One-ulp perturbations of a block's means
-# and SDs move them by up to 4.3e-9, except that an occasional perturbation of blocks 17, 24,
-# 25 and 37 of the stored reference moves a stage by up to 6.6e-4. The Linux build (GCC and
-# glibc) differs from the Windows build (MinGW) that stored them by up to 2.3e-10. A change
-# of proposals or of the design moves them by the order of the relative MCSE, at least 8e-8
-# in the stored blocks. `compare_stored = FALSE` keeps only the comparison of the run with
-# its own stage, for a block whose stored output does not hold on this platform.
+# moves all of them by the same absolute amount. Outside the sensitive blocks
+# (17, 24, 25 and 37), one-ulp input perturbations moved the fields by up to
+# 4.3e-9. Changes to the proposals or QMC design moved them by at least 8e-8.
+# In #92 the non-FMA Linux build differed from the Windows reference by at most
+# 2.3e-10. The same arithmetic gate applies on Intel macOS, where the full
+# fixture suite has not been measured. In block 37, changing one mean or SD by
+# one ulp moved the stage-128 log normalizer by as much as 0.0011. The stored
+# log normalizer differs by 1.05e-5 on Ubuntu 26.04 (FMA) and by up to 6e-4
+# on Apple silicon.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
-                                              rounding = 5e-9, info = "", compare_stored = TRUE) {
+                                              rounding = 5e-9, info = "", reference_log_normalizer = NULL) {
 
   difference <- function(x, y, field) abs(as.numeric(x[[field]]) - as.numeric(y[[field]]))
   matches <- function(x, y) all(vapply(fields, function(field) difference(x, y, field) <= rounding,
                                        logical(1L)))
-  if (matches(actual, expected)) return(invisible("unchanged"))
+  if (is.null(reference_log_normalizer) && matches(actual, expected)) return(invisible("unchanged"))
 
   results <- lapply(stages, stage_run)
   stop_stage <- function(multiplier) {
@@ -139,18 +141,28 @@
     within <- which(criterion <= tolerance)
     if (length(within)) within[[1L]] else length(results)
   }
-  old <- stop_stage(1)
   new <- stop_stage(.selection_qmc_z())
-  testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
-  for (field in fields) {
-    if (compare_stored) {
+  if (!is.null(reference_log_normalizer)) {
+    log_ratio <- actual[["log_normalizer"]] - reference_log_normalizer
+    testthat::expect_lte(abs(expm1(log_ratio)), tolerance,
+      label = paste(info, "relative normalizer error at stage", stages[[new]]))
+  }
+
+  compare_stored <- is.null(reference_log_normalizer) ||
+    (.test_long_double_extended() && !.test_fused_multiply_add())
+  if (compare_stored) {
+    old <- stop_stage(1)
+    testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
+    for (field in fields) {
       testthat::expect_lte(difference(results[[old]], expected, field), rounding,
         label = paste(info, "stored output, stage", stages[[old]], field))
     }
+  }
+  for (field in fields) {
     testthat::expect_lte(difference(results[[new]], actual, field), rounding,
       label = paste(info, "run, stage", stages[[new]], field))
   }
-  invisible("later stage")
+  invisible(if (compare_stored) "later stage" else "replayed")
 }
 
 # Whether the native kernel accepted a deterministic rule (no randomized

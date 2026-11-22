@@ -196,10 +196,9 @@ test_that("targeted convergence controls retain product-space indicator checks",
     mcmc = coda::mcmc.list(
       coda::mcmc(chain_1),
       coda::mcmc(chain_2)
-    ),
-    summary.pars = list(mutate = NULL)
+    )
   )
-  class(fit) <- "runjags"
+  class(fit) <- "BayesTools_fit"
   attr(fit, "prior_list") <- list(mu = BayesTools::prior_spike_and_slab(
     BayesTools::prior("normal", list(0, 1)),
     prior_inclusion = BayesTools::prior("beta", list(1, 1))
@@ -237,10 +236,9 @@ test_that("convergence rechecks leave structural weights to BayesTools", {
     )
   }
   fit <- list(
-    mcmc = coda::mcmc.list(coda::mcmc(make_chain()), coda::mcmc(make_chain())),
-    summary.pars = list(mutate = NULL)
+    mcmc = coda::mcmc.list(coda::mcmc(make_chain()), coda::mcmc(make_chain()))
   )
-  class(fit) <- "runjags"
+  class(fit) <- "BayesTools_fit"
   weightfunction <- BayesTools::prior_weightfunction(
     "one-sided", c(.025, .05), BayesTools::wf_cumulative(c(1, 1, 1))
   )

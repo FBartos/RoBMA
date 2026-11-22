@@ -300,13 +300,27 @@ test_that("the best weight rule keeps its geometric acceptance, decisions and va
         expect_equal(as.numeric(actual[[field]]), expected[[field]], tolerance = 1e-12, info = paste(info, field))
       }
     } else {
-      # Block 37's randomized stage follows the last bits of its inputs (see the
-      # helper): on Apple silicon it moves by 6e-4 from the stored output, which
-      # therefore holds only where long double is extended.
+      reference_log_normalizer <- NULL
+      if (i == 37L) {
+        # For this one-sided best rule the maximum z is below a cut exactly
+        # when all five outcomes are below their corresponding raw cutoffs.
+        expect_identical(b$rule, 1L)
+        covariance <- tcrossprod(b$loading) + diag(b$sd^2)
+        cuts <- utils::head(b$z_lower, -1L)
+        below_cut <- vapply(cuts, function(z) as.numeric(mvtnorm::pmvnorm(
+          upper = z * b$sei, mean = b$mean, sigma = covariance,
+          algorithm = mvtnorm::Miwa(steps = 256L))), numeric(1))
+        reference_log_normalizer <- log(b$omega[1L] + sum(diff(b$omega) * below_cut))
+
+        best_bin <- 1L + sum(max(b$yi / b$sei) < cuts)
+        log_numerator <- mvtnorm::dmvnorm(b$yi, b$mean, covariance, log = TRUE) + log(b$omega[best_bin])
+        expect_equal(as.numeric(actual[["log_density"]] + actual[["log_normalizer"]]),
+                     log_numerator, tolerance = 1e-12)
+      }
       outcomes <- c(outcomes, .test_cert_expect_stored_fallback(actual, expected,
         function(points) .test_cert_native_best(b, factor_rules, cluster_rules, initial = points, points = points),
         stages = c(64L, 128L, 256L, 512L), fields = fields, info = info,
-        compare_stored = i != 37L || .test_long_double_extended()))
+        reference_log_normalizer = reference_log_normalizer))
     }
   }
   expect_true(all(c("deterministic", "fallback") %in% routes))

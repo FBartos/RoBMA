@@ -9,6 +9,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -37,7 +38,7 @@
 #endif
 
 namespace {
-// Generalization of r-selnorm-common.cc.inc's existing 32-entry rule cache.
+// Generalization of r-native/r-selnorm-common.cc.inc's existing 32-entry rule cache.
 // Separate template instances preserve double and long-double arithmetic.
 template<class Real> class SelNormRuleWeightMemo {
   struct Entry {

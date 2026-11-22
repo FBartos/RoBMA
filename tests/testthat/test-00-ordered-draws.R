@@ -25,7 +25,7 @@ context("Ordered fitted-source draw exports")
     coda::mcmc(draw_values, start = 11, thin = 2)
   })
   fit <- structure(list(mcmc = coda::mcmc.list(chains), sample = 12L),
-    class = c("runjags", "BayesTools_fit", "list"))
+    class = "BayesTools_fit")
   # Promote this declared compiler recipe to the fitted owner, as the current
   # source-complete test builders do; no primitive declaration is reconstructed.
   design <- compiled[["formula_design"]]

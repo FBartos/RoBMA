@@ -3,13 +3,58 @@
 // the finite Gaussian event algebra in selnorm-mv.cc.
 namespace {
 
+// At a changing step, rounding the reconstructed mean can move appreciable
+// probability when even the entire integrated SD is below its resolution.
+void check_conditioned_cutoff_resolution(int row, double location, double reconstruction_scale,
+    const double *diagonal, const double *loading, int dimension, int rank,
+    const double *x, const double *se, const double *omega, const double *z_lower,
+    int n_bins, int sign, int rule, const int *group, const int *obs_bin,
+    const std::vector<bool> &integrated)
+{
+  const double minimum_sd = 1e-12 * reconstruction_scale;
+  double sd = std::sqrt(diagonal[row]);
+  for (int factor = 0; factor < rank && sd < minimum_sd; ++factor)
+    sd = std::hypot(sd, loading[row + dimension * factor]);
+  if (sd >= minimum_sd) return;
+
+  const bool absolute = rule == SELVECTOR_BEST_TWO_SIDED;
+  const double value = absolute ? std::fabs(location) : sign * location;
+  for (int bin = 0; bin + 1 < n_bins; ++bin) {
+    const double cut = z_lower[bin];
+    if (omega[bin] == omega[bin + 1] || !std::isfinite(cut) || (absolute && cut <= 0.0) ||
+        std::fabs(value - se[row] * cut) > 1e-10 * reconstruction_scale) continue;
+
+    // A fixed eligible outcome already at or above this cut wins over
+    // either neighboring bin in its publication.
+    if (rule != SELVECTOR_PRODUCT) {
+      bool dominated = false;
+      for (int other = 0; other < dimension; ++other) {
+        if (group[other] != group[row] || !obs_bin[other] || integrated[other]) continue;
+        const double observed = absolute ? std::fabs(x[other]) : sign * x[other];
+        if (observed >= se[other] * cut) { dominated = true; break; }
+      }
+      if (dominated) continue;
+    }
+    char message[384];
+    std::snprintf(message, sizeof(message),
+      "Sampling-conditioned selection is unavailable at working precision for row %d in its likelihood block: "
+      "integrated SD %.6g at z cutoff %.6g, reconstructed mean term magnitudes sum to %.6g. "
+      "Check the random-effect scales and loadings for this row.", row + 1, sd, cut, reconstruction_scale);
+    throw std::runtime_error(message);
+  }
+}
+
 int sampling_conditioned_bin(double x, double se,
     const SelNormKernelData &selection, int vector_rule)
 {
-  const double z = vector_rule == SELVECTOR_BEST_TWO_SIDED ?
-    std::fabs(x) / se : selection.effect_sign * x / se;
+  // Match the observed event at equality: product uses signed z, while
+  // best compares the outcome with the cutoff in outcome units.
+  const double value = vector_rule == SELVECTOR_BEST_TWO_SIDED ?
+    std::fabs(x) : selection.effect_sign * x;
+  const double score = vector_rule == SELVECTOR_PRODUCT ? value / se : value;
+  const double scale = vector_rule == SELVECTOR_PRODUCT ? 1.0 : se;
   for (int bin = 0; bin < selection.n_bins; ++bin) {
-    if (z >= selection.z_lower[bin]) return bin;
+    if (score >= scale * selection.z_lower[bin]) return bin;
   }
   return -1;
 }
@@ -561,17 +606,22 @@ double cpp_selnorm_sampling_conditioned_lpdf(
   if (info != 0) throw std::runtime_error("The total outcome covariance solve failed.");
   std::vector<double> normalizer_mean(dimension), whitened(dimension);
   double log_density = -.5 * dimension * std::log(2.0 * std::acos(-1.0));
-  const bool masked = has_exempt_row(obs_bin, dimension);
-  const bool deterministic_outcome = std::none_of(integrated.begin(), integrated.end(),
-    [](bool varies) { return varies; });
   for (int row = 0; row < dimension; ++row) {
     if (obs_bin[row] && integrated[row]) deterministic_event = false;
-    const bool fixed = deterministic_outcome || (masked && !integrated[row]);
+    const bool fixed = !integrated[row];
     sampling_effect[row] = x[row] - mean[row];
     if (!fixed) {
       sampling_effect[row] = sampling_auxiliary[row];
+      double magnitude = std::fabs(mean[row]) + std::fabs(sampling_auxiliary[row]);
       for (int column = 0; column < dimension; ++column) {
-        sampling_effect[row] += sampling[row + dimension * column] * delta[column];
+        const double correction = sampling[row + dimension * column] * delta[column];
+        sampling_effect[row] += correction;
+        magnitude += std::fabs(correction);
+      }
+      if (kernel_mode == SELKERNEL_STEP && obs_bin[row]) {
+        check_conditioned_cutoff_resolution(row, mean[row] + sampling_effect[row], magnitude,
+          diagonal, loading, dimension, rank, x, selection_se, omega, z_lower,
+          n_bins, effect_sign, vector_rule, group_index, obs_bin, integrated);
       }
     }
     // With no integrated source this coordinate is exactly the observed
@@ -756,7 +806,13 @@ void cpp_selnorm_factor_projection(
       // outer mixture caller adds this row's ordinary retained Gaussian law.
       if (sd == 0.0) continue;
       std::vector<double> conditional_loading, slope(k), conditional_mean(k), zero(k, 0.0);
+      std::vector<double> conditional_se;
       if (kind == 0 && !unselected) {
+        conditional_se = se;
+        // A product density is queried in z units. The focal coordinate has
+        // zero conditional variance, so express it directly on that scale.
+        // Best selection compares the physical outcome with se * cutoff.
+        if (vector_rule == SELVECTOR_PRODUCT) conditional_se[focal] = 1.0;
         std::vector<int> columns;
         columns.push_back(pivot);
         for (int column = 0; column < coordinates; ++column) if (column != pivot) columns.push_back(column);
@@ -796,10 +852,10 @@ void cpp_selnorm_factor_projection(
         } else if (kind == 0) {
           ratio = true;
           for (int row = 0; row < k; ++row) conditional_mean[row] = m[row] + slope[row] * (q - m[focal]);
-          conditional_mean[focal] = q;
+          conditional_mean[focal] = vector_rule == SELVECTOR_PRODUCT ? z[index] : q;
           const double numerator = cpp_selnorm_conditioned_log_normalizer(
             conditional_mean.data(), zero.data(), conditional_loading.data(), k,
-            coordinates - 1, se.data(), omega, n_bins, z_lower, z_upper,
+            coordinates - 1, conditional_se.data(), omega, n_bins, z_lower, z_upper,
             effect_sign, kernel_mode, telescope_probabilities, vector_rule,
             one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
             &error, &change, quadrature, nullptr, nullptr, group_bins);

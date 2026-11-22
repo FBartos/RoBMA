@@ -633,7 +633,7 @@ as.data.frame.summary_models.RoBMA <- function(
 
 .summary_models_posterior_samples_list <- function(fit) {
 
-  posterior_samples_list <- suppressWarnings(coda::as.mcmc.list(fit))
+  posterior_samples_list <- coda::as.mcmc.list(fit)
   posterior_samples_list <- lapply(posterior_samples_list, as.matrix)
 
   return(posterior_samples_list)

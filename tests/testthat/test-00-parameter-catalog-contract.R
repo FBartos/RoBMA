@@ -370,8 +370,8 @@ test_that("indexed factor plots retain semantic cells without cached fits", {
       samples <- cbind(samples, rep(0, 24L))
       colnames(samples)[ncol(samples)] <- column
     }
-    fit <- coda::mcmc.list(coda::mcmc(samples))
-    class(fit) <- c("BayesTools_fit", class(fit))
+    fit <- list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples))
+    class(fit) <- "BayesTools_fit"
     fit_priors <- c(design$prior_list, .create_fit_priors(object$data, object$priors))
     model_data <- .create_fit_data(object$data, object$priors)
     design <- BayesTools:::.bt_formula_point_finalize(design, fit_priors,

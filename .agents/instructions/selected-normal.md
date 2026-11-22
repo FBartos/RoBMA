@@ -3,6 +3,11 @@
 Use this guide when changing posterior evaluation, publication-bias selection
 kernels, PIT/CDF/PDF/RNG paths, or effect-direction handling.
 
+JAGS 5's deviance monitor can evaluate an observed likelihood directly. A DIC
+penalty that simulates replicate outcomes requires a distribution with a
+sampling law. For likelihood-only nodes, verify observed deviance with
+`rjags::jags.samples(..., stat = "deviance", summary = "mean")`.
+
 See [maintainer decisions](decision-rationale.md) for why loose requests retain
 the deterministic calibration cap and why this does not certify QMC accuracy.
 
@@ -112,6 +117,21 @@ consume resolved source metadata rather than infer conditioning from monitoring.
 Product normalizers factor only for conditionally independent
 rows. Best uses the weight at the smallest actual p-value, including nonmonotone
 weights; thresholds use original sampling SEs.
+At a cutoff, product weights compare the signed standardized outcome with
+the z cutoff. Best weights compare the signed or absolute outcome with the
+cutoff in outcome units. Use the supplied z for a product density queried
+on the z scale. In sampling-conditioned likelihoods, a row with zero
+integrated diagonal and zero integrated loadings takes its observed value
+exactly when that outcome is given. During deletion, a proposed outcome or
+sampling error still varies under its conditional law.
+For a positive integrated row SD below 1e-12 times the sum of absolute
+reconstruction terms, the full-data likelihood refuses locations within
+1e-10 times that sum of a changing cutoff in outcome units. Exempt rows,
+constant steps and best-rule cuts already won by a fixed publication member
+do not trigger the check. JAGS, bridge replay and deletion targets requiring
+the full-data post-fit state propagate the calculation error. Fresh deleted
+contexts use their own normalizer. Preserve the positive source and its prior
+support.
 Both rules omit exempt outcomes from the publication event. Product uses only
 eligible factors; best takes the smallest eligible p-value in each publication.
 An empty event has weight and normalizer one. Preserve the Gaussian density
@@ -538,14 +558,14 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   adaptive proposals, (c) no adaptive surrogate was not exact, or (b) its
   adaptive acceptance is below the threshold, the first that holds being the
   recorded reason. Both kernels are exact and the choice uses adaptation draws
-  only, so no switch happens after adaptation. Adaptation ends where runjags
-  ends it explicitly (`rjags::adapt(end.adaptation = TRUE)`, every package fit)
+  only, so no switch happens after adaptation. Adaptation ends where BayesTools
+  calls `rjags::adapt(end.adaptation = TRUE)` during fitting or reconstruction,
   or where JAGS ends it on setting a monitor (`coda.samples()`); rjags'
   `update()` alone does not, so a hand model updated without either keeps its
   samplers adapting (and counting as adaptive). Per-fit counters
   (`RoBMA_selnorm_sampler_report`, read and cleared) count objects, fallbacks
   by reason, post-adaptation proposals and acceptances of samplers still
-  corrected (burn-in and runjags' closing draws included) and the lowest rate
+  corrected (burn-in and all sampling iterations, including thinned iterations) and the lowest rate
   of one sampler over its proposals since the last clearing read (a registry
   of live samplers under a mutex; a sampler destroyed earlier leaves its rate
   in a retired minimum; samplers with fewer than 1,000 such proposals do not

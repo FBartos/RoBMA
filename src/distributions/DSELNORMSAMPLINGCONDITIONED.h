@@ -9,22 +9,17 @@ namespace RoBMA {
 class DSELNORMSAMPLINGCONDITIONED : public VectorDist {
 public:
   DSELNORMSAMPLINGCONDITIONED();
-  double logDensity(double const *x, unsigned int length, PDFType type,
-    std::vector<double const *> const &par, std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const;
-  void randomSample(double *x, unsigned int length,
-    std::vector<double const *> const &par, std::vector<unsigned int> const &len,
-    double const *lower, double const *upper, RNG *rng) const;
-  void typicalValue(double *x, unsigned int length,
-    std::vector<double const *> const &par, std::vector<unsigned int> const &len,
-    double const *lower, double const *upper) const;
+  double logDensity(double const *x, PDFType type,
+    std::vector<double const *> const &par, std::vector<unsigned long> const &len) const override;
+  void randomSample(double *x,
+    std::vector<double const *> const &par, std::vector<unsigned long> const &len, RNG *rng) const override;
   bool checkParameterValue(std::vector<double const *> const &par,
-    std::vector<unsigned int> const &len) const;
-  bool checkParameterLength(std::vector<unsigned int> const &len) const;
-  unsigned int length(std::vector<unsigned int> const &len) const;
-  void support(double *lower, double *upper, unsigned int length,
-    std::vector<double const *> const &par, std::vector<unsigned int> const &len) const;
-  bool isSupportFixed(std::vector<bool> const &fixmask) const;
+    std::vector<unsigned long> const &len) const override;
+  bool checkParameterLength(std::vector<unsigned long> const &len) const override;
+  unsigned long length(std::vector<unsigned long> const &len) const override;
+  void support(double *lower, double *upper,
+    std::vector<double const *> const &par, std::vector<unsigned long> const &len) const override;
+  bool isSupportFixed(std::vector<bool> const &fixmask) const override;
 };
 
 }

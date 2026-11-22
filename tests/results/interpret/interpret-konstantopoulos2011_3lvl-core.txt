@@ -1,4 +1,4 @@
 Bayesian Multilevel Random-Effects Model (k = 56, clusters = 11).
-Pooled effect: mean standardized mean difference = 0.186, 95% CrI [0.022, 0.356].
-Pooled heterogeneity: mean tau = 0.318, 95% CrI [0.232, 0.450].
-Cluster correlation: mean rho = 0.627, 95% CrI [0.327, 0.858].
+Pooled effect: mean standardized mean difference = 0.179, 95% CrI [0.000, 0.361].
+Pooled heterogeneity: mean tau = 0.323, 95% CrI [0.234, 0.466].
+Cluster correlation: mean rho = 0.635, 95% CrI [0.336, 0.870].
