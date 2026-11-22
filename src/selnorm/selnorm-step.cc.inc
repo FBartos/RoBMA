@@ -502,6 +502,16 @@ bool step_cdf_pair_logspace(const double *omega,
     std::isfinite(*inverse_weight) && *inverse_weight > 0;
 }
 
+// Multiply before applying the shared power-of-two scale, without losing a
+// small weight or overflowing the unscaled product.
+double scaled_moment_product(double weight_fraction, int shift, double value)
+{
+  int exponent = 0;
+  const double fraction = std::frexp(value, &exponent);
+  return std::scalbn(weight_fraction * fraction, shift + exponent);
+}
+
+template<bool scaled_scores = false>
 void step_moments_partition(const double *omega,
                             const SelNormKernelData &data,
                             double signed_mean, double sd, double sei,
@@ -509,7 +519,7 @@ void step_moments_partition(const double *omega,
                             double *denom, double *signed_first,
                             double *signed_second,
                             double *centered_first = NULL,
-                            double *centered_second = NULL)
+                            double *centered_second = NULL, int scale_exponent = 0)
 {
   *denom         = 0;
   *signed_first  = 0;
@@ -533,32 +543,67 @@ void step_moments_partition(const double *omega,
     }
 
     if (w > 0) {
+      const double lower = data.z_lower[trusted_partition ? last : b];
+      const double upper = data.z_upper[b];
       double m0, m1, m2, centered_m1, centered_m2;
-      truncated_raw_moments(
-        (trusted_partition ? data.z_lower[last] : data.z_lower[b]) * sei,
-        data.z_upper[b] * sei,
-        signed_mean,
-        sd,
-        &m0,
-        &m1,
-        &m2,
-        &centered_m1,
-        &centered_m2
-      );
-
-      *denom         += w * m0;
-      *signed_first  += w * m1;
-      *signed_second += w * m2;
-      if (centered_first != NULL) {
-        *centered_first += w * centered_m1;
-      }
-      if (centered_second != NULL) {
-        *centered_second += w * centered_m2;
+      if constexpr (scaled_scores) {
+        truncated_raw_moments(stable_affine_score(lower, sei, signed_mean, sd),
+                              stable_affine_score(upper, sei, signed_mean, sd),
+                              0, 1, &m0, &m1, &m2);
+        int exponent = 0;
+        const double fraction = std::frexp(w, &exponent);
+        const int shift = exponent - scale_exponent;
+        *denom         += scaled_moment_product(fraction, shift, m0);
+        *signed_first  += scaled_moment_product(fraction, shift, m1);
+        *signed_second += scaled_moment_product(fraction, shift, m2);
+      } else {
+        truncated_raw_moments(lower * sei, upper * sei, signed_mean, sd,
+                              &m0, &m1, &m2, &centered_m1, &centered_m2);
+        *denom         += w * m0;
+        *signed_first  += w * m1;
+        *signed_second += w * m2;
+        if (centered_first != NULL) *centered_first += w * centered_m1;
+        if (centered_second != NULL) *centered_second += w * centered_m2;
       }
     }
 
     b = trusted_partition ? last + 1 : b + 1;
   }
+}
+
+bool scaled_step_moments(const double *omega, const SelNormKernelData &data,
+                         double signed_mean, double sd, double sei, int stride,
+                         double log_normalizer, double *moment_mean,
+                         double *moment_second, double *moment_variance)
+{
+  // Raw weighted sums can overflow even though dividing by their common
+  // normalizer gives ordinary values. Retry in standard normal coordinates.
+  const double exponent = std::nearbyint(log_normalizer / M_LN2);
+  if (exponent < 2 * (std::numeric_limits<double>::min_exponent -
+                      std::numeric_limits<double>::digits) ||
+      exponent > 2 * std::numeric_limits<double>::max_exponent) return false;
+  double denom, signed_first, signed_second;
+  step_moments_partition<true>(omega, data, signed_mean, sd, sei, stride,
+    data.trusted_step_partition, &denom, &signed_first, &signed_second,
+    nullptr, nullptr, static_cast<int>(exponent));
+  if (!(denom > 0) || !std::isfinite(denom)) return false;
+  const double log_error = std::abs((std::log(denom) + exponent * M_LN2) - log_normalizer);
+  if (log_error > 64 * std::numeric_limits<double>::epsilon() *
+                  std::max(1.0, std::abs(log_normalizer))) return false;
+  const double shift = signed_first / denom;
+  const double second_score = signed_second / denom;
+  const double variance_score = std::fma(-shift, shift, second_score);
+  if (!(variance_score > 64 * std::numeric_limits<double>::epsilon() * second_score)) return false;
+  const double location = std::fma(sd, shift, signed_mean);
+  const double spread = sd * std::sqrt(variance_score);
+  const double variance = spread * spread;
+  const double second = std::fma(location, location, variance);
+  if (!std::isfinite(location) || !std::isfinite(variance) ||
+      (!moment_variance && !std::isfinite(second))) return false;
+  *moment_mean = data.effect_sign * location;
+  if (moment_variance) *moment_variance = variance;
+  if (std::isfinite(second)) *moment_second = second;
+  return true;
 }
 
 double step_normalizer_trusted_partition(

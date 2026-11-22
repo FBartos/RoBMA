@@ -35,6 +35,9 @@ Predictive variance consumes the kernel's direct centered variance. Raw second
 moments remain available to their callers, but are not subtracted from squared
 large means. Outer sampling mixtures and scalar moment integrals use a Gaussian
 location center and retain the existing numerical error and transition checks.
+When weighted raw moments overflow, retry the STEP calculation in standard
+normal coordinates and scale all bin contributions by the same power of two.
+Check the recovered denominator against the log normalizer before using it.
 
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.

@@ -21,6 +21,7 @@
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
 
 ### Fixes
+- predictive moments and residuals remain available when large finite selection weights overflow the unnormalized moment sums
 - sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
 - multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations

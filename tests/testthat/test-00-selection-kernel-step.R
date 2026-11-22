@@ -1185,3 +1185,39 @@ test_that("general scalar ingress retains all four declared kernel modes", {
   }
   expect_error(evaluate(1L, NA), "'telescope_probabilities' must not be missing.", fixed = TRUE)
 })
+
+
+test_that("finite selection weights retain representable normalized moments", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  prior <- prior_weightfunction("one-sided", c(stats::pnorm(1, lower.tail = FALSE), .5),
+                               wf_fixed(c(1, .5, .25)))
+  for (direction in c("positive", "negative")) {
+    sign <- if (direction == "positive") 1 else -1
+    spec <- .selection_spec(list(outcome = list(bias = prior)), 0, 10,
+                            effect_direction = direction, signed_data = FALSE)
+    # The middle bin has standardized bounds +/-0.5 about the mean.
+    # Divide weights by their maximum in the independent analytic reference.
+    p <- stats::pnorm(.5) - stats::pnorm(-.5)
+    r <- 1e-308
+    ref_var <- 100 * (r + (1-r) * (p - stats::dnorm(.5))) / (r + (1-r)*p)
+    args <- list(mean = matrix(sign * 5), sd = matrix(10), sei = 10,
+                 omega = matrix(c(1, 1e308, 1), 1L), selection_spec = spec)
+    moments <- do.call(.selnorm_kernel_moments_matrix, args)
+    summary <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = -sign*5), args))
+    for (v in list(moments, summary)) {
+      expect_equal(as.numeric(v$mean), sign*5, tolerance = 1e-12)
+      expect_equal(as.numeric(v$variance), ref_var, tolerance = 1e-12)
+    }
+    expect_equal(as.numeric(moments$second), ref_var + 25, tolerance = 1e-12)
+
+    # A common positive weight multiplier leaves the distribution unchanged.
+    # Use different weight rows to exercise the strided matrix interface.
+    args$mean <- matrix(sign * c(5, -3))
+    args$sd <- matrix(c(10, 2))
+    args$omega <- rbind(c(1, .7, .3), c(.25, .5, 1))
+    ref <- do.call(.selnorm_kernel_moments_matrix, args)
+    args$omega <- args$omega * 1e308
+    expect_equal(do.call(.selnorm_kernel_moments_matrix, args), ref, tolerance = 1e-12)
+  }
+})

@@ -995,9 +995,9 @@ void cpp_selnorm_kernel_moments(
   }
 
   const double signed_mean = data.effect_sign * mean;
-  if (!std::isfinite(step_log_normalizer_score_space(
-        omega, data, signed_mean, sd, sei, omega_stride
-      ))) {
+  const double log_normalizer = step_log_normalizer_score_space(
+    omega, data, signed_mean, sd, sei, omega_stride);
+  if (!std::isfinite(log_normalizer)) {
     return;
   }
 
@@ -1020,6 +1020,11 @@ void cpp_selnorm_kernel_moments(
       moment_variance == NULL ? NULL : &centered_second
     );
   }
+
+  if ((!std::isfinite(denom) || !std::isfinite(signed_first) || !std::isfinite(signed_second) ||
+       (moment_variance && (!std::isfinite(centered_first) || !std::isfinite(centered_second)))) &&
+      scaled_step_moments(omega, data, signed_mean, sd, sei, omega_stride, log_normalizer,
+                          moment_mean, moment_second, moment_variance)) return;
 
   if (!std::isfinite(denom) || !(denom > 0) ||
       !std::isfinite(signed_first) ||
