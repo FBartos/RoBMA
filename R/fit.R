@@ -796,6 +796,7 @@
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
       required_packages     = c("RoBMA", "BayesTools"),
+      jags_modules          = if (!is.null(declarations[["sampler_joint"]])) "RoBMA" else NULL,
       runtime_setup         = .selection_runtime_setup(),
       runtime_cache         = if (selection_fit) .selection_cache_runtime() else NULL,
       runtime_report        = sampler_report,
@@ -803,7 +804,10 @@
       is_JASP               = object[["is_JASP"]],
       is_JASP_prefix        = object[["is_JASP_prefix"]],
       sampler_gates         = declarations[["sampler_gates"]],
-      sampler_blocks        = declarations[["sampler_blocks"]]
+      sampler_blocks        = declarations[["sampler_blocks"]],
+      sampler_joint         = declarations[["sampler_joint"]],
+      sampler_nested_weights = declarations[["sampler_nested_weights"]],
+      sampler_probabilities = declarations[["sampler_probabilities"]]
     )
 
   } else {
@@ -839,6 +843,13 @@
 
   } else {
 
+    requested <- NULL
+    if (!extension) {
+      requested <- declarations[["requested"]]
+      auto_dispatch <- attr(declarations[["sampler_joint"]], "auto_dispatch", exact = TRUE)
+      requested[["joint_budget"]] <- auto_dispatch[["budget"]]
+    }
+    fit <- .sampler_request_record(fit, requested)
     attr(fit, "selection_runtime") <- attr(
       attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE
     )

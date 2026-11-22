@@ -35,6 +35,10 @@ Predictive variance consumes the kernel's direct centered variance. Raw second
 moments remain available to their callers, but are not subtracted from squared
 large means. Outer sampling mixtures and scalar moment integrals use a Gaussian
 location center and retain the existing numerical error and transition checks.
+When the STEP normalizer divided by the largest weight falls below 1e-280,
+compute moments on either side of the Gaussian mode in coordinates anchored
+at the nearest point of each bin. Combine within-bin and between-bin variance
+with relative log masses so that a rare selected tail retains its contribution.
 
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.
@@ -617,6 +621,22 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   The released `"coarse_corrected"` and `"default"` are deprecated aliases of
   `"slice.coarse"` and `"jags.default"`; settings frozen in fits keep their
   string and `.selection_sampler_corrected()` reads both spellings.
+
+Joint JAGS updates use the bound prior sources and the selection execution
+plan that generated the observations. A joint factory must claim every
+stochastic coordinate it writes. Check its actual assignment on the compiled
+fit and on a saved-fit extension. The scientific likelihood includes every
+selection normalizer, the original covariance, and the declared prior mass of
+each label. Use proposal approximations only with an exact target correction.
+The Gaussian moderator update requires the exact conjugate observation graph.
+
+For mixing comparisons, keep the previously enabled gated and corrected
+samplers in the control. Charge model compilation, adaptation, burn-in and
+monitored sampling. Count physical crossings separately from the Monte Carlo
+error of a posterior model probability. A recorded conditional probability
+belongs to the update at which its indicator was drawn. Sum disjoint labels
+from that one update to estimate a family probability. Use the monitored
+joint indicators for events spanning different updates.
 
 Known limits: blocks routed to the Smolyak grid (chains of rank three or more
 and other supports the certificate rejects) keep the per-transition rule, so
