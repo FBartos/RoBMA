@@ -118,19 +118,17 @@
 # log density and errors relative to the normalizer, so rounding of the normalizer's sums
 # moves all of them by the same absolute amount. One-ulp perturbations of a block's means
 # and SDs move them by up to 4.3e-9, except that an occasional perturbation of blocks 17, 24,
-# 25 and 37 of the stored reference moves a stage by up to 6.6e-4. The Linux build (GCC and
-# glibc) differs from the Windows build (MinGW) that stored them by up to 2.3e-10. A change
-# of proposals or of the design moves them by the order of the relative MCSE, at least 8e-8
-# in the stored blocks. `compare_stored = FALSE` keeps only the comparison of the run with
-# its own stage, for a block whose stored output does not hold on this platform.
+# 25 and 37 of the stored reference moves a stage by up to 6.6e-4. For block 37 the
+# stored stage differs across Linux, Windows and Apple silicon. Check its old and new
+# stages against an independent normalizer and replay the stopping rule on each platform.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
-                                              rounding = 5e-9, info = "", compare_stored = TRUE) {
+                                              rounding = 5e-9, info = "", reference_log_normalizer = NULL) {
 
   difference <- function(x, y, field) abs(as.numeric(x[[field]]) - as.numeric(y[[field]]))
   matches <- function(x, y) all(vapply(fields, function(field) difference(x, y, field) <= rounding,
                                        logical(1L)))
-  if (matches(actual, expected)) return(invisible("unchanged"))
+  if (is.null(reference_log_normalizer) && matches(actual, expected)) return(invisible("unchanged"))
 
   results <- lapply(stages, stage_run)
   stop_stage <- function(multiplier) {
@@ -142,8 +140,15 @@
   old <- stop_stage(1)
   new <- stop_stage(.selection_qmc_z())
   testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
+  if (!is.null(reference_log_normalizer)) {
+    for (stage in c(old, new)) {
+      log_ratio <- results[[stage]][["log_normalizer"]] - reference_log_normalizer
+      testthat::expect_lte(abs(expm1(log_ratio)), tolerance,
+        label = paste(info, "relative normalizer error at stage", stages[[stage]]))
+    }
+  }
   for (field in fields) {
-    if (compare_stored) {
+    if (is.null(reference_log_normalizer)) {
       testthat::expect_lte(difference(results[[old]], expected, field), rounding,
         label = paste(info, "stored output, stage", stages[[old]], field))
     }
