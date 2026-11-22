@@ -1,0 +1,71 @@
+test_that("the rejected Assink triple is recovered within its reported radius", {
+
+  # The first rejected JAGS state from issue 115. Preserve the full supplied
+  # covariance; the independent oracle integrates Gaussian orthant probabilities.
+  se <- c(.3920459156782532, .48311489316724648, .40914545090957566)
+  V <- matrix(c(.1979656538431033, .15152257653564372, .10265843388635931,
+                .15152257653564372, .27766565384310327, .15813140864483566,
+                .10265843388635931, .15813140864483566, .21166565384310329), 3L)
+  mu <- rep(-.18060343668680501, 3L)
+  omega <- c(1, .20760940515684104)
+  cut <- stats::qnorm(.025, lower.tail = FALSE)
+  rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  evaluate <- function(order = 1:3, quadrature = rules, tolerance = .005,
+                       points = 512L, scrambles = 8L, covariance = V) {
+    covariance <- covariance[order, order]
+    packed <- covariance[lower.tri(covariance, diag = TRUE)]
+    design <- BayesTools::selection_qmc_design(6L, points, scrambles, seed = 1L)
+    .Call("RoBMA_selnorm_mnorm_step_loglik_batch", numeric(3), matrix(mu[order], 2, 3, byrow = TRUE),
+          matrix(packed, 2, 6, byrow = TRUE), se[order], matrix(omega, 2, 2, byrow = TRUE),
+          c(cut, -Inf), c(Inf, cut), rep(2L, 3), 1L, TRUE, 1L, as.double(design),
+          points, scrambles, tolerance, TRUE, 0L, quadrature, PACKAGE = "RoBMA")
+  }
+
+  # w(y) = omega[2] + (1 - omega[2]) I(y >= cut*se) for each row.
+  mass <- omega[2]^3
+  for (size in 1:3) {
+    orthants <- utils::combn(3, size, function(rows) {
+      if (size == 1L) return(stats::pnorm(cut*se[rows], mu[rows], sqrt(V[rows, rows]),
+                                          lower.tail = FALSE))
+      as.numeric(mvtnorm::pmvnorm(lower = cut*se[rows], mean = mu[rows],
+        sigma = V[rows, rows, drop = FALSE], algorithm = mvtnorm::Miwa(steps = 512L)))
+    })
+    mass <- mass + omega[2]^(3-size) * (1-omega[2])^size * sum(orthants)
+  }
+  qmc <- evaluate(quadrature = NULL)
+  expect_gt(.selection_qmc_z() * qmc$relative_mcse[1], .005)
+  recovered <- evaluate()
+  radius <- attr(recovered$integration_diagnostics, "rank_one_relative_error")
+  expect_length(radius, 2)
+  expect_identical(radius[1], radius[2])
+  expect_equal(recovered$relative_mcse, c(0, 0))
+  expect_lte(radius[1], .005)
+  expect_lte(abs(expm1(recovered$log_normalizer[1] - log(mass))), radius[1] + 1e-8)
+  expect_equal(recovered$log_density[1], mvtnorm::dmvnorm(numeric(3), mu, V, log = TRUE) +
+    3*log(omega[2]) - recovered$log_normalizer[1], tolerance = 1e-12)
+  permuted <- evaluate(c(2, 1, 3))
+  expect_lte(abs(expm1(permuted$log_normalizer[1] - log(mass))), .005)
+
+  event <- function(upper, quadrature) {
+    design <- BayesTools::selection_qmc_design(6L, 512L, 8L, seed = 1L)
+    .Call("RoBMA_selnorm_gaussian_event_mass_batch", matrix(mu, 1), matrix(V[lower.tri(V, diag = TRUE)], 1),
+      se, matrix(omega, 1L), c(cut, -Inf), c(Inf, cut), 1L, 1L, 0L, matrix(-Inf, 1, 3),
+      matrix(upper, 1), as.double(design), 512L, 8L, NULL, quadrature, .005, NULL, PACKAGE = "RoBMA")
+  }
+  full <- event(rep(Inf, 3), rules)
+  expect_equal(full$log_mass, recovered$log_normalizer[1], tolerance = 1e-12)
+  expect_equal(full$relative_quadrature_error, radius[1], tolerance = 1e-12)
+  expect_equal(full$relative_mcse, 0)
+  expect_equal(event(c(0, Inf, Inf), rules), event(c(0, Inf, Inf), NULL))
+
+  negative <- V * tcrossprod(c(1, -1, 1))
+  unchanged <- evaluate(covariance = negative)
+  baseline <- evaluate(covariance = negative, quadrature = NULL)
+  expect_identical(unchanged$relative_mcse, baseline$relative_mcse)
+  expect_identical(unchanged$log_normalizer, baseline$log_normalizer)
+
+  # Deliberately insufficient work must never count as a bounded success.
+  limited <- evaluate(points = 8L, scrambles = 2L, tolerance = 1e-9)
+  expect_null(attr(limited$integration_diagnostics, "rank_one_relative_error"))
+  expect_gt(.selection_qmc_z() * limited$relative_mcse[1], 1e-9)
+})

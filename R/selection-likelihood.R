@@ -257,8 +257,11 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #'   change for factor integration, or the largest nested-design relative
 #'   change and 2.36 times the relative Monte Carlo standard error for a factor
 #'   fallback and for the conditioned-sampling normalizer.
-#'   Rank-one product interval refinement instead checks the conservative
-#'   relative radius of the actual returned midpoint against both bounds.
+#'   Rank-one product interval refinement checks the relative radius of the
+#'   returned midpoint against both bounds. A rejected dense three-row
+#'   product normalizer can also use this refinement when a positive
+#'   one-factor covariance representation is available. Its acceptance
+#'   includes the perturbation from the supplied covariance matrix.
 #'   General covariance
 #'   blocks and Gaussian event integrals use 2.36 times the relative Monte
 #'   Carlo standard error alone. Dense covariance-envelope

@@ -433,6 +433,8 @@
       value <- 2 * diagnostic[, "quadrature_change"] + diagnostic[, "covariance_width"] +
         diagnostic[, "tail_bound"] + cdf
       value[diagnostic[, "used_covariance_envelope"] != 1] <- NA_real_
+      triple <- attr(diagnostic, "rank_one_relative_error", exact = TRUE)
+      if (!is.null(triple)) value[triple > 0] <- triple[triple > 0]
       value
     } else {
       # The factor routes certify their successive quadrature change; keep the

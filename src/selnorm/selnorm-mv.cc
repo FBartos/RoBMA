@@ -7682,6 +7682,67 @@ double cpp_selnorm_certificate_node_gap(const double *nodes, int order, double m
   return certificate_node_gap(nodes, order, mean);
 }
 
+// Enclose the normalizer of a positive three-row covariance through one
+// Gaussian factor. The perturbation bound includes every rounding residual
+// against the original covariance, including on the diagonal.
+static double recover_dense_triple(double original, double *mcse, SelNormDenseIntegration *integration,
+    const std::vector<double> &covariance, const double *mean,
+    const double *se, const double *omega, const SelNormKernelData &selection, int points,
+    int scrambles, int vector_rule)
+{
+  if (integration == nullptr || covariance.size() != 9 || vector_rule != SELVECTOR_PRODUCT ||
+      selnorm_qmc_diagnostic(*mcse, 0) <= integration->tolerance ||
+      !selnorm_is_descending_step_partition(selection.z_lower, selection.z_upper, selection.n_bins)) return original;
+  const double tolerance = integration->tolerance;
+  const double a = covariance[1], b = covariance[2], c = covariance[5];
+  if (!(a > 0 && b > 0 && c > 0)) return original;
+  const double min_weight = *std::min_element(omega, omega + selection.n_bins);
+  if (!(min_weight > 0)) return original;
+  std::vector<EnvelopeGroupGeometry> geometry(1);
+  EnvelopeGroupGeometry &g = geometry[0];
+  g.row_index = {0, 1, 2};
+  g.loading.assign(3, 0);
+  g.residual_sd.resize(3);
+  g.common_loading.resize(3);
+  const long double squares[3] = {
+    static_cast<long double>(a) * b / c,
+    static_cast<long double>(a) * c / b,
+    static_cast<long double>(b) * c / a
+  };
+  for (int i = 0; i < 3; ++i) {
+    const long double residual = covariance[4*i] - squares[i];
+    if (!(squares[i] > 0 && residual > 0)) return original;
+    g.common_loading[i] = std::sqrt(squares[i]);
+    g.residual_sd[i] = std::sqrt(residual);
+    if (!std::isfinite(g.common_loading[i]) || !std::isfinite(g.residual_sd[i]) ||
+        !(g.residual_sd[i] > 0)) return original;
+  }
+  const double gap = covariance_relative_gap_bound(covariance, 3, geometry, omega, selection.n_bins);
+  if (!(gap < tolerance)) return original;
+  FactorNormalizerContext context = {};
+  context.vector_rule = SELVECTOR_PRODUCT;
+  context.mean = mean;
+  context.residual_sd = g.residual_sd.data();
+  context.loading = g.common_loading.data();
+  context.dimension = 3;
+  context.rank = 1;
+  context.selection_se = se;
+  context.omega = omega;
+  context.n_bins = selection.n_bins;
+  context.kernel_mode = SELKERNEL_STEP;
+  context.selection = selection;
+  const FactorEventProposal event(context);
+  if (!event.valid || event.exact) return original;
+  const double target = std::nextafter((tolerance-gap)/(1+gap), 0.0);
+  const auto bounded = rank_one_bounds::integrate(context, event, points, scrambles, target);
+  if (!bounded.accepted) return original;
+  const double radius = add_up(add_up(gap, bounded.radius), mul_up(gap, bounded.radius));
+  if (!(radius <= tolerance)) return original;
+  *mcse = 0;
+  integration->rank_one_relative_error = radius;
+  return bounded.value;
+}
+
 double cpp_selnorm_mnorm_step_lpdf(
     const double *x, const double *mean, const double *covariance_lower,
     int dimension, const double *selection_se, const double *omega,
@@ -8257,6 +8318,11 @@ double cpp_selnorm_mnorm_step_lpdf(
     return -log_normalizer;
   }
 
+  if (k == 3 && integration != nullptr) {
+    log_normalizer = recover_dense_triple(log_normalizer, relative_mcse, integration,
+      covariance, mean, selection_se, omega, selection, points, scrambles, vector_rule);
+    if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  }
   return log_density - log_normalizer;
 }
 
@@ -8386,9 +8452,14 @@ double cpp_selnorm_gaussian_event_log_mass(
       return log_mass;
     }
   }
-  return gaussian_event_log_mass(mean, cholesky, dimension, selection_se,
+  const double mass = gaussian_event_log_mass(mean, cholesky, dimension, selection_se,
     omega, selection, kernel_mode, vector_rule, lower, upper, qmc,
     points, scrambles, relative_mcse, routing_bin);
+  if (try_envelope && dimension == 3) {
+    return recover_dense_triple(mass, relative_mcse, integration, covariance, mean,
+      selection_se, omega, selection, points, scrambles, vector_rule);
+  }
+  return mass;
 }
 
 #include "selnorm-sampling-conditioned.cc.inc"

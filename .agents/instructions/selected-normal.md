@@ -11,6 +11,17 @@ sampling law. For likelihood-only nodes, verify observed deviance with
 See [maintainer decisions](decision-rationale.md) for why loose requests retain
 the deterministic calibration cap and why this does not certify QMC accuracy.
 
+## Dense three-outcome normalizers
+
+For a dense three-outcome product selection block, a failed QMC normalizer
+can be recovered with a bounded rank-one integral. This requires positive
+off-diagonal covariances, positive residual variances, and positive weights.
+Check the perturbation between the represented factor covariance and the
+supplied matrix, then combine its relative error multiplicatively with the
+integral enclosure radius. The combined radius must meet the original
+tolerance using the supplied work budget. This also applies to the unrestricted
+Gaussian event. A truncated event or projected density has a different target.
+
 ## Effect Direction
 
 JAGS returns `mu`, `theta`, and random effects on the original fitted scale,
