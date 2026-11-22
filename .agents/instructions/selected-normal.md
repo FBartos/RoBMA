@@ -57,6 +57,10 @@ compute moments on either side of the Gaussian mode in coordinates anchored
 at the nearest point of each bin. Combine within-bin and between-bin variance
 with relative log masses so that a rare selected tail retains its contribution.
 
+When weighted raw moments overflow, retry the STEP calculation in standard
+normal coordinates and scale all bin contributions by the same power of two.
+Check the recovered denominator against the log normalizer before using it.
+
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.
 
