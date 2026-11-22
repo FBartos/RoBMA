@@ -11,24 +11,25 @@ test_that("the rejected Assink triple is recovered within its reported radius", 
   cut <- stats::qnorm(.025, lower.tail = FALSE)
   rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
   evaluate <- function(order = 1:3, quadrature = rules, tolerance = .005,
-                       points = 512L, scrambles = 8L, covariance = V) {
+                       points = 512L, scrambles = 8L, covariance = V,
+                       mu_vec = mu, sei = se) {
     covariance <- covariance[order, order]
     packed <- covariance[lower.tri(covariance, diag = TRUE)]
     design <- BayesTools::selection_qmc_design(6L, points, scrambles, seed = 1L)
-    .Call("RoBMA_selnorm_mnorm_step_loglik_batch", numeric(3), matrix(mu[order], 2, 3, byrow = TRUE),
-          matrix(packed, 2, 6, byrow = TRUE), se[order], matrix(omega, 2, 2, byrow = TRUE),
+    .Call("RoBMA_selnorm_mnorm_step_loglik_batch", numeric(3), matrix(mu_vec[order], 2, 3, byrow = TRUE),
+          matrix(packed, 2, 6, byrow = TRUE), sei[order], matrix(omega, 2, 2, byrow = TRUE),
           c(cut, -Inf), c(Inf, cut), rep(2L, 3), 1L, TRUE, 1L, as.double(design),
           points, scrambles, tolerance, TRUE, 0L, quadrature, PACKAGE = "RoBMA")
   }
 
   # w(y) = omega[2] + (1 - omega[2]) I(y >= cut*se) for each row.
-  reference_mass <- function(V) {
+  reference_mass <- function(V, mu_vec = mu, sei = se) {
     mass <- omega[2]^3
     for (size in 1:3) {
       orthants <- utils::combn(3, size, function(rows) {
-        if (size == 1L) return(stats::pnorm(cut*se[rows], mu[rows], sqrt(V[rows, rows]),
+        if (size == 1L) return(stats::pnorm(cut*sei[rows], mu_vec[rows], sqrt(V[rows, rows]),
                                             lower.tail = FALSE))
-        as.numeric(mvtnorm::pmvnorm(lower = cut*se[rows], mean = mu[rows],
+        as.numeric(mvtnorm::pmvnorm(lower = cut*sei[rows], mean = mu_vec[rows],
           sigma = V[rows, rows, drop = FALSE], algorithm = mvtnorm::Miwa(steps = 512L)))
       })
       mass <- mass + omega[2]^(3-size) * (1-omega[2])^size * sum(orthants)
@@ -82,7 +83,19 @@ test_that("the rejected Assink triple is recovered within its reported radius", 
     expect_lte(abs(expm1(result$log_normalizer[1] - log(reference_mass(cov)))), bound[1] + 1e-8)
   }
   heywood <- matrix(c(1,.8,.4, .8,1,.8, .4,.8,1), 3L)
-  expect_null(attr(evaluate(covariance = heywood)$integration_diagnostics, "rank_one_relative_error"))
+  refused <- evaluate(covariance = heywood)
+  expect_null(attr(refused$integration_diagnostics, "rank_one_relative_error"))
+  expect_gt(.selection_qmc_z() * refused$relative_mcse[1L], .005)
+
+  # An unequal-SE AR(.95) block needs the full covariance eigenvalue bound.
+  alt_se <- c(.15, .3, .6)
+  alt_V <- tcrossprod(alt_se) * .95^abs(outer(1:3, 1:3, "-"))
+  alt <- evaluate(covariance = alt_V, mu_vec = -alt_se, sei = alt_se)
+  alt_radius <- attr(alt$integration_diagnostics, "rank_one_relative_error")
+  expect_length(alt_radius, 2L)
+  expect_lte(alt_radius[1L], .005)
+  expect_lte(abs(expm1(alt$log_normalizer[1L] - log(reference_mass(alt_V, -alt_se, alt_se)))),
+             alt_radius[1L] + 1e-8)
 
   # Deliberately insufficient work must never count as a bounded success.
   limited <- evaluate(points = 8L, scrambles = 2L, tolerance = 1e-9)

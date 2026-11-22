@@ -7739,20 +7739,26 @@ static double recover_dense_triple(double original, double *mcse, SelNormDenseIn
   }
   double gap = covariance_relative_gap_bound(covariance, 3, geometry, omega, selection.n_bins);
   if (!(gap <= .01 * tolerance)) {
-    // For C0 = D + l l', det(C0) contains each positive term l_i^2 D_j D_k.
-    // Thus max_i(l_i^2 D_j D_k) / trace(C0)^2 <= lambda_min(C0).
-    double unique[3], trace = 0, determinant_lower = 0;
+    // det(C0)/e2(C0) = 1/sum(1/lambda_i) <= lambda_min(C0), where e2
+    // is the sum of the three principal two-row minors. For C0 = D + l l'
+    // both polynomials are sums of nonnegative terms, even at the boundary.
+    double d_lo[3], d_hi[3], l2_lo[3], l2_hi[3];
     for (int i = 0; i < 3; ++i) {
-      unique[i] = std::max(0.0, mul_down(g.residual_sd[i], g.residual_sd[i]));
-      trace = add_up(trace, add_up(mul_up(g.residual_sd[i], g.residual_sd[i]),
-                                   mul_up(g.common_loading[i], g.common_loading[i])));
+      d_lo[i] = mul_down(g.residual_sd[i], g.residual_sd[i]);
+      d_hi[i] = mul_up(g.residual_sd[i], g.residual_sd[i]);
+      l2_lo[i] = mul_down(g.common_loading[i], g.common_loading[i]);
+      l2_hi[i] = mul_up(g.common_loading[i], g.common_loading[i]);
     }
+    double determinant_lower = mul_down(mul_down(d_lo[0], d_lo[1]), d_lo[2]);
+    double e2_upper = 0;
     for (int i = 0; i < 3; ++i) {
-      const double li2 = std::max(0.0, mul_down(g.common_loading[i], g.common_loading[i]));
-      const double term = mul_down(mul_down(li2, unique[(i+1)%3]), unique[(i+2)%3]);
-      determinant_lower = std::max(determinant_lower, term);
+      const int j = (i + 1) % 3, k = (i + 2) % 3;
+      determinant_lower = add_down(determinant_lower, mul_down(l2_lo[i], mul_down(d_lo[j], d_lo[k])));
+      e2_upper = add_up(e2_upper, mul_up(d_hi[i], d_hi[j]));
+      e2_upper = add_up(e2_upper, mul_up(d_hi[i], l2_hi[j]));
+      e2_upper = add_up(e2_upper, mul_up(d_hi[j], l2_hi[i]));
     }
-    const double eigenvalue_lower = std::nextafter(determinant_lower / mul_up(trace, trace), 0.0);
+    const double eigenvalue_lower = std::nextafter(determinant_lower / e2_upper, 0.0);
     if (eigenvalue_lower > 0 && std::isfinite(eigenvalue_lower)) {
       gap = std::min(gap, covariance_relative_gap_bound(covariance, 3, geometry, omega,
                                                        selection.n_bins, eigenvalue_lower));
