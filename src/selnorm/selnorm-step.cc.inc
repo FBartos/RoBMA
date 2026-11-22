@@ -153,9 +153,54 @@ bool normalize_log_tail_pair(double log_lower_mass, double log_upper_mass,
   return std::isfinite(*log_lower) && std::isfinite(*log_upper);
 }
 
+bool near_step_cut(double query_score, double cut_score)
+{
+  return std::isfinite(cut_score) && std::abs(query_score - cut_score) <= 1e-5;
+}
+
+// Integrate a thin Gaussian interval using its original outcome width.
+bool narrow_normal_log_probability(double width, double sd, double lo, double hi,
+                                   double &log_p)
+{
+  if (!(width > 0) || !std::isfinite(width) || !(sd > 0) || !std::isfinite(sd) ||
+      !std::isfinite(lo) || !std::isfinite(hi)) return false;
+  const double dz = width / sd;
+  const double nearest = std::min(std::abs(lo), std::abs(hi));
+  if (!(dz <= 1e-5) && !(lo == hi && nearest >= 1e6)) return false;
+  const double mid = .5*lo + .5*hi;
+  const double slope = mid * dz;
+  // Up to this slope the omitted fourth-order term is at most about
+  // (1e-3)^4/1920. Above it, dz <= 1e-5 implies |z| >= 100, so the
+  // quadratic remainder below fits the rank-one enclosure's log allowance.
+  if (std::abs(slope) <= 1e-3) {
+    log_p = std::log(width) - std::log(sd) + dnorm(mid, 0, 1, true) +
+      std::log1p((slope * slope - dz * dz) / 24);
+  } else {
+    // On one side of the mode, integrate the exponential slope at the
+    // nearer endpoint exactly. The omitted quadratic has relative effect
+    // at most dz^2/2, or 1/nearest^2 for a remote one-sided interval.
+    const double decay = nearest * dz;
+    log_p = dnorm(nearest, 0, 1, true) + std::log(-std::expm1(-decay)) - std::log(nearest);
+  }
+  return !std::isnan(log_p);
+}
+
+bool add_partial_step_mass(double query, double query_score, double cut, double cut_score,
+                           double sd, bool above_cut, double log_weight, double *log_mass)
+{
+  const double lo = above_cut ? cut_score : query_score;
+  const double hi = above_cut ? query_score : cut_score;
+  double log_p;
+  if (narrow_normal_log_probability(std::abs(query - cut), sd, lo, hi, log_p)) {
+    *log_mass = add_logspace(*log_mass, log_weight + log_p);
+    return !std::isnan(*log_mass);
+  }
+  return lo < hi && add_weighted_standard_normal_interval(lo, hi, log_weight, log_mass);
+}
+
 bool step_log_tail_pair_logspace(const double *omega,
                                  const SelNormKernelData &data,
-                                 double q_score, double mean, double sd,
+                                 double query, double q_score, double mean, double sd,
                                  double sei, int omega_stride,
                                  bool trusted_partition,
                                  double *log_lower, double *log_upper)
@@ -181,14 +226,21 @@ bool step_log_tail_pair_logspace(const double *omega,
       const double lower = stable_affine_score(lower_z, sei, mean, sd);
       const double upper = stable_affine_score(upper_z, sei, mean, sd);
       const double log_w = std::log(w);
-      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
-          !add_weighted_standard_normal_interval(
-            lower, std::min(upper, q_score), log_w, &log_lower_mass
-          ) ||
-          !add_weighted_standard_normal_interval(
-            std::max(lower, q_score), upper, log_w, &log_upper_mass
-          )) {
-        return false;
+      if (!(lower < upper)) return false;
+      if (near_step_cut(q_score, lower) || near_step_cut(q_score, upper)) {
+        const double raw_lower = lower_z * sei, raw_upper = upper_z * sei;
+        if (query <= raw_lower || query >= raw_upper) {
+          double *whole = query <= raw_lower ? &log_upper_mass : &log_lower_mass;
+          if (!add_weighted_standard_normal_interval(lower, upper, log_w, whole)) return false;
+        } else if (!add_partial_step_mass(query, q_score, raw_lower, lower, sd, true,
+                                          log_w, &log_lower_mass) ||
+                   !add_partial_step_mass(query, q_score, raw_upper, upper, sd, false,
+                                          log_w, &log_upper_mass)) return false;
+      } else {
+        if (!add_weighted_standard_normal_interval(lower, std::min(upper, q_score), log_w,
+                                                   &log_lower_mass) ||
+            !add_weighted_standard_normal_interval(std::max(lower, q_score), upper, log_w,
+                                                   &log_upper_mass)) return false;
       }
     } else if (w < 0 || std::isnan(w)) {
       return false;
@@ -217,6 +269,7 @@ bool step_log_tail_pair_from_plan(
   for (int g = 0; g < n_groups; ++g) {
     const double lower = lower_score[g];
     const double upper = upper_score[g];
+    if (near_step_cut(q_score, lower) || near_step_cut(q_score, upper)) return false;
     const double log_w = log_weight[g];
     if (!add_weighted_standard_normal_interval(
           lower, std::min(upper, q_score), log_w, &log_lower_mass

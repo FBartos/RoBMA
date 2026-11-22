@@ -52,6 +52,12 @@ double cpp_selnorm_affine_normal_pdf_log_scale(
 double cpp_selnorm_normal_interval_log_prob(
   double lower, double upper, double mean, double sd)
 {
+  const double width = upper - lower;
+  if (width > 0 && std::isfinite(width) && width / sd <= 1e-5) {
+    double log_p;
+    if (narrow_normal_log_probability(width, sd, stable_normal_score(lower, mean, sd),
+                                       stable_normal_score(upper, mean, sd), log_p)) return log_p;
+  }
   return interval_log_prob(lower, upper, mean, sd);
 }
 
@@ -786,6 +792,9 @@ double cpp_selnorm_step_cdf_from_telescope_plan(
   for (int b = 0; b < data.n_bins - 1; ++b) {
     const double boundary = data.z_lower[b] * sei;
     double contribution;
+    if (signed_q != boundary && std::abs(signed_q - boundary) / sd <= 1e-5) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
     if (signed_lower_tail) {
       contribution = 0;
       if (signed_q > boundary) {
@@ -821,7 +830,8 @@ double cpp_selnorm_step_cdf_from_plan(
   const double *upper_score,
   const double *log_weight,
   int n_groups,
-  bool lower_tail)
+  bool lower_tail,
+  const double *omega, int omega_stride)
 {
   if (!(sd > 0) || !std::isfinite(sd) ||
       !(sei > 0) || !std::isfinite(sei) ||
@@ -841,7 +851,9 @@ double cpp_selnorm_step_cdf_from_plan(
         q_score, lower_score, upper_score, log_weight, n_groups,
         &signed_log_lower, &signed_log_upper
       )) {
-    return std::numeric_limits<double>::quiet_NaN();
+    // The score-only plan cannot recover the width of a cut-adjacent slice.
+    return cpp_selnorm_kernel_cdf(q, mean, sd, sei, omega, 0, 0, SELKERNEL_STEP,
+                                  data, omega_stride, lower_tail, false);
   }
 
   const double log_lower = data.effect_sign == 1 ?
@@ -910,7 +922,7 @@ void cpp_selnorm_kernel_log_tail_pair(
   double signed_log_lower;
   double signed_log_upper;
   if (!step_log_tail_pair_logspace(
-    omega, data, q_score, signed_mean, sd, sei, omega_stride,
+    omega, data, signed_q, q_score, signed_mean, sd, sei, omega_stride,
     data.trusted_step_partition, &signed_log_lower, &signed_log_upper
   )) {
     return;
@@ -1170,7 +1182,7 @@ void shared_log_tail_pair(double lower_mass, double upper_mass,
 // them.
 bool step_predictive_summary_shared(const double *omega,
                                     const SelNormKernelData &data,
-                                    double q_score, double signed_mean,
+                                    double signed_q, double q_score, double signed_mean,
                                     double sd, double sei, int omega_stride,
                                     double *log_lower, double *log_upper,
                                     double *centered_mean,
@@ -1215,6 +1227,10 @@ bool step_predictive_summary_shared(const double *omega,
         data.z_lower[last], sei, signed_mean, sd
       ));
     if (std::isnan(lower.score) || !(lower.score < upper.score)) {
+      return false;
+    }
+    if (near_step_cut(q_score, lower.score) &&
+        (signed_q != data.z_lower[last] * sei || q_score != lower.score)) {
       return false;
     }
 
@@ -1334,7 +1350,7 @@ void cpp_selnorm_kernel_predictive_summary(
     // separate kernels below for all four values.
     if (std::isfinite(q_score) &&
         step_predictive_summary_shared(
-          omega, data, q_score, signed_mean, sd, sei, omega_stride,
+          omega, data, data.effect_sign * q, q_score, signed_mean, sd, sei, omega_stride,
           &signed_log_lower, &signed_log_upper,
           &centered_mean, &centered_variance, &moments_resolved
         ) && moments_resolved) {

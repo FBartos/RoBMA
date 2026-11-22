@@ -31,6 +31,7 @@
 - radial and Q-Q plots retain near-100% bands and identify unrepresentable display ranges
 - selected-normal predictive moments retain rare selection bins whose Gaussian probabilities underflow, including hard selection in a far tail
 - predictive moments and residuals remain available when large finite selection weights overflow the unnormalized moment sums
+- selected-normal log tails and LOO-PIT residuals preserve positive probability immediately inside a selection cutoff
 - sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
 - multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations

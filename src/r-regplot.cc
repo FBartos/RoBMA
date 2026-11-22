@@ -332,7 +332,7 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
             ctx->log_lower_score.data() + log_offset,
             ctx->log_upper_score.data() + log_offset,
             ctx->log_weight.data() + log_offset,
-            ctx->log_plan_groups[si], true
+            ctx->log_plan_groups[si], true, ctx->omega + s, ctx->S
           );
       }
     }
@@ -459,7 +459,7 @@ double plot_selected_cdf(double q, int s, const PlotMixtureContext &ctx)
       ctx.log_lower_score.data() + offset,
       ctx.log_upper_score.data() + offset,
       ctx.log_weight.data() + offset,
-      ctx.log_plan_groups[si], true
+      ctx.log_plan_groups[si], true, ctx.omega + s, ctx.S
     );
   }
 

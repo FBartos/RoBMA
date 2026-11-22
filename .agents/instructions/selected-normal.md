@@ -61,6 +61,12 @@ When weighted raw moments overflow, retry the STEP calculation in standard
 normal coordinates and scale all bin contributions by the same power of two.
 Check the recovered denominator against the log normalizer before using it.
 
+For a continuous outcome query just inside a STEP cutoff, compute the partial
+bin mass from its width in outcome units, from the represented endpoint
+`z_cut * sei` to the supplied outcome query. A query on a hard support boundary
+retains its exact zero tail. Fused summaries and cached plotting CDFs defer
+to that calculation when standardized endpoints cannot resolve the width.
+
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.
 

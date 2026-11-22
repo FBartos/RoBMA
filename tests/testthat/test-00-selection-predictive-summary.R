@@ -249,6 +249,76 @@ test_that("predictive cell summaries match an independent log-space reference", 
 })
 
 
+test_that("selected log tails resolve a positive query distance from a hard cutoff", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  prior <- prior_weightfunction("one-sided", .5, wf_fixed(c(1, 0)))
+  for (direction in c("positive", "negative")) {
+    sign <- if (direction == "positive") 1 else -1
+    for (side in c(-1, 1)) {
+      weights <- if (side == 1) c(1, 0) else c(0, 1)
+      spec <- .selection_spec(list(outcome = list(bias = prior)), 0, 1,
+                              effect_direction = direction, signed_data = FALSE)
+      for (mu in c(0, .001, -3)) {
+        q <- sign * side * c(0, 1e-308, 1e-17, 1e-12, 1e-6)
+        K <- length(q)
+        args <- list(mean = matrix(sign*mu, 1L, K), sd = matrix(1, 1L, K),
+                     sei = rep(1, K), omega = matrix(weights, 1L), selection_spec = spec)
+        got <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = q), args))
+        lower <- sign*side > 0
+        tail <- drop(if (lower) got$log_lower else got$log_upper)
+        expect_identical(tail[1], -Inf)
+        # Scale the integral onto [0,1], so a subnormal width appears only
+        # in log units. The conditional normalizer is the retained half-line.
+        ref <- vapply(abs(q[-1]), function(h) {
+          log(h) + log(stats::integrate(function(u) stats::dnorm(side*h*u, mu), 0, 1)$value) -
+            stats::pnorm(0, mu, lower.tail = side < 0, log.p = TRUE)
+        }, numeric(1))
+        expect_lt(max(abs(tail[-1] - ref)), 1e-10)
+        cdf <- do.call(.selnorm_kernel_cdf_matrix, c(list(q = q, lower.tail = lower), args))
+        expect_lt(max(abs(log(cdf[-1]) - ref)), 1e-10)
+      }
+    }
+  }
+})
+
+test_that("a nonzero cut distinguishes its endpoint from the next outcome interval", {
+
+  prior <- prior_weightfunction("one-sided", .025, wf_fixed(c(1, 0)))
+  sei <- 2
+  spec <- .selection_spec(list(outcome = list(bias = prior)), 0, sei,
+                          effect_direction = "positive", signed_data = FALSE)
+  cut <- BayesTools::selection_native_static_args(spec)$z_lower[1L] * sei
+  q <- c(cut - 2^-40, cut, cut + 2^-40)
+  mu <- cut + .01
+  out <- .selnorm_kernel_predictive_summary_matrix(q, matrix(mu, 1, 3), matrix(1, 1, 3),
+    rep(sei, 3), matrix(c(1, 0), 1), spec)
+  ref <- log(q[3] - cut) + stats::dnorm((q[3]+cut)/2, mu, log = TRUE) -
+    stats::pnorm(cut, mu, lower.tail = FALSE, log.p = TRUE)
+  expect_identical(as.numeric(out$log_lower[1:2]), c(-Inf, -Inf))
+  expect_lt(abs(out$log_lower[3] - ref), 1e-12)
+})
+
+test_that("a collapsed score interval retains its outcome-scale exponential tail", {
+
+  spec <- .selection_spec(list(outcome = list(bias = prior_weightfunction(
+    "one-sided", .5, wf_fixed(c(1, 0))))), 0, 1,
+    effect_direction = "positive", signed_data = FALSE)
+  h <- 5e-11
+  a <- 1e6
+  for (mu in c(a, -a)) {
+    summary <- .selnorm_kernel_predictive_summary_matrix(h, matrix(mu), matrix(1), 1,
+                                                         matrix(c(1,0), 1L), spec)
+    # The omitted quadratic term is bounded by h^2/2. In the rare selected
+    # tail the additional Mills-ratio correction is at most 1/a^2.
+    ref <- if (mu > 0) {
+      stats::dnorm(0, mu, log = TRUE) + log(expm1(a*h)/a)
+    } else log(-expm1(-a*h))
+    # The rare-tail normalization subtracts log masses of order 5e11.
+    expect_lt(abs(summary$log_lower[1L] - ref), 3e-4)
+  }
+})
+
 test_that("predictive cell tails stay finite for widely spaced finite weights", {
 
   skip_if_not(.has_native_selnorm_kernel())
