@@ -22,16 +22,20 @@ test_that("the rejected Assink triple is recovered within its reported radius", 
   }
 
   # w(y) = omega[2] + (1 - omega[2]) I(y >= cut*se) for each row.
-  mass <- omega[2]^3
-  for (size in 1:3) {
-    orthants <- utils::combn(3, size, function(rows) {
-      if (size == 1L) return(stats::pnorm(cut*se[rows], mu[rows], sqrt(V[rows, rows]),
-                                          lower.tail = FALSE))
-      as.numeric(mvtnorm::pmvnorm(lower = cut*se[rows], mean = mu[rows],
-        sigma = V[rows, rows, drop = FALSE], algorithm = mvtnorm::Miwa(steps = 512L)))
-    })
-    mass <- mass + omega[2]^(3-size) * (1-omega[2])^size * sum(orthants)
+  reference_mass <- function(V) {
+    mass <- omega[2]^3
+    for (size in 1:3) {
+      orthants <- utils::combn(3, size, function(rows) {
+        if (size == 1L) return(stats::pnorm(cut*se[rows], mu[rows], sqrt(V[rows, rows]),
+                                            lower.tail = FALSE))
+        as.numeric(mvtnorm::pmvnorm(lower = cut*se[rows], mean = mu[rows],
+          sigma = V[rows, rows, drop = FALSE], algorithm = mvtnorm::Miwa(steps = 512L)))
+      })
+      mass <- mass + omega[2]^(3-size) * (1-omega[2])^size * sum(orthants)
+    }
+    mass
   }
+  mass <- reference_mass(V)
   qmc <- evaluate(quadrature = NULL)
   expect_gt(.selection_qmc_z() * qmc$relative_mcse[1], .005)
   recovered <- evaluate()
@@ -63,6 +67,22 @@ test_that("the rejected Assink triple is recovered within its reported radius", 
   baseline <- evaluate(covariance = negative, quadrature = NULL)
   expect_identical(unchanged$relative_mcse, baseline$relative_mcse)
   expect_identical(unchanged$log_normalizer, baseline$log_normalizer)
+
+  # The fixed-effect AR(1) model is positive definite; its auxiliary factor
+  # has zero uniqueness on the middle row. Check the supplied V against an
+  # independent integral, also just inside that boundary.
+  sampling <- tcrossprod(se) * .8^abs(outer(1:3, 1:3, "-"))
+  for (tau2 in c(0, 1e-12)) {
+    cov <- sampling + diag(tau2, 3)
+    result <- evaluate(covariance = cov)
+    bound <- attr(result$integration_diagnostics, "rank_one_relative_error")
+    expect_length(bound, 2L)
+    expect_equal(result$relative_mcse, c(0, 0))
+    expect_lte(bound[1L], .005)
+    expect_lte(abs(expm1(result$log_normalizer[1] - log(reference_mass(cov)))), bound[1] + 1e-8)
+  }
+  heywood <- matrix(c(1,.8,.4, .8,1,.8, .4,.8,1), 3L)
+  expect_null(attr(evaluate(covariance = heywood)$integration_diagnostics, "rank_one_relative_error"))
 
   # Deliberately insufficient work must never count as a bounded success.
   limited <- evaluate(points = 8L, scrambles = 2L, tolerance = 1e-9)

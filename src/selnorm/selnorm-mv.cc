@@ -1326,7 +1326,7 @@ double covariance_price_gap_bound(const std::vector<double>& covariance,
 // integration. Zero weights retain the absolute Price bound instead.
 double covariance_relative_gap_bound(const std::vector<double>& covariance,
     int dimension, const std::vector<EnvelopeGroupGeometry>& geometry,
-    const double* omega, int n_bins)
+    const double* omega, int n_bins, double eigenvalue_lower = 0.0)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   // Re-validate every input rather than relying on the caller's ordering:
@@ -1381,7 +1381,10 @@ double covariance_relative_gap_bound(const std::vector<double>& covariance,
       if (!std::isfinite(value) || (row != column && !(value >= 0.0))) return infinity;
       const double difference = std::nextafter(std::max(
         std::fabs(value - lower), std::fabs(value - upper)), infinity);
-      const double scale = mul_down(sd[row], sd[column]);
+      // With a certified eigenvalue lower bound for C0, ||C-C0||_inf
+      // divided by it bounds the whitened spectral error even when one
+      // factor uniqueness is tiny. Otherwise use the usual C0 >= D bound.
+      const double scale = eigenvalue_lower > 0 ? eigenvalue_lower : mul_down(sd[row], sd[column]);
       if (!(scale > 0.0) || !std::isfinite(scale) || !std::isfinite(difference)) return infinity;
       const double error = std::nextafter(difference / scale, infinity);
       row_sum[row] = add_up(row_sum[row], error);
@@ -7709,15 +7712,52 @@ static double recover_dense_triple(double original, double *mcse, SelNormDenseIn
     static_cast<long double>(a) * c / b,
     static_cast<long double>(b) * c / a
   };
+  const double transition_scale = std::sqrt(std::numeric_limits<double>::epsilon());
+  bool at_boundary = false;
   for (int i = 0; i < 3; ++i) {
+    if (!(squares[i] > 0) || !std::isfinite(squares[i])) return original;
     const long double residual = covariance[4*i] - squares[i];
-    if (!(squares[i] > 0 && residual > 0)) return original;
+    const long double roundoff = 8 * std::numeric_limits<double>::epsilon() * squares[i];
+    if (residual < -roundoff) return original;
+    at_boundary = at_boundary || residual < transition_scale * covariance[4*i];
+  }
+  for (int i = 0; i < 3; ++i) {
     g.common_loading[i] = std::sqrt(squares[i]);
+    // At the exact AR(1) boundary the central uniqueness is zero. Construct
+    // a smoother auxiliary transition for the bounded integral. An ulp-sized
+    // uniqueness exhausts its leaf budget for ordinary Assink fixed effects.
+    // Changing the integration geometry is allowed only if the perturbation
+    // bound below certifies the normalizer of the original V.
+    if (at_boundary) g.common_loading[i] *= 1 - 2 * transition_scale;
+    const long double residual = at_boundary ?
+      static_cast<long double>(covariance[4*i]) - static_cast<long double>(g.common_loading[i]) * g.common_loading[i] :
+      static_cast<long double>(covariance[4*i]) - squares[i];
+    if (!(residual > 0)) return original;
     g.residual_sd[i] = std::sqrt(residual);
     if (!std::isfinite(g.common_loading[i]) || !std::isfinite(g.residual_sd[i]) ||
         !(g.residual_sd[i] > 0)) return original;
   }
-  const double gap = covariance_relative_gap_bound(covariance, 3, geometry, omega, selection.n_bins);
+  double gap = covariance_relative_gap_bound(covariance, 3, geometry, omega, selection.n_bins);
+  if (!(gap <= .01 * tolerance)) {
+    // For C0 = D + l l', det(C0) contains each positive term l_i^2 D_j D_k.
+    // Thus max_i(l_i^2 D_j D_k) / trace(C0)^2 <= lambda_min(C0).
+    double unique[3], trace = 0, determinant_lower = 0;
+    for (int i = 0; i < 3; ++i) {
+      unique[i] = std::max(0.0, mul_down(g.residual_sd[i], g.residual_sd[i]));
+      trace = add_up(trace, add_up(mul_up(g.residual_sd[i], g.residual_sd[i]),
+                                   mul_up(g.common_loading[i], g.common_loading[i])));
+    }
+    for (int i = 0; i < 3; ++i) {
+      const double li2 = std::max(0.0, mul_down(g.common_loading[i], g.common_loading[i]));
+      const double term = mul_down(mul_down(li2, unique[(i+1)%3]), unique[(i+2)%3]);
+      determinant_lower = std::max(determinant_lower, term);
+    }
+    const double eigenvalue_lower = std::nextafter(determinant_lower / mul_up(trace, trace), 0.0);
+    if (eigenvalue_lower > 0 && std::isfinite(eigenvalue_lower)) {
+      gap = std::min(gap, covariance_relative_gap_bound(covariance, 3, geometry, omega,
+                                                       selection.n_bins, eigenvalue_lower));
+    }
+  }
   if (!(gap < tolerance)) return original;
   FactorNormalizerContext context = {};
   context.vector_rule = SELVECTOR_PRODUCT;

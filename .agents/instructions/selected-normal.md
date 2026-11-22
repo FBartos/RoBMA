@@ -15,7 +15,11 @@ the deterministic calibration cap and why this does not certify QMC accuracy.
 
 For a dense three-outcome product selection block, a failed QMC normalizer
 can be recovered with a bounded rank-one integral. This requires positive
-off-diagonal covariances, positive residual variances, and positive weights.
+off-diagonal covariances and positive weights. At or near a zero uniqueness,
+an auxiliary factor can move its loadings inward to resolve the transition.
+Its positive unique variances are used only for quadrature. A determinant
+and trace bound on the auxiliary covariance controls the error against the
+original matrix even when that uniqueness is very small.
 Check the perturbation between the represented factor covariance and the
 supplied matrix, then combine its relative error multiplicatively with the
 integral enclosure radius. The combined radius must meet the original
