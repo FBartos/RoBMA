@@ -995,9 +995,23 @@ void cpp_selnorm_kernel_moments(
   }
 
   const double signed_mean = data.effect_sign * mean;
-  if (!std::isfinite(step_log_normalizer_score_space(
-        omega, data, signed_mean, sd, sei, omega_stride
-      ))) {
+  double max_log_weight = -INFINITY;
+  const double log_mass = step_log_normalizer_score_space(
+    omega, data, signed_mean, sd, sei, omega_stride, -INFINITY, INFINITY, &max_log_weight);
+  if (!std::isfinite(log_mass)) {
+    return;
+  }
+  // Measure mass relative to the largest weight. Below the predictive
+  // summary's 1e-280 floor a subnormal bin can affect normalized moments.
+  if (log_mass - max_log_weight < std::log(1e-280)) {
+    double location, variance;
+    if (!step_rare_moments(omega, data, signed_mean, sd, sei, omega_stride,
+                           location, variance)) return;
+    const double second = std::fma(location, location, variance);
+    if (!moment_variance && !std::isfinite(second)) return;
+    *moment_mean = data.effect_sign * location;
+    if (moment_variance) *moment_variance = variance;
+    if (std::isfinite(second)) *moment_second = second;
     return;
   }
 
