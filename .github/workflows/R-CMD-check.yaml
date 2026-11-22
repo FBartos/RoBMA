@@ -54,6 +54,8 @@ jobs:
       - name: Resolve BayesTools source
         id: bayestools
         uses: FBartos/BayesTools/.github/actions/bayestools-source@development
+        with:
+          development-spec: github::FBartos/BayesTools@02dafe3082925910ff41f4ec2be1f15d85ccdf9a
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
