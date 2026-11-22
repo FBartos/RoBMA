@@ -1220,4 +1220,13 @@ test_that("finite selection weights retain representable normalized moments", {
     args$omega <- args$omega * 1e308
     expect_equal(do.call(.selnorm_kernel_moments_matrix, args), ref, tolerance = 1e-12)
   }
+
+  # Rescaling the weights cannot restore digits lost inside the unweighted
+  # moment of a very narrow bin. Keep its refusal rather than returning a
+  # variance in the millions for mass concentrated in (0, 1e-4).
+  spec <- .selection_spec(list(outcome = list(bias = prior)), 0, 1e-4,
+                          effect_direction = "positive", signed_data = FALSE)
+  narrow <- .selnorm_kernel_moments_matrix(matrix(2e6), matrix(6e6), 1e-4,
+                                            matrix(c(1, 1e308, 0), 1L), spec)
+  expect_true(is.nan(narrow$variance[1L]))
 })

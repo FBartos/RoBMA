@@ -519,7 +519,8 @@ void step_moments_partition(const double *omega,
                             double *denom, double *signed_first,
                             double *signed_second,
                             double *centered_first = NULL,
-                            double *centered_second = NULL, int scale_exponent = 0)
+                            double *centered_second = NULL, int scale_exponent = 0,
+                            double *operand_sum = nullptr)
 {
   *denom         = 0;
   *signed_first  = 0;
@@ -547,15 +548,21 @@ void step_moments_partition(const double *omega,
       const double upper = data.z_upper[b];
       double m0, m1, m2, centered_m1, centered_m2;
       if constexpr (scaled_scores) {
-        truncated_raw_moments(stable_affine_score(lower, sei, signed_mean, sd),
-                              stable_affine_score(upper, sei, signed_mean, sd),
-                              0, 1, &m0, &m1, &m2);
+        const double a = stable_affine_score(lower, sei, signed_mean, sd);
+        const double b = stable_affine_score(upper, sei, signed_mean, sd);
+        truncated_raw_moments(a, b, 0, 1, &m0, &m1, &m2);
         int exponent = 0;
         const double fraction = std::frexp(w, &exponent);
         const int shift = exponent - scale_exponent;
         *denom         += scaled_moment_product(fraction, shift, m0);
         *signed_first  += scaled_moment_product(fraction, shift, m1);
         *signed_second += scaled_moment_product(fraction, shift, m2);
+        // Scale of all the operands in P, phi(a)-phi(b), and
+        // P+a*phi(a)-b*phi(b), before cancellation inside this bin.
+        double operands = a > 0 ? tail_at(a, 0, 1) : (b < 0 ? cdf_at(b, 0, 1) : m0);
+        if (std::isfinite(a)) operands += (1 + std::abs(a)) * std_phi(a);
+        if (std::isfinite(b)) operands += (1 + std::abs(b)) * std_phi(b);
+        *operand_sum += scaled_moment_product(fraction, shift, operands);
       } else {
         truncated_raw_moments(lower * sei, upper * sei, signed_mean, sd,
                               &m0, &m1, &m2, &centered_m1, &centered_m2);
@@ -582,10 +589,10 @@ bool scaled_step_moments(const double *omega, const SelNormKernelData &data,
   if (exponent < 2 * (std::numeric_limits<double>::min_exponent -
                       std::numeric_limits<double>::digits) ||
       exponent > 2 * std::numeric_limits<double>::max_exponent) return false;
-  double denom, signed_first, signed_second;
+  double denom, signed_first, signed_second, operands = 0;
   step_moments_partition<true>(omega, data, signed_mean, sd, sei, stride,
     data.trusted_step_partition, &denom, &signed_first, &signed_second,
-    nullptr, nullptr, static_cast<int>(exponent));
+    nullptr, nullptr, static_cast<int>(exponent), &operands);
   if (!(denom > 0) || !std::isfinite(denom)) return false;
   const double log_error = std::abs((std::log(denom) + exponent * M_LN2) - log_normalizer);
   if (log_error > 64 * std::numeric_limits<double>::epsilon() *
@@ -593,7 +600,12 @@ bool scaled_step_moments(const double *omega, const SelNormKernelData &data,
   const double shift = signed_first / denom;
   const double second_score = signed_second / denom;
   const double variance_score = std::fma(-shift, shift, second_score);
-  if (!(variance_score > 64 * std::numeric_limits<double>::epsilon() * second_score)) return false;
+  // A finite retry must also resolve the variance. A narrow, dominant bin
+  // can lose its digits inside the raw moments before the final subtraction.
+  // Limit the operand-to-result ratio as in the fused cell summary.
+  const double center_scale = 1 + std::abs(shift);
+  if (!(variance_score > 0) || !std::isfinite(operands) ||
+      (operands / denom) * center_scale * center_scale > 1e4 * variance_score) return false;
   const double location = std::fma(sd, shift, signed_mean);
   const double spread = sd * std::sqrt(variance_score);
   const double variance = spread * spread;
