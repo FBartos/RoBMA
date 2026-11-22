@@ -1,9 +1,20 @@
 #!/usr/bin/env Rscript
 # Exercise public PSOCK fitting and serialized continuation with the joint
-# bias sampler and a finite tau readout. Use the configured JAGS 5 runtime
-# in the main R process and in its PSOCK workers.
+# bias sampler and a finite tau readout, plus the automatic Gaussian row
+# budget. Install both packages into the worker library before starting.
 
 suppressPackageStartupMessages(library(RoBMA))
+
+packages <- c("RoBMA", "BayesTools", "rjags")
+versions <- vapply(packages, function(package) {
+  path <- getNamespaceInfo(asNamespace(package), "path")
+  if (!file.exists(file.path(path, "Meta", "package.rds"))) {
+    stop("Install ", package, " into the worker library before running this verification.", call. = FALSE)
+  }
+  as.character(utils::packageVersion(package, lib.loc = dirname(path)))
+}, character(1))
+stopifnot(rjags::jags.version() >= "5", utils::packageVersion("rjags") >= "5.5")
+cat("Installed package versions:", paste(paste(packages, versions), collapse = ", "), "\n")
 
 verify_joint_workers <- function() {
 
@@ -92,3 +103,38 @@ verify_joint_workers <- function() {
 }
 
 verify_joint_workers()
+
+verify_gaussian_workers <- function() {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  RoBMA.options(max_cores = 2L, sampler.probabilities = character(), selection.sampler = "slice.coarse")
+
+  rows <- seq_len(801L)
+  dat <- data.frame(y = .14 + .05 * sin(rows) + .001 * rows, se = .2, x = rows)
+  fit <- function(policy) {
+    RoBMA.options(sampler.joint = policy)
+    # JAGS_fit checks the package builds on the two actual workers before fitting.
+    model <- BMA(yi = y, sei = se, mods = ~ x, data = dat, measure = "SMD",
+      chains = 2L, parallel = TRUE, adapt = 500L, burnin = 50L, sample = 100L, seed = 165L,
+      convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))
+    stopifnot(model[["fit_control"]][["cores"]] == 2L)
+    model[["fit"]]
+  }
+
+  bypassed <- fit("auto")
+  ordinary <- fit("off")
+  declarations <- attr(bypassed, "sampler_declarations", exact = TRUE)
+  report <- declarations[["robma"]][["joint"]]
+  stopifnot(identical(report[["status"]], "budget_bypassed"), is.null(declarations[["joint"]]),
+            length(bypassed[["mcmc"]]) == 2L, length(bypassed[["end_state"]]) == 2L,
+            nrow(bypassed[["samplers"]]) > 0L,
+            is.null(bypassed[["samplers_by_worker"]]), is.null(ordinary[["samplers_by_worker"]]))
+  for (field in c("model", "data", "samplers", "mcmc", "end_state")) {
+    stopifnot(identical(bypassed[[field]], ordinary[[field]]))
+  }
+  cat("At 801 estimates two PSOCK workers compiled the same model and data with auto and off.",
+      "Sampler assignments, draws, and final chain states were identical.\n")
+}
+
+verify_gaussian_workers()

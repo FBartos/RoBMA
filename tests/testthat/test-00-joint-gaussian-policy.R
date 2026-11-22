@@ -94,15 +94,14 @@ test_that("automatic Gaussian sampling budgets retained estimates before compila
   skip_on_cran()
   previous <- RoBMA.options()
   on.exit(do.call(RoBMA.options, previous), add = TRUE)
-  RoBMA.options(max_cores = 2L, sampler.probabilities = character(), selection.sampler = "slice.coarse")
+  RoBMA.options(sampler.probabilities = character(), selection.sampler = "slice.coarse")
   rows <- seq_len(801L)
   dat <- data.frame(y = .14 + .05 * sin(rows) + .001 * rows, se = .2, x = rows)
-  fit <- function(policy, keep = rep(TRUE, nrow(dat)), standardized = TRUE, parallel = FALSE) {
+  fit <- function(policy, keep = rep(TRUE, nrow(dat)), standardized = TRUE) {
     RoBMA.options(sampler.joint = policy)
     BMA(yi = y, sei = se, mods = ~ x, data = dat, subset = keep, measure = "SMD",
         standardize_continuous_predictors = standardized,
-        chains = if (parallel) 2L else 1L, parallel = parallel,
-        adapt = 500L, burnin = 50L, sample = 100L, seed = 165L,
+        chains = 1L, adapt = 500L, burnin = 50L, sample = 100L, seed = 165L,
         convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))[["fit"]]
   }
   declarations <- function(backend) attr(backend, "sampler_declarations", exact = TRUE)
@@ -113,13 +112,15 @@ test_that("automatic Gaussian sampling budgets retained estimates before compila
   expect_identical(tag(boundary), "robma_gaussian_joint")
   expect_true(report(boundary)[["status"]] %in% c("active", "native_declined"))
 
-  bypassed <- fit("auto", parallel = TRUE)
-  ordinary <- fit("off", parallel = TRUE)
+  bypassed <- fit("auto")
+  ordinary <- fit("off")
   expect_null(tag(bypassed))
   expect_identical(report(bypassed)[["status"]], "budget_bypassed")
   expect_match(report(bypassed)[["reason"]], "801 retained estimates.*limit of 800")
   expect_identical(report(bypassed)[["sampler"]], "RoBMA::GaussianJoint")
   expect_length(report(bypassed)[["nodes"]], 0L)
+  expect_identical(bypassed[["model"]], ordinary[["model"]])
+  expect_identical(bypassed[["data"]], ordinary[["data"]])
   expect_identical(bypassed[["samplers"]], ordinary[["samplers"]])
   expect_identical(bypassed[["mcmc"]], ordinary[["mcmc"]])
   expect_identical(bypassed[["end_state"]], ordinary[["end_state"]])
