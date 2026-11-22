@@ -26,6 +26,18 @@ info      <- lazy_infos(fit_names, validate = FALSE)
   invisible(radial_data)
 }
 
+test_that("radial bands use the representable tail of a near-100-percent level", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+  level <- 100 - 2^-46
+  plot <- radial(fits[[name]], level = level, as_data = TRUE)
+  expect_equal(plot$z_crit, stats::qnorm((100-level)/200, lower.tail = FALSE))
+  expect_true(all(is.finite(plot$band$z)))
+  expect_error(radial(fits[[name]], xlim = c(0, .Machine$double.xmax), as_data = TRUE),
+               class = "RoBMA_radial_range_unavailable")
+})
+
 
 # ============================================================================ #
 # Test: Simple Meta-Analysis Radial Plot

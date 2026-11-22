@@ -17,16 +17,15 @@ context("Sampler declarations in fitted models")
   return(list(data = dat, V = V))
 }
 
-# A small fit with the declarations on or off (both options), restoring them.
-# The fits compare the declarations with the samplers JAGS assigns, so the
-# corrected selection sampler is off unless `sampler` says otherwise.
+# Compare gate and block declarations with the samplers JAGS assigns.
+# The corrected selection sampler is off unless `sampler` says otherwise.
 .declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L,
                              sampler = "slice") {
 
-  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "selection.sampler")]
+  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "sampler.joint", "selection.sampler")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
   RoBMA::RoBMA.options(sampler.blocks = declarations, sampler.gates = declarations,
-                       selection.sampler = sampler)
+                       sampler.joint = "off", selection.sampler = sampler)
   args <- utils::modifyList(list(
     measure = "SMD", chains = chains, adapt = 50L, burnin = 50L, sample = sample, seed = 1L,
     parallel = FALSE, silent = TRUE,

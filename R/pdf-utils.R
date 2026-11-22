@@ -407,15 +407,30 @@
 }
 
 
-.glmm_prior_quantile_grid <- function(prior, n) {
+.glmm_prior_quantile_grid <- function(prior, n, cluster_ends = FALSE) {
 
-  key <- .glmm_prior_grid_key(prior, n)
+  key <- .glmm_prior_grid_key(prior, n, if (cluster_ends) "sine-square" else "legendre")
   if (exists(key, envir = .glmm_prior_quantile_grid_cache, inherits = FALSE)) {
     return(get(key, envir = .glmm_prior_quantile_grid_cache, inherits = FALSE))
   }
 
-  gl      <- .gauss_legendre_nodes(n)
-  q_grid  <- as.numeric(BayesTools::quant(prior, gl[["nodes"]]))
+  gl <- .gauss_legendre_nodes(n)
+  u <- gl[["nodes"]]
+  log_weights <- gl[["log_weights"]]
+  if (cluster_ends) {
+    # Resolve likelihood mass close to a prior-CDF endpoint. For t in (0,1),
+    # u = sin(pi*t/2)^2 and du/dt = pi*sin(pi*t)/2. Evaluate the upper
+    # half via its small complement.
+    u <- ifelse(u <= .5, sinpi(u / 2)^2, 1 - sinpi((1 - u) / 2)^2)
+    weights <- gl[["weights"]] * (pi / 2) * sinpi(gl[["nodes"]])
+    log_weights <- log(weights / sum(weights))
+  }
+  q_grid <- if (cluster_ends) suppressWarnings(as.numeric(BayesTools::quant(prior, u))) else
+    as.numeric(BayesTools::quant(prior, u))
+  if (cluster_ends && (any(u <= 0 | u >= 1) || any(!is.finite(q_grid)))) {
+    stop(errorCondition("Endpoint quadrature nodes are unrepresentable for this nuisance prior.",
+                        class = "RoBMA_glmm_endpoint_grid_unavailable", call = NULL))
+  }
 
   if (anyNA(q_grid) || any(!is.finite(q_grid))) {
     stop("The GLMM nuisance prior produced non-finite quadrature nodes.",
@@ -424,7 +439,7 @@
 
   out <- list(
     grid        = q_grid,
-    log_weights = gl[["log_weights"]]
+    log_weights = log_weights
   )
 
   assign(key, out, envir = .glmm_prior_quantile_grid_cache)
@@ -440,17 +455,17 @@
 # Construct prior-scale nuisance grids for binomial GLMM likelihoods.
 #
 # ---------------------------------------------------------------------------- #
-.glmm_binom_logit_pi_grid <- function(ai, ci, n1i, n2i, prior_pi, n_pi) {
+.glmm_binom_logit_pi_grid <- function(ai, ci, n1i, n2i, prior_pi, n_pi, cluster_ends = FALSE) {
 
   K       <- length(ai)
-  key     <- .glmm_prior_grid_key(prior_pi, n_pi, paste("bin", K, sep = "|"))
+  key     <- .glmm_prior_grid_key(prior_pi, n_pi, paste("bin", K, cluster_ends, sep = "|"))
   if (exists(key, envir = .glmm_binom_logit_pi_grid_cache, inherits = FALSE)) {
     return(get(key, envir = .glmm_binom_logit_pi_grid_cache, inherits = FALSE))
   }
 
   pi_grid <- .glmm_beta_prior_grid(prior = prior_pi, n = n_pi)
   if (is.null(pi_grid)) {
-    pi_grid <- .glmm_prior_quantile_grid(prior = prior_pi, n = n_pi)
+    pi_grid <- .glmm_prior_quantile_grid(prior = prior_pi, n = n_pi, cluster_ends = cluster_ends)
   }
 
   pi_nodes <- pi_grid[["grid"]]
@@ -483,15 +498,15 @@
 # Construct prior-scale nuisance grids for Poisson GLMM likelihoods.
 #
 # ---------------------------------------------------------------------------- #
-.glmm_pois_log_phi_grid <- function(x1i, x2i, t1i, t2i, prior_phi, n_phi) {
+.glmm_pois_log_phi_grid <- function(x1i, x2i, t1i, t2i, prior_phi, n_phi, cluster_ends = FALSE) {
 
   K        <- length(x1i)
-  key      <- .glmm_prior_grid_key(prior_phi, n_phi, paste("pois", K, sep = "|"))
+  key      <- .glmm_prior_grid_key(prior_phi, n_phi, paste("pois", K, cluster_ends, sep = "|"))
   if (exists(key, envir = .glmm_pois_log_phi_grid_cache, inherits = FALSE)) {
     return(get(key, envir = .glmm_pois_log_phi_grid_cache, inherits = FALSE))
   }
 
-  phi_grid <- .glmm_prior_quantile_grid(prior = prior_phi, n = n_phi)
+  phi_grid <- .glmm_prior_quantile_grid(prior = prior_phi, n = n_phi, cluster_ends = cluster_ends)
 
   log_phi_grid    <- matrix(phi_grid[["grid"]], nrow = n_phi, ncol = K)
   log_phi_weights <- matrix(phi_grid[["log_weights"]], nrow = n_phi, ncol = K)

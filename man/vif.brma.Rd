@@ -112,6 +112,18 @@ draw used) is unavailable: the call stops with an error of class
 The condition carries the draw positions (\code{rows}) and their
 \code{reciprocal_condition}.
 
+The design contains only the estimated intercept and moderator coordinates.
+With a fixed-zero intercept the GVIF uses the through-origin design.
+A term with independent variation on its own has infinite GVIF when its
+column space demonstrably overlaps the other terms after accounting for
+any estimated intercept. Other identifiable terms are evaluated using a
+basis for the remaining column space. An infinite included draw makes
+the posterior mean infinite. Constant or internally aliased terms and
+ambiguous numerical rank raise \code{RoBMA_vif_unavailable}.
+An unrepresentable GVIF or a coefficient correlation matrix that is not
+positive definite at working precision raises \code{RoBMA_vif_unavailable},
+a \code{RoBMA_numerical_unavailable} condition.
+
 For generalized linear mixed models, this is a working effect-size-scale
 diagnostic based on the fitted model's approximate sampling variances. It is
 not a VIF derived directly from the binomial or Poisson information matrix.

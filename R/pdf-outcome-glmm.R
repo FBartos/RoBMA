@@ -25,7 +25,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.binom <- function(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
-                               weights = NULL, n_theta = 15, n_pi = 30) {
+                               weights = NULL, n_theta = 15, n_pi = 30, cluster_ends = FALSE) {
 
   use_aghq   <- missing(n_theta) && missing(n_pi)
   prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
@@ -54,7 +54,8 @@
       prior_pi   = prior_pi,
       weights    = weights,
       n_theta    = n_theta,
-      n_pi       = n_pi
+      n_pi       = n_pi,
+      cluster_ends = cluster_ends
     ))
   }
 
@@ -65,7 +66,8 @@
     n1i      = n1i,
     n2i      = n2i,
     prior_pi = prior_pi,
-    n_pi     = n_pi
+    n_pi     = n_pi,
+    cluster_ends = cluster_ends
   )
   weights_arg <- if (is.null(weights)) NULL else .native_numeric_vector(
     .glmm_likelihood_weights(weights, ncol(mu_samples))
@@ -130,7 +132,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.binom_r <- function(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
-                                 weights = NULL, n_theta = 15, n_pi = 30) {
+                                 weights = NULL, n_theta = 15, n_pi = 30, cluster_ends = FALSE) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
@@ -150,7 +152,8 @@
     n1i      = n1i,
     n2i      = n2i,
     prior_pi = prior_pi,
-    n_pi     = n_pi
+    n_pi     = n_pi,
+    cluster_ends = cluster_ends
   )
 
   # Expand theta grid for vectorized computation
@@ -353,7 +356,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.pois <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
-                              weights = NULL, n_theta = 15, n_phi = 30) {
+                              weights = NULL, n_theta = 15, n_phi = 30, cluster_ends = FALSE) {
 
   use_aghq   <- missing(n_theta) && missing(n_phi)
   prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
@@ -382,7 +385,8 @@
       prior_phi  = prior_phi,
       weights    = weights,
       n_theta    = n_theta,
-      n_phi      = n_phi
+      n_phi      = n_phi,
+      cluster_ends = cluster_ends
     ))
   }
 
@@ -393,7 +397,8 @@
     t1i      = t1i,
     t2i      = t2i,
     prior_phi = prior_phi,
-    n_phi    = n_phi
+    n_phi    = n_phi,
+    cluster_ends = cluster_ends
   )
   weights_arg <- if (is.null(weights)) NULL else .native_numeric_vector(
     .glmm_likelihood_weights(weights, ncol(mu_samples))
@@ -524,7 +529,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.pois_r <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
-                                weights = NULL, n_theta = 15, n_phi = 30) {
+                                weights = NULL, n_theta = 15, n_phi = 30, cluster_ends = FALSE) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
@@ -544,7 +549,8 @@
     t1i       = t1i,
     t2i       = t2i,
     prior_phi = prior_phi,
-    n_phi     = n_phi
+    n_phi     = n_phi,
+    cluster_ends = cluster_ends
   )
 
   # Expand theta grid for vectorized computation

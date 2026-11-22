@@ -5,6 +5,47 @@ source(testthat::test_path("helper-contracts.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-metafor.R"))
 
+test_that("GVIF retains finite determinant ratios and diagnoses singular correlation", {
+
+  # The diagonal of the inverse AR(1) correlation has closed-form entries.
+  rho <- .9
+  correlation <- rho ^ abs(outer(1:500, 1:500, "-"))
+  expect_equal(.vif_gvif(correlation, list(1L, 2L)),
+               c(1, 1 + rho^2) / (1 - rho^2), tolerance = 1e-10)
+  expect_error(.vif_gvif(matrix(1, 2, 2), list(1L)), class = "RoBMA_vif_unavailable")
+  expect_error(.vif_gvif(diag(c(1, 0)), list(1L)), class = "RoBMA_vif_unavailable")
+  expect_identical(.vif_gvif(correlation, list(1:500)), 1)
+})
+
+test_that("exact between-term overlap gives term-specific infinite GVIF", {
+
+  x <- c(-3, -2, -1, 0, 1, 3)
+  z <- c(1, 3, 4, 0, 2, -1)
+  design <- cbind(intercept = 1, x = x, duplicate = 2*x, z = z)
+  evaluate <- function(X, assign) {
+    plan <- .vif_design_plan(X, assign)
+    plan$transform(solve(crossprod(plan$design)))
+  }
+  expected <- 1/(1 - stats::cor(x, z)^2)
+  expect_equal(evaluate(design, 0:3), c(Inf, Inf, expected), tolerance = 1e-12)
+  expect_equal(evaluate(cbind(1, x, 2*x, 3*x), 0:3), rep(Inf, 3L))
+  expect_equal(evaluate(design, c(0L, 1L, 2L, 2L)), c(Inf, Inf))
+  expect_error(evaluate(design, c(0L, 1L, 1L, 2L)), "internally aliased",
+               class = "RoBMA_vif_unavailable")
+  expect_error(evaluate(cbind(intercept=1, x=x, constant=1), 0:2), "constant",
+               class = "RoBMA_vif_unavailable")
+  direction <- c(0, 0, 0, 1, -1, 0)
+  design[, "duplicate"] <- 2*x + 1e-10*direction
+  expect_error(evaluate(design, 0:3), "ambiguous", class = "RoBMA_vif_unavailable")
+  design[, "duplicate"] <- 2*x + 1e-3*direction
+  expect_true(all(is.finite(evaluate(design, 0:3))))
+
+  mixed <- .vif_summarize_draws(matrix(c(1, 1, Inf), ncol = 1L),
+    data.frame(term = "x", df = 1L), 1:3, probs = .5, include_samples = TRUE)
+  expect_identical(mixed$GVIF, Inf)
+  expect_equal(mixed[["CI_0.5"]], 1)
+})
+
 test_that("VIF rejects data-only objects", {
 
   dat <- data.frame(
