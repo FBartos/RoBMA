@@ -54,6 +54,8 @@ galbraith(x, ...)
 - zlim:
 
   z-axis limits. If not specified, limits are computed from data.
+  Unrepresentable arc or band coordinates raise
+  `RoBMA_radial_range_unavailable`.
 
 - xlab:
 

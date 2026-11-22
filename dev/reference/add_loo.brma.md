@@ -61,13 +61,12 @@ grid is accepted only when its log-likelihood changes by less than
 log-rate; truncated ones take the grid too) can fail to reach this,
 especially with few events or very large arms, and then stops with an
 error of class `RoBMA_glmm_grid_nonconvergence` (also of class
-`RoBMA_glmm_numerical_error`); gamma, lognormal, and inverse-gamma
-log-rate priors and lognormal base-rate priors are examples. A beta
-base-rate prior or a normal log-rate prior avoids it. When the
-likelihood is computed automatically after fitting (the
-`autocompute.loo` and `autocompute.waic` options), such a failure gives
-a warning and the fit is returned without LOO/WAIC; `add_loo()` then
-gives the same error.
+`RoBMA_glmm_numerical_error`). For gamma, lognormal and inverse-gamma
+nuisance priors, a second grid concentrates nodes near both prior-CDF
+endpoints when the ordinary grid fails to converge. When the likelihood
+is computed automatically after fitting (the `autocompute.loo` and
+`autocompute.waic` options), such a failure gives a warning and the fit
+is returned without LOO/WAIC; `add_loo()` then gives the same error.
 
 With `unit = "cluster"`, LOO-CV is computed with one joint contribution
 per cluster. For normal models without selection, weighted or not, this

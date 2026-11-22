@@ -13,7 +13,7 @@ number of estimates, and \(G\) is the number of clusters."><meta name="robots" c
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9015</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9016</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -142,9 +142,9 @@ than <code>1e-6</code> between refinements. Any nuisance prior without an adapti
 (other than an untruncated beta base rate or an untruncated normal log-rate;
 truncated ones take the grid too) can fail to reach this, especially
 with few events or very large arms, and then stops with the error class
-<code>RoBMA_glmm_grid_nonconvergence</code> described below; gamma, lognormal, and
-inverse-gamma log-rate priors and lognormal base-rate priors are examples. A
-beta base-rate prior or a normal log-rate prior avoids it. The automatic
+<code>RoBMA_glmm_grid_nonconvergence</code> described below. For gamma, lognormal and
+inverse-gamma nuisance priors, a second grid concentrates nodes near both
+prior-CDF endpoints when the ordinary grid fails to converge. The automatic
 computation after fitting (the <code>autocompute.loo</code> and <code>autocompute.waic</code>
 options) warns instead and returns the fit without LOO/WAIC.
 Numerical quadrature failures share class <code>RoBMA_glmm_numerical_error</code>.

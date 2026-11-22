@@ -162,33 +162,36 @@ set_selection_likelihood_control(
   integration, or the largest nested-design relative change and 2.36
   times the relative Monte Carlo standard error for a factor fallback
   and for the conditioned-sampling normalizer. Rank-one product interval
-  refinement instead checks the conservative relative radius of the
-  actual returned midpoint against both bounds. General covariance
-  blocks and Gaussian event integrals use 2.36 times the relative Monte
-  Carlo standard error alone. Dense covariance-envelope quadrature
-  additionally requires the sum of covariance-bound width, twice the
-  successive quadrature change, the relative exterior-mass bound, and
-  any post-fit CDF interpolation error to satisfy this tolerance. Factor
-  quadrature also checks exterior Gaussian mass before accepting rule
-  agreement; an unresolved rule sequence uses the existing QMC fallback.
-  The returned deterministic candidate also requires its shift-amplitude
-  certificate under product weights (summed shift amplitudes within half
-  of this tolerance and twice their sum, with the exterior mass, within
-  the tolerance; the four-shift average that follows a rejected ladder
-  is used only for tolerances of at least 0.005) or, on the other
-  routes, selection-transition resolution; coarser comparison rules
-  retain their actual values without an added resolution requirement.
-  The randomized fallback stops when the larger of its relative change
-  and 2.36 times its relative Monte Carlo standard error (the 97.5%
-  quantile of Student's t distribution with seven degrees of freedom,
-  for eight scrambles) is within this tolerance, and a result that does
-  not pass that test is rejected; the reported standard error stays
-  unscaled, and the criterion does not bound the error of the accepted
-  value. Zplot projections additionally check density error relative to
-  the peak within each posterior draw and raw normalizer-mass
-  diagnostics, including their bounded approximation and omission terms.
-  These diagnostics do not certify the total integrated error of a
-  compressed displayed curve; see
+  refinement checks the relative radius of the returned midpoint against
+  both bounds. A rejected dense three-row product normalizer can also
+  use this refinement with an auxiliary one-factor covariance, including
+  near a zero residual variance. Acceptance bounds the error against the
+  supplied covariance matrix. General covariance blocks and Gaussian
+  event integrals use 2.36 times the relative Monte Carlo standard error
+  alone. Dense covariance-envelope quadrature additionally requires the
+  sum of covariance-bound width, twice the successive quadrature change,
+  the relative exterior-mass bound, and any post-fit CDF interpolation
+  error to satisfy this tolerance. Factor quadrature also checks
+  exterior Gaussian mass before accepting rule agreement; an unresolved
+  rule sequence uses the existing QMC fallback. The returned
+  deterministic candidate also requires its shift-amplitude certificate
+  under product weights (summed shift amplitudes within half of this
+  tolerance and twice their sum, with the exterior mass, within the
+  tolerance; the four-shift average that follows a rejected ladder is
+  used only for tolerances of at least 0.005) or, on the other routes,
+  selection-transition resolution; coarser comparison rules retain their
+  actual values without an added resolution requirement. The randomized
+  fallback stops when the larger of its relative change and 2.36 times
+  its relative Monte Carlo standard error (the 97.5% quantile of
+  Student's t distribution with seven degrees of freedom, for eight
+  scrambles) is within this tolerance, and a result that does not pass
+  that test is rejected; the reported standard error stays unscaled, and
+  the criterion does not bound the error of the accepted value. Zplot
+  projections additionally check density error relative to the peak
+  within each posterior draw and raw normalizer-mass diagnostics,
+  including their bounded approximation and omission terms. These
+  diagnostics do not certify the total integrated error of a compressed
+  displayed curve; see
   [`as_zplot.brma()`](https://fbartos.github.io/RoBMA/dev/reference/as_zplot.brma.md).
 
 - seed:

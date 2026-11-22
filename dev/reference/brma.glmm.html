@@ -9,7 +9,7 @@ and location-scale meta-analytic models directly to either binary or count data.
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9015</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9016</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -313,8 +313,9 @@ changes by less than <code>1e-6</code> between refinements; any prior without an
 adaptive route (other than an untruncated beta prior; a truncated beta prior
 takes the grid too) can fail to reach this, especially
 with few events or very large arms, and then stops with an error of class
-<code>RoBMA_glmm_grid_nonconvergence</code>, as a lognormal base-rate prior does on
-cells with few events. A beta prior avoids it. The automatic computation of
+<code>RoBMA_glmm_grid_nonconvergence</code>. For gamma, lognormal and inverse-gamma
+priors, a second grid clusters nodes near both prior-CDF endpoints if
+the ordinary grid fails to converge. The automatic computation of
 LOO/WAIC after fitting warns instead and returns the fit without them.</p></dd>
 
 
@@ -333,8 +334,9 @@ less than <code>1e-6</code> between refinements; any prior without an adaptive r
 (other than an untruncated normal prior; a truncated normal prior takes the
 grid too) can fail to reach this, especially with few
 events or very large arms, and then stops with an error of class
-<code>RoBMA_glmm_grid_nonconvergence</code>, as gamma, lognormal, and inverse-gamma
-log-rate priors do on cells with few events. A normal prior avoids it. The
+<code>RoBMA_glmm_grid_nonconvergence</code>. For gamma, lognormal and inverse-gamma
+priors, a second grid clusters nodes near both prior-CDF endpoints if the
+ordinary grid fails to converge. The
 automatic computation of LOO/WAIC after fitting warns instead and returns the
 fit without them.</p></dd>
 

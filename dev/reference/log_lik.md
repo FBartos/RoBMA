@@ -78,13 +78,13 @@ grid is accepted only when its log-likelihood changes by less than
 (other than an untruncated beta base rate or an untruncated normal
 log-rate; truncated ones take the grid too) can fail to reach this,
 especially with few events or very large arms, and then stops with the
-error class `RoBMA_glmm_grid_nonconvergence` described below; gamma,
-lognormal, and inverse-gamma log-rate priors and lognormal base-rate
-priors are examples. A beta base-rate prior or a normal log-rate prior
-avoids it. The automatic computation after fitting (the
-`autocompute.loo` and `autocompute.waic` options) warns instead and
-returns the fit without LOO/WAIC. Numerical quadrature failures share
-class `RoBMA_glmm_numerical_error`. AGHQ failures have class
+error class `RoBMA_glmm_grid_nonconvergence` described below. For gamma,
+lognormal and inverse-gamma nuisance priors, a second grid concentrates
+nodes near both prior-CDF endpoints when the ordinary grid fails to
+converge. The automatic computation after fitting (the `autocompute.loo`
+and `autocompute.waic` options) warns instead and returns the fit
+without LOO/WAIC. Numerical quadrature failures share class
+`RoBMA_glmm_numerical_error`. AGHQ failures have class
 `RoBMA_glmm_aghq_nonconvergence`; prior-CDF refinement failures retain
 `RoBMA_glmm_grid_nonconvergence`. Their fields identify the outcome
 family, observation, and available sample/refinement diagnostics. A beta

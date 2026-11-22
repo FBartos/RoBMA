@@ -100,6 +100,7 @@ qqnorm(
 - ylim:
 
   y-axis limits. If not specified, limits are computed from data.
+  Unrepresentable automatic limits raise `RoBMA_qq_range_unavailable`.
 
 - xlab:
 
