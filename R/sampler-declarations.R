@@ -36,12 +36,15 @@
 }
 
 
-# Joint candidates and explicit requests retain their eligibility and ownership.
+# Keep the original request and refresh ownership from the last successful run.
 # The backend keeps the markers, nested layout and probability monitor plans.
-.sampler_request_record <- function(fit, requested) {
+.sampler_request_record <- function(fit, requested = NULL) {
+
+  declarations <- attr(fit, "sampler_declarations", exact = TRUE)
+  if (is.null(requested)) requested <- declarations[["robma"]][["request"]]
+  if (is.null(requested)) return(fit)
 
   record <- list()
-  declarations <- attr(fit, "sampler_declarations", exact = TRUE)
   workers      <- fit[["samplers_by_worker"]]
   assignments <- if (is.null(workers)) list(fit[["samplers"]]) else lapply(workers, `[[`, "samplers")
   disabled     <- !requested[["specialized"]]
@@ -85,10 +88,11 @@
     requested_nodes <- requested[["probabilities"]]
     nodes <- declarations[["probabilities"]][["node"]]
     if (is.null(nodes)) nodes <- requested_nodes
+    end_state <- fit[["end_state"]]
+    chains <- if (is.null(workers)) list(seq_along(end_state)) else lapply(workers, `[[`, "chains")
     owners <- vapply(nodes, function(node) {
-      node_owners <- unique(vapply(assignments, function(table) {
-        if (is.null(table)) return(NA_character_)
-        table[["Sampler"]][match(node, table[["Node"]])]
+      node_owners <- unique(vapply(seq_along(assignments), function(worker) {
+        .sampler_probability_owner(node, assignments[[worker]], end_state[chains[[worker]]])
       }, character(1)))
       if (length(node_owners) == 1L) node_owners[[1L]] else "mixed"
     }, character(1), USE.NAMES = FALSE)
@@ -107,10 +111,32 @@
     )
   }
   if (length(record) > 0L) {
+    record[["request"]] <- requested
     declarations[["robma"]] <- record
     attr(fit, "sampler_declarations") <- declarations
   }
   return(fit)
+}
+
+
+# JAGS can report the bare or indexed spelling of a singleton. Its final
+# state establishes the shape even for coordinates omitted from monitoring.
+.sampler_probability_owner <- function(node, table, states) {
+
+  index <- match(node, table[["Node"]])
+  if (!is.na(index)) return(table[["Sampler"]][[index]])
+
+  base <- sub("\\[1\\]$", "", node)
+  if (grepl("[", base, fixed = TRUE) || length(states) == 0L ||
+      !all(vapply(states, function(state) {
+        value <- state[[base]]
+        is.numeric(value) && length(value) == 1L && length(dim(value)) <= 1L
+      }, logical(1)))) return(NA_character_)
+
+  alias <- if (node == base) paste0(base, "[1]") else base
+  index <- match(alias, table[["Node"]])
+  if (is.na(index)) return(NA_character_)
+  return(table[["Sampler"]][[index]])
 }
 
 

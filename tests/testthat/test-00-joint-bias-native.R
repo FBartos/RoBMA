@@ -134,6 +134,62 @@ test_that("moderated joint bias owns the original block and reads only unowned c
   }
 })
 
+test_that("moderated joint bias refreshes private coefficient inputs on each chain", {
+
+  skip_if_not_installed("rjags")
+  getFromNamespace(".JAGS_run_runtime_setup", "BayesTools")(.selection_runtime_setup(), 1L)
+  run <- function(mode) {
+    coefficient <- switch(mode, direct = "beta", private = "negative_beta", zero = "0")
+    # negative_beta is used only by the terminal tag. Monitoring it could
+    # refresh the node and mask a stale private input to the proposal.
+    syntax <- paste0("model {
+      bias ~ dcat(c(1, 2))
+      effect ~ dcat(c(3, 1))
+      raw ~ dnorm(.13, 2.5)
+      beta ~ dnorm(0, 1)
+      negative_beta <- -beta
+      mu <- -raw * equals(effect, 1)
+      active[1] <- 1
+      active[2] <- 1 - .6 * equals(bias, 2)
+      for (i in 1:3) {
+        location[i] <- mu - beta * x[i]
+        y[i] ~ dselnorm_step_switch(location[i], se[i], se[i], 1,
+                                    active, zlo, zhi, bin[i], 1, equals(bias, 2), 0)
+      }
+      tag <- robma_joint_bias_moderated(bias, effect, raw, 1, -1, c(0, 1),
+        c(0, 0), c(1, 1, 1, .4), y, ", coefficient, ", design)
+    }")
+    x <- c(-1, .25, .75)
+    data <- list(x = x, design = if (mode == "private") -x else x, y = c(1.4, -.1, -.4),
+                 se = c(.21, .28, .35), zlo = c(1.3, -1e300), zhi = c(1e300, 1.3), bin = c(1L, 0L, 2L))
+    inits <- lapply(seq_len(2L), function(chain) {
+      list(beta = c(-1, 2)[chain], raw = .1, bias = 1L, effect = 2L,
+           .RNG.name = "base::Mersenne-Twister", .RNG.seed = 701L + chain)
+    })
+    con <- textConnection(syntax)
+    on.exit(close(con))
+    fit <- rjags::jags.model(con, data, inits, n.chains = 2L, n.threads = 1L,
+                            n.adapt = 0L, quiet = TRUE)
+    owners <- rjags::list.samplers(fit)
+    expect_setequal(owners[["RoBMA::IndependentBiasJoint"]], c("bias", "effect", "raw"))
+    draws <- rjags::coda.samples(fit, c("beta", "bias", "effect", "raw", "mu", "location[1]"),
+                                n.iter = 64L, progress.bar = "none")
+    list(owners = owners, draws = draws, state = fit$state(internal = TRUE))
+  }
+
+  direct <- run("direct")
+  expect_identical(run("private"), direct)
+  zero <- run("zero")
+  raw_draws <- function(result) lapply(result$draws, function(chain) chain[, "raw"])
+  expect_false(identical(raw_draws(zero), raw_draws(direct)))
+  for (chain in direct$draws) {
+    beta <- chain[, "beta"]
+    expect_gt(length(unique(beta[beta > 0])), 1L) # Distinct negative values of private negative_beta.
+    expect_equal(chain[, "mu"], -chain[, "raw"] * (chain[, "effect"] == 1L))
+    expect_equal(chain[, "location[1]"], chain[, "mu"] + beta)
+  }
+})
+
 test_that("a zero moderator offset replays the unmoderated joint update", {
 
   skip_if_not_installed("rjags")

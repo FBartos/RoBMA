@@ -10,6 +10,12 @@
 # A fit replicate is one independent serial chain. The one-chain R-hat notice
 # is expected. The comparison reports replicate-jackknife MCSEs and observed
 # support, with no pass/fail threshold on realized Monte Carlo errors.
+#
+# Standalone native Gaussian checks, from the package root in PowerShell with
+# a C++17 or newer g++ on PATH:
+# $check = Join-Path ([IO.Path]::GetTempPath()) "robma-gaussian-$PID.exe"
+# g++ -std=c++17 -O2 tests/testthat/fixtures/gaussian-joint-kernel-check.cc -o $check
+# & $check
 
 args <- commandArgs(trailingOnly = TRUE)
 option <- function(name, default) {
