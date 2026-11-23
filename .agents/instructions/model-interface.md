@@ -11,6 +11,9 @@ RoBMA fits and extends through `BayesTools::JAGS_fit()` and
 `fit` component holds a `BayesTools_fit`. Use its coda methods for draws,
 preserving within-chain timing and chain-major row order. BayesTools owns
 the chain states, model reconstruction, adaptation and worker lifecycle.
+RoBMA forwards the JASP progress flag and subgroup label to BayesTools.
+Progress ticks within a sampling run share its adaptation and its selection
+sampler report, including when chains run on parallel workers.
 
 ## Formula ownership
 
