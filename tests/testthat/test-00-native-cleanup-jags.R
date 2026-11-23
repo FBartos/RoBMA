@@ -105,46 +105,38 @@ test_that("response RNG interrupts between rows and releases its consumed stream
     covariance, c(1, 1), weights, -Inf, Inf, 1L, 0L, list(1:2), 1L, 0L,
     PACKAGE = "RoBMA")
   initial <- .Random.seed
-  complete <- generate()
+  elapsed <- system.time(complete <- generate(), gcFirst = FALSE)[["elapsed"]]
   expect_identical(complete$failure_code, 0L)
   complete_seed <- .Random.seed
-  # The generator repeats inside the callback until the elapsed limit fires, so
-  # the test does not depend on one call outlasting the limit (a fast machine
-  # completes 50,000 rows in under 20 ms). The bound only stops a broken
-  # interrupt check from running forever; reaching it fails the assertions.
-  calls <- 0L
-  interrupt <- function() {
+  interrupt <- function(limit) {
     on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE), add = TRUE)
     .Call("RoBMA_native_unwind_probe", "callback", function() {
-      setTimeLimit(elapsed = .02, transient = TRUE)
-      while (calls < 2000L) {
+      setTimeLimit(elapsed = limit, transient = TRUE)
+      for (i in seq_len(2000L)) {
+        assign(".Random.seed", initial, envir = .GlobalEnv)
         generate()
-        calls <<- calls + 1L
       }
     }, 1L, PACKAGE = "RoBMA")
   }
-  # The limit can also expire before the first row of a call (setup or garbage
-  # collection on a slow runner), which then consumes no draws. Repeat until the
-  # interrupt lands between rows: the seed then differs from the seed after the
-  # completed calls alone, so the partial stream was saved.
-  seed_after_calls <- function(n) {
-    assign(".Random.seed", initial, envir = .GlobalEnv)
-    for (i in seq_len(n)) generate()
-    .Random.seed
-  }
-  for (attempt in seq_len(10L)) {
-    assign(".Random.seed", initial, envir = .GlobalEnv)
-    calls <- 0L
-    result <- tryCatch(interrupt(), error = identity)
+  # Instrumented input validation can itself outlast a fixed 20 ms limit.
+  # Try several points in a measured call. Repeated calls cover timers with
+  # coarser resolution than a single fast call.
+  for (fraction in c(.5, .75, .9, .25)) {
+    result <- tryCatch(interrupt(max(.05, elapsed) * fraction), error = identity)
     interrupted_seed <- .Random.seed
     if (!inherits(result, "error")) break
-    completed_seed <- seed_after_calls(calls)
-    if (!identical(interrupted_seed, completed_seed)) break
+    if (!identical(interrupted_seed, initial) &&
+        !identical(interrupted_seed, complete_seed)) break
   }
   expect_s3_class(result, "error")
   if (inherits(result, "error")) {
     expect_match(conditionMessage(result), "elapsed time limit", fixed = TRUE)
-    expect_false(identical(interrupted_seed, completed_seed))
+    # With identity covariance, the next two normals are exactly one row of
+    # the reference run. A match after its first row proves a proper prefix
+    # was consumed and its RNG state was saved during unwinding.
+    next_row <- stats::rnorm(2L)
+    expect_true(any(complete$draws[-1L, 1L] == next_row[1L] &
+                    complete$draws[-1L, 2L] == next_row[2L]))
   }
   expect_identical(.Call("RoBMA_native_unwind_probe", "state", NULL, 1L,
     PACKAGE = "RoBMA"), rep(FALSE, 3L))
