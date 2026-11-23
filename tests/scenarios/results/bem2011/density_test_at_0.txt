@@ -1,5 +1,5 @@
  Alternative:  Null:    BF error%(BF)
-      mu != 0 mu = 0 0.751      7.589
+      mu != 0 mu = 0 0.672      5.887
       mu != 0 mu = 0 0.561      7.424
-[0;31mqCMDE relative MCSE is 7.59% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 6.47% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 5.89% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 6.45% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
