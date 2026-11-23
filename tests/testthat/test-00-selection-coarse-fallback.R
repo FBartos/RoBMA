@@ -824,17 +824,27 @@ test_that("the JASP path, alternating fits and leftover counts keep each fit's r
   # Progress on a thinned, uneven draw budget preserves the chains and the
   # corrected sampler's full-run acceptance statistics in each process.
   for (parallel in c(FALSE, TRUE)) {
-    ordinary <- .fallback_fit(parallel = parallel, sample = 103L, thin = 2L)
-    jasp <- .fallback_fit(parallel = parallel, sample = 103L, thin = 2L, is_JASP = TRUE)
+    ordinary <- .fallback_fit(parallel = parallel, sample = 503L, thin = 2L)
+    jasp <- .fallback_fit(parallel = parallel, sample = 503L, thin = 2L, is_JASP = TRUE)
     draws <- coda::as.mcmc.list(jasp[["fit"]])
-    expect_equal(unname(vapply(draws, nrow, integer(1L))), c(103L, 103L))
+    expect_equal(unname(vapply(draws, nrow, integer(1L))), c(503L, 503L))
     expect_identical(draws, coda::as.mcmc.list(ordinary[["fit"]]))
     values <- .fallback_values(jasp)
     expect_length(values, 1L)
     expect_length(values[[1L]], if (parallel) 2L else 1L)
     expect_identical(.fallback_record(jasp), .fallback_record(ordinary))
-    .fallback_expect_identity(.fallback_record(jasp), 50 + 2 * 103, "JASP")
+    expect_true(is.finite(.fallback_record(jasp)$min_sampler_rate))
+    .fallback_expect_identity(.fallback_record(jasp), 50 + 2 * 503, "JASP")
   }
+  # Reach the same 503 draws with one extension; the report counts the
+  # adapted sampler once and includes its proposals from both runs.
+  extended <- .fallback_fit(parallel = TRUE, sample = 403L, thin = 2L, is_JASP = TRUE,
+    autofit = TRUE, autofit_control = list(max_Rhat = NULL, min_ESS = 1e9,
+      max_error = NULL, max_SD_error = NULL, max_time = NULL, max_extend = 1L, sample_extend = 100L))
+  expect_length(.fallback_values(extended), 2L)
+  expect_identical(coda::as.mcmc.list(extended[["fit"]]), coda::as.mcmc.list(ordinary[["fit"]]))
+  expect_identical(.fallback_record(extended)[.fallback_count_names_record],
+                   .fallback_record(ordinary)[.fallback_count_names_record])
 
   # counts that a model left in the process (an earlier fit or a failed attempt)
   # do not enter the record of the next fit
