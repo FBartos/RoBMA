@@ -821,14 +821,20 @@ test_that("the JASP path, alternating fits and leftover counts keep each fit's r
   old_options <- RoBMA.options()
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
 
-  # the JASP path draws in several backend runs of one compiled model: adaptation
-  # and burn-in with one draw, then five runs of a fifth of the draws
-  jasp   <- .fallback_fit(is_JASP = TRUE)
-  values <- .fallback_values(jasp)
-  record <- .fallback_record(jasp)
-  expect_length(values, 6L)
-  expect_identical(unlist(record[.fallback_count_names]), .fallback_value_sums(values)[.fallback_count_names])
-  .fallback_expect_identity(record, 50 + 1 + 100, "JASP")
+  # Progress on a thinned, uneven draw budget preserves the chains and the
+  # corrected sampler's full-run acceptance statistics in each process.
+  for (parallel in c(FALSE, TRUE)) {
+    ordinary <- .fallback_fit(parallel = parallel, sample = 103L, thin = 2L)
+    jasp <- .fallback_fit(parallel = parallel, sample = 103L, thin = 2L, is_JASP = TRUE)
+    draws <- coda::as.mcmc.list(jasp[["fit"]])
+    expect_equal(unname(vapply(draws, nrow, integer(1L))), c(103L, 103L))
+    expect_identical(draws, coda::as.mcmc.list(ordinary[["fit"]]))
+    values <- .fallback_values(jasp)
+    expect_length(values, 1L)
+    expect_length(values[[1L]], if (parallel) 2L else 1L)
+    expect_identical(.fallback_record(jasp), .fallback_record(ordinary))
+    .fallback_expect_identity(.fallback_record(jasp), 50 + 2 * 103, "JASP")
+  }
 
   # counts that a model left in the process (an earlier fit or a failed attempt)
   # do not enter the record of the next fit

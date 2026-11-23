@@ -140,12 +140,13 @@ rate \code{sampling_judged / sampling_proposed}, which equals the raw rate
 acceptance rate of one sampler over one backend run (of the fit, of an
 automatic extension or of an \code{update()}), among samplers with at least
 1,000 proposals in that run (\code{NA} when none has). A fit made of several
-backend runs (automatic or \code{update()} extensions, or fits that sample in
-several runs, as JASP does) takes this minimum over more and shorter runs;
-while a sampler still makes at least 1,000 proposals in a run, such a fit
-reaches the warning more readily than one long run of the same model, and
-with fewer proposals per run it has no worst-sampler rate. The
-last element is \code{complete}, \code{FALSE} when part of the chain was drawn
+backend runs (automatic or \code{update()} extensions) takes this minimum
+over more and shorter runs. While a sampler still makes at least 1,000
+proposals in a run, such a fit reaches the warning more readily than one
+long run of the same model, and
+with fewer proposals per run it has no worst-sampler rate. In JASP, each
+sampling run contributes one report per process across all its progress ticks.
+The last element is \code{complete}, \code{FALSE} when part of the chain was drawn
 without a record (an extension of a fit saved before the record existed, a
 process whose report failed, or draws added without any report), in which
 case the counts cover the recorded part only.
