@@ -1,23 +1,23 @@
 
 Effect
                 Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Spike(0)        Null              0.500       0.594        1.464                5.277
-Normal(0, 0.71) Alternative       0.500       0.406        0.683                5.277
+Spike(0)        Null              0.500       0.598        1.490                1.596
+Normal(0, 0.71) Alternative       0.500       0.402        0.671                1.596
 
 Heterogeneity
                         Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Spike(0)                Null              0.500       0.856        5.945                2.133
-Normal(0, 0.35)[0, Inf] Alternative       0.500       0.144        0.168                2.133
+Spike(0)                Null              0.500       0.857        5.986                2.008
+Normal(0, 0.35)[0, Inf] Alternative       0.500       0.143        0.167                2.008
 
 Publication Bias
                                 Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-None                            Null              0.500       0.069        0.074                5.091
-omega[two-sided: .05]           Alternative       0.042       0.009        0.220                5.944
-omega[two-sided: .05, .1]       Alternative       0.042       0.043        1.030                4.634
-omega[one-sided: .05]           Alternative       0.042       0.058        1.419                3.447
-omega[one-sided: .025, .05]     Alternative       0.042       0.090        2.289                3.081
-omega[one-sided: .05, .5]       Alternative       0.042       0.031        0.730                4.620
-omega[one-sided: .025, .05, .5] Alternative       0.042       0.043        1.033                4.196
-PET                             Alternative       0.125       0.358        3.895                3.599
-PEESE                           Alternative       0.125       0.299        2.983                3.190
+None                            Null              0.500       0.071        0.076                1.974
+omega[two-sided: .05]           Alternative       0.042       0.010        0.225                4.488
+omega[two-sided: .05, .1]       Alternative       0.042       0.042        1.003                2.460
+omega[one-sided: .05]           Alternative       0.042       0.062        1.509                2.511
+omega[one-sided: .025, .05]     Alternative       0.042       0.096        2.431                2.366
+omega[one-sided: .05, .5]       Alternative       0.042       0.032        0.755                3.325
+omega[one-sided: .025, .05, .5] Alternative       0.042       0.043        1.042                3.308
+PET                             Alternative       0.125       0.338        3.567                1.915
+PEESE                           Alternative       0.125       0.308        3.112                2.158
 
