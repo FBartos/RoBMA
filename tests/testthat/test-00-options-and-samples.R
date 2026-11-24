@@ -152,6 +152,8 @@ test_that("automatic extensions default to sample_extend = 'auto' and keep a fix
   expect_identical(formals(set_autofit_control)[["sample_extend"]], "auto")
   expect_identical(set_autofit_control()[["sample_extend"]], "auto")
   expect_identical(set_autofit_control(sample_extend = 2000)[["sample_extend"]], 2000)
+  # a named "auto" is stored as the plain string, which BayesTools runs as "auto"
+  expect_identical(set_autofit_control(sample_extend = c(step = "auto"))[["sample_extend"]], "auto")
   object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD",
                  only_priors = TRUE, silent = TRUE)
   expect_identical(object[["autofit_control"]][["sample_extend"]], "auto")

@@ -139,13 +139,17 @@ test_that("update.brma extends by 'auto' or a number, and not at all without sam
   auto   <- update(object, sample_extend = "auto")
   fixed  <- update(object, sample_extend = 30)
   absent <- update(object, autofit_control = list(max_extend = 3))
+  named  <- update(object, sample_extend = c(a = "auto"))
 
-  # one extension each, sized by BayesTools for "auto"
-  expect_equal(calls, list(
+  # one extension each, sized by BayesTools for "auto"; a named "auto" reaches
+  # the fit as the plain string
+  expect_identical(calls, list(
     list(sample_extend = "auto", max_extend = 1),
-    list(sample_extend = 30, max_extend = 1)
+    list(sample_extend = 30, max_extend = 1),
+    list(sample_extend = "auto", max_extend = 1)
   ))
   expect_identical(auto[["autofit_control"]][["sample_extend"]], "auto")
+  expect_identical(named[["autofit_control"]][["sample_extend"]], "auto")
   expect_identical(fixed[["autofit_control"]][["sample_extend"]], 30)
   # without sample_extend, update() does not extend and keeps the stored step
   expect_identical(absent[["autofit_control"]][["sample_extend"]], 7)
@@ -154,7 +158,7 @@ test_that("update.brma extends by 'auto' or a number, and not at all without sam
   for (value in list("Auto", "", c("auto", "auto"), NA_character_)) {
     expect_error(update(object, sample_extend = value), "sample_extend", info = deparse(value))
   }
-  expect_length(calls, 2L)
+  expect_length(calls, 3L)
 })
 
 test_that("update.brma can drop stored caches after extension", {
