@@ -84,6 +84,76 @@ test_that("the exact correction pairs each node's terms, so a large shared term 
 })
 
 
+test_that("the factory verifies each design column against its baseline, and an untracked mean change is an error", {
+
+  skip_if_not_installed("rjags")
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  # mu = offset + beta with a gated N(0, 1) slab and offset ~ N(0, 1): from a
+  # starting offset of 2^55 the probe's unit perturbation of the slab rounds
+  # away and the column would pass as zero (the gate then froze)
+  syntax <- paste(c(
+    "model {", "  g ~ dcat(p[])", "  slab ~ dnorm(0, 1)", "  offset ~ dnorm(0, 1)",
+    "  beta <- zero * (g == 1) + slab * (g == 2)", "  mu <- offset + beta", "  y ~ dnorm(mu, 1)",
+    "  t1 <- robma_location_group(g, slab, 2, beta, 1)", "  t2 <- robma_location_setup(g, 1, 0)", "}"),
+    collapse = "\n")
+  reference <- stats::dnorm(.8, 0, sqrt(c(2, 3)))
+  reference <- c(on = reference[[2L]] / sum(reference))
+  run <- function(offset, gate) {
+    connection <- textConnection(syntax)
+    on.exit(close(connection))
+    model <- rjags::jags.model(connection, data = list(p = c(.5, .5), zero = 0, y = .8), n.chains = 1L,
+      n.adapt = 0L, quiet = TRUE, inits = list(g = gate, slab = 0, offset = offset,
+                                               .RNG.name = "base::Mersenne-Twister", .RNG.seed = 376L))
+    decision <- .location_hook()$decision
+    rjags::adapt(model, 50L, end.adaptation = TRUE)
+    draws <- as.matrix(rjags::coda.samples(model, "g", n.iter = 4000L, progress.bar = "none")[[1L]])
+    list(decision = decision, owners = names(rjags::list.samplers(model)), on = (draws[, "g"] == 2) * 1)
+  }
+  for (gate in 1:2) {
+    near <- run(0, gate)
+    expect_identical(near$decision, "claimed without latents")
+    far <- run(2^55, gate)
+    expect_identical(far$decision,
+                     "design probe: a coordinate's perturbation is not representable against the baseline means")
+    expect_false("RoBMA::LocationBlock" %in% far$owners)
+    # declined or correct, never frozen
+    for (fit in list(near, far)) {
+      comparison <- .location_compare(cbind(on = fit$on), reference)
+      expect_true(attr(comparison, "passes"), info = paste(gate, round(comparison$z, 2)))
+    }
+  }
+
+  # mutant 12 drops the design column of the last coordinate (here the slab)
+  # after the probe: the graph then changes a mean that no component of the
+  # sweep moved, an error naming the node that leaves the update's entry state
+  # in place
+  .location_hook(mutant = 12L)
+  on.exit(.location_hook(mutant = 0L), add = TRUE)
+  connection <- textConnection(syntax)
+  jags <- rjags::jags.model(connection, data = list(p = c(.5, .5), zero = 0, y = .8), n.chains = 1L,
+    n.adapt = 0L, quiet = TRUE, inits = list(g = 2L, slab = 0.3, offset = 0,
+                                             .RNG.name = "base::Mersenne-Twister", .RNG.seed = 376L))
+  close(connection)
+  .location_hook(mutant = 0L)
+  expect_true("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)))
+  rjags::adapt(jags, 0L, end.adaptation = TRUE)
+  error <- NULL
+  for (iteration in 1:50) {
+    jags$sync()
+    entry <- jags$state()[[1L]]
+    error <- tryCatch({
+      stats::update(jags, n.iter = 1L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+    if (!is.null(error)) break
+  }
+  expect_match(error, "RoBMA_location_untracked_mean", fixed = TRUE)
+  expect_match(error, "node y", fixed = TRUE)
+  jags$sync()
+  expect_identical(jags$state()[[1L]], entry)
+})
+
+
 test_that("the closed-form tilt of a step-selection row has the derivatives of its density", {
 
   # The analytic Newton path of the location block (StepRowNormalizer.h): the

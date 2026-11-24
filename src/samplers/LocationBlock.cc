@@ -47,6 +47,11 @@ constexpr char group_tag_name[] = "robma_location_group";
 constexpr char latent_tag_name[] = "robma_location_latent";
 constexpr char setup_tag_name[] = "robma_location_setup";
 constexpr char sampler_name[] = "RoBMA::LocationBlock";
+// The error of an untracked change of a likelihood mean (correct()); its
+// bracketed identifier is the condition's stable class name.
+constexpr char untracked_mean_message[] =
+  "Location block sampler [RoBMA_location_untracked_mean]: the mean of this likelihood node changed in a sweep "
+  "that did not move it, so the design the sampler verified does not hold at this state";
 constexpr double log_two_pi = 1.8378770664093454836;
 const double negative_infinity = -std::numeric_limits<double>::infinity();
 
@@ -647,6 +652,37 @@ bool unobserved(StochasticNode const *node)
 {
   for (unsigned long i = 0; i < node->length(); ++i) if (node->isObserved(i)) return false;
   return true;
+}
+
+// The check of a probed design column (spec: Eligibility, the factory's
+// probes): the children's means mu0 at the baseline and mu1, mu2 with one
+// coordinate perturbed by h and 2h. The column's scale is its largest response
+// per unit. The perturbation is representable when the rounding of every
+// baseline and perturbed mean is below 1e-10 of the scale times h (a column
+// lost to the rounding of a large baseline would pass as zero), and the
+// response is linear when the two responses agree to 1e-9 of the scale.
+// Returns column_verified, column_unrepresentable or column_nonlinear (also
+// for a mean that is not finite); *scale receives the scale.
+enum ColumnCheck { column_verified, column_unrepresentable, column_nonlinear };
+
+ColumnCheck column_check(Vec const &mu0, Vec const &mu1, Vec const &mu2, double h, double *scale)
+{
+  const double eps = std::numeric_limits<double>::epsilon();
+  double s = 0.0;
+  for (std::size_t r = 0; r < mu0.size(); ++r) {
+    if (!std::isfinite(mu0[r]) || !std::isfinite(mu1[r]) || !std::isfinite(mu2[r])) return column_nonlinear;
+    s = std::max(s, std::max(std::fabs(mu1[r] - mu0[r]) / h, std::fabs(mu2[r] - mu0[r]) / (2.0 * h)));
+  }
+  *scale = s;
+  if (!std::isfinite(s)) return column_nonlinear;
+  for (std::size_t r = 0; r < mu0.size(); ++r) {
+    const double size = std::max(std::fabs(mu0[r]), std::max(std::fabs(mu1[r]), std::fabs(mu2[r])));
+    if (!(4.0 * eps * size <= 1e-10 * s * h)) return column_unrepresentable;
+  }
+  for (std::size_t r = 0; r < mu0.size(); ++r) {
+    if (!(std::fabs((mu2[r] - mu0[r]) - 2.0 * (mu1[r] - mu0[r])) <= 2e-9 * s * h)) return column_nonlinear;
+  }
+  return column_verified;
 }
 
 #include "LocationBlockBias.h"
@@ -1335,7 +1371,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _repr_delta = 0;
 
     // d: the change of each child's mean per unit of its latent (linear,
-    // verified at construction), probed at the current non-members.
+    // verified at construction), probed at the current non-members. The
+    // probe's baseline is the sweep's own state, so its rounding is that of
+    // the means themselves (unlike the factory's probe, whose baseline holds
+    // the initial values); a mean change the block does not track is an
+    // error in correct().
     std::fill(_d.begin(), _d.end(), 0.0);
     if (S > 0) {
       Vec shifted(_z);
@@ -3409,13 +3449,16 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       _graph_label = _label;
       for (unsigned c = 0; c < S.children.size(); ++c) if (_step_children[c]) refresh_step(c);
     }
-    bool hidden = false;
-    for (unsigned c = 0; c < S.children.size() && !hidden; ++c) {
+    // A likelihood mean that the graph changed although no component of the
+    // sweep moved it: the verified design does not hold at this state. An
+    // error naming the node (update() restores the entry), never a silent
+    // rejection.
+    for (unsigned c = 0; c < S.children.size(); ++c) {
       if (_dirty[c]) continue;
       ChildSpec const &child = S.children[c];
       double const *mean = child.node->parents()[0]->value(_chain);
       for (unsigned i = 0; i < child.n; ++i) {
-        if (mean[i] != _mean_entry[child.row0 + i]) hidden = true;
+        if (mean[i] != _mean_entry[child.row0 + i]) throwNodeError(child.node, untracked_mean_message);
       }
     }
     for (unsigned m : changed_members) final_term(members[m], members[m]->logDensity(_chain, PDF_PRIOR));
@@ -3431,7 +3474,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (label_changed) final_term(bspec().nested, nested_term());
     const double log_ratio = zero_density ? negative_infinity : static_cast<double>(exact_change - _repr_delta);
     bool accepted;
-    if (hidden || zero_density) {
+    if (zero_density) {
       accepted = false;
     } else if (S.mutant == 3) {
       accepted = true;
@@ -3724,9 +3767,12 @@ std::vector<StochasticNode *> member_list(std::vector<GroupSpec> &groups, std::v
 
 // The design X of the children's means in the physical coefficients, probed
 // on the graph at construction (chain 0, restored): with every gate on, the
-// slabs and latents at zero, a unit change of each coordinate. Guards: a
-// second point of each coordinate, the gate off, the latents at one and two,
-// and a mixed point must agree with the affine prediction.
+// slabs and latents at zero (the baseline, the non-members at their initial
+// values), a unit change of each coordinate. A column counts as verified only
+// when its perturbation is representable against the baseline means and its
+// response is linear at one and two (column_check); otherwise the block is
+// declined and decision() names the check. Guards: the gate off, the latents
+// at one and two, and a mixed point agree with the affine prediction.
 bool probe_design(GraphView const &view, Shared &S)
 {
   const unsigned p = S.p;
@@ -3740,6 +3786,15 @@ bool probe_design(GraphView const &view, Shared &S)
       for (unsigned i = 0; i < g.d; ++i) v[g.slab_pos + i] = 0.0;
     }
     for (unsigned pos : S.latent_pos) v[pos] = 0.0;
+    // an owned bias label at a label without a slope (its first selection label)
+    if (S.bias != nullptr) {
+      for (int l = 1; l <= S.bias->levels; ++l) {
+        if (S.bias->slope_of[static_cast<std::size_t>(l - 1)] < 0) {
+          v[S.bias->pos] = l;
+          break;
+        }
+      }
+    }
   };
   auto means = [&](Vec &out) {
     view.setValue(v, 0);
@@ -3750,17 +3805,20 @@ bool probe_design(GraphView const &view, Shared &S)
     }
   };
   bool ok = true;
+  const double eps = std::numeric_limits<double>::epsilon();
   try {
     Vec mu0, mu1, mu2;
     base();
     means(mu0);
-    for (double x : mu0) if (!std::isfinite(x)) ok = false;
+    for (double x : mu0) if (!std::isfinite(x)) ok = fail("design probe: a baseline mean is not finite");
     S.X.assign(static_cast<std::size_t>(S.rows) * p, 0.0);
-    Vec scale(S.rows, 1.0);
-    for (unsigned i = 0; i < S.rows; ++i) scale[i] += std::fabs(mu0[i]);
-    auto close = [&](Vec const &observed, Vec const &predicted) {
-      for (unsigned i = 0; i < S.rows; ++i) {
-        if (!(std::fabs(observed[i] - predicted[i]) <= 1e-9 * (scale[i] + std::fabs(predicted[i])))) return false;
+    // the sum of the columns' scales (column_check), the tolerance unit of the
+    // gate-off and mixed points
+    double total_scale = 0.0;
+    auto agrees = [&](Vec const &observed, Vec const &predicted) {
+      for (unsigned r = 0; r < S.rows; ++r) {
+        const double rounding = 4.0 * eps * (std::fabs(observed[r]) + std::fabs(predicted[r]));
+        if (!(std::fabs(observed[r] - predicted[r]) <= 1e-9 * total_scale + rounding)) return false;
       }
       return true;
     };
@@ -3770,15 +3828,17 @@ bool probe_design(GraphView const &view, Shared &S)
         base();
         v[g.slab_pos + i] = 1.0;
         means(mu1);
-        Vec predicted(mu0);
-        for (unsigned r = 0; r < S.rows; ++r) {
-          S.X[r * p + k] = mu1[r] - mu0[r];
-          if (!std::isfinite(S.X[r * p + k])) ok = false;
-          predicted[r] = mu0[r] + 2.0 * S.X[r * p + k];
-        }
         v[g.slab_pos + i] = 2.0;
         means(mu2);
-        if (!close(mu2, predicted)) ok = false;
+        double scale = 0.0;
+        const ColumnCheck check = column_check(mu0, mu1, mu2, 1.0, &scale);
+        if (check == column_unrepresentable) {
+          ok = fail("design probe: a coordinate's perturbation is not representable against the baseline means");
+        } else if (check == column_nonlinear) {
+          ok = fail("design probe: the means are not linear in a coordinate");
+        }
+        total_scale += scale;
+        for (unsigned r = 0; r < S.rows; ++r) S.X[r * p + k] = mu1[r] - mu0[r];
       }
       if (ok && g.gate != nullptr) {
         // the gate off hides the slab
@@ -3786,7 +3846,7 @@ bool probe_design(GraphView const &view, Shared &S)
         v[g.gate_pos] = 3.0 - g.label;
         for (unsigned i = 0; i < g.d; ++i) v[g.slab_pos + i] = 1.0;
         means(mu1);
-        if (!close(mu1, mu0)) ok = false;
+        if (!agrees(mu1, mu0)) ok = fail("design probe: the gate off does not hide its slab");
       }
     }
     Vec dz(S.rows, 0.0);
@@ -3794,18 +3854,26 @@ bool probe_design(GraphView const &view, Shared &S)
       base();
       for (unsigned pos : S.latent_pos) v[pos] = 1.0;
       means(mu1);
-      Vec predicted(mu0);
-      for (unsigned r = 0; r < S.rows; ++r) {
-        dz[r] = mu1[r] - mu0[r];
-        predicted[r] = mu0[r] + 2.0 * dz[r];
-      }
-      for (ChildSpec const &c : S.children) {
-        if (c.latent >= 0) continue;
-        for (unsigned i = 0; i < c.n; ++i) if (dz[c.row0 + i] != 0.0) ok = false;
-      }
       for (unsigned pos : S.latent_pos) v[pos] = 2.0;
       means(mu2);
-      if (!close(mu2, predicted)) ok = false;
+      for (unsigned r = 0; r < S.rows; ++r) dz[r] = mu1[r] - mu0[r];
+      for (ChildSpec const &c : S.children) {
+        if (c.latent >= 0) continue;
+        for (unsigned i = 0; i < c.n; ++i) {
+          if (dz[c.row0 + i] != 0.0 || mu2[c.row0 + i] != mu0[c.row0 + i]) {
+            ok = fail("design probe: a mean without a latent responds to the latents");
+          }
+        }
+      }
+      // The latents' response is a scale that depends on non-members (it is
+      // measured at the sweep's own baseline in every update, prepare()):
+      // linearity is required where the response is representable here, and
+      // a response lost to the rounding of the baseline (or zero) checks
+      // nothing that the structure does not.
+      double scale = 0.0;
+      const ColumnCheck check = column_check(mu0, mu1, mu2, 1.0, &scale);
+      if (ok && check == column_nonlinear) ok = fail("design probe: the means are not linear in the latents");
+      if (check == column_verified) total_scale += scale;
     }
     if (ok) {
       // mixed: every coordinate and latent at once
@@ -3819,7 +3887,7 @@ bool probe_design(GraphView const &view, Shared &S)
         for (unsigned k = 0; k < p; ++k) x += S.X[r * p + k];
         predicted[r] = static_cast<double>(x);
       }
-      if (!close(mu1, predicted)) ok = false;
+      if (!agrees(mu1, predicted)) ok = fail("design probe: the means are not additive in the coordinates and latents");
     }
   } catch (...) {
     view.setValue(saved, 0);
@@ -3903,7 +3971,7 @@ std::shared_ptr<Shared> build_shared(Declared &declared, Graph const &graph, boo
       return fail_null("latent view");
     }
   }
-  if (!probe_design(*view, *S)) return fail_null("design probe");
+  if (!probe_design(*view, *S)) return nullptr;  // decision() names the check
   if (with_bias && !probe_bias(*view, *S, *S->bias)) return nullptr;
   S->coord_children.assign(S->p, {});
   for (unsigned c = 0; c < S->children.size(); ++c) {
@@ -3953,6 +4021,13 @@ public:
     shared->fit_settings = config.settings;
     shared->fit_settings.rule = 1;
     shared->mutant = test_mutant.load(std::memory_order_relaxed);
+    // mutant 12: the design column of the last coordinate dropped, so that the
+    // graph changes means the block does not track (the untracked-mean error)
+    if (shared->mutant == 12) {
+      const unsigned k = shared->p - 1;
+      for (unsigned r = 0; r < shared->rows; ++r) shared->X[r * shared->p + k] = 0.0;
+      shared->coord_children[k].clear();
+    }
     shared->probe = test_probe.load(std::memory_order_relaxed);
     shared->fit_rule = test_fit_rule.load(std::memory_order_relaxed);
     shared->refresh = test_refresh.load(std::memory_order_relaxed);

@@ -395,7 +395,8 @@ inline bool classify_bias_children(GraphView const &view, BiasSpec &B)
 // at each label every child's kernel mode (NORMAL exactly on the labels
 // coded none, PET and PEESE; some child in step mode on a selection label)
 // and the nested node's density (finite); per slope its column (the change of
-// the means per unit source at its label, affine, no effect at another
+// the means per unit source at its label from the location baseline,
+// verified as probe_design verifies a location column, no effect at another
 // label, additive with the location coordinates and latents).
 inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
 {
@@ -434,8 +435,10 @@ inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
       SlopeSpec &spec = B.slope[b];
       if (spec.source == nullptr) continue;
       Vec mu0, mu1, mu2, latent_one;
+      // the column at the location baseline (probe_design)
       v = saved;
       v[B.pos] = spec.label;
+      zero_location();
       v[spec.pos] = 0.0;
       means(mu0);
       v[spec.pos] = 1.0;
@@ -443,14 +446,12 @@ inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
       v[spec.pos] = 2.0;
       means(mu2);
       spec.column.assign(S.rows, 0.0);
-      for (unsigned r = 0; ok && r < S.rows; ++r) {
-        spec.column[r] = mu1[r] - mu0[r];
-        const double scale = 1.0 + std::fabs(mu0[r]);
-        if (!std::isfinite(spec.column[r]) ||
-            !(std::fabs(mu2[r] - (mu0[r] + 2.0 * spec.column[r])) <= 1e-9 * (scale + std::fabs(mu2[r])))) {
-          ok = fail("bias: slope column not affine");
-        }
-      }
+      for (unsigned r = 0; r < S.rows; ++r) spec.column[r] = mu1[r] - mu0[r];
+      // verified as the location columns are (column_check)
+      double slope_scale = 0.0;
+      const ColumnCheck check = column_check(mu0, mu1, mu2, 1.0, &slope_scale);
+      if (check == column_unrepresentable) ok = fail("bias: slope column not representable against the baseline means");
+      else if (check == column_nonlinear) ok = fail("bias: slope column not affine");
       // no effect at another label
       int other = 0;
       for (int l = 1; l <= B.levels && other == 0; ++l) if (l != spec.label) other = l;
@@ -474,11 +475,19 @@ inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
         for (GroupSpec const &g : S.groups) for (unsigned i = 0; i < g.d; ++i) v[g.slab_pos + i] = 1.0;
         v[spec.pos] = 1.0;
         means(mu1);
+        // the tolerance: 1e-9 of the columns' scales and the rounding of the means
+        double total_scale = slope_scale;
+        for (unsigned k = 0; k < S.p; ++k) {
+          double scale = 0.0;
+          for (unsigned r = 0; r < S.rows; ++r) scale = std::max(scale, std::fabs(S.X[r * S.p + k]));
+          total_scale += scale;
+        }
+        const double eps = std::numeric_limits<double>::epsilon();
         for (unsigned r = 0; ok && r < S.rows; ++r) {
           long double x = latent_one[r] + static_cast<long double>(spec.column[r]);
           for (unsigned k = 0; k < S.p; ++k) x += S.X[r * S.p + k];
-          const double scale = 1.0 + std::fabs(latent_one[r]);
-          if (!(std::fabs(mu1[r] - static_cast<double>(x)) <= 1e-9 * (scale + std::fabs(mu1[r])))) {
+          const double rounding = 4.0 * eps * (std::fabs(mu1[r]) + std::fabs(static_cast<double>(x)));
+          if (!(std::fabs(mu1[r] - static_cast<double>(x)) <= 1e-9 * total_scale + rounding)) {
             ok = fail("bias: slope column not additive");
           }
         }

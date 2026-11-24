@@ -47,7 +47,9 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // weight node's density omitted from the acceptance ratio (the recorded
 // inner-target change keeps it), 10 the within-label contrast instead of the
 // absolute evidence of a selection label; 11 the joint refresh's slot taken
-// from the entry label). Returns the previous value.
+// from the entry label; 12 the design column of the last coordinate dropped
+// after the factory's probe, an untracked mean change). Returns the previous
+// value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
