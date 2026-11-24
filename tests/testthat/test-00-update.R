@@ -118,6 +118,45 @@ test_that("update.brma extends one sample chunk and recomputes stored caches", {
   expect_true(calls[["marglik"]])
 })
 
+test_that("update.brma extends by 'auto' or a number, and not at all without sample_extend", {
+
+  object <- mock_update_object()
+  expect_identical(object[["autofit_control"]][["sample_extend"]], "auto")
+  # a fit of the earlier layout stores a fixed step
+  object[["autofit_control"]][["sample_extend"]] <- 7
+
+  calls <- list()
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, adapt = NULL) {
+      calls[[length(calls) + 1L]] <<- object[["autofit_control"]][c("sample_extend", "max_extend")]
+      return(object[["fit"]])
+    },
+    .object_summary = function(object) data.frame(Mean = 2, row.names = "mu"),
+    .object_coefficients = function(object) c(mu = 2),
+    .package = "RoBMA"
+  )
+
+  auto   <- update(object, sample_extend = "auto")
+  fixed  <- update(object, sample_extend = 30)
+  absent <- update(object, autofit_control = list(max_extend = 3))
+
+  # one extension each, sized by BayesTools for "auto"
+  expect_equal(calls, list(
+    list(sample_extend = "auto", max_extend = 1),
+    list(sample_extend = 30, max_extend = 1)
+  ))
+  expect_identical(auto[["autofit_control"]][["sample_extend"]], "auto")
+  expect_identical(fixed[["autofit_control"]][["sample_extend"]], 30)
+  # without sample_extend, update() does not extend and keeps the stored step
+  expect_identical(absent[["autofit_control"]][["sample_extend"]], 7)
+  expect_identical(absent[["autofit_control"]][["max_extend"]], 3)
+
+  for (value in list("Auto", "", c("auto", "auto"), NA_character_)) {
+    expect_error(update(object, sample_extend = value), "sample_extend", info = deparse(value))
+  }
+  expect_length(calls, 2L)
+})
+
 test_that("update.brma can drop stored caches after extension", {
 
   object <- mock_update_object()
@@ -518,4 +557,27 @@ test_that("automatic extensions of a fit use its adaptation", {
     list(initial = 300L, extensions = data.frame(adapt = c(300L, 300L), rebuilt = c(FALSE, FALSE)))
   )
   expect_identical(vapply(.draws_by_chain(fit), nrow, integer(1)), c(120L, 120L))
+})
+
+test_that("update.brma sizes an 'auto' extension from the convergence check of the stored fit", {
+
+  fit <- .adaptation_fit()
+  # 100 draws per chain: twice the draws is below the minimum extension of 1000
+  extended <- update(fit, sample_extend = "auto")
+  expect_identical(vapply(.draws_by_chain(extended), nrow, integer(1)), c(1100L, 1100L))
+  expect_identical(
+    lapply(.draws_by_chain(extended), function(draws) draws[seq_len(100), , drop = FALSE]),
+    .draws_by_chain(fit)
+  )
+  expect_identical(extended[["autofit_control"]][["sample_extend"]], "auto")
+
+  # an unreachable ESS target is capped at twice the draws per chain, and
+  # criteria that hold give the minimum
+  capped <- update(extended, sample_extend = "auto", autofit_control = list(min_ESS = 1e6))
+  expect_identical(vapply(.draws_by_chain(capped), nrow, integer(1)), c(3300L, 3300L))
+  met <- update(extended, sample_extend = "auto", autofit_control = list(max_Rhat = NULL, min_ESS = NULL))
+  expect_identical(vapply(.draws_by_chain(met), nrow, integer(1)), c(2100L, 2100L))
+
+  # a number extends by that number
+  expect_identical(vapply(.draws_by_chain(update(fit, sample_extend = 20)), nrow, integer(1)), c(120L, 120L))
 })

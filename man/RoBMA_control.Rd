@@ -12,7 +12,7 @@ set_autofit_control(
   max_error = NULL,
   max_SD_error = NULL,
   max_time = list(time = 60, unit = "mins"),
-  sample_extend = 1000,
+  sample_extend = "auto",
   restarts = 10,
   max_extend = 10,
   check_indicators = FALSE,
@@ -52,9 +52,15 @@ autofitting process per model. Passed to \link[base]{difftime} function
 \code{"days"}, and \code{"weeks"}).
 Defaults to \code{list(time = 60, unit = "mins")}.}
 
-\item{sample_extend}{number of samples to extend the fitting process if
-the criteria are not satisfied.
-Defaults to \code{1000}.}
+\item{sample_extend}{number of samples per chain by which each automatic
+extension extends the fit when the criteria are not satisfied, or
+\code{"auto"} (the default) to size each extension from the convergence
+check that failed: BayesTools projects the additional draws that the
+parameter furthest from its criteria needs (from its ESS and MCMC errors;
+as many draws again for an R-hat above \code{max_Rhat} alone), adds a tenth,
+and extends by at least 1000 and at most twice the current draws per chain,
+rounded up to a multiple of 100 (see \code{autofit_control} in
+\code{\link[BayesTools]{JAGS_fit}}).}
 
 \item{restarts}{number of times new initial values should be generated in case a
 model fails to initialize. Defaults to \code{10}.}
@@ -103,7 +109,7 @@ The convergence checks determine the quality standards that fitted models must m
 Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{restarts}, and
 \code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
-positive integer. The routing controls are delegated to
+positive integer or \code{"auto"}. The routing controls are delegated to
 \code{BayesTools::JAGS_check_convergence()}.
 Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and

@@ -28,7 +28,13 @@
 
 \item{...}{unsupported additional arguments.}
 
-\item{sample_extend}{integer. Number of additional samples per chain.}
+\item{sample_extend}{number of additional samples per chain, or
+\code{"auto"} to size this one extension from the convergence check of
+\code{object} against its stored autofit criteria, as
+\code{set_autofit_control(sample_extend = "auto")} sizes automatic
+extensions (at least 1000 samples per chain). Defaults to \code{NULL},
+which does not extend the chains; the \code{sample_extend} stored in the
+autofit control, including its default \code{"auto"}, is not used then.}
 
 \item{adapt}{integer. Number of adaptation iterations run when JAGS rebuilds
 the sampler for this extension. Defaults to \code{NULL}, which uses the
@@ -102,6 +108,7 @@ nullable setting. Omitted elements, a top-level \code{NULL}, and an empty
 \examples{
 \dontrun{
 fit <- update(fit, sample_extend = 1000)
+fit <- update(fit, sample_extend = "auto")
 fit <- update(fit, slab = paste("Study", seq_len(nobs(fit))))
 }
 

@@ -147,6 +147,27 @@ test_that("brma-family constructors inherit the silent option and model averagin
 })
 
 
+test_that("automatic extensions default to sample_extend = 'auto' and keep a fixed number", {
+
+  expect_identical(formals(set_autofit_control)[["sample_extend"]], "auto")
+  expect_identical(set_autofit_control()[["sample_extend"]], "auto")
+  expect_identical(set_autofit_control(sample_extend = 2000)[["sample_extend"]], 2000)
+  object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD",
+                 only_priors = TRUE, silent = TRUE)
+  expect_identical(object[["autofit_control"]][["sample_extend"]], "auto")
+
+  # validated by BayesTools: a positive whole number or "auto"
+  for (value in list("Auto", c("auto", "auto"), NA_character_, 0, 1.5, TRUE, NULL)) {
+    expect_error(set_autofit_control(sample_extend = value), "sample_extend", info = deparse(value))
+  }
+  # a stored fixed step stays when other settings change
+  expect_identical(
+    .update_autofit_control(set_autofit_control(sample_extend = 7), list(max_extend = 3))[["sample_extend"]],
+    7
+  )
+})
+
+
 test_that("convergence checks expose BayesTools routing controls", {
 
   checks <- set_convergence_checks()
