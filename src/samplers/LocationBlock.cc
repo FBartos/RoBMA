@@ -175,17 +175,25 @@ std::atomic<bool> test_trace(false);
 constexpr double default_swap_probability = 0.25;
 
 // The evidence record of the location gates (location_block_evidence): per
-// gate slot and chain, over the updates after adaptation, the flips proposed
-// and accepted in each direction (on: off to on), the proposals the free
-// screen removed, and for the proposals that reached stage 1 the count, sum
-// and maximum of the log collapsed odds of the other state against the current
-// one. Never destroyed, like the counters.
+// gate slot and chain, over the updates after adaptation, the updates, the
+// transitions of the gate between each update's entry state and the state it
+// retains (on: off to on; a sweep the exact correction rejects changes
+// nothing, a swap changes both of its gates), and of the inner stage (the
+// sweep's components, before its exact correction) the flips proposed and
+// accepted in each direction, the proposals the free screen removed, and for
+// the proposals that reached stage 1 the count, sum and maximum of the log
+// collapsed odds of the other state against the current one. Never
+// destroyed, like the counters.
 struct GateEvidence {
+  double updates = 0, switched_on = 0, switched_off = 0;
   double on_proposed = 0, on_accepted = 0, off_proposed = 0, off_accepted = 0, screened_out = 0;
   double odds_count = 0, odds_sum = 0, odds_max = -std::numeric_limits<double>::infinity();
 
   void add(GateEvidence const &other)
   {
+    updates += other.updates;
+    switched_on += other.switched_on;
+    switched_off += other.switched_off;
     on_proposed += other.on_proposed;
     on_accepted += other.on_accepted;
     off_proposed += other.off_proposed;
@@ -985,6 +993,24 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     e.odds_count += 1;
     e.odds_sum += other;
     e.odds_max = std::max(e.odds_max, other);
+  }
+
+  // After the exact correction: each gate's transition between the update's
+  // entry and the state it retains (kept: the sweep's final state).
+  void evidence_endpoint(bool kept)
+  {
+    if (_adapting) return;
+    Shared const &S = s();
+    for (unsigned j = 0; j < S.groups.size(); ++j) {
+      GroupSpec const &g = S.groups[j];
+      if (g.gate == nullptr) continue;
+      GateEvidence &e = _gate_evidence[j];
+      e.updates += 1;
+      const bool entry = _entry[g.gate_pos] == g.label;
+      const bool retained = kept ? _g[j] != 0 : entry;
+      if (retained != entry) (retained ? e.switched_on : e.switched_off) += 1;
+    }
+    _gate_dirty = true;
   }
 
   void flush_evidence()
@@ -3381,6 +3407,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     if (_final == _entry) {
       count(counters().corrections_accepted);
+      evidence_endpoint(true);
       bias_after_correction(true);
       return;
     }
@@ -3494,6 +3521,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     } else {
       _view->setValue(_entry, _chain);
     }
+    evidence_endpoint(accepted);
     bias_after_correction(accepted);
     // evidence about the surrogate: a sweep that evaluated a surrogate that
     // was not exact (only selection labels evaluate surrogates)
@@ -4181,8 +4209,9 @@ std::vector<double> location_block_test_take_probe()
 std::vector<char const *> const &location_block_evidence_names()
 {
   static const std::vector<char const *> names = {
-    "slot", "chain", "flips_on_proposed", "flips_on_accepted", "flips_off_proposed", "flips_off_accepted",
-    "screened_out", "odds_evaluated", "log_odds_sum", "log_odds_max"};
+    "slot", "chain", "updates", "switched_on", "switched_off", "inner_flips_on_proposed", "inner_flips_on_accepted",
+    "inner_flips_off_proposed", "inner_flips_off_accepted", "inner_screened_out", "inner_odds_evaluated",
+    "inner_log_odds_sum", "inner_log_odds_max"};
   return names;
 }
 
@@ -4194,6 +4223,7 @@ std::vector<double> location_block_evidence(bool clear)
   for (auto const &entry : store.records) {
     GateEvidence const &e = entry.second;
     out.insert(out.end(), {static_cast<double>(entry.first.first), static_cast<double>(entry.first.second),
+                           e.updates, e.switched_on, e.switched_off,
                            e.on_proposed, e.on_accepted, e.off_proposed, e.off_accepted, e.screened_out,
                            e.odds_count, e.odds_sum, e.odds_max});
   }

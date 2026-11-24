@@ -135,11 +135,16 @@
 
 # The evidence record of indicators that do not switch, from the runtime
 # reports of this call's retained runs (updates after adaptation): per
-# location gate and chain the flips proposed and accepted in each direction,
-# the proposals the free screen removed and, for those that reached stage 1,
-# the count, sum and maximum of the log collapsed odds of the other state
-# against the current one (exact in Gaussian labels, Laplace in selection
-# labels); per screened indicator and chain the updates, changes of level and
+# location gate and chain the updates and the gate's transitions in each
+# direction between an update's entry and the state the update retains
+# (`switched_on`, `switched_off`: what the chain did; a sweep the exact
+# correction rejects changes nothing, a swap changes both gates), and of the
+# inner stage (`inner_*`, the sweep's components before its exact correction)
+# the flips proposed and accepted in each direction, the proposals the free
+# screen removed and, for those that reached stage 1, the count, sum and
+# maximum of the log collapsed odds of the other state against the current
+# one (exact in Gaussian labels, Laplace in selection labels; conditional on
+# the state where each flip was proposed); per screened indicator and chain the updates, changes of level and
 # the mean and maximum full-conditional probability of leaving the current
 # level; for a bias label owned by the location block (`bias`, per chain) the
 # proposals and acceptances of its label update, Gaussian-family move, slope
@@ -260,8 +265,8 @@
   } else {
     bias_labels <- NULL
   }
-  location <- combine(location, "log_odds_max")
-  if (!is.null(location)) location[["log_odds_max"]][!is.finite(location[["log_odds_max"]])] <- NA_real_
+  location <- combine(location, "inner_log_odds_max")
+  if (!is.null(location)) location[["inner_log_odds_max"]][!is.finite(location[["inner_log_odds_max"]])] <- NA_real_
   screened <- combine(screened, "leave_max")
   if (!is.null(screened)) {
     screened[["leave_mean"]] <- screened[["leave_sum"]] / screened[["updates"]]

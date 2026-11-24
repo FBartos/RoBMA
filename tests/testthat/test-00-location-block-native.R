@@ -352,19 +352,61 @@ test_that("the evidence record tells a gate decided by the data from a mixing on
   record <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["evidence"]][["location"]]
   expect_setequal(unique(record$node), c("mu_intercept_indicator", "mu_x_indicator", "mu_noise_indicator"))
   expect_setequal(unique(record$chain), 1:2)
-  # updates after adaptation: one flip proposal per gate and sweep, every one
-  # reaching stage 1 in a Gaussian label
-  expect_true(all(record$flips_on_proposed + record$flips_off_proposed == 1100))
-  expect_true(all(record$odds_evaluated == 1100))
-  expect_true(all(record$screened_out == 0))
+  # updates after adaptation: one inner flip proposal per gate and sweep,
+  # every one reaching stage 1 in a Gaussian label
+  expect_true(all(record$updates == 1100))
+  expect_true(all(record$inner_flips_on_proposed + record$inner_flips_off_proposed == 1100))
+  expect_true(all(record$inner_odds_evaluated == 1100))
+  expect_true(all(record$inner_screened_out == 0))
   decided <- record[record$node == "mu_x_indicator", ]
-  expect_true(all(decided$flips_on_accepted + decided$flips_off_accepted == 0))
-  expect_true(all(decided$log_odds_max < -50))
+  expect_true(all(decided$switched_on + decided$switched_off == 0))
+  expect_true(all(decided$inner_flips_on_accepted + decided$inner_flips_off_accepted == 0))
+  expect_true(all(decided$inner_log_odds_max < -50))
   mixing <- record[record$node == "mu_noise_indicator", ]
-  expect_true(all(mixing$flips_on_accepted > 10 & mixing$flips_off_accepted > 10))
-  expect_true(all(mixing$log_odds_max > -5))
+  expect_true(all(mixing$switched_on > 10 & mixing$switched_off > 10))
+  expect_true(all(abs(mixing$switched_on - mixing$switched_off) <= 1))
+  expect_true(all(mixing$inner_log_odds_max > -5))
   draws <- as.matrix(fit[["fit"]][["mcmc"]])
   expect_true(all(draws[, "mu_x_indicator"] == draws[1L, "mu_x_indicator"]))
+})
+
+
+test_that("the gate transitions of the evidence record are those the chain retained", {
+
+  skip_if_not_installed("rjags")
+  # The selection fixture: sweeps that the exact correction rejects (after
+  # inner flips) and swaps that change two gates at once. The transitions of
+  # each gate in the record are exactly those of its retained draws.
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules", "selection.coarse_min_acceptance")]
+  on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
+  RoBMA::RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = 3L,
+                       selection.coarse_min_acceptance = 0)
+  model <- .location_selection_model(.location_selection_setup())
+  connection <- textConnection(model$syntax)
+  jags <- rjags::jags.model(connection, data = model$data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
+                            inits = list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = 4127L))
+  close(connection)
+  rjags::adapt(jags, 100L, end.adaptation = TRUE)
+  RoBMA:::.location_block_report_read()
+  RoBMA:::.location_block_evidence_read()
+  jags$sync()
+  entry <- jags$state()[[1L]]$g
+  draws <- as.matrix(rjags::coda.samples(jags, "g", n.iter = 600L, progress.bar = "none")[[1L]])
+  counters <- RoBMA:::.location_block_report_read()
+  record <- RoBMA:::.location_block_evidence_read()
+  path <- rbind(entry, draws)
+  for (j in 1:3) {
+    row <- record[record[, "slot"] == j, ]
+    steps <- diff(path[, j])
+    expect_identical(unname(row[["updates"]]), 600)
+    expect_identical(unname(row[["switched_on"]]), as.numeric(sum(steps == 1)))
+    expect_identical(unname(row[["switched_off"]]), as.numeric(sum(steps == -1)))
+  }
+  # both cases occur: rejected sweeps after accepted inner flips, and swaps
+  expect_lt(counters[["corrections_accepted"]], counters[["sweeps"]])
+  expect_gt(sum(record[, "inner_flips_on_accepted"]), sum(record[, "switched_on"]))
+  expect_gt(counters[["swap_accepted"]], 0)
 })
 
 

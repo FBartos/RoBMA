@@ -18,10 +18,13 @@ std::vector<double> location_block_report(bool clear);
 
 // The evidence record of the location gates of this process since the last
 // clearing read, over the updates after adaptation: per gate (its declaration
-// slot) and chain the rows of location_block_evidence_names() (flips proposed
-// and accepted in each direction, proposals the free screen removed, and the
-// count, sum and maximum of the log collapsed odds of the other state against
-// the current one for the proposals that reached stage 1).
+// slot) and chain the rows of location_block_evidence_names() (the updates
+// and the gate's transitions in each direction between each update's entry
+// and the state it retains; of the inner stage, before the exact correction,
+// the flips proposed and accepted in each direction, proposals the free
+// screen removed, and the count, sum and maximum of the log collapsed odds of
+// the other state against the current one for the proposals that reached
+// stage 1).
 std::vector<char const *> const &location_block_evidence_names();
 std::vector<double> location_block_evidence(bool clear);
 

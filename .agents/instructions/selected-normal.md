@@ -728,8 +728,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   exact but stays behind the test switch `RoBMA_location_block_test_config`:
   measured against the per-group refreshes it lost effective samples of
   individual coefficients on the 18-moderator tutorial model. The fit's
-  sampler record carries an evidence record per gate and chain (flips by
-  direction, screened proposals, log odds of the other state) and, for the
+  sampler record carries an evidence record per gate and chain (the updates
+  and the gate's transitions by direction between each update's entry and the
+  state it retains, so a rejected sweep counts nothing and a swap counts for
+  both gates; and, named `inner_*`, the inner stage's flips by direction,
+  screened proposals and log odds of the other state) and, for the
   screened indicators, per indicator and chain (`sampler_declarations$robma$
   evidence`), for consumers that tell decided from stuck indicators.
   With a publication-bias mixture of none, step-selection, PET and PEESE
