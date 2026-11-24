@@ -19,7 +19,9 @@ std::vector<double> location_block_report(bool clear);
 // Test hook, not package interface: a deliberately broken kernel frozen into
 // the samplers built from now on (0 none; 1 a shear that differs between a
 // flip and its reverse; 2 flips without the reverse proposal density, in both
-// directions; 3 no final correction). Returns the previous value.
+// directions; 3 no final correction; 4 the elliptical slice step around the
+// slab prior means instead of the Gaussian working mean; 5 the elliptical
+// slice step without the latent shear). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -29,7 +31,11 @@ std::string location_block_test_decision();
 // (0 flip on, 1 flip off, 2 refresh, 3 study effect, 4 swap, 5 joint), the
 // label (1 selection), the stage-1 log ratio, the full log ratio from the
 // direct Gaussian evaluation of priors, children and proposal densities, the
-// selection part log A~(old) - log A~(new), and the collapsed log odds.
+// selection part log A~(old) - log A~(new), and the collapsed log odds. It
+// also dry-runs one elliptical slice proposal (type 6) and records log T as
+// the block computes it, the separately evaluated change of the inner target
+// minus that of the Gaussian working model, the inner target's change and the
+// working model's change (the first two must agree).
 // probe < 0 reads the flag; otherwise sets it and returns the previous one.
 bool location_block_test_probe(int probe);
 std::vector<double> location_block_test_take_probe();

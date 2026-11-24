@@ -13,6 +13,18 @@
 }
 
 
+# The native switches (LocationBlockReport.h, frozen into samplers built
+# afterwards): the refresh variant (0 default, 1 R_j, 2 one elliptical slice
+# step E, 3 two E steps, 4 E and R_j), the Newton fits' rule (0 the coarsest
+# rung with its safeguard, 1 always the coarsest rung, 2 the sampler's rule)
+# and the timing of the update's parts; negative values keep a setting.
+# Returns the previous settings.
+.location_config <- function(config = c(refresh = -1L, fit_rule = -1L, timing = -1L)) {
+
+  .Call("RoBMA_location_block_test_config", as.integer(config), PACKAGE = "RoBMA")
+}
+
+
 # The probe records as a data frame (LocationBlockReport.h).
 .location_probe_records <- function(records) {
 
@@ -21,7 +33,7 @@
                       selection_part = numeric(), log_odds = numeric()))
   }
   m <- matrix(records, ncol = 6L, byrow = TRUE)
-  data.frame(type = c("flip_on", "flip_off", "refresh", "study", "swap", "joint")[m[, 1L] + 1L],
+  data.frame(type = c("flip_on", "flip_off", "refresh", "study", "swap", "joint", "ellipse")[m[, 1L] + 1L],
              selection = m[, 2L] == 1, stage1 = m[, 3L], full = m[, 4L], selection_part = m[, 5L],
              log_odds = m[, 6L])
 }
@@ -138,7 +150,8 @@
 # into its sampler), runs adapt + burnin + draws and returns the draws, the
 # sampler of each node, the factory decision and the per-fit counters.
 .location_hand_chain <- function(model, monitor, draws, burnin = 500L, adapt = 100L, mutant = 0L,
-                                 probe = FALSE, seed = 4127L, sampler = "slice.coarse", min_acceptance = 0) {
+                                 probe = FALSE, seed = 4127L, sampler = "slice.coarse", min_acceptance = 0,
+                                 config = NULL) {
 
   BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
   old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules",
@@ -148,6 +161,10 @@
                        selection.coarse_min_acceptance = min_acceptance)
   .location_hook(mutant = mutant, probe = probe)
   on.exit(.location_hook(mutant = 0L, probe = FALSE), add = TRUE)
+  if (!is.null(config)) {
+    previous <- .location_config(config)
+    on.exit(.location_config(previous), add = TRUE)
+  }
   RoBMA:::.location_block_report_read()
   connection <- textConnection(model$syntax)
   on.exit(close(connection), add = TRUE)

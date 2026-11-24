@@ -34,7 +34,7 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
   # frozen-state identity: the collapsed odds and line laws equal the direct
   # Gaussian evaluation of priors, children and proposals
   expect_lt(max(abs(chain$probe$full - chain$probe$stage1)), 1e-10)
-  expect_setequal(unique(chain$probe$type), c("flip_on", "flip_off", "refresh", "study", "joint"))
+  expect_setequal(unique(chain$probe$type), c("flip_on", "flip_off", "refresh", "study", "joint", "ellipse"))
 
   # power: a shear that differs between a flip and its reverse is not exact
   # and breaks the identity; so does a flip without its reverse proposal
@@ -76,6 +76,16 @@ test_that("frozen-state identities of the line moves hold in selection and Gauss
     measure = "SMD", prior_effect = prior("normal", list(mean = 0.2, sd = 0.5)),
     adapt = 100L, burnin = 50L, sample = 150L, chains = 1L, seed = 11L, autofit = FALSE, silent = TRUE))
   records <- .location_probe_records(.location_hook()$records)
+  # the elliptical slice step (type "ellipse"): log T as the block computes it
+  # equals the separately evaluated change of the inner target minus that of
+  # the Gaussian working model
+  ellipse <- records[records$type == "ellipse", ]
+  expect_true(any(ellipse$selection) && any(!ellipse$selection))
+  expect_lt(max(abs(ellipse$stage1 - ellipse$full) /
+                  pmax(1, abs(ellipse$selection_part), abs(ellipse$log_odds))), 1e-9)
+  expect_gt(max(abs(ellipse$stage1[ellipse$selection])), 0)
+  expect_identical(max(abs(ellipse$stage1[!ellipse$selection])), 0)
+  records <- records[records$type != "ellipse", ]
   request <- attr(selection[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
   expect_identical(request[["status"]], "active")
   # both labels, overwhelming evidence and the heterogeneity gate off occur
@@ -95,6 +105,11 @@ test_that("frozen-state identities of the line moves hold in selection and Gauss
     adapt = 100L, burnin = 50L, sample = 150L, chains = 1L, seed = 11L, autofit = FALSE, silent = TRUE))
   records <- .location_probe_records(.location_hook(probe = FALSE)$records)
   expect_false(any(records$selection))
+  ellipse <- records[records$type == "ellipse", ]
+  expect_gt(nrow(ellipse), 0L)
+  expect_lt(max(abs(ellipse$stage1 - ellipse$full) /
+                  pmax(1, abs(ellipse$selection_part), abs(ellipse$log_odds))), 1e-9)
+  records <- records[records$type != "ellipse", ]
   expect_lt(max(abs(records$full - records$stage1) / pmax(1, abs(records$log_odds), abs(records$stage1))), 1e-10)
   counters <- attr(gaussian[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]][["counters"]]
   expect_lt(counters[["max_correction_gaussian"]], 1e-10)

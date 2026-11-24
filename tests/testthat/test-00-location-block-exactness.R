@@ -27,9 +27,9 @@ test_that("the location block chain targets the exact posterior and broken kerne
   expect_lt(max(abs(reference - coarser)), 1e-4)
 
   draws <- 100000L
-  run <- function(mutant) {
+  run <- function(mutant, config = NULL) {
     chain <- .location_hand_chain(model, c("g", "b"), draws = draws, burnin = 1000L, adapt = 500L,
-                                  mutant = mutant)
+                                  mutant = mutant, config = config)
     list(chain = chain, comparison = .location_compare(.location_selection_observables(chain$draws), reference))
   }
   exact <- run(0L)
@@ -50,4 +50,17 @@ test_that("the location block chain targets the exact posterior and broken kerne
     expect_false(attr(broken$comparison, "passes"),
                  info = paste("mutant", mutant, ":", paste(round(broken$comparison$z, 2), collapse = " ")))
   }
+
+  # the elliptical slice step E as the only refresh of the active coefficients
+  # is exact; an ellipse around the slab prior means instead of the Gaussian
+  # working mean is not
+  ellipse_only <- c(refresh = 2L, fit_rule = -1L, timing = -1L)
+  ellipse <- run(0L, ellipse_only)
+  expect_true(attr(ellipse$comparison, "passes"), info = paste(round(ellipse$comparison$z, 2), collapse = " "))
+  expect_identical(ellipse$chain$counters[["refresh_proposed"]], 0)
+  expect_gt(ellipse$chain$counters[["ellipse_proposed"]], 0.5 * draws)
+  expect_gte(ellipse$chain$counters[["ellipse_accepted"]], 0.99 * ellipse$chain$counters[["ellipse_proposed"]])
+  broken <- run(4L, ellipse_only)
+  expect_false(attr(broken$comparison, "passes"),
+               info = paste("ellipse mutant:", paste(round(broken$comparison$z, 2), collapse = " ")))
 })

@@ -50,12 +50,15 @@ constexpr double partner_correlation = 0.3;
 constexpr double swap_correlation = 0.5;
 // Slice widths in proposal standard deviations.
 constexpr double slice_width = 2.5;
+// The refresh kernels of the active coefficients in selection labels (A3; see
+// LocationBlock::refresh_variant): chosen by measurement.
+constexpr int default_refresh = 1;
 
 // ---- per-fit report and test hook
 
-enum Component { flip_on, flip_off, refresh, study, swap, joint, component_count };
+enum Component { flip_on, flip_off, refresh, study, swap, joint, ellipse_move, component_count };
 const char *const component_names[component_count] = {
-  "flip_on", "flip_off", "refresh", "study", "swap", "joint"};
+  "flip_on", "flip_off", "refresh", "study", "swap", "joint", "ellipse"};
 
 // Where an update spends its work: child evaluations of the moves' acceptance
 // ratios, of the Newton-Laplace fits, of the elliptical slice steps and of the
@@ -78,6 +81,7 @@ struct Counters {
   std::atomic<std::uint64_t> exact_evaluations{0};
   std::atomic<std::uint64_t> correction_evaluations{0};
   std::atomic<std::uint64_t> fit_rule_fallback{0};
+  std::atomic<std::uint64_t> ellipse_shrinks{0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
@@ -477,6 +481,7 @@ struct Shared {
   int mutant = 0;
   bool probe = false;                      // test hook: dry-run records of the Gaussian moves
   int fit_rule = 0;                        // test hook: 0 coarse with safeguard, 1 coarse, 2 sampler's
+  int refresh = 0;                         // test hook: the refresh variant (0 the default)
   bool timing = false;                     // test hook: wall time of the update's parts
 };
 
@@ -2440,6 +2445,207 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _repr_delta += target;
   }
 
+  // ---- E: the elliptical slice refresh of the active coefficients (A3)
+
+  // The Gaussian working model of the active coefficients with the latents
+  // integrated: the coordinates A, the law N(mu, P^-1) (Cholesky factor of P).
+  bool active_law(std::vector<unsigned> &A, Vec &mu, Vec &chol, double &log_det)
+  {
+    Shared const &S = s();
+    const unsigned p = S.p;
+    A.clear();
+    for (unsigned j = 0; j < S.groups.size(); ++j) {
+      if (!active(j)) continue;
+      for (unsigned i = 0; i < S.groups[j].d; ++i) A.push_back(S.groups[j].coord0 + i);
+    }
+    const std::size_t na = A.size();
+    if (na == 0) return false;
+    chol.assign(na * na, 0.0);
+    mu.assign(na, 0.0);
+    for (std::size_t i = 0; i < na; ++i) {
+      mu[i] = _h[A[i]];
+      for (std::size_t k = 0; k < na; ++k) chol[i * na + k] = _P[A[i] * p + A[k]];
+    }
+    if (!cholesky(chol, na)) return false;
+    solve_lower(chol, na, mu.data());
+    solve_lower_transpose(chol, na, mu.data());
+    log_det = log_det_cholesky(chol, na);
+    return true;
+  }
+
+  // The shift of the active coefficients by db with every latent sheared,
+  // dZ_s = -u_s' db / lambda_s (the residuals Z_s - mu_s(beta) held fixed;
+  // mutant 5 drops the shear).
+  void active_shift(std::vector<unsigned> const &A, Vec const &db, Shift &sh)
+  {
+    Shared const &S = s();
+    const unsigned p = S.p;
+    sh.clear();
+    for (std::size_t i = 0; i < A.size(); ++i) {
+      sh.coords.push_back(A[i]);
+      sh.dcoef.push_back(db[i]);
+    }
+    if (S.mutant != 5) {
+      for (unsigned lat = 0; lat < S.latents.size(); ++lat) {
+        long double v = 0;
+        for (std::size_t i = 0; i < A.size(); ++i) v += static_cast<long double>(_u[lat * p + A[i]]) * db[i];
+        if (v == 0) continue;
+        sh.lats.push_back(lat);
+        sh.dlat.push_back(static_cast<double>(-v / _lambda[lat]));
+      }
+    }
+    prepare_shift(sh, A);
+  }
+
+  // One elliptical slice step (Murray, Adams and MacKay 2010) on the active
+  // coefficients with the latents sheared. Along the shear the inner target is
+  // N(beta_a; mu_a, P_a^-1) T, log T the sum over the children of the inner
+  // target's term plus 1/2 r'Wr (zero for Gaussian children); the ellipse
+  // through the current point and a draw nu ~ N(0, P_a^-1) around mu_a leaves
+  // N(mu_a, P_a^-1) invariant and the slice on T makes the step reversible for
+  // the inner target. Selection labels only (J is the exact draw otherwise).
+  void ellipse(RNG *rng, bool dry = false)
+  {
+    Shared const &S = s();
+    std::vector<unsigned> A;
+    Vec mu, chol;
+    double log_det = 0;
+    if (!active_law(A, mu, chol, log_det)) return;
+    const std::size_t na = A.size();
+    Vec old(na), nu(na), center(mu), db(na);
+    for (std::size_t i = 0; i < na; ++i) old[i] = _b[A[i]];
+    // mutant 4: the ellipse around the slab prior means instead of mu_a
+    if (S.mutant == 4) {
+      for (std::size_t i = 0; i < na; ++i) {
+        GroupSpec const &g = S.groups[S.coord_group[A[i]]];
+        center[i] = g.m0[A[i] - g.coord0];
+      }
+    }
+    Vec zero(na, 0.0);
+    draw_precision(zero, chol, rng, nu.data());
+    if (!all_finite(nu.data(), na)) return;
+    auto at = [&](double theta, Shift &sh) {
+      const double c = std::cos(theta), sn = std::sin(theta);
+      for (std::size_t i = 0; i < na; ++i) db[i] = center[i] + (old[i] - center[i]) * c + nu[i] * sn - old[i];
+      active_shift(A, db, sh);
+    };
+    const double two_pi = 6.283185307179586477;
+    if (dry) {
+      Shift sh;
+      at(two_pi * rng->uniform(), sh);
+      ellipse_probe(A, mu, chol, log_det, sh);
+      return;
+    }
+    count(counters().proposed[ellipse_move]);
+    const double log_u = std::log(rng->uniform());
+    double theta = two_pi * rng->uniform();
+    double lower = theta - two_pi, upper = theta;
+    for (;;) {
+      Shift sh;
+      at(theta, sh);
+      const long double children = children_delta(sh, 1.0);
+      const long double log_t = children - gaussian_part(sh);
+      if (children > negative_infinity && std::isfinite(static_cast<double>(log_t)) && log_t > log_u) {
+        count(counters().accepted[ellipse_move]);
+        apply_shift(sh, 1.0);
+        _repr_delta += children + prior_delta(sh, 1.0);
+        return;
+      }
+      count(counters().ellipse_shrinks);
+      if (theta < 0) lower = theta;
+      else upper = theta;
+      if (!(upper - lower >= 1e-10)) return;
+      theta = lower + (upper - lower) * rng->uniform();
+    }
+  }
+
+  // Test hook (probe) of E at the entry state: log T of a proposal as the block
+  // computes it, and the changes of the inner target and of the Gaussian
+  // working model evaluated separately (the slab and latent priors, every
+  // child's term, N(beta_a; mu_a, P_a^-1) and each N(Z_s; mu_s(beta_a),
+  // 1/lambda_s) from scratch); log T must equal their difference.
+  void ellipse_probe(std::vector<unsigned> const &A, Vec const &mu, Vec const &chol, double log_det, Shift &sh)
+  {
+    Shared const &S = s();
+    const long double children = children_delta(sh, 1.0);
+    const long double log_t = children - gaussian_part(sh);
+    const std::size_t na = A.size();
+    Vec b_old(na), b_new(na);
+    Vec dc(S.p, 0.0);
+    for (std::size_t i = 0; i < sh.coords.size(); ++i) dc[sh.coords[i]] += sh.dcoef[i];
+    for (std::size_t i = 0; i < na; ++i) {
+      b_old[i] = _b[A[i]];
+      b_new[i] = _b[A[i]] + dc[A[i]];
+    }
+    Vec dz(S.latents.size(), 0.0);
+    for (std::size_t i = 0; i < sh.lats.size(); ++i) dz[sh.lats[i]] += sh.dlat[i];
+    // the inner target: priors, then every changed child
+    long double inner = 0;
+    std::vector<char> done(S.groups.size(), 0);
+    for (unsigned k : A) {
+      const unsigned j = S.coord_group[k];
+      if (done[j]) continue;
+      done[j] = 1;
+      GroupSpec const &g = S.groups[j];
+      Vec next(g.d);
+      for (unsigned i = 0; i < g.d; ++i) next[i] = _beta[g.coord0 + i] + dc[g.coord0 + i];
+      inner += log_slab(g, next.data()) - log_slab(g, &_beta[g.coord0]);
+    }
+    for (std::size_t lat = 0; lat < dz.size(); ++lat) {
+      inner += -0.5L * (static_cast<long double>(_z[lat] + dz[lat]) * (_z[lat] + dz[lat]) -
+                        static_cast<long double>(_z[lat]) * _z[lat]);
+    }
+    // residuals of every child at the old and the new state
+    Vec r_new(_r);
+    for (std::size_t q = 0; q < sh.children.size(); ++q) {
+      ChildSpec const &child = S.children[sh.children[q]];
+      for (unsigned i = 0; i < child.n; ++i) r_new[child.row0 + i] -= sh.delta[sh.offset[q] + i];
+    }
+    auto quadratic = [&](ChildSpec const &child, Vec const &r) {
+      double const *W = &_W[child.woff];
+      long double v = 0;
+      for (unsigned i = 0; i < child.n; ++i) {
+        for (unsigned j = 0; j < child.n; ++j) v += static_cast<long double>(r[child.row0 + i]) * W[i * child.n + j] * r[child.row0 + j];
+      }
+      return v;
+    };
+    for (std::size_t q = 0; q < sh.children.size(); ++q) {
+      const unsigned c = sh.children[q];
+      ChildSpec const &child = S.children[c];
+      if (gaussian_child(c)) {
+        inner += -0.5L * (quadratic(child, r_new) - quadratic(child, _r));
+      } else {
+        ensure_value(c);
+        inner += static_cast<long double>(sh.value[q]) - _value[c];
+      }
+    }
+    // the Gaussian working model: N(beta_a; mu_a, P_a^-1) and, per latent, the
+    // conditional N(Z_s; mu_s(beta_a), 1/lambda_s), mu_s = d_s' W r_s / lambda_s
+    // with r_s the residuals without the latent
+    long double gaussian = log_normal_precision(b_new.data(), mu, chol, log_det) -
+      log_normal_precision(b_old.data(), mu, chol, log_det);
+    for (unsigned lat = 0; lat < S.latents.size(); ++lat) {
+      long double m_old = 0, m_new = 0;
+      for (unsigned c : S.latent_children[lat]) {
+        ChildSpec const &child = S.children[c];
+        double const *W = &_W[child.woff];
+        for (unsigned i = 0; i < child.n; ++i) {
+          for (unsigned j = 0; j < child.n; ++j) {
+            const unsigned rj = child.row0 + j;
+            m_old += static_cast<long double>(_d[child.row0 + i]) * W[i * child.n + j] * (_r[rj] + _d[rj] * _z[lat]);
+            m_new += static_cast<long double>(_d[child.row0 + i]) * W[i * child.n + j] *
+              (r_new[rj] + _d[rj] * (_z[lat] + dz[lat]));
+          }
+        }
+      }
+      m_old /= _lambda[lat];
+      m_new /= _lambda[lat];
+      const long double e_old = _z[lat] - m_old, e_new = _z[lat] + dz[lat] - m_new;
+      gaussian += -0.5L * _lambda[lat] * (e_new * e_new - e_old * e_old);
+    }
+    probe_record(ellipse_move, static_cast<double>(log_t), inner - gaussian, inner, static_cast<double>(gaussian));
+  }
+
   // S_jk: exchange the gates of two correlated groups, the one switched on
   // drawn from its law along the line given the other off (Gaussian labels).
   void gaussian_swap(unsigned first, unsigned second, RNG *rng, bool dry = false)
@@ -2536,8 +2742,13 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
 
   // ---- the update
 
-  enum Kind { kind_flip, kind_refresh, kind_swap, kind_joint, kind_latent };
+  enum Kind { kind_flip, kind_refresh, kind_swap, kind_joint, kind_ellipse, kind_latent };
   struct Step { Kind kind; unsigned a, b; };
+
+  // The refresh kernels of the active coefficients in selection labels (test
+  // switch, 0 the default): 1 the per-group refreshes R_j, 2 one elliptical
+  // slice step E, 3 two E steps, 4 E and the R_j.
+  int refresh_variant() const { return s().refresh == 0 ? default_refresh : s().refresh; }
 
   void sweep(RNG *rng)
   {
@@ -2558,6 +2769,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // the joint refresh is Gaussian only: the untilted joint law is rejected
     // under selection
     if (!_selection && !S.groups.empty()) steps.push_back({kind_joint, 0, 0});
+    // E in selection labels: after the flips and swaps, before the latents
+    const int variant = refresh_variant();
+    const int ellipses = variant == 3 ? 2 : (variant == 2 || variant == 4) ? 1 : 0;
+    if (_selection) for (int e = 0; e < ellipses; ++e) steps.push_back({kind_ellipse, 0, 0});
     for (unsigned lat = 0; lat < S.latents.size(); ++lat) steps.push_back({kind_latent, lat, 0});
     if (S.probe) {
       // test hook: dry runs of every collapsed Gaussian move at the entry state
@@ -2568,6 +2783,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       for (auto const &pair : pairs) gaussian_swap(pair.first, pair.second, rng, true);
       if (!S.groups.empty()) gaussian_joint(rng, true);
       for (unsigned lat = 0; lat < S.latents.size(); ++lat) gaussian_latent(lat, rng, true);
+      ellipse(rng, true);
     }
     // one coin per update: the whole list forward or reversed
     const bool backward = rng->uniform() < 0.5;
@@ -2576,7 +2792,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       // The line of a group serves its F_j and R_j, adjacent in either order;
       // any other component changes it.
       if ((step.kind != kind_flip && step.kind != kind_refresh) || _line.group != step.a) _line.valid = false;
-      enter(step.kind == kind_latent ? cat_latent : cat_move);
+      enter(step.kind == kind_latent ? cat_latent : step.kind == kind_ellipse ? cat_ellipse : cat_move);
       switch (step.kind) {
       case kind_flip:
         if (_selection) tilted_flip(step.a, rng);
@@ -2585,8 +2801,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       case kind_refresh:
         if (!active(step.a)) dormant_refresh(step.a, rng);
         else if (!_selection) gaussian_refresh(step.a, rng);
+        else if (variant == 2 || variant == 3) break;  // E refreshes the active coefficients
         else if (_slice_refresh[step.a]) slice_refresh(step.a, rng);
         else tilted_refresh(step.a, rng);
+        break;
+      case kind_ellipse:
+        ellipse(rng);
         break;
       case kind_swap:
         if (_selection) tilted_swap(step.a, step.b, rng);
@@ -3136,6 +3356,7 @@ public:
     shared->mutant = test_mutant.load(std::memory_order_relaxed);
     shared->probe = test_probe.load(std::memory_order_relaxed);
     shared->fit_rule = test_fit_rule.load(std::memory_order_relaxed);
+    shared->refresh = test_refresh.load(std::memory_order_relaxed);
     shared->timing = test_timing.load(std::memory_order_relaxed);
     for (ChildSpec &child : shared->children) {
       child.kind = child_kind(child.node, config.settings);
@@ -3191,7 +3412,7 @@ std::vector<char const *> const &location_block_report_names()
     std::vector<char const *> out = {
       "samplers", "sweeps", "sweeps_selection", "sweeps_evidence", "corrections_accepted",
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
-      "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback",
+      "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
       "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
       "max_stage2_gaussian"};
     static std::vector<std::string> storage;
@@ -3222,7 +3443,7 @@ std::vector<double> location_block_report(bool clear)
     take(c.samplers), take(c.sweeps), take(c.sweeps_selection), take(c.sweeps_evidence),
     take(c.corrections_accepted), take(c.corrections_selection_accepted),
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
-    take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback),
+    take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
     take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
   for (int i = 0; i < component_count; ++i) {
