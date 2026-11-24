@@ -654,6 +654,63 @@ test_that("the automatic sampler report distinguishes a graph decline from a nat
 })
 
 
+test_that("the screened evidence keeps each record with its indicator, run and sampler", {
+
+  # native screened rows of one process (serial, chain, levels, lower, last value,
+  # updates, changes, leave sum and maximum)
+  record <- function(serial, last, updates, changes, leave_sum, leave_max) {
+    c(serial = serial, chain = 0, levels = 2, lower = 1, last = last, updates = updates, changes = changes,
+      leave_sum = leave_sum, leave_max = leave_max)
+  }
+  screened <- function(fit) .sampler_evidence_record(fit, list(), assignments, NULL)$screened
+  assignments <- list(data.frame(Node = c("a", "b"), Sampler = rep("RoBMA::ScreenedFinite", 2L)))
+  first <- list(list(screened = rbind(record(1, 1, 100, 2, 20, .4), record(2, 1, 100, 8, 50, .8))))
+
+  # two indicators that end at the same value cannot be told apart: neither is
+  # named, and their records stay separate
+  fit <- list(end_state = list(list(a = 1, b = 1)))
+  attr(fit, "runtime_report_values") <- list(first)
+  out <- screened(fit)
+  expect_identical(nrow(out), 2L)
+  expect_true(all(is.na(out$node)))
+  expect_identical(out$serial, c(1, 2))
+  expect_identical(out$updates, c(100, 100))
+  expect_identical(out$changes, c(2, 8))
+
+  # a rebuilt model: the second run's samplers have new serials and name their
+  # nodes by the final state; the first run's records keep no node and stay
+  # separate by serial
+  second <- first
+  second[[1L]]$screened[, "serial"] <- 3:4
+  second[[1L]]$screened[, "last"] <- c(1, 2)
+  fit$end_state[[1L]]$b <- 2
+  attr(fit, "runtime_report_values") <- list(first, second)
+  out <- screened(fit)
+  expect_identical(out$node, c("a", "b", NA, NA))
+  expect_identical(out$run, c(NA, NA, 1L, 1L))
+  expect_identical(out$serial, c(NA, NA, 1, 2))
+  expect_identical(out$updates, rep(100, 4L))
+  expect_identical(out$leave_mean, c(.2, .5, .2, .5))
+
+  # the same samplers in both runs (no rebuild): their records add up per node
+  attr(fit, "runtime_report_values") <- list(second, second)
+  out <- screened(fit)
+  expect_identical(out$node, c("a", "b"))
+  expect_identical(out$updates, c(200, 200))
+  expect_identical(out$changes, c(4, 16))
+  expect_identical(out$leave_max, c(.4, .8))
+
+  # one node matched by two serials names neither
+  third <- second
+  third[[1L]]$screened[, "last"] <- c(2, 2)
+  fit$end_state[[1L]]$a <- 3
+  attr(fit, "runtime_report_values") <- list(third)
+  out <- screened(fit)
+  expect_true(all(is.na(out$node)))
+  expect_identical(nrow(out), 2L)
+})
+
+
 test_that(".fit() declares an ensemble's allocation block and records fallbacks without a warning", {
 
   old_options <- RoBMA.options()

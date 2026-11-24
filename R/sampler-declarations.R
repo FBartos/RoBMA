@@ -166,9 +166,11 @@
 # a censored initial run in every chain are consistent with decisive data, in
 # some chains only with chains that do not mix.
 # Counts and sums are added and maxima taken over runs and processes;
-# NULL without any record. The native screened record numbers its samplers in
-# creation order, which is the order of their nodes in the sampler table; a
-# mismatch of the counts leaves the names missing.
+# NULL without any record. The native screened record identifies a sampler by
+# its serial in its process; R names its node from the fit's final state
+# (.sampler_screened_names), in earlier runs through the same serial, and a
+# record whose node is unknown or ambiguous keeps its own row per run,
+# process, serial and chain (.sampler_screened_combine).
 .sampler_evidence_record <- function(fit, declarations, assignments, workers) {
 
   values <- attr(fit, "runtime_report_values", exact = TRUE)
@@ -185,7 +187,10 @@
     function(local) if (is.null(chains)) as.integer(local) + 1L else chains[as.integer(local) + 1L]
   }
   # the screened samplers' nodes, matched in the last run (whose final state the
-  # fit keeps) and reused for the same sampler in earlier runs of the process
+  # fit keeps); a sampler lives as long as its model build and its serial is
+  # never reused in its process, so an earlier run's record with a serial of
+  # the last run of the same process is the same sampler (a rebuilt model's
+  # samplers have other serials, and their records keep no node)
   known <- list()
   last  <- values[[length(values)]]
   for (process in seq_along(last)) {
@@ -204,7 +209,8 @@
   for (marker in declarations[["joint"]][["markers"]]) {
     if (identical(marker[["tag"]], "robma_location_bias")) indicator <- marker[["arguments"]][[1L]]
   }
-  for (run in values) {
+  for (run_index in seq_along(values)) {
+    run <- values[[run_index]]
     for (process in seq_along(run)) {
       report <- run[[process]]
       if (is.null(report)) next
@@ -231,7 +237,8 @@
         names <- if (process <= length(known)) known[[process]] else NULL
         node  <- if (is.null(names)) rep(NA_character_, nrow(rows)) else unname(names[as.character(rows[, "serial"])])
         screened[[length(screened) + 1L]] <- data.frame(
-          node = node, chain = global(rows[, "chain"]),
+          node = node, run = run_index, process = process, serial = rows[, "serial"],
+          chain = global(rows[, "chain"]),
           rows[, c("levels", "updates", "changes", "leave_sum", "leave_max"), drop = FALSE], stringsAsFactors = FALSE)
       }
     }
@@ -267,11 +274,7 @@
   }
   location <- combine(location, "inner_log_odds_max")
   if (!is.null(location)) location[["inner_log_odds_max"]][!is.finite(location[["inner_log_odds_max"]])] <- NA_real_
-  screened <- combine(screened, "leave_max")
-  if (!is.null(screened)) {
-    screened[["leave_mean"]] <- screened[["leave_sum"]] / screened[["updates"]]
-    screened <- screened[, c("node", "chain", "levels", "updates", "changes", "leave_mean", "leave_max")]
-  }
+  screened <- .sampler_screened_combine(screened)
   sojourns <- .sampler_bias_sojourn_record(fit, declarations, indicator)
   if (is.null(location) && is.null(screened) && is.null(bias) && is.null(sojourns)) return(NULL)
   out <- list(location = location, screened = screened)
@@ -360,7 +363,39 @@
     }, logical(1))
     if (sum(fits) == 1L) owners[fits] else NA_character_
   }, character(1))
+  # one node has one sampler per model build: a node matched by several
+  # serials names none of them
+  names[names %in% names[duplicated(names) & !is.na(names)]] <- NA_character_
   unname(names[match(rows[, "serial"], unique(rows[, "serial"]))])
+}
+
+
+# The screened records of all runs and processes (one row per run, process,
+# sampler serial and chain): the records of a named node add up per node and
+# chain (counts and sums added, maxima taken), and a record without a node
+# keeps its own row per run, process, serial and chain, so that distinct
+# indicators are never merged; `run`, `process` and `serial` are NA in the
+# rows of named nodes.
+.sampler_screened_combine <- function(parts) {
+
+  if (length(parts) == 0L) return(NULL)
+  all   <- do.call(rbind, parts)
+  named <- !is.na(all[["node"]])
+  key   <- ifelse(named, paste("node", all[["node"]], all[["chain"]]),
+                  paste("record", all[["run"]], all[["process"]], all[["serial"]], all[["chain"]]))
+  all[named, c("run", "process", "serial")] <- NA
+  out <- do.call(rbind, lapply(split(all, factor(key, levels = unique(key))), function(rows) {
+    row <- rows[1L, , drop = FALSE]
+    for (column in c("updates", "changes", "leave_sum")) row[[column]] <- sum(rows[[column]])
+    row[["leave_max"]] <- max(rows[["leave_max"]])
+    row
+  }))
+  out[["leave_mean"]] <- out[["leave_sum"]] / out[["updates"]]
+  out <- out[order(out[["node"]], out[["run"]], out[["process"]], out[["serial"]], out[["chain"]]),
+             c("node", "chain", "run", "process", "serial", "levels", "updates", "changes", "leave_mean", "leave_max"),
+             drop = FALSE]
+  rownames(out) <- NULL
+  out
 }
 
 
