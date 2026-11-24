@@ -47,6 +47,43 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
 })
 
 
+test_that("the exact correction pairs each node's terms, so a large shared term keeps the others' differences", {
+
+  skip_if_not_installed("rjags")
+  # Three independent estimates, a gated N(0, 1) moderator and no
+  # heterogeneity. The third row's log density (about -5e25) is shared by both
+  # endpoints of every sweep, while the moderator moves its mean by 1e-30 per
+  # unit: a correction that subtracts the endpoints' totals loses the first two
+  # rows' differences (it gave a conditional mean of -0.11 against 0.53).
+  options <- RoBMA.options()["sampler.joint"]
+  on.exit(do.call(RoBMA.options, options), add = TRUE)
+  RoBMA.options(sampler.joint = "location")
+  data <- data.frame(y = c(.8, .8, 1e8), se = c(1, 1, 1e-5), x = c(1, 1, 1e-30))
+  fit <- .location_one_chain(BMA(
+    yi = y, sei = se, mods = ~ 0 + x, data = data, measure = "GEN", prior_mods = prior("normal", list(0, 1)),
+    prior_heterogeneity = prior("point", list(0)), prior_heterogeneity_null = FALSE, prior_unit_information_sd = 1,
+    standardize_continuous_predictors = FALSE, adapt = 100L, burnin = 100L, sample = 4000L, chains = 1L,
+    seed = 516L, autofit = FALSE, silent = TRUE))
+  request <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
+  expect_identical(request[["status"]], "active")
+  # the conditional law given the gate on is N(score / precision, 1 / precision)
+  precision <- 1 + sum(data$x^2 / data$se^2)
+  score     <- sum(data$x * data$y / data$se^2)
+  p_on      <- stats::plogis(-log(precision) / 2 + score^2 / (2 * precision))
+  mean_on   <- score / precision
+  draws <- as.matrix(fit[["fit"]][["mcmc"]])
+  on    <- draws[, "mu_x_indicator"] == 2
+  comparison <- .location_compare(
+    cbind(on = on * 1, b = draws[, "mu_x"], b2 = draws[, "mu_x"]^2),
+    c(on = p_on, b = p_on * mean_on, b2 = p_on * (1 / precision + mean_on^2)))
+  expect_true(attr(comparison, "passes"), info = paste(round(comparison$z, 2), collapse = " "))
+  expect_lt(abs(mean(draws[on, "mu_x"]) - mean_on), 0.1)
+  # every correction of the Gaussian label is one up to rounding
+  expect_equal(request[["counters"]][["corrections_accepted"]], request[["counters"]][["sweeps"]])
+  expect_lt(request[["counters"]][["max_correction_gaussian"]], 1e-9)
+})
+
+
 test_that("the closed-form tilt of a step-selection row has the derivatives of its density", {
 
   # The analytic Newton path of the location block (StepRowNormalizer.h): the

@@ -20,7 +20,9 @@
   bool _selection_entry = false;      // the entry label is a selection label
   std::vector<char> _entry_valued;    // _value_entry holds the entry label's term
   Vec _label_terms;                   // levels x children: the terms of the last label scores
-  Vec _label_score;                   // per label: its score (log prior + nested + children)
+  Vec _label_score;                   // per label: its score (log prior + nested + children) relative to the current label
+  Vec _label_nested;                  // per label: the nested node's term of the last label scores
+  Vec _swap_terms;                    // scratch of swap_move: the children's terms before the move
   std::vector<char> _step_children;   // per child: a step-switch row
   Vec _shift_mean;                    // scratch: a child's mean at another label
 
@@ -117,28 +119,42 @@
   // The scores of every label with prior mass at the current working state:
   // log prior + the nested node's term + every child's term (L0, sweep
   // condition 5: the block's buffers, the graph only for the label's own
-  // parameters). The terms are kept in _label_terms; the graph is left at the
-  // working label.
+  // parameters), relative to the current label: each node's term paired with
+  // its own term at the current label and the differences summed, so that a
+  // large term shared by the labels does not erase the others' differences
+  // (-Inf when the current label's own terms are not finite). The terms are
+  // kept in _label_terms; the graph is left at the working label.
   void score_labels()
   {
     BiasSpec const &B = bspec();
     const std::size_t n = s().children.size();
-    _label_terms.assign(static_cast<std::size_t>(B.levels) * n, 0.0);
-    _label_score.assign(static_cast<std::size_t>(B.levels), negative_infinity);
+    const std::size_t levels = static_cast<std::size_t>(B.levels);
+    _label_terms.assign(levels * n, 0.0);
+    _label_score.assign(levels, negative_infinity);
+    _label_nested.assign(levels, 0.0);
     for (int l = 1; l <= B.levels; ++l) {
-      const double prior = B.log_prior[static_cast<std::size_t>(l - 1)];
-      if (!(prior > negative_infinity)) continue;
+      if (!(B.log_prior[static_cast<std::size_t>(l - 1)] > negative_infinity)) continue;
       set_graph_label(l);
-      long double score = prior + nested_term();
+      _label_nested[static_cast<std::size_t>(l - 1)] = nested_term();
       double *terms = &_label_terms[static_cast<std::size_t>(l - 1) * n];
       for (unsigned c = 0; c < n; ++c) {
         bool selected;
         terms[c] = term_at_label(c, l, &selected);
-        score += terms[c];
       }
-      _label_score[static_cast<std::size_t>(l - 1)] = static_cast<double>(score);
     }
     set_graph_label(_label);
+    const std::size_t k = static_cast<std::size_t>(_label - 1);
+    double const *own = &_label_terms[k * n];
+    if (!std::isfinite(_label_nested[k]) || !all_finite(own, n)) return;
+    for (int l = 1; l <= B.levels; ++l) {
+      const std::size_t i = static_cast<std::size_t>(l - 1);
+      if (!(B.log_prior[i] > negative_infinity)) continue;
+      double const *terms = &_label_terms[i * n];
+      long double score = (static_cast<long double>(B.log_prior[i]) - B.log_prior[k]) +
+        (static_cast<long double>(_label_nested[i]) - _label_nested[k]);
+      for (unsigned c = 0; c < n; ++c) score += static_cast<long double>(terms[c]) - own[c];
+      _label_score[i] = static_cast<double>(score);
+    }
   }
 
   // Moves the working state to label l (the sources unchanged): the physical
@@ -1540,8 +1556,10 @@
     Shared const &S = s();
     BiasSpec const &B = bspec();
     GroupSpec const &g0 = S.groups[B.intercept];
-    long double old_terms = 0, new_terms = 0;
-    for (unsigned c = 0; c < S.children.size(); ++c) old_terms += term_now(c);
+    // each child's term after the move is paired with its own term before it
+    // (correct(): no difference of totals)
+    _swap_terms.resize(S.children.size());
+    for (unsigned c = 0; c < S.children.size(); ++c) _swap_terms[c] = term_now(c);
     const double nested_old = nested_term();
     const double t_old = from.gate ? from.beta0 : 0.0, t_new = to.gate ? to.beta0 : 0.0;
     Vec dE(to.E.size());
@@ -1568,10 +1586,11 @@
     _g[B.intercept] = to.gate ? 1 : 0;
     _beta[g0.coord0] = to.beta0;
     _b[g0.coord0] = t_new;
-    for (unsigned c = 0; c < S.children.size(); ++c) new_terms += term_now(c);
+    long double children = 0;
+    for (unsigned c = 0; c < S.children.size(); ++c) children += static_cast<long double>(term_now(c)) - _swap_terms[c];
     const double nested_new = nested_term();
     _swap_nested = nested_new - nested_old;
-    delta += new_terms - old_terms + nested_new - nested_old;
+    delta += children + (static_cast<long double>(nested_new) - nested_old);
     delta += B.log_prior[static_cast<std::size_t>(to.label - 1)] - B.log_prior[static_cast<std::size_t>(from.label - 1)];
     if (g0.gate != nullptr && to.gate != from.gate) delta += to.gate ? g0.log_on - g0.log_off : g0.log_off - g0.log_on;
     delta += log_slab(g0, &to.beta0) - log_slab(g0, &from.beta0);

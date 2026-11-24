@@ -1005,6 +1005,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   bool _surrogate_mode = false;
   bool _not_exact = false;         // a surrogate evaluated this update was not exact
   long double _repr_delta = 0;     // accumulated log density change of the inner target
+  Vec _correction_terms;           // scratch of correct(): the entry's exact terms
   Vec _a, _lambda, _u, _P, _h;     // Gaussian working model
   std::vector<double const *> _params;
   Vec _scratch;
@@ -3362,25 +3363,51 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // the graph holds the entry state once the bias label's nodes are written
     // back (the block wrote them to evaluate other labels, never the means)
     if (bias()) set_graph_label(_label_entry);
-    // the exact terms at the entry (the graph still holds it), and the
-    // endpoint differences of the selection children, sum (log A - log A~)
-    // up to sign: inner-target value minus exact value
-    long double old_exact = 0, new_exact = 0, old_endpoint = 0, new_endpoint = 0;
-    for (unsigned m : changed_members) old_exact += members[m]->logDensity(_chain, PDF_PRIOR);
+    // The exact log ratio pairs each node's density at the final state with
+    // its own entry value and sums the differences: totals of the two
+    // endpoints would let one large term shared by both erase the others'
+    // differences. An entry term that is not finite is an error naming its
+    // node; a final term of -Inf (zero density) rejects the sweep.
+    // The entry's terms (the graph still holds it) in the order changed
+    // members, children, nested node, and the endpoint differences of the
+    // selection children, sum (log A - log A~) up to sign: inner-target value
+    // minus exact value.
+    std::vector<double> &before = _correction_terms;
+    before.clear();
+    long double old_endpoint = 0, new_endpoint = 0;
+    auto entry_term = [&](Node const *node, double v) {
+      if (!std::isfinite(v)) {
+        throwNodeError(node,
+          "Location block sampler: the log density of this node is not finite at the update's entry state");
+      }
+      before.push_back(v);
+    };
+    for (unsigned m : changed_members) entry_term(members[m], members[m]->logDensity(_chain, PDF_PRIOR));
     for (unsigned c : kids) {
       const double v = graph_density(c);
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
-      old_exact += v;
+      entry_term(S.children[c].node, v);
       if (_entry_valued[c]) old_endpoint += static_cast<long double>(_value_entry[c]) - v;
     }
-    if (label_changed) old_exact += nested_term();
+    if (label_changed) entry_term(bspec().nested, nested_term());
     _view->setValue(_final, _chain);
+    long double exact_change = 0;
+    bool zero_density = false;
+    std::size_t term = 0;
+    auto final_term = [&](Node const *node, double v) {
+      if (std::isnan(v) || v == std::numeric_limits<double>::infinity()) {
+        throwNodeError(node,
+          "Location block sampler: the log density of this node is not defined at the proposed state");
+      }
+      if (v == negative_infinity) zero_density = true;
+      else exact_change += static_cast<long double>(v) - before[term];
+      ++term;
+    };
     if (label_changed) {
       // the graph's label is the final one: the rows' parameters follow it
       _graph_label = _label;
       for (unsigned c = 0; c < S.children.size(); ++c) if (_step_children[c]) refresh_step(c);
-      new_exact += nested_term();
     }
     bool hidden = false;
     for (unsigned c = 0; c < S.children.size() && !hidden; ++c) {
@@ -3391,20 +3418,20 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         if (mean[i] != _mean_entry[child.row0 + i]) hidden = true;
       }
     }
-    for (unsigned m : changed_members) new_exact += members[m]->logDensity(_chain, PDF_PRIOR);
+    for (unsigned m : changed_members) final_term(members[m], members[m]->logDensity(_chain, PDF_PRIOR));
     for (unsigned c : kids) {
       const double v = graph_density(c);
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
-      new_exact += v;
-      if (!gaussian_child(c) && _value_ok[c]) new_endpoint += static_cast<long double>(_value[c]) - v;
+      final_term(S.children[c].node, v);
+      if (!gaussian_child(c) && _value_ok[c] && v > negative_infinity) {
+        new_endpoint += static_cast<long double>(_value[c]) - v;
+      }
     }
-    if (std::isnan(static_cast<double>(new_exact))) {
-      throwNodeError(members[0], "Location block sampler: the log density of the proposed state is not defined");
-    }
-    const double log_ratio = static_cast<double>((new_exact - old_exact) - _repr_delta);
+    if (label_changed) final_term(bspec().nested, nested_term());
+    const double log_ratio = zero_density ? negative_infinity : static_cast<double>(exact_change - _repr_delta);
     bool accepted;
-    if (hidden || !(new_exact > negative_infinity)) {
+    if (hidden || zero_density) {
       accepted = false;
     } else if (S.mutant == 3) {
       accepted = true;
