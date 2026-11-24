@@ -296,12 +296,12 @@ test_that("the automatic policy gives independent fits with a gated moderator th
   record <- function(fit) attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
   independent <- .location_one_chain(RoBMA(
     yi = dat$yi, sei = sqrt(dat$vi), mods = ~ x, data = dat, measure = "SMD",
-    adapt = 50L, burnin = 50L, sample = 100L, chains = 1L, seed = 6L, autofit = FALSE, silent = TRUE))
+    adapt = 100L, burnin = 50L, sample = 100L, chains = 1L, seed = 6L, autofit = FALSE, silent = TRUE))
   expect_identical(owner(independent), "RoBMA::LocationBlock")
   expect_identical(record(independent)[["status"]], "active")
   # without moderators the independent joint bias sampler keeps the fit
   unmoderated <- .location_one_chain(RoBMA(
     yi = dat$yi, sei = sqrt(dat$vi), data = dat, measure = "SMD",
-    adapt = 50L, burnin = 50L, sample = 100L, chains = 1L, seed = 6L, autofit = FALSE, silent = TRUE))
+    adapt = 100L, burnin = 50L, sample = 100L, chains = 1L, seed = 6L, autofit = FALSE, silent = TRUE))
   expect_identical(owner(unmoderated), "RoBMA::IndependentBiasJoint")
 })
