@@ -57,10 +57,15 @@ extension extends the fit when the criteria are not satisfied, or
 \code{"auto"} (the default) to size each extension from the convergence
 check that failed: BayesTools projects the additional draws that the
 parameter furthest from its criteria needs (from its ESS and MCMC errors;
-as many draws again for an R-hat above \code{max_Rhat} alone), adds a tenth,
-and extends by at least 1000 and at most twice the current draws per chain,
-rounded up to a multiple of 100 (see \code{autofit_control} in
-\code{\link[BayesTools]{JAGS_fit}}).}
+at least as many draws again for an R-hat above \code{max_Rhat}) and adds
+a tenth, rounded up to a multiple of 100; the extension is then at most
+twice the current draws per chain (rounded down to a multiple of 100), at
+least 1000, and at most the draws per chain that the time left under
+\code{max_time} allows at the sampling rate so far (rounded down to a
+multiple of 100; automatic fitting stops when that is below 100). Without
+\code{max_time}, the extensions of a fit that cannot converge roughly
+double the draws each time, up to \code{max_extend}. See
+\code{autofit_control} in \code{\link[BayesTools]{JAGS_fit}}.}
 
 \item{restarts}{number of times new initial values should be generated in case a
 model fails to initialize. Defaults to \code{10}.}

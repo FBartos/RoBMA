@@ -32,7 +32,8 @@
 \code{"auto"} to size this one extension from the convergence check of
 \code{object} against its stored autofit criteria, as
 \code{set_autofit_control(sample_extend = "auto")} sizes automatic
-extensions (at least 1000 samples per chain). Defaults to \code{NULL},
+extensions (at least 1000 samples per chain; \code{max_time} does not
+shorten it, as no draws of the call have been timed). Defaults to \code{NULL},
 which does not extend the chains; the \code{sample_extend} stored in the
 autofit control, including its default \code{"auto"}, is not used then.}
 
