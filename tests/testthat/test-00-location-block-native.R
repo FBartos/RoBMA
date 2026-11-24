@@ -411,6 +411,21 @@ test_that("the automatic policy gives independent fits with a gated moderator th
     adapt = 100L, burnin = 50L, sample = 100L, chains = 1L, seed = 6L, autofit = FALSE, silent = TRUE))
   expect_identical(owner(independent), "RoBMA::LocationBlock")
   expect_identical(record(independent)[["status"]], "active")
+  # an unweighted Gaussian meta-regression whose unstandardized moderator the
+  # automatic Gaussian candidate declines once its design is bound falls back
+  # to the location block (the row budget, test-00-joint-gaussian-policy.R,
+  # keeps the ordinary samplers)
+  x <- seq(-1, 1, length.out = 24L)
+  unstandardized <- .location_one_chain(BMA(
+    yi = 0.05 + 0.20 * x + 0.03 * sin(seq_along(x)), sei = rep(0.2, length(x)), mods = ~ x, data = data.frame(x),
+    measure = "SMD", standardize_continuous_predictors = FALSE, adapt = 100L, burnin = 50L, sample = 100L,
+    chains = 1L, seed = 112L, autofit = FALSE, silent = TRUE))
+  expect_identical(owner(unstandardized), "RoBMA::LocationBlock")
+  expect_identical(record(unstandardized)[["status"]], "active")
+  expect_identical(record(unstandardized)[["sampler"]], "RoBMA::LocationBlock")
+  expect_setequal(record(unstandardized)[["nodes"]], c("mu_intercept_indicator", "mu_intercept_component_2",
+                                                       "mu_x_indicator", "mu_x_component_2"))
+  expect_gt(record(unstandardized)[["counters"]][["sweeps"]], 0)
   # without moderators the independent joint bias sampler keeps the fit
   unmoderated <- .location_one_chain(RoBMA(
     yi = dat$yi, sei = sqrt(dat$vi), data = dat, measure = "SMD",

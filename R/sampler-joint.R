@@ -27,9 +27,20 @@
     if (policy %in% c("auto", "gaussian") && !.is_data_known_v(data) &&
         .is_data_mods(data) && is.null(fit_priors[["bias"]])) {
       auto_dispatch <- if (policy == "auto") new.env(parent = emptyenv()) else NULL
+      # "auto": a Gaussian candidate that its bound design declines falls back
+      # to the location block (resolved once the design is bound; the
+      # dispatch records the sampler taken). The row budget is a deliberate
+      # exception: a fit over it keeps the ordinary samplers.
+      fallback <- if (policy == "auto" && .sampler_location_independent_auto) location(TRUE) else NULL
       return(structure(function(prior_list, formula_design, data) {
-        .sampler_joint_gaussian(prior_list, formula_design, data, sign, auto_dispatch)
-      }, sampler = "RoBMA::GaussianJoint", auto_dispatch = auto_dispatch))
+        markers <- .sampler_joint_gaussian(prior_list, formula_design, data, sign, auto_dispatch)
+        if (is.null(markers) && !is.null(fallback) && is.null(auto_dispatch[["budget"]])) {
+          markers <- fallback(prior_list, formula_design, data)
+          if (!is.null(markers)) auto_dispatch[["sampler"]] <- attr(fallback, "sampler", exact = TRUE)
+        }
+        markers
+      }, sampler = "RoBMA::GaussianJoint", auto_dispatch = auto_dispatch,
+      fallback = attr(fallback, "sampler", exact = TRUE)))
     }
     if (policy %in% c("auto", "bias") &&
         (!.is_data_mods(data) || (policy == "bias" && !.is_data_known_v(data))) &&

@@ -22,21 +22,29 @@ test_that("automatic Gaussian sampling uses the compiled standardized moderator"
   expect_identical(report(auto)[["sampler"]], "RoBMA::GaussianJoint")
   expect_identical(report(auto)[["status"]], "active")
 
+  # a design the bound Gaussian candidate declines falls back to the location
+  # block under "auto"
   unscaled <- fit(standardize_continuous_predictors = FALSE)
   factor_design <- fit(mods = ~ group)
   for (backend in list(unscaled, factor_design)) {
     expect_false(any(assigned(backend)))
-    expect_identical(report(backend)[["status"]], "graph_declined")
+    expect_identical(report(backend)[["status"]], "active")
+    expect_identical(report(backend)[["sampler"]], "RoBMA::LocationBlock")
   }
   known_v <- settings
   known_v[["vi"]] <- NULL
   known_v[["V"]] <- diag(dat[["vi"]])
   expect_false(any(assigned(do.call(BMA.mv, known_v)[["fit"]])))
 
+  # declined by both candidates (no normal slab): the ordinary samplers and
+  # their RNG draws
+  heavy <- fit(prior_mods = prior("t", list(0, .3, 3)))
+  expect_false(any(heavy[["samplers"]][["Sampler"]] %in% c("RoBMA::GaussianJoint", "RoBMA::LocationBlock")))
+  expect_identical(report(heavy)[["status"]], "graph_declined")
   RoBMA.options(sampler.joint = "off")
-  off <- fit(standardize_continuous_predictors = FALSE)
+  off <- fit(prior_mods = prior("t", list(0, .3, 3)))
   expect_false(any(assigned(off)))
-  expect_identical(off[["mcmc"]], unscaled[["mcmc"]])
+  expect_identical(off[["mcmc"]], heavy[["mcmc"]])
 
   RoBMA.options(sampler.joint = "gaussian")
   expect_equal(sum(assigned(fit(standardize_continuous_predictors = FALSE))), 6L)
@@ -129,7 +137,10 @@ test_that("automatic Gaussian sampling budgets retained estimates before compila
   expect_identical(tag(explicit), "robma_gaussian_joint")
   expect_true(report(explicit)[["status"]] %in% c("active", "native_declined"))
 
+  # an unstandardized moderator is declined by the Gaussian candidate's design
+  # before its budget, so "auto" falls back to the location block
   unsupported <- fit("auto", standardized = FALSE)
-  expect_null(tag(unsupported))
-  expect_identical(report(unsupported)[["status"]], "graph_declined")
+  expect_identical(tag(unsupported), "robma_location_group")
+  expect_identical(report(unsupported)[["status"]], "active")
+  expect_identical(report(unsupported)[["sampler"]], "RoBMA::LocationBlock")
 })

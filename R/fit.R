@@ -775,7 +775,8 @@
     declarations     <- .fit_sampler_declarations(data = data, priors = priors, fit_priors = fit_priors)
     sampler_report   <- .sampler_report_callback(
       selection = selection_fit,
-      location  = identical(attr(declarations[["sampler_joint"]], "sampler", exact = TRUE), "RoBMA::LocationBlock"))
+      location  = "RoBMA::LocationBlock" %in% c(attr(declarations[["sampler_joint"]], "sampler", exact = TRUE),
+                                                attr(declarations[["sampler_joint"]], "fallback", exact = TRUE)))
 
     fit <- BayesTools::JAGS_fit(
       model_syntax          = model_syntax,
@@ -855,6 +856,8 @@
       requested <- declarations[["requested"]]
       auto_dispatch <- attr(declarations[["sampler_joint"]], "auto_dispatch", exact = TRUE)
       requested[["joint_budget"]] <- auto_dispatch[["budget"]]
+      # the automatic fallback from the Gaussian candidate to the location block
+      if (!is.null(auto_dispatch[["sampler"]])) requested[["joint_sampler"]] <- auto_dispatch[["sampler"]]
     }
     fit <- .sampler_request_record(fit, requested)
     attr(fit, "selection_runtime") <- attr(
