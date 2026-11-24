@@ -1338,7 +1338,7 @@
         const std::size_t i = static_cast<std::size_t>(l - 1);
         if (!(B.log_prior[i] > negative_infinity)) continue;
         set_graph_label(l);
-        const double head = B.log_prior[i] + (S.mutant == 9 ? 0.0 : nested_term());
+        const double head = B.log_prior[i] + nested_term();
         if (B.gaussian(l)) {
           const int b = B.slope_of[i];
           if (gated) base.log_e_off[i] = head + g0.log_off + plane_cell(base, b, false).log_e;
@@ -1353,7 +1353,7 @@
         swap_set_label(l);
         long double absolute = 0;
         for (unsigned c = 0; c < S.children.size(); ++c) absolute += term_now(c);
-        const double head = B.log_prior[i] + (S.mutant == 9 ? 0.0 : nested_term());
+        const double head = B.log_prior[i] + nested_term();
         // the absolute evidence at the base point with the gate off, and the
         // Laplace odds of the gate along the intercept's line (prior odds
         // included; LocationBlock::group_fit)
@@ -1528,9 +1528,9 @@
 
   // Moves the working state from `from` (the current state) to `to` and
   // returns the change of the inner target: every child's absolute term at
-  // both labels and means, the label prior, the nested node's term (mutant 9
-  // omits it), the gate prior, the intercept's slab, both slope priors and the
-  // priors of E.
+  // both labels and means, the label prior, the nested node's term (its change
+  // kept in _swap_nested for mutant 9), the gate prior, the intercept's slab,
+  // both slope priors and the priors of E.
   long double swap_move(SwapGeometry const &G, SwapState const &from, SwapState const &to)
   {
     Shared const &S = s();
@@ -1538,7 +1538,7 @@
     GroupSpec const &g0 = S.groups[B.intercept];
     long double old_terms = 0, new_terms = 0;
     for (unsigned c = 0; c < S.children.size(); ++c) old_terms += term_now(c);
-    const double nested_old = S.mutant == 9 ? 0.0 : nested_term();
+    const double nested_old = nested_term();
     const double t_old = from.gate ? from.beta0 : 0.0, t_new = to.gate ? to.beta0 : 0.0;
     Vec dE(to.E.size());
     for (std::size_t e = 0; e < dE.size(); ++e) dE[e] = to.E[e] - from.E[e];
@@ -1565,7 +1565,8 @@
     _beta[g0.coord0] = to.beta0;
     _b[g0.coord0] = t_new;
     for (unsigned c = 0; c < S.children.size(); ++c) new_terms += term_now(c);
-    const double nested_new = S.mutant == 9 ? 0.0 : nested_term();
+    const double nested_new = nested_term();
+    _swap_nested = nested_new - nested_old;
     delta += new_terms - old_terms + nested_new - nested_old;
     delta += B.log_prior[static_cast<std::size_t>(to.label - 1)] - B.log_prior[static_cast<std::size_t>(from.label - 1)];
     if (g0.gate != nullptr && to.gate != from.gate) delta += to.gate ? g0.log_on - g0.log_off : g0.log_off - g0.log_on;
@@ -1659,6 +1660,10 @@
       const double forward = swap_log_q(base, log_qG, log_qS, current, proposal);
       const double reverse = swap_log_q(base, log_qG, log_qS, proposal, current);
       full = static_cast<double>(delta + reverse - forward);
+      // mutant 9: the nested node's density left out of the acceptance ratio
+      // while the inner target's change recorded below keeps it (left out of
+      // both, the sweep's exact correction would restore it)
+      if (s().mutant == 9) full -= _swap_nested;
       if (dry) {
         swap_probe(G, base, log_qG, log_qS, current, proposal, stage1, full, delta, forward);
       } else {
@@ -1884,6 +1889,8 @@
   // Decided once per sweep before any component runs, independently of the
   // state (sweep conditions; the schedule of L2).
   bool _swap_this_sweep = false;
+  // the change of the nested node's term in the last swap_move (mutant 9)
+  double _swap_nested = 0.0;
   // L2 is running: its fits and evaluations count as label_swap (LocationBlock::enter)
   bool _in_swap = false;
 

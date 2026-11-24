@@ -44,7 +44,8 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // slice step without the latent shear; with an owned bias label, of its swap
 // L2: 6 the label Hastings factor omitted, 7 the gate share omitted, 8 the
 // prior density of the slope that becomes dormant omitted, 9 the nested
-// weight node's density omitted, 10 the within-label contrast instead of the
+// weight node's density omitted from the acceptance ratio (the recorded
+// inner-target change keeps it), 10 the within-label contrast instead of the
 // absolute evidence of a selection label; 11 the joint refresh's slot taken
 // from the entry label). Returns the previous value.
 int location_block_test_mutant(int mutant);

@@ -751,7 +751,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   ratio, S's acceptance ratio, L2's reciprocity, rebuilt base quantities and
   probability flows, the fitted plane against the children's densities, and
   L0's buffered scores against the graph's; mutants 6-11 remove parts of L2
-  or take the joint slot from the entry label; the trace switch records every
+  or take the joint slot from the entry label (a target term left out of
+  both a component's ratio and its recorded inner-target change is restored
+  by the exact correction, apart from the identical-state shortcut, so the
+  mutants remove terms from the ratio only); the trace switch records every
   L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
   `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
   L2, and for L2 by direction the count, sum and maximum of the stage-1 log

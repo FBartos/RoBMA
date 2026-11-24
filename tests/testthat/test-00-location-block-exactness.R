@@ -108,7 +108,9 @@ test_that("the location block's bias-label moves target the exact posterior and 
     expect_identical(counters[["bias_slope_accepted"]], counters[["bias_slope_proposed"]])
     # power: the swap without its label Hastings factor, without the gate
     # share, without the prior density of the slope that becomes dormant, and
-    # (nested layout) without the nested node's density is not exact
+    # (nested layout) without the nested node's density in its acceptance
+    # ratio is not exact (a term left out of both the ratio and the recorded
+    # inner-target change is restored by the sweep's exact correction)
     mutants <- if (isTRUE(variant$nested)) 9L else if (length(variant) == 0L) c(6L, 7L, 8L) else integer()
     for (mutant in mutants) {
       broken <- compare(run(setup, mutant), reference)
