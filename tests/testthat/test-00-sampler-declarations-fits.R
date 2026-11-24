@@ -360,7 +360,12 @@ test_that("an ensemble's allocation block goes to the corrected block sampler ex
     # the block is always declared; the corrected block sampler takes it when the
     # factor block's coarse rule is affordable, BayesTools' otherwise
     expect_gt(NROW(blocks), 0L)
-    expect_identical(samplers[["Sampler"]][allocation_sd],
+    # under the location block's heterogeneity scale the block's sampler runs
+    # embedded, and the scale record names it
+    allocation <- samplers[["Sampler"]][allocation_sd]
+    scale <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]][["scale"]]
+    if (identical(allocation, "RoBMA::LocationBlock")) allocation <- unique(scale[["decisions"]][["embedded"]])
+    expect_identical(allocation,
                      if (case$engaged) "RoBMA::CoarseCorrectedBlock" else "BayesTools::FactorSlice", info = label)
     record <- attr(fit[["fit"]], "selection_sampler", exact = TRUE)
     expect_false("allocation_block_withheld" %in% names(record))
