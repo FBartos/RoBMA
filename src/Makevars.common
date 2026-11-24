@@ -24,13 +24,14 @@ ROBMA_OBJECTS = glmm-aghq.o \
 		  samplers/GaussianJoint.o \
 		  samplers/JointCluster.o \
 		  samplers/LocationBlock.o \
+		  samplers/LocationScale.o \
 		  samplers/StepRowNormalizer.o \
 		  samplers/StepRowCache.o \
 		  samplers/CorrectedSampler.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
 		  selnorm/zplot-context.o \
-		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o r-step-row-cache.o init.o RoBMA.o testRoBMA.o
+		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o r-step-row-cache.o r-location-scale.o init.o RoBMA.o testRoBMA.o
 
 ###############
 
@@ -64,6 +65,9 @@ RoBMA.o samplers/LocationBlock.o: samplers/LocationBlock.h samplers/LocationBloc
 samplers/LocationBlock.o: samplers/StepRowNormalizer.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/selnorm-jags-bounds.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h
 samplers/LocationBlock.o: samplers/LocationBlockBias.h samplers/LocationBlockBiasMoves.h
 samplers/StepRowNormalizer.o: samplers/StepRowNormalizer.h selnorm/selnorm.h selnorm/selnorm-tail.h selnorm/selnorm-tail-kernel.cc.inc
+RoBMA.o samplers/LocationBlock.o samplers/LocationScale.o: samplers/LocationScale.h
+samplers/LocationScale.o r-location-scale.o: samplers/LocationScaleReport.h
+samplers/LocationScale.o: samplers/GammaGroup.h samplers/JointSamplerTag.h
 r-selnorm.o: samplers/CorrectedSampler.h samplers/CoarseCorrectedBlock.h $(CORRECTED_BLOCK_HEADERS) samplers/ScreenedFinite.h samplers/LocationBlockReport.h selnorm/selnorm-mv.h
 r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h distributions/selnorm-node-memo.h
 distributions/DSELNORMCLUSTERSTEP.o distributions/DSELNORMFACTORSTEP.o: distributions/selnorm-node-memo.h

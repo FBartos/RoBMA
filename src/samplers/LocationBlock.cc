@@ -2,6 +2,7 @@
 #include "CoarseSurrogate.h"
 #include "CorrectedSampler.h"
 #include "StepRowNormalizer.h"
+#include "LocationScale.h"
 #include "../distributions/selnorm-jags-bounds.h"
 #include "../selnorm/selnorm.h"
 
@@ -3953,6 +3954,7 @@ public:
     decision() = shared->latents.empty() ? "claimed without latents" : "claimed";
     if (shared->bias != nullptr) decision() += " with the bias label";
     else if (!bias_status.empty()) decision() += "; bias label declined: " + bias_status;
+    sampler = location_scale_owner(std::move(sampler), free, graph, shared->latents, this);
     std::vector<Sampler *> out{sampler.get()};
     sampler.release();
     return out;

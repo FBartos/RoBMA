@@ -23,6 +23,7 @@ static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
 #include "samplers/GaussianJoint.h"
 #include "samplers/JointCluster.h"
 #include "samplers/LocationBlock.h"
+#include "samplers/LocationScale.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -77,6 +78,7 @@ namespace jags {
       insert(new LocationTag(1));
       insert(new LocationTag(2));
       insert(new LocationTag(3));
+      insert(new LocationScaleTag);
       insert(location_block_factory());
     }
 
