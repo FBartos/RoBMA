@@ -800,6 +800,43 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   PEESE; nested; a second selection label) in
   `test-00-location-block-exactness.R`; frozen-state identities and the
   sweep's discrete-chain check in `test-00-location-bias-native.R`.
+- Heterogeneity scale of the location block (`src/samplers/LocationScale.cc`,
+  declared by `R/sampler-joint-location-scale.R` with the location block when
+  it has latents): the block also owns the heterogeneity sources of the
+  sampled term (`.mv` allocation layout: the allocation SD and the gamma
+  sources of the component's Dirichlet split, or the SD alone for one term;
+  clustered fits: the stochastic sources of `tau` and `rho` behind their
+  gates). With `v_j = a^2 w_j`, the scale group `T_c` multiplies the sampled
+  component's variance by `c^2`, keeps the others and divides the latents by
+  `c` (gamma sources keep their total), so no child density changes; one
+  slice update of `u = log c` from 0 (width 0.5, a total budget of 40
+  expansions split at random between the sides, Neal 2003; a fixed cap per
+  side is not a valid kernel) of `log f(u) = log p_a(a') + log p_w(w') -
+  (2L - 1) log a' - sum(Z^2) / (2 c^2) + (2 - K) u` from the sources' own
+  `PDF_PRIOR` densities (Liu and Sabatti 2000) needs no likelihood
+  evaluation. One update: the location sweep, the sources' ordinary samplers
+  (built by asking the factories after the location block's on exactly these
+  nodes and embedded unchanged, so their adaptation, fallback and
+  corrected-sampler record are those of an ordinary fit), then the move, which
+  is the identity unless every declared gate indicator is at its declared
+  level. The factory declines (everything as before; draws identical) unless
+  the sources are free, unobserved, fixed-parameter scalars with the declared
+  supports (a gamma group recognized by `find_gamma_groups` behind the
+  declared ratios), the block owns all `K` latents, no source has a gate
+  marker or shares a block marker with another node, the sources' samplers
+  claim exactly them, and the invariance check passes: once at construction
+  (chain 0, state restored) with the indicators forced to their levels, the
+  latents at nonzero values and every bias label, for `c` in {0.7, 1.3}
+  every parent value of every stochastic child of the sources and latents
+  (markers excluded) is unchanged within `1e-9 (1 + |value|)`, the charts of
+  `a`, `w` and `sigma_s` match and `sigma_s' = c sigma_s`. The tag passes the
+  gamma sources through their ratio nodes so that it adds no child to the
+  gamma group. The record `sampler_declarations$robma$joint$scale` holds the
+  factory decisions (layout, L, K, status, reason, invariance check, embedded
+  samplers) and the move's counters. Test hooks
+  `RoBMA_location_scale_test_config` (mutants, decline, timing) and
+  `RoBMA_location_scale_test`; tests `test-00-location-scale-native.R`, the
+  quadrature fixtures in `test-00-location-block-exactness.R`.
 - Fallback and record: each sampler object (node, block or indicator x chain,
   per model build) keeps its own adaptation flag (JAGS has no accessor) and
   counts its adaptive evidence proposals and their accepted corrections
