@@ -75,7 +75,7 @@
           "This update requires an unweighted independent Gaussian fit, one standardized numeric moderator and eligible normal mixtures." else
           "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
         "RoBMA::LocationBlock" = paste(
-          "This update requires a multilevel or random-effect fit of a Gaussian outcome with a location term",
+          "This update requires a fit of a Gaussian outcome (multilevel, random-effect, or with a gated moderator) with a location term",
           "whose prior mixes an exact zero with a normal slab, and no exact probability readout of its indicator."),
         "This update requires an eligible clustered fit with one factor moderator and supported prior laws."),
       native_declined = if (expected == "RoBMA::GaussianJoint")

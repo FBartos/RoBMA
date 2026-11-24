@@ -14,21 +14,30 @@
 
 
 # The automatic policy routes multilevel and random-effect fits of a Gaussian
-# outcome (the `.mv` interfaces) to the location block; a known sampling
-# covariance alone qualifies on request, since the automatic policy keeps the
-# independent joint bias sampler for those fits.
+# outcome (the `.mv` interfaces and clustered fits) to the location block; on
+# request every fit of a Gaussian outcome qualifies. Independent fits reach it
+# under the automatic policy only when no other joint sampler takes them
+# (.sampler_joint_declared, .sampler_location_independent_auto).
 .sampler_joint_location_data <- function(data, policy) {
 
   if (.data_outcome_type(data) != "norm") return(FALSE)
   random <- .is_data_multilevel(data) || .is_data_random(data)
-  return(random || (policy == "location" && .is_data_known_v(data)))
+  return(random || policy == "location")
 }
+
+
+# Whether the automatic policy gives independent fits with a gated moderator
+# that no other joint sampler takes to the location block (decided by
+# measurement on the Assink meta-regression).
+.sampler_location_independent_auto <- TRUE
 
 
 # The markers of an eligible fit or NULL. `probabilities` are the requested
 # exact probability readouts: a location gate among them keeps the
-# enumerating sampler, so the whole location block is declined.
-.sampler_joint_location <- function(prior_list, formula_design, data, probabilities = character()) {
+# enumerating sampler, so the whole location block is declined. With
+# `moderator`, a gated term other than the intercept is required.
+.sampler_joint_location <- function(prior_list, formula_design, data, probabilities = character(),
+                                    moderator = FALSE) {
 
   design <- formula_design[["mu"]]
   if (is.null(design)) return(NULL)
@@ -38,6 +47,11 @@
   groups <- groups[!vapply(groups, is.null, logical(1))]
   gates  <- unlist(lapply(groups, `[[`, "gate"))
   if (length(gates) == 0L) return(NULL)
+  if (moderator) {
+    intercept <- fixed[["jags_name"]][fixed[["term"]] == "intercept"]
+    gated <- vapply(groups, function(group) !is.null(group[["gate"]]) && !group[["physical"]] %in% intercept, logical(1))
+    if (!any(gated)) return(NULL)
+  }
   if (any(gates %in% sub("\\[1\\]$", "", probabilities))) return(NULL)
 
   latents <- .sampler_location_latents(design)
