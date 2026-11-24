@@ -608,15 +608,19 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' \code{"auto"} (the default) to size each extension from the convergence
 #' check that failed: BayesTools projects the additional draws that the
 #' parameter furthest from its criteria needs (from its ESS and MCMC errors;
-#' at least as many draws again for an R-hat above \code{max_Rhat}) and adds
-#' a tenth, rounded up to a multiple of 100; the extension is then at most
-#' twice the current draws per chain (rounded down to a multiple of 100), at
-#' least 1000, and at most the draws per chain that the time left under
-#' \code{max_time} allows at the sampling rate so far (rounded down to a
+#' at least as many draws again for an R-hat above \code{max_Rhat}, and for a
+#' parameter whose diagnostics are not assessable unless
+#' \code{allow_not_assessable}) and adds a tenth, rounded up to a multiple of
+#' 100; the extension is then at most twice the current draws per chain
+#' (rounded down to a multiple of 100), at least 1000, and at most the draws
+#' per chain that the time left under \code{max_time} allows at the rate
+#' observed so far, including adaptation and burn-in (rounded down to a
 #' multiple of 100; automatic fitting stops when that is below 100). Without
-#' \code{max_time}, the extensions of a fit that cannot converge roughly
-#' double the draws each time, up to \code{max_extend}. See
-#' \code{autofit_control} in \code{\link[BayesTools]{JAGS_fit}}.
+#' \code{max_time}, each extension of a model that cannot converge
+#' multiplies the draws per chain by about 2.1 (a failed R-hat or a parameter
+#' whose diagnostics are not assessable) and up to 3 (large ESS or error
+#' deficits), up to \code{max_extend}. See \code{autofit_control} in
+#' \code{\link[BayesTools]{JAGS_fit}}.
 #' @param restarts number of times new initial values should be generated in case a
 #' model fails to initialize. Defaults to \code{10}.
 #' @param max_extend number of times after which the automatic fitting function is stopped.
