@@ -94,8 +94,8 @@ test_that("the location block's bias-label moves target the exact posterior and 
   for (variant in list(list(), list(nested = TRUE), list(second_selection = TRUE))) {
     setup <- do.call(.bias_setup, variant)
     model <- .bias_model(setup)
-    reference <- .bias_reference(setup, model, coefficient_nodes = 20L, latent_nodes = 40L)
-    coarser   <- .bias_reference(setup, model, coefficient_nodes = 16L, latent_nodes = 32L)
+    reference <- .bias_reference(setup, model, coefficient_nodes = 20L, latent_nodes = 40L, weight_nodes = 24L)
+    coarser   <- .bias_reference(setup, model, coefficient_nodes = 16L, latent_nodes = 32L, weight_nodes = 16L)
     label <- paste(c("bias fixture", names(variant)), collapse = " ")
     expect_lt(max(abs(reference - coarser)), 1e-4, label = label)
     exact <- run(setup)

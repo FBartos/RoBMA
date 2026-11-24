@@ -211,7 +211,7 @@
 
   # the selection label at one step weight: per gate pattern
   latent <- .coarse_reference_rule(latent_nodes)
-  selection <- function(on, omega) {
+  selection <- function(on, omega, anchor = NULL) {
     log_marginal <- function(B) {
       total <- numeric(nrow(B))
       for (s in 1:3) {
@@ -244,14 +244,18 @@
       }
       log_marginal(B) + prior
     }
-    fit <- stats::optim(setup$prior_mean[on], function(beta) -full(beta), method = "BFGS", hessian = TRUE)
-    # the grid's scale from the curvature at the mode (the prior's where it is
-    # not positive definite, at extreme step weights)
-    hessian <- fit$hessian
-    if (!all(is.finite(hessian)) || any(eigen(hessian, symmetric = TRUE, only.values = TRUE)$values <= 0)) {
-      hessian <- diag(setup$prior_precision[on], nrow = length(on))
+    if (is.null(anchor)) {
+      fit <- stats::optim(setup$prior_mean[on], function(beta) -full(beta), method = "BFGS", hessian = TRUE)
+      # the grid's scale from the curvature at the mode (the prior's where it
+      # is not positive definite)
+      hessian <- fit$hessian
+      if (!all(is.finite(hessian)) || any(eigen(hessian, symmetric = TRUE, only.values = TRUE)$values <= 0)) {
+        hessian <- diag(setup$prior_precision[on], nrow = length(on))
+      }
+      anchor <- list(par = fit$par, L = t(chol(solve(hessian))))
     }
-    L <- t(chol(solve(hessian)))
+    fit <- list(par = anchor$par)
+    L <- anchor$L
     rule <- .coarse_reference_rule(coefficient_nodes)
     grid <- as.matrix(expand.grid(rep(list(seq_len(coefficient_nodes)), length(on))))
     x <- matrix(rule$nodes[grid], ncol = length(on))
@@ -264,7 +268,8 @@
     i0 <- match(1L, on)
     b0 <- if (is.na(i0)) 0 else sum(weight * beta[, i0]) / mass
     b0_2 <- if (is.na(i0)) 0 else sum(weight * beta[, i0]^2) / mass
-    list(log_mass = top + log(mass) + sum(log(diag(L))) + 0.5 * length(on) * log(2 * pi), b0 = b0, b0_2 = b0_2)
+    list(log_mass = top + log(mass) + sum(log(diag(L))) + 0.5 * length(on) * log(2 * pi), b0 = b0, b0_2 = b0_2,
+         anchor = anchor)
   }
 
   rows <- list()
@@ -276,9 +281,12 @@
         if (!setup$nested) {
           selection(on, if (label == 2L) setup$omega else setup$omega_second)
         } else {
-          # the step weight integrated against its beta prior at the selection label
+          # the step weight integrated against its beta prior at the selection
+          # label, on one coefficient grid adapted at the prior mean weight (a
+          # refit per weight node makes the rule jump between node counts)
           rule <- .bias_legendre(weight_nodes)
-          cells <- lapply(rule$nodes, function(a) selection(on, a))
+          centre <- selection(on, setup$nested_shape[1] / sum(setup$nested_shape))
+          cells <- lapply(rule$nodes, function(a) selection(on, a, centre$anchor))
           lm <- vapply(cells, `[[`, numeric(1), "log_mass") +
             stats::dbeta(rule$nodes, setup$nested_shape[1], setup$nested_shape[2], log = TRUE) + log(rule$weights)
           top <- max(lm)
