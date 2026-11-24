@@ -501,3 +501,61 @@ inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
   view.setValue(saved, 0);
   return ok;
 }
+
+// ---- the evidence record of the bias label (bias_evidence): per chain,
+// over the updates after adaptation, the sweeps ending in each label, the
+// proposals and acceptances of L0, L1, S and L2 (L2 also its stage-1 passes),
+// and for L2 by direction (0: leaving the selection family, 1: leaving the
+// Gaussian family) the count, sum and maximum of the stage-1 log ratio of
+// every attempt and of the swaps retained after the sweep's exact correction.
+// Never destroyed, like the counters.
+struct BiasEvidence {
+  std::vector<double> label_sweeps;
+  double proposed[4] = {0, 0, 0, 0}, stage1[4] = {0, 0, 0, 0}, accepted[4] = {0, 0, 0, 0};
+  double attempts[2] = {0, 0}, attempt_sum[2] = {0, 0};
+  double attempt_max[2] = {-std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+  double kept[2] = {0, 0}, kept_sum[2] = {0, 0};
+  double kept_max[2] = {-std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+
+  void add(BiasEvidence const &other)
+  {
+    if (label_sweeps.size() < other.label_sweeps.size()) label_sweeps.resize(other.label_sweeps.size(), 0.0);
+    for (std::size_t i = 0; i < other.label_sweeps.size(); ++i) label_sweeps[i] += other.label_sweeps[i];
+    for (int i = 0; i < 4; ++i) {
+      proposed[i] += other.proposed[i];
+      stage1[i] += other.stage1[i];
+      accepted[i] += other.accepted[i];
+    }
+    for (int d = 0; d < 2; ++d) {
+      attempts[d] += other.attempts[d];
+      attempt_sum[d] += other.attempt_sum[d];
+      attempt_max[d] = std::max(attempt_max[d], other.attempt_max[d]);
+      kept[d] += other.kept[d];
+      kept_sum[d] += other.kept_sum[d];
+      kept_max[d] = std::max(kept_max[d], other.kept_max[d]);
+    }
+  }
+};
+
+struct BiasEvidenceStore {
+  std::mutex mutex;
+  std::map<unsigned, BiasEvidence> records;
+};
+
+inline BiasEvidenceStore &bias_evidence_store()
+{
+  static BiasEvidenceStore *store = new BiasEvidenceStore();
+  return *store;
+}
+
+// The component index of the evidence record: L0, L1, S, L2.
+inline int bias_record_index(int component)
+{
+  switch (component) {
+  case 1: return 0;   // bias_label
+  case 2: return 1;   // bias_gaussian
+  case 3: return 2;   // bias_slope
+  case 4: return 3;   // bias_swap
+  default: return -1;
+  }
+}

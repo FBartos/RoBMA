@@ -166,7 +166,11 @@ standard_required_tests <- function() {
     )),
     .required_tests("test-00-location-bias-native.R", c(
       "the location block owns the bias label, its slopes and the nested node's label and declines what it cannot verify",
-      "public fits give the bias label to the location block unless its probabilities are read"
+      "public fits give the bias label to the location block unless its probabilities are read",
+      "frozen-state identities of the Gaussian-family moves hold for regular and prior cells",
+      "frozen-state identities of the cross-family swap and of the label scores hold",
+      "the bias label's evidence record shows a family that is never visited",
+      "fixed component slots and reversed composites keep a small discrete chain stationary"
     )),
     .required_tests("test-00-carrier-integration.R", c(
       "public no-intercept moderator means use the fitted contrast basis",
@@ -436,8 +440,10 @@ certification_cases <- function() {
           "cluster and factor blocks give their nodes the corrected sampler",
           "a corrected chain draws identically with the node memo on and off"
         )),
-        .required_tests("test-00-location-block-exactness.R",
-          "the location block chain targets the exact posterior and broken kernels do not"),
+        .required_tests("test-00-location-block-exactness.R", c(
+          "the location block chain targets the exact posterior and broken kernels do not",
+          "the location block's bias-label moves target the exact posterior and broken swaps do not"
+        )),
         .required_tests("test-00-sampler-declarations-fits.R", c(
           "declared nodes get the BayesTools samplers and the others keep theirs",
           "guarded priors keep the stock samplers",

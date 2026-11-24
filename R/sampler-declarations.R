@@ -140,7 +140,12 @@
 # against the current one (exact in Gaussian labels, Laplace in selection
 # labels); per screened indicator and chain the updates, changes of level and
 # the mean and maximum full-conditional probability of leaving the current
-# level. Counts and sums are added and maxima taken over runs and processes;
+# level; for a bias label owned by the location block (`bias`, per chain) the
+# proposals and acceptances of its label update, Gaussian-family move, slope
+# update and cross-family swap, and per swap direction the count, sum and
+# maximum of the stage-1 log ratio of every attempt and of the swaps the exact
+# correction kept, with the sweeps ending in each label (`bias_labels`).
+# Counts and sums are added and maxima taken over runs and processes;
 # NULL without any record. The native screened record numbers its samplers in
 # creation order, which is the order of their nodes in the sampler table; a
 # mismatch of the counts leaves the names missing.
@@ -173,6 +178,12 @@
   }
   location <- list()
   screened <- list()
+  bias <- list()
+  bias_labels <- list()
+  indicator <- "bias_indicator"
+  for (marker in declarations[["joint"]][["markers"]]) {
+    if (identical(marker[["tag"]], "robma_location_bias")) indicator <- marker[["arguments"]][[1L]]
+  }
   for (run in values) {
     for (process in seq_along(run)) {
       report <- run[[process]]
@@ -183,6 +194,17 @@
         location[[length(location) + 1L]] <- data.frame(
           node = unname(gates[as.character(rows[, "slot"])]), chain = global(rows[, "chain"]),
           rows[, setdiff(colnames(rows), c("slot", "chain")), drop = FALSE], stringsAsFactors = FALSE)
+      }
+      rows <- report[["location_bias"]]
+      if (is.list(rows) && is.matrix(rows[["chains"]]) && nrow(rows[["chains"]]) > 0L) {
+        counts <- rows[["chains"]]
+        bias[[length(bias) + 1L]] <- data.frame(node = indicator, chain = global(counts[, "chain"]),
+          counts[, setdiff(colnames(counts), "chain"), drop = FALSE], stringsAsFactors = FALSE)
+      }
+      if (is.list(rows) && is.matrix(rows[["labels"]]) && nrow(rows[["labels"]]) > 0L) {
+        labels <- rows[["labels"]]
+        bias_labels[[length(bias_labels) + 1L]] <- data.frame(chain = global(labels[, "chain"]),
+          label = as.integer(labels[, "label"]), sweeps = labels[, "sweeps"])
       }
       rows <- report[["screened"]]
       if (is.matrix(rows) && nrow(rows) > 0L) {
@@ -209,6 +231,19 @@
     rownames(out) <- NULL
     out
   }
+  bias <- combine(bias, c("leave_selection_log_ratio_max", "leave_gaussian_log_ratio_max",
+                          "kept_leave_selection_log_ratio_max", "kept_leave_gaussian_log_ratio_max"))
+  if (!is.null(bias)) {
+    for (column in grep("_max$", names(bias), value = TRUE)) bias[[column]][!is.finite(bias[[column]])] <- NA_real_
+  }
+  if (length(bias_labels) > 0L) {
+    bias_labels <- do.call(rbind, bias_labels)
+    bias_labels <- stats::aggregate(sweeps ~ chain + label, data = bias_labels, FUN = sum)
+    bias_labels <- bias_labels[order(bias_labels[["chain"]], bias_labels[["label"]]), , drop = FALSE]
+    rownames(bias_labels) <- NULL
+  } else {
+    bias_labels <- NULL
+  }
   location <- combine(location, "log_odds_max")
   if (!is.null(location)) location[["log_odds_max"]][!is.finite(location[["log_odds_max"]])] <- NA_real_
   screened <- combine(screened, "leave_max")
@@ -216,8 +251,10 @@
     screened[["leave_mean"]] <- screened[["leave_sum"]] / screened[["updates"]]
     screened <- screened[, c("node", "chain", "levels", "updates", "changes", "leave_mean", "leave_max")]
   }
-  if (is.null(location) && is.null(screened)) return(NULL)
-  return(list(location = location, screened = screened))
+  if (is.null(location) && is.null(screened) && is.null(bias)) return(NULL)
+  out <- list(location = location, screened = screened)
+  if (!is.null(bias)) out[c("bias", "bias_labels")] <- list(bias, bias_labels)
+  return(out)
 }
 
 

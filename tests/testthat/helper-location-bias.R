@@ -10,7 +10,7 @@
 # label (the nested weight node of BayesTools' nested layout).
 
 
-.bias_setup <- function(nested = FALSE, rho = .85) {
+.bias_setup <- function(nested = FALSE, rho = .85, second_selection = FALSE) {
 
   se <- c(.20, .22, .25, .21, .18, .24, .19, .23, .20, .22)
   list(
@@ -24,7 +24,7 @@
     prior_mean  = c(.2, 0),
     prior_precision = c(4, 4),
     gate_weights = c(1, 1),
-    bias_weights = c(1, 2, 1, 1),   # none, selection, PET, PEESE
+    bias_weights = c(1, 2, 1, 1, 1.5),  # none, selection, PET, PEESE (, the second selection label)
     omega       = .3,               # the step weight below zero (ordinary layout)
     nested      = nested,
     nested_shape = c(3, 2),         # the step weight's beta prior at the selection label
@@ -35,6 +35,10 @@
     pet_prior   = "dt(0, pet_precision, 1) T(0, )",
     peese       = TRUE,
     gated_intercept = TRUE,
+    # a second step-selection label (label 5) with its own weight: labels that
+    # change at identical means, two selection and three Gaussian labels
+    second_selection = second_selection,
+    omega_second = .8,
     rules       = .coarse_rules(c(1L, 2L, 3L, 7L, 15L, 31L, 63L, 127L, 255L, 511L, 1023L))
   )
 }
@@ -44,7 +48,8 @@
 
   clusters <- split(seq_along(setup$y), setup$cluster)
   intercept <- if (setup$gated_intercept) "b[1]" else "b0"
-  labels <- if (setup$peese) 4L else 3L
+  labels <- if (setup$second_selection) 5L else if (setup$peese) 4L else 3L
+  codes  <- c(0, 1, 2, 3, 1)[seq_len(labels)]
   child <- function(s) {
     n <- length(clusters[[s]])
     paste0("  y", s, "[1:", n, "] ~ dselnorm_cluster_step(m", s, "[1:", n, "], rsd", s, "[1:", n, "], ld", s,
@@ -59,6 +64,8 @@
   weight <- if (setup$nested) {
     c("  a ~ dbeta(1 + (shape[1] - 1) * equals(bias_indicator, 2), 1 + (shape[2] - 1) * equals(bias_indicator, 2))",
       "  omega[2] <- a")
+  } else if (setup$second_selection) {
+    "  omega[2] <- omega_fixed * equals(bias_indicator, 2) + omega_second * equals(bias_indicator, 5)"
   } else {
     "  omega[2] <- omega_fixed"
   }
@@ -76,7 +83,8 @@
     "  PET <- PET_1 * equals(bias_indicator, 3)",
     if (setup$peese) c("  PEESE_1 ~ dgamma(peese_shape[1], peese_shape[2])",
                         "  PEESE <- PEESE_1 * equals(bias_indicator, 4)"),
-    "  kernel <- equals(bias_indicator, 2)",
+    if (setup$second_selection) "  kernel <- equals(bias_indicator, 2) + equals(bias_indicator, 5)" else
+      "  kernel <- equals(bias_indicator, 2)",
     "  omega[1] <- 1",
     weight,
     means,
@@ -94,11 +102,12 @@
                peese_col = if (is.null(setup$peese_column)) setup$se^2 else setup$peese_column, scale = setup$scale,
                prior_mean = setup$prior_mean, prior_precision = setup$prior_precision,
                gate_weights = setup$gate_weights, bias_weights = setup$bias_weights[seq_len(labels)],
-               codes = c(0, 1, 2, 3)[seq_len(labels)], pet_precision = 1 / setup$pet_scale^2,
+               codes = codes, pet_precision = 1 / setup$pet_scale^2,
                z_lower = c(0, -1e300), z_upper = c(1e300, 0), qmc = as.numeric(design), nqmc = length(design),
                nodes = setup$rules$nodes, log_weights = setup$rules$log_weights, orders = setup$rules$orders,
                nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
   if (setup$nested) data$shape <- setup$nested_shape else data$omega_fixed <- setup$omega
+  if (setup$second_selection) data$omega_second <- setup$omega_second
   if (setup$peese) data$peese_shape <- setup$peese_shape else data$peese_col <- NULL
   if (!grepl("pet_precision", setup$pet_prior, fixed = TRUE)) data$pet_precision <- NULL
   for (s in seq_along(clusters)) {
@@ -153,7 +162,9 @@
   }
   patterns <- as.matrix(expand.grid(g1 = 0:1, g2 = 0:1))
   log_gate <- log(setup$gate_weights / sum(setup$gate_weights))
-  log_bias <- log(setup$bias_weights / sum(setup$bias_weights))
+  n_labels <- if (setup$second_selection) 5L else 4L
+  weights  <- setup$bias_weights[seq_len(n_labels)]
+  log_bias <- log(weights / sum(weights))
   slopes <- list(PET = setup$se, PEESE = setup$se^2)
 
   # a Gaussian label and gate pattern: log mass and moments of b0 (and the slope)
@@ -257,13 +268,13 @@
   }
 
   rows <- list()
-  for (label in 1:4) {
+  for (label in seq_len(n_labels)) {
     for (k in seq_len(nrow(patterns))) {
       on <- which(patterns[k, ] == 1)
       base <- log_bias[label] + sum(log_gate[patterns[k, ] + 1])
-      cell <- if (label == 2L) {
+      cell <- if (label %in% c(2L, 5L)) {
         if (!setup$nested) {
-          selection(on, setup$omega)
+          selection(on, if (label == 2L) setup$omega else setup$omega_second)
         } else {
           # the step weight integrated against its beta prior at the selection label
           rule <- .bias_legendre(weight_nodes)
@@ -289,32 +300,32 @@
   p <- exp(rows$log_mass - max(rows$log_mass))
   p <- p / sum(p)
   out <- c()
-  for (label in 1:4) out[paste0("I", label)] <- sum(p[rows$label == label])
-  for (label in 1:4) out[paste0("g1_", label)] <- sum(p[rows$label == label & rows$g1 == 1])
-  for (label in 1:4) out[paste0("g2_", label)] <- sum(p[rows$label == label & rows$g2 == 1])
+  for (label in seq_len(n_labels)) out[paste0("I", label)] <- sum(p[rows$label == label])
+  for (label in seq_len(n_labels)) out[paste0("g1_", label)] <- sum(p[rows$label == label & rows$g1 == 1])
+  for (label in seq_len(n_labels)) out[paste0("g2_", label)] <- sum(p[rows$label == label & rows$g2 == 1])
   out["pet"]    <- sum((p * rows$t1)[rows$label == 3])
   out["pet_2"]  <- sum((p * rows$t2)[rows$label == 3])
   out["peese"]  <- sum((p * rows$t1)[rows$label == 4])
   out["peese_2"] <- sum((p * rows$t2)[rows$label == 4])
-  for (label in 1:4) out[paste0("b0_", label)] <- sum((p * rows$b0)[rows$label == label])
-  for (label in 1:4) out[paste0("b0sq_", label)] <- sum((p * rows$b0_2)[rows$label == label])
+  for (label in seq_len(n_labels)) out[paste0("b0_", label)] <- sum((p * rows$b0)[rows$label == label])
+  for (label in seq_len(n_labels)) out[paste0("b0sq_", label)] <- sum((p * rows$b0_2)[rows$label == label])
   out
 }
 
 
-.bias_observables <- function(draws) {
+.bias_observables <- function(draws, n_labels = 4L) {
 
   label <- draws[, "bias_indicator"]
   g1 <- draws[, "g[1]"] == 2
   g2 <- draws[, "g[2]"] == 2
   b0 <- draws[, "b[1]"]
-  out <- cbind(
-    I1 = label == 1, I2 = label == 2, I3 = label == 3, I4 = label == 4,
-    g1_1 = g1 & label == 1, g1_2 = g1 & label == 2, g1_3 = g1 & label == 3, g1_4 = g1 & label == 4,
-    g2_1 = g2 & label == 1, g2_2 = g2 & label == 2, g2_3 = g2 & label == 3, g2_4 = g2 & label == 4,
-    pet = draws[, "PET"], pet_2 = draws[, "PET"]^2, peese = draws[, "PEESE"], peese_2 = draws[, "PEESE"]^2,
-    b0_1 = b0 * (label == 1), b0_2 = b0 * (label == 2), b0_3 = b0 * (label == 3), b0_4 = b0 * (label == 4),
-    b0sq_1 = b0^2 * (label == 1), b0sq_2 = b0^2 * (label == 2), b0sq_3 = b0^2 * (label == 3),
-    b0sq_4 = b0^2 * (label == 4))
+  per_label <- function(prefix, x) {
+    out <- sapply(seq_len(n_labels), function(l) x * (label == l))
+    colnames(out) <- paste0(prefix, seq_len(n_labels))
+    out
+  }
+  out <- cbind(per_label("I", 1), per_label("g1_", g1), per_label("g2_", g2),
+               pet = draws[, "PET"], pet_2 = draws[, "PET"]^2, peese = draws[, "PEESE"], peese_2 = draws[, "PEESE"]^2,
+               per_label("b0_", b0), per_label("b0sq_", b0^2))
   out * 1
 }

@@ -27,6 +27,8 @@ test_that("the location block owns the bias label, its slopes and the nested nod
     expect_gt(counters[["bias_label_accepted"]], 100)
     expect_gt(counters[["bias_dormant_proposed"]], 1000)
     expect_identical(counters[["bias_dormant_accepted"]], counters[["bias_dormant_proposed"]])
+    # the swap L2 is attempted in half of the sweeps (a coin independent of the state)
+    expect_lt(abs(counters[["bias_label_swap_proposed"]] / counters[["sweeps"]] - 0.5), 0.05)
     # every label is visited and the physical slopes are zero outside their labels
     expect_setequal(unique(chain$draws[, "bias_indicator"]), 1:4)
     expect_true(all(chain$draws[chain$draws[, "bias_indicator"] != 3, "PET"] == 0))
@@ -140,4 +142,126 @@ test_that("frozen-state identities of the Gaussian-family moves hold for regular
   ungated$pet_prior <- "dgamma(2, 1)"
   ungated$y <- 0.6 - 2 * ungated$se + c(.02, -.01, .03, -.02, .01, .02, -.03, .01, .02, -.01)
   identity(ungated)
+})
+
+
+test_that("frozen-state identities of the cross-family swap and of the label scores hold", {
+
+  skip_if_not_installed("rjags")
+  # the probe dry-runs L2 at its slot of every sweep (in reversed sweeps after
+  # the location components moved the state): from the proposal it rebuilds
+  # the shears, E_0, every label's evidences and the label proposals, the
+  # reverse move's stage-1 and full ratios and the accepted probability
+  # flows of both directions; at the base point it compares the fitted
+  # quadratic of the Gaussian plane with the children's own densities; and at
+  # L0's slot it compares every label's exact score from the block's buffers
+  # with the graph's densities of the working state
+  for (variant in list(list(), list(nested = TRUE), list(second_selection = TRUE))) {
+    setup <- do.call(.bias_setup, variant)
+    chain <- .location_hand_chain(.bias_model(setup), "bias_indicator", draws = 1200L, burnin = 100L,
+                                  adapt = 100L, probe = TRUE)
+    label <- paste(names(variant), collapse = " ")
+    probe <- chain$probe
+    swap  <- probe[probe$type == "label_swap", ]
+    reciprocal <- swap[swap$kind == 0, ]
+    rebuilt    <- swap[swap$kind == 1, ]
+    plane      <- swap[swap$kind == 2, ]
+    scores     <- probe[probe$type == "label", ]
+    expect_gt(nrow(reciprocal), 500L, label = label)
+    # stage 1 of the reverse move is the inverse; so is the full ratio (the
+    # Laplace laws are refitted from the other end: rounding of the Newton fit)
+    expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-10, label = label)
+    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-8, label = label)
+    # E_0, the shears, the evidences and the label proposals agree; the
+    # accepted flows of the two directions are equal
+    expect_lt(max(rebuilt$stage1), 1e-12, label = label)
+    expect_lt(max(rebuilt$full), 1e-9, label = label)
+    expect_lt(max(rebuilt$selection_part), 1e-12, label = label)
+    expect_lt(max(abs(rebuilt$log_odds)), 1e-7, label = label)
+    expect_lt(max(plane$stage1 / plane$full), 1e-10, label = label)
+    expect_gt(nrow(scores), 500L, label = label)
+    expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
+    expect_gt(chain$counters[["bias_label_swap_accepted"]], 100, label = label)
+  }
+})
+
+
+test_that("the bias label's evidence record shows a family that is never visited", {
+
+  skip_if_not_installed("rjags")
+  options <- RoBMA.options()[c("sampler.joint", "sampler.probabilities", "sampler.nested.weights")]
+  on.exit(do.call(RoBMA.options, options), add = TRUE)
+  RoBMA.options(sampler.joint = "auto", sampler.probabilities = character(), sampler.nested.weights = TRUE)
+  dat <- data.frame(
+    study = rep(1:8, each = 3L),
+    yi    = 0.25 + rep(c(0.03, -0.02, 0.05, -0.04, 0.01, 0.02, -0.03, 0.04), 3L),
+    vi    = rep(c(0.02, 0.03, 0.025), 8L)
+  )
+  # the Gaussian family (a PET label) has a negligible prior weight: never
+  # visited; every swap out of the selection family is very unfavourable
+  fit <- .location_one_chain(RoBMA.mv(
+    yi = yi, V = vi, random = ~ 1 | study, data = dat, measure = "SMD",
+    prior_bias = list(prior_weightfunction("one-sided", c(.05)), prior_PET("cauchy", list(0, 1), list(0, Inf),
+                                                                             prior_weights = 1e-12)),
+    prior_bias_null = FALSE, adapt = 100L, burnin = 50L, sample = 150L, chains = 1L, seed = 3L, autofit = FALSE,
+    silent = TRUE))
+  table <- fit[["fit"]][["samplers"]]
+  expect_true("bias_indicator" %in% table[["Node"]][table[["Sampler"]] == "RoBMA::LocationBlock"])
+  evidence <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["evidence"]]
+  bias   <- evidence[["bias"]]
+  labels <- evidence[["bias_labels"]]
+  expect_identical(bias[["node"]], "bias_indicator")
+  expect_identical(sum(labels[["sweeps"]]), 200)
+  pet <- labels[["label"]] == 2L
+  expect_identical(sum(labels[["sweeps"]][pet]), 0)
+  expect_identical(bias[["leave_gaussian_attempts"]], 0)
+  expect_gt(bias[["leave_selection_attempts"]], 0)
+  expect_lt(bias[["leave_selection_log_ratio_max"]], -10)
+  expect_identical(bias[["kept_leave_selection"]], 0)
+  expect_identical(bias[["swap_proposed"]], bias[["leave_selection_attempts"]])
+  expect_gt(bias[["label_proposed"]], 0)
+})
+
+
+test_that("fixed component slots and reversed composites keep a small discrete chain stationary", {
+
+  # The sweep logic on a four-state chain (two labels x two values of a
+  # coordinate): components reversible for a surrogate target, applied as a
+  # palindromic sweep and followed by one exact correction against the target,
+  # leave the target invariant only when the slot list does not depend on the
+  # entry state and composite components reverse their internal order (sweep
+  # conditions 1 and 3 of the location block).
+  target    <- c(0.1, 0.2, 0.3, 0.4)     # states 1 = (S, 0), 2 = (S, 1), 3 = (G, 0), 4 = (G, 1)
+  surrogate <- c(0.18, 0.12, 0.3, 0.4)   # equal to the target in the Gaussian family
+  # a label move that does not commute with the value move
+  label_move <- matrix(c(0, 0, .7, .3, 0, 0, .3, .7, .7, .3, 0, 0, .3, .7, 0, 0), 4, byrow = TRUE)
+  value_move <- matrix(c(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0), 4, byrow = TRUE)
+  metropolis <- function(proposal) {
+    K <- proposal * pmin(1, outer(1 / surrogate, surrogate))
+    diag(K) <- 0
+    diag(K) <- 1 - rowSums(K)
+    K
+  }
+  L <- metropolis(label_move)
+  V <- metropolis(value_move)
+  # a component acting only in the Gaussian family (the joint refresh)
+  J <- diag(4)
+  J[3:4, 3:4] <- matrix(surrogate[3:4] / sum(surrogate[3:4]), 2, 2, byrow = TRUE)
+  corrected <- function(Q) {
+    w <- target / surrogate
+    P <- Q * pmin(1, outer(1 / w, w))
+    diag(P) <- 0
+    diag(P) <- 1 - rowSums(P)
+    P
+  }
+  stationary <- function(Q) max(abs(target %*% corrected(Q) - target))
+  # fixed slots: the list (L, V, J) forward or reversed with probability 1/2
+  fixed <- 0.5 * (L %*% V %*% J) + 0.5 * (J %*% V %*% L)
+  expect_lt(stationary(fixed), 1e-15)
+  # slots from the entry state: no J slot in sweeps entered in the selection family
+  entry <- rbind((0.5 * (L %*% V) + 0.5 * (V %*% L))[1:2, ], fixed[3:4, ])
+  expect_gt(stationary(entry), 1e-3)
+  # a composite (V then L) that keeps its order in the reversed sweep
+  forward <- 0.5 * (V %*% L %*% J) + 0.5 * (J %*% V %*% L)
+  expect_gt(stationary(forward), 1e-3)
 })

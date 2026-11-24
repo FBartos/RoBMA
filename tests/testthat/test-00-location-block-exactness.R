@@ -64,3 +64,62 @@ test_that("the location block chain targets the exact posterior and broken kerne
   expect_false(attr(broken$comparison, "passes"),
                info = paste("ellipse mutant:", paste(round(broken$comparison$z, 2), collapse = " ")))
 })
+
+
+test_that("the location block's bias-label moves target the exact posterior and broken swaps do not", {
+
+  skip_if_not_certification("The bias-label fixtures (about 6 min) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # The fixture of helper-location-bias.R: labels none, step selection, PET and
+  # PEESE (and a second selection label), a gated intercept with a nonzero
+  # slab mean, a gated moderator, three clusters, a crude surrogate; once in a
+  # nested layout (a beta step weight whose parameters depend on the label).
+  # Reference: Gaussian labels in closed form with the slope integrated by
+  # adaptive quadrature, selection labels by Gauss-Hermite in the cluster
+  # effects and a Laplace-adapted grid in the coefficients (and Gauss-Legendre
+  # in the nested weight). Rule fixed beforehand: every |z| < 4, at most one > 3.
+  draws <- 100000L
+  run <- function(setup, mutant = 0L, n = draws) {
+    model <- .bias_model(setup)
+    # L2 in every sweep (the test switch; the default schedule is one half)
+    chain <- .location_hand_chain(model, c("bias_indicator", "g", "b", "PET", "PEESE"), draws = n,
+                                  burnin = 1000L, adapt = 500L, mutant = mutant,
+                                  config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = -1L))
+    labels <- if (setup$second_selection) 5L else 4L
+    list(chain = chain, model = model, labels = labels)
+  }
+  compare <- function(result, reference) {
+    .location_compare(.bias_observables(result$chain$draws, result$labels), reference)
+  }
+  for (variant in list(list(), list(nested = TRUE), list(second_selection = TRUE))) {
+    setup <- do.call(.bias_setup, variant)
+    model <- .bias_model(setup)
+    reference <- .bias_reference(setup, model, coefficient_nodes = 20L, latent_nodes = 40L)
+    coarser   <- .bias_reference(setup, model, coefficient_nodes = 16L, latent_nodes = 32L)
+    label <- paste(c("bias fixture", names(variant)), collapse = " ")
+    expect_lt(max(abs(reference - coarser)), 1e-4, label = label)
+    exact <- run(setup)
+    expect_identical(exact$chain$decision, "claimed with the bias label")
+    comparison <- compare(exact, reference)
+    expect_true(attr(comparison, "passes"), info = paste(label, ":", paste(round(comparison$z, 2), collapse = " ")))
+    counters <- exact$chain$counters
+    expect_gt(counters[["bias_label_swap_accepted"]], 0.2 * draws, label = label)
+    expect_gt(counters[["bias_gaussian_family_accepted"]], 0.05 * draws, label = label)
+    expect_identical(counters[["bias_slope_accepted"]], counters[["bias_slope_proposed"]])
+    # power: the swap without its label Hastings factor, without the gate
+    # share, without the prior density of the slope that becomes dormant, and
+    # (nested layout) without the nested node's density is not exact
+    mutants <- if (isTRUE(variant$nested)) 9L else if (length(variant) == 0L) c(6L, 7L, 8L) else integer()
+    for (mutant in mutants) {
+      broken <- compare(run(setup, mutant), reference)
+      expect_false(attr(broken, "passes"),
+                   info = paste(label, "mutant", mutant, ":", paste(round(broken$z, 2), collapse = " ")))
+    }
+    if (length(variant) == 0L) {
+      # the within-label contrast instead of the absolute evidence keeps the
+      # swap reversible but wastes it: few swaps pass stage 2
+      wasted <- run(setup, 10L, n = 20000L)$chain$counters
+      expect_lt(wasted[["bias_label_swap_accepted"]] / 20000, 0.2 * counters[["bias_label_swap_accepted"]] / draws)
+    }
+  }
+})

@@ -33,6 +33,8 @@ extern SEXP RoBMA_location_block_report(SEXP clear);
 extern SEXP RoBMA_location_block_evidence(SEXP clear);
 extern SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe);
 extern SEXP RoBMA_location_block_test_config(SEXP config);
+extern SEXP RoBMA_location_block_test_trace(void);
+extern SEXP RoBMA_location_bias_evidence(SEXP clear);
 extern SEXP RoBMA_step_row_derivative_probe(SEXP y, SEXP mean, SEXP row, SEXP omega, SEXP lower, SEXP upper, SEXP means);
 extern SEXP RoBMA_selnorm_factor_rule_affordable(SEXP order, SEXP rank);
 extern SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings,
@@ -449,6 +451,8 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_location_block_evidence", (DL_FUNC) &RoBMA_location_block_evidence, 1},
     {"RoBMA_location_block_test", (DL_FUNC) &RoBMA_location_block_test, 2},
     {"RoBMA_location_block_test_config", (DL_FUNC) &RoBMA_location_block_test_config, 1},
+    {"RoBMA_location_block_test_trace", (DL_FUNC) &RoBMA_location_block_test_trace, 0},
+    {"RoBMA_location_bias_evidence", (DL_FUNC) &RoBMA_location_bias_evidence, 1},
     {"RoBMA_step_row_derivative_probe", (DL_FUNC) &RoBMA_step_row_derivative_probe, 7},
     {"RoBMA_selnorm_factor_rule_affordable", (DL_FUNC) &RoBMA_selnorm_factor_rule_affordable, 2},
     /* Test hook: surrogate and exact density of a cluster or factor block. */

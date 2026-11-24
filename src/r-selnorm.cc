@@ -701,8 +701,8 @@ extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
 {
   ROBMA_NATIVE_BEGIN(mutant, probe)
   if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
-      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 5)) {
-    Rf_error("The location block mutant must be NULL or one integer between 0 and 5.");
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 11)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 11.");
   }
   if (probe != R_NilValue && (TYPEOF(probe) != LGLSXP || XLENGTH(probe) != 1 ||
       LOGICAL(probe)[0] == NA_LOGICAL)) {
@@ -811,28 +811,30 @@ extern "C" SEXP RoBMA_step_row_derivative_probe(SEXP y, SEXP mean, SEXP row, SEX
 
 // Test hook, not package interface: the location block sampler's switches
 // (LocationBlockReport.h, location_block_test_config) for samplers built from
-// now on, as an integer vector c(refresh, fit_rule, timing) whose negative
-// elements keep a setting, or NULL. Returns the previous settings.
+// now on, as an integer vector c(refresh, fit_rule, timing) or c(refresh,
+// fit_rule, timing, swap, trace) whose negative elements keep a setting, or
+// NULL. Returns the previous five settings.
 extern "C" SEXP RoBMA_location_block_test_config(SEXP config)
 {
   ROBMA_NATIVE_BEGIN(config)
-  std::vector<int> wanted = {-1, -1, -1};
+  std::vector<int> wanted = {-1, -1, -1, -1, -1};
   if (config != R_NilValue) {
-    if (TYPEOF(config) != INTSXP || XLENGTH(config) != 3) {
-      Rf_error("The location block configuration must be NULL or three integers.");
+    if (TYPEOF(config) != INTSXP || (XLENGTH(config) != 3 && XLENGTH(config) != 5)) {
+      Rf_error("The location block configuration must be NULL or three or five integers.");
     }
-    const int upper[3] = {4, 2, 1};
-    for (int i = 0; i < 3; ++i) {
+    const int upper[5] = {4, 2, 1, 64, 1};
+    for (int i = 0; i < static_cast<int>(XLENGTH(config)); ++i) {
       const int value = INTEGER(config)[i];
       if (value == NA_INTEGER || value > upper[i]) Rf_error("The location block configuration is out of range.");
       wanted[static_cast<std::size_t>(i)] = value;
     }
   }
-  const std::vector<int> previous = jags::RoBMA::location_block_test_config(wanted[0], wanted[1], wanted[2]);
-  SEXP out = PROTECT(Rf_allocVector(INTSXP, 3));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 3));
-  const char *names[] = {"refresh", "fit_rule", "timing"};
-  for (int i = 0; i < 3; ++i) {
+  const std::vector<int> previous =
+    jags::RoBMA::location_block_test_config(wanted[0], wanted[1], wanted[2], wanted[3], wanted[4]);
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 5));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
+  const char *names[] = {"refresh", "fit_rule", "timing", "swap", "trace"};
+  for (int i = 0; i < 5; ++i) {
     INTEGER(out)[i] = previous[static_cast<std::size_t>(i)];
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }
@@ -1188,5 +1190,44 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   Rf_setAttrib(output, R_NamesSymbol, names);
   UNPROTECT(2);
   return output;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the per-attempt record of the location
+// block's bias-label swap L2 since the last call (the trace switch of
+// RoBMA_location_block_test_config), a matrix with one row per attempt.
+extern "C" SEXP RoBMA_location_block_test_trace()
+{
+  ROBMA_NATIVE_BEGIN()
+  static const std::vector<char const *> names = {
+    "chain", "from", "target", "stage1_passed", "stage1", "stage2", "accepted", "sd",
+    "omega1", "omega2", "omega3", "omega4", "omega5", "omega6"};
+  return evidence_matrix(jags::RoBMA::location_block_test_take_trace(), names);
+  ROBMA_NATIVE_END
+}
+
+// The evidence record of the location block's bias label in this process
+// (LocationBlockReport.h): a list of a matrix with one row per chain (the
+// components' counts and L2's stage-1 log ratios by direction) and a matrix
+// of the sweeps ending in each label (chain, label, sweeps), read and cleared
+// when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_bias_evidence(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  std::vector<double> labels;
+  const std::vector<double> chains = jags::RoBMA::location_bias_evidence(LOGICAL(clear)[0] != 0, &labels);
+  static const std::vector<char const *> label_names = {"chain", "label", "sweeps"};
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(out, 0, evidence_matrix(chains, jags::RoBMA::location_bias_evidence_names()));
+  SET_VECTOR_ELT(out, 1, evidence_matrix(labels, label_names));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(names, 0, Rf_mkChar("chains"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("labels"));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
   ROBMA_NATIVE_END
 }

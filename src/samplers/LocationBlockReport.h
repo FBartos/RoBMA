@@ -25,12 +25,28 @@ std::vector<double> location_block_report(bool clear);
 std::vector<char const *> const &location_block_evidence_names();
 std::vector<double> location_block_evidence(bool clear);
 
+// The evidence record of an owned bias label (LocationBlockBias.h) since the
+// last clearing read, over the updates after adaptation: per chain the rows
+// of location_bias_evidence_names() (proposals and acceptances of the label
+// update L0, the Gaussian-family move L1, the slope update S and the swap L2
+// with its stage-1 passes; per direction of L2, leaving the selection or the
+// Gaussian family, the count, sum and maximum of the stage-1 log ratio of
+// every attempt and of the swaps the sweep's exact correction kept), and in
+// `labels` the rows (chain, label, sweeps ending in the label).
+std::vector<char const *> const &location_bias_evidence_names();
+std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labels);
+
 // Test hook, not package interface: a deliberately broken kernel frozen into
 // the samplers built from now on (0 none; 1 a shear that differs between a
 // flip and its reverse; 2 flips without the reverse proposal density, in both
 // directions; 3 no final correction; 4 the elliptical slice step around the
 // slab prior means instead of the Gaussian working mean; 5 the elliptical
-// slice step without the latent shear). Returns the previous value.
+// slice step without the latent shear; with an owned bias label, of its swap
+// L2: 6 the label Hastings factor omitted, 7 the gate share omitted, 8 the
+// prior density of the slope that becomes dormant omitted, 9 the nested
+// weight node's density omitted, 10 the within-label contrast instead of the
+// absolute evidence of a selection label; 11 the joint refresh's slot taken
+// from the entry label). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -44,7 +60,16 @@ std::string location_block_test_decision();
 // also dry-runs one elliptical slice proposal (type 6) and records log T as
 // the block computes it, the separately evaluated change of the inner target
 // minus that of the Gaussian working model, the inner target's change and the
-// working model's change (the first two must agree).
+// working model's change (the first two must agree). With an owned bias label
+// each bias component records at its slot (LocationBlockBiasMoves.h): type 7
+// L1 (analytic and computed log ratio, prior-cell flags, label), type 8 S
+// (its acceptance log ratio), type 9 L2 (kind 0: stage 1, stage 1 plus the
+// reverse stage 1, full, full plus the reverse full; kind 1: differences of
+// E_0, of the evidences and label proposals and of the shears rebuilt from
+// the proposal, and of the accepted flows of the two directions; kind 2: the
+// fitted Gaussian plane's largest error and scale) and type 10 L0 (the
+// largest difference of a label's buffered exact score from the graph's and
+// the scale).
 // probe < 0 reads the flag; otherwise sets it and returns the previous one.
 bool location_block_test_probe(int probe);
 std::vector<double> location_block_test_take_probe();
@@ -54,9 +79,17 @@ std::vector<double> location_block_test_take_probe();
 // R_j only, 2 one elliptical slice step E, 3 two E steps, 4 E and the R_j);
 // fit_rule: the rule of the Newton-Laplace fits (0 the coarsest rung with the
 // acceptance safeguard, 1 the coarsest rung always, 2 the sampler's rule);
-// timing: 1 accumulates the wall time of the update's parts in the report.
-// Returns the previous three settings.
-std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing);
+// timing: 1 accumulates the wall time of the update's parts in the report;
+// swap: the schedule of the bias label's cross-family swap L2 (0 the
+// default, k >= 1 attempted with probability 1 / k per sweep); trace: 1
+// records every L2 attempt (location_block_test_take_trace).
+// Returns the previous five settings.
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap = -1, int trace = -1);
+// The per-attempt record of L2 since the last call (trace switch): per
+// attempt chain, source label, target label, stage 1 passed, stage-1 log
+// ratio, gate drawn, stage-2 log ratio, accepted, the first latent column
+// entry (the random-effect SD) and the target label's first six weights.
+std::vector<double> location_block_test_take_trace();
 
 }
 }

@@ -157,6 +157,15 @@ std::atomic<bool> test_probe(false);
 std::atomic<int> test_refresh(0);
 std::atomic<int> test_fit_rule(0);
 std::atomic<bool> test_timing(false);
+// the schedule of L2 (0 the default, k: probability 1 / k) and its per-attempt trace
+std::atomic<int> test_swap(0);
+std::atomic<bool> test_trace(false);
+// The probability of attempting the bias label's cross-family swap L2 in a sweep
+// (wp3-spec.md, schedule): one unless L2 costs more than 5% of the sampling
+// sweep on the Assink full-V moderator fit or the 18-moderator tutorial fit,
+// then the largest of 1/2 and 1/4 within 5% on both. Measured at one (wp3
+// profiles): 9.5% and 6.7%; at 1/2: 5.0% and 3.4%.
+constexpr double default_swap_probability = 0.5;
 
 // The evidence record of the location gates (location_block_evidence): per
 // gate slot and chain, over the updates after adaptation, the flips proposed
@@ -199,6 +208,13 @@ struct ProbeStore {
 
 // Never destroyed, like the sampler registry: samplers may run late.
 ProbeStore &probe_store()
+{
+  static ProbeStore *store = new ProbeStore();
+  return *store;
+}
+
+// The per-attempt record of L2 (test switch trace), never destroyed either.
+ProbeStore &trace_store()
 {
   static ProbeStore *store = new ProbeStore();
   return *store;
@@ -542,6 +558,8 @@ struct Shared {
   int fit_rule = 0;                        // test hook: 0 coarse with safeguard, 1 coarse, 2 sampler's
   int refresh = 0;                         // test hook: the refresh variant (0 the default)
   bool timing = false;                     // test hook: wall time of the update's parts
+  double swap_probability = 1.0;            // the schedule of L2
+  bool trace = false;                      // test hook: per-attempt record of L2
   std::shared_ptr<BiasSpec> bias;          // the bias indicator and slope sources, or null
 };
 
@@ -3214,7 +3232,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // refresh acts in Gaussian labels only (the untilted joint law is rejected
     // under selection), E in selection labels only, after the flips and swaps
     // and before the latents.
-    if (!S.groups.empty()) steps.push_back({kind_joint, 0, 0});
+    // (mutant 11: the joint slot from the entry label, not reversible once the
+    // label can change inside the sweep)
+    if (!S.groups.empty() && (S.mutant != 11 || !_selection)) steps.push_back({kind_joint, 0, 0});
     const int variant = refresh_variant();
     const int ellipses = variant == 3 ? 2 : (variant == 2 || variant == 4) ? 1 : 0;
     for (int e = 0; e < ellipses; ++e) steps.push_back({kind_ellipse, 0, 0});
@@ -3229,10 +3249,6 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       if (!S.groups.empty()) gaussian_joint(rng, true);
       for (unsigned lat = 0; lat < S.latents.size(); ++lat) gaussian_latent(lat, rng, true);
       ellipse(rng, true);
-      if (bias()) {
-        family_move(rng, true);
-        slope_move(rng, true);
-      }
     }
     // one coin per update: the whole list forward or reversed
     _backward = rng->uniform() < 0.5;
@@ -3279,6 +3295,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     correct(rng);
     enter(cat_move);
     flush_evidence();
+    flush_bias_evidence();
   }
 
   // The graph's own log density of a child (PDF_LIKELIHOOD) at the graph's
@@ -3319,6 +3336,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     if (_final == _entry) {
       count(counters().corrections_accepted);
+      bias_after_correction(true);
       return;
     }
     std::vector<StochasticNode *> const &members = _view->nodes();
@@ -3402,6 +3420,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     } else {
       _view->setValue(_entry, _chain);
     }
+    bias_after_correction(accepted);
     // evidence about the surrogate: a sweep that evaluated a surrogate that
     // was not exact (only selection labels evaluate surrogates)
     const bool evidence = _surrogate_mode && _not_exact && selection_endpoint();
@@ -3907,6 +3926,11 @@ public:
     shared->fit_rule = test_fit_rule.load(std::memory_order_relaxed);
     shared->refresh = test_refresh.load(std::memory_order_relaxed);
     shared->timing = test_timing.load(std::memory_order_relaxed);
+    {
+      const int swap = test_swap.load(std::memory_order_relaxed);
+      shared->swap_probability = swap > 0 ? 1.0 / swap : default_swap_probability;
+    }
+    shared->trace = test_trace.load(std::memory_order_relaxed);
     for (ChildSpec &child : shared->children) {
       child.kind = child_kind(child.node, config.settings);
       if (child.kind != ChildKind::other) shared->any_surrogate = true;
@@ -4070,15 +4094,66 @@ std::vector<double> location_block_evidence(bool clear)
   return out;
 }
 
-std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing)
+
+std::vector<char const *> const &location_bias_evidence_names()
+{
+  static const std::vector<char const *> names = {
+    "chain", "label_proposed", "label_accepted", "family_proposed", "family_accepted", "slope_proposed",
+    "slope_accepted", "swap_proposed", "swap_stage1", "swap_accepted",
+    "leave_selection_attempts", "leave_selection_log_ratio_sum", "leave_selection_log_ratio_max",
+    "leave_gaussian_attempts", "leave_gaussian_log_ratio_sum", "leave_gaussian_log_ratio_max",
+    "kept_leave_selection", "kept_leave_selection_log_ratio_sum", "kept_leave_selection_log_ratio_max",
+    "kept_leave_gaussian", "kept_leave_gaussian_log_ratio_sum", "kept_leave_gaussian_log_ratio_max"};
+  return names;
+}
+
+std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labels)
+{
+  BiasEvidenceStore &store = bias_evidence_store();
+  const std::lock_guard<std::mutex> lock(store.mutex);
+  std::vector<double> out;
+  labels->clear();
+  for (auto const &entry : store.records) {
+    BiasEvidence const &e = entry.second;
+    const double chain = static_cast<double>(entry.first);
+    out.push_back(chain);
+    for (int i = 0; i < 4; ++i) {
+      out.push_back(e.proposed[i]);
+      if (i == 3) out.push_back(e.stage1[i]);
+      out.push_back(e.accepted[i]);
+    }
+    for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.attempts[d], e.attempt_sum[d], e.attempt_max[d]});
+    for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.kept[d], e.kept_sum[d], e.kept_max[d]});
+    for (std::size_t l = 0; l < e.label_sweeps.size(); ++l) {
+      labels->insert(labels->end(), {chain, static_cast<double>(l + 1), e.label_sweeps[l]});
+    }
+  }
+  if (clear) store.records.clear();
+  return out;
+}
+
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap, int trace)
 {
   std::vector<int> previous = {test_refresh.load(std::memory_order_relaxed),
                                test_fit_rule.load(std::memory_order_relaxed),
-                               test_timing.load(std::memory_order_relaxed) ? 1 : 0};
+                               test_timing.load(std::memory_order_relaxed) ? 1 : 0,
+                               test_swap.load(std::memory_order_relaxed),
+                               test_trace.load(std::memory_order_relaxed) ? 1 : 0};
   if (refresh >= 0) test_refresh.store(refresh, std::memory_order_relaxed);
   if (fit_rule >= 0) test_fit_rule.store(fit_rule, std::memory_order_relaxed);
   if (timing >= 0) test_timing.store(timing != 0, std::memory_order_relaxed);
+  if (swap >= 0) test_swap.store(swap, std::memory_order_relaxed);
+  if (trace >= 0) test_trace.store(trace != 0, std::memory_order_relaxed);
   return previous;
+}
+
+std::vector<double> location_block_test_take_trace()
+{
+  ProbeStore &store = trace_store();
+  const std::lock_guard<std::mutex> lock(store.mutex);
+  std::vector<double> out;
+  out.swap(store.records);
+  return out;
 }
 
 }

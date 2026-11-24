@@ -209,6 +209,15 @@
 }
 
 
+# The evidence record of the location block's bias label in this process (per
+# chain the label moves' counts and the swap's stage-1 log ratios by
+# direction, and the sweeps ending in each label), read and cleared in one call.
+.location_bias_evidence_read <- function() {
+
+  .Call("RoBMA_location_bias_evidence", TRUE, PACKAGE = "RoBMA")
+}
+
+
 # The counters of a fit's retained runs, summed over runs and processes (the
 # 'max_' entries are maxima), or NULL when no report covers them.
 .location_block_record <- function(values) {
@@ -239,6 +248,7 @@
     if (location) {
       report[["location"]] <- utils::getFromNamespace(".location_block_report_read", "RoBMA")()
       report[["location_evidence"]] <- utils::getFromNamespace(".location_block_evidence_read", "RoBMA")()
+      report[["location_bias"]] <- utils::getFromNamespace(".location_bias_evidence_read", "RoBMA")()
     }
     report
   }

@@ -132,7 +132,9 @@ test_that("frozen-state identities of the line moves hold in selection and Gauss
                   pmax(1, abs(ellipse$selection_part), abs(ellipse$log_odds))), 1e-9)
   expect_gt(max(abs(ellipse$stage1[ellipse$selection])), 0)
   expect_identical(max(abs(ellipse$stage1[!ellipse$selection])), 0)
-  records <- records[records$type != "ellipse", ]
+  # the location moves (the bias-label records, LocationBlockReport.h, are
+  # tested in test-00-location-bias-native.R)
+  records <- records[records$type %in% c("flip_on", "flip_off", "refresh", "study", "swap", "joint"), ]
   request <- attr(selection[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
   expect_identical(request[["status"]], "active")
   # both labels, overwhelming evidence and the heterogeneity gate off occur

@@ -25,7 +25,7 @@
   Vec _shift_mean;                    // scratch: a child's mean at another label
 
   // probe record types of the bias components (LocationBlockReport.h)
-  static constexpr int probe_family = 7, probe_slope = 8, probe_swap = 9;
+  static constexpr int probe_family = 7, probe_slope = 8, probe_swap = 9, probe_label = 10;
 
   bool bias() const { return s().bias != nullptr; }
   // An endpoint of the sweep is in a selection label: the exact correction
@@ -329,13 +329,13 @@
     for (int b = 0; b < 2; ++b) {
       SlopeSpec const &spec = B.slope[b];
       if (spec.source == nullptr || spec.label == _label) continue;
-      count(counters().bias_proposed[bias_dormant]);
+      bias_tally(bias_dormant, 0);
       const SlopePrior prior = slope_prior(spec, _chain);
       const double draw = prior.dist->randomSample(prior.par, prior.lower, prior.upper, rng);
       const double log_new = slope_log_prior(prior, draw);
       const double log_old = slope_log_prior(prior, _theta[b]);
       if (!std::isfinite(draw) || !std::isfinite(log_new) || !std::isfinite(log_old)) continue;
-      count(counters().bias_accepted[bias_dormant]);
+      bias_tally(bias_dormant, 2);
       _repr_delta += static_cast<long double>(log_new) - log_old;
       _theta[b] = draw;
     }
@@ -377,7 +377,7 @@
     }
     const long double others = total - mass[static_cast<std::size_t>(k - 1)];
     if (!(others > 0)) return;
-    count(counters().bias_proposed[bias_label]);
+    bias_tally(bias_label, 0);
     long double draw = static_cast<long double>(rng->uniform()) * others;
     int proposed = 0;
     for (int l = 1; l <= B.levels; ++l) {
@@ -390,7 +390,7 @@
     const long double others_at = total - mass[static_cast<std::size_t>(proposed - 1)];
     const long double ratio = others / others_at;
     if (!(ratio >= 1.0L || static_cast<long double>(rng->uniform()) < ratio)) return;
-    count(counters().bias_accepted[bias_label]);
+    bias_tally(bias_label, 2);
     _repr_delta += static_cast<long double>(_label_score[static_cast<std::size_t>(proposed - 1)]) -
       _label_score[static_cast<std::size_t>(k - 1)];
     apply_label(proposed, &_label_terms[static_cast<std::size_t>(proposed - 1) * n]);
@@ -754,7 +754,7 @@
     long double total = 0;
     for (Cell const &c : cells) total += std::exp(static_cast<long double>(c.log_weight - maximum));
     const double log_total = maximum + std::log(static_cast<double>(total));
-    if (!dry) count(counters().bias_proposed[bias_gaussian]);
+    if (!dry) bias_tally(bias_gaussian, 0);
     // the proposal
     long double draw = static_cast<long double>(rng->uniform()) * total;
     std::size_t pick = cells.size() - 1;
@@ -810,7 +810,7 @@
       return;
     }
     if (!ok || !std::isfinite(log_ratio) || !metropolis(rng, log_ratio)) return;
-    count(counters().bias_accepted[bias_gaussian]);
+    bias_tally(bias_gaussian, 2);
     family_apply(next, sh, delta);
   }
 
@@ -842,7 +842,7 @@
     const double theta_old = _theta[b];
     const double f_old = f(theta_old);
     if (!std::isfinite(f_old)) return;
-    if (!dry) count(counters().bias_proposed[bias_slope]);
+    if (!dry) bias_tally(bias_slope, 0);
     // the width: 2.5 SDs of the collapsed Gaussian, the prior's scale when the
     // slope is weakly identified (a function of the cell, not of theta)
     double width = q > 0 ? 2.5 / std::sqrt(q) : 2.5;
@@ -883,8 +883,995 @@
     }
     record_max(counters().max_stage2_gaussian, std::fabs(log_ratio));
     if (!ok || !std::isfinite(log_ratio) || !metropolis(rng, log_ratio)) return;
-    count(counters().bias_accepted[bias_slope]);
+    bias_tally(bias_slope, 2);
     family_apply(next, sh, delta);
+  }
+
+  // ---- L2: the cross-family swap (wp3-spec.md, L2)
+  //
+  // Coordinates: the intercept's physical value t, the active slope theta_b
+  // of a PET or PEESE label, and E = (the intercept line's partners, every
+  // latent). The shears K_t (the intercept's line, LocationBlock::build_line)
+  // and K_b (the conditional-mean shear of E per unit physical slope b, the
+  // same partner set) are functions of the precisions, the other gates and
+  // the non-members only; E_0 = E - K_t t - K_b theta_b is what the swap holds
+  // fixed (a unit-Jacobian bijection). Both directions evaluate the label
+  // proposal, the evidences and the laws at the base point (t = 0, no slope,
+  // E = E_0) from unchanged state.
+
+  struct SwapGeometry {
+    Line L;                           // the intercept's line (partners, latent shear)
+    Vec Kt, Kb[2];                    // shears over E = (partners, latents)
+    bool slope[2] = {false, false};
+    std::size_t nq = 0, nz = 0;
+  };
+
+  // The base-point quantities of one attempt (functions of E_0 and unchanged
+  // state only).
+  struct SwapBase {
+    Vec E0;                           // partners then latents
+    double G0 = 0;                    // sum of the children's normal densities at the base point
+    // the Gaussian plane in (t, theta_b): G(x) = G0 + eta'x - x'Pi x / 2
+    double eta_t = 0, Pi_tt = 0, eta_b[2] = {0, 0}, Pi_bb[2] = {0, 0}, Pi_tb[2] = {0, 0};
+    Vec log_e_off, log_e_on;          // per label: log evidences (-Inf without mass or gate)
+    Vec screen;                       // per selection label: the row-marginal screen
+    // the Laplace law of t at the evaluated selection labels
+    Vec fit_mean, fit_precision;
+    std::vector<char> fit_ok;
+  };
+
+  // The swap geometry at the current state; false when a law is singular.
+  bool swap_geometry(SwapGeometry &G)
+  {
+    Shared const &S = s();
+    BiasSpec const &B = bspec();
+    const unsigned p = S.p;
+    if (!build_line({B.intercept}, G.L)) return false;
+    Line const &L = G.L;
+    G.nq = L.partners.size();
+    G.nz = S.latents.size();
+    const std::size_t ne = G.nq + G.nz;
+    G.Kt.assign(ne, 0.0);
+    for (std::size_t q = 0; q < G.nq; ++q) G.Kt[q] = L.KQ[q];
+    for (std::size_t z = 0; z < L.lats.size(); ++z) G.Kt[G.nq + L.lats[z]] = L.KZ[z];
+    // the slope shears: K_Q = -P_QQ^-1 X_Q' S^-1 s_b, K_Z = -(d'W s_b + u_Q K_Q) / lambda
+    Vec PQ;
+    if (G.nq > 0) {
+      PQ.assign(G.nq * G.nq, 0.0);
+      for (std::size_t i = 0; i < G.nq; ++i) for (std::size_t j = 0; j < G.nq; ++j) PQ[i * G.nq + j] = _P[L.partners[i] * p + L.partners[j]];
+      if (!cholesky(PQ, G.nq)) return false;
+    }
+    std::vector<Vec> columns(G.nq, Vec(S.rows, 0.0));
+    std::vector<double const *> U(G.nq);
+    for (std::size_t q = 0; q < G.nq; ++q) {
+      for (unsigned row = 0; row < S.rows; ++row) columns[q][row] = S.X[row * p + L.partners[q]];
+      U[q] = columns[q].data();
+    }
+    for (int b = 0; b < 2; ++b) {
+      G.slope[b] = B.slope[b].source != nullptr;
+      G.Kb[b].assign(ne, 0.0);
+      if (!G.slope[b]) continue;
+      Vec cross;
+      if (G.nq > 0) {
+        cross_S(U, {B.slope[b].column.data()}, cross);
+        for (std::size_t q = 0; q < G.nq; ++q) cross[q] = -cross[q];
+        solve_lower(PQ, G.nq, cross.data());
+        solve_lower_transpose(PQ, G.nq, cross.data());
+        for (std::size_t q = 0; q < G.nq; ++q) G.Kb[b][q] = cross[q];
+      }
+      for (unsigned lat = 0; lat < G.nz; ++lat) {
+        long double v = 0;
+        for (unsigned c : S.latent_children[lat]) {
+          ChildSpec const &child = S.children[c];
+          double const *W = &_W[child.woff];
+          for (unsigned i = 0; i < child.n; ++i) {
+            long double wd = 0;
+            for (unsigned j = 0; j < child.n; ++j) wd += static_cast<long double>(W[i * child.n + j]) * _d[child.row0 + j];
+            v += wd * B.slope[b].column[child.row0 + i];
+          }
+        }
+        for (std::size_t q = 0; q < G.nq; ++q) v += static_cast<long double>(_u[lat * p + L.partners[q]]) * G.Kb[b][q];
+        G.Kb[b][G.nq + lat] = static_cast<double>(-v / _lambda[lat]);
+      }
+    }
+    return all_finite(G.Kt.data(), ne) && all_finite(G.Kb[0].data(), ne) && all_finite(G.Kb[1].data(), ne);
+  }
+
+  // The current E = (partners, latents).
+  Vec swap_E(SwapGeometry const &G) const
+  {
+    Vec E(G.nq + G.nz, 0.0);
+    for (std::size_t q = 0; q < G.nq; ++q) E[q] = _b[G.L.partners[q]];
+    for (std::size_t z = 0; z < G.nz; ++z) E[G.nq + z] = _z[z];
+    return E;
+  }
+
+  // A shift of the intercept by dt, the physical slope b by dth (b < 0: none)
+  // and E by dE, prepared (the partners' slab priors and the latents' priors
+  // in p1, p2).
+  void swap_shift(SwapGeometry const &G, double dt, int b, double dth, Vec const &dE, Shift &sh)
+  {
+    BiasSpec const &B = bspec();
+    sh.clear();
+    sh.coords.push_back(s().groups[B.intercept].coord0);
+    sh.dcoef.push_back(dt);
+    for (std::size_t q = 0; q < G.nq; ++q) {
+      sh.coords.push_back(G.L.partners[q]);
+      sh.dcoef.push_back(dE[q]);
+    }
+    for (std::size_t z = 0; z < G.nz; ++z) {
+      sh.lats.push_back(static_cast<unsigned>(z));
+      sh.dlat.push_back(dE[G.nq + z]);
+    }
+    if (b >= 0) {
+      sh.slopes.push_back(b);
+      sh.dslope.push_back(dth);
+    }
+    prepare_shift(sh, G.L.partners);
+  }
+
+  // Moves the working coordinates (not the label) by a prepared swap shift.
+  void swap_move_state(Shift const &sh)
+  {
+    Shared const &S = s();
+    move_means(sh, 1.0);
+    for (std::size_t i = 0; i < sh.coords.size(); ++i) {
+      const unsigned k = sh.coords[i];
+      _b[k] += sh.dcoef[i];
+      if (active(S.coord_group[k])) _beta[k] = _b[k];
+    }
+    for (std::size_t i = 0; i < sh.lats.size(); ++i) _z[sh.lats[i]] += sh.dlat[i];
+  }
+
+  // Sets the working label (its graph nodes, selection status; values lazily).
+  void swap_set_label(int l)
+  {
+    Shared const &S = s();
+    set_graph_label(l);
+    _label = l;
+    _selection = false;
+    for (unsigned c = 0; c < S.children.size(); ++c) {
+      _selected[c] = is_selected(S.children[c]);
+      if (_selected[c]) _selection = true;
+      _value_ok[c] = 0;
+      _fit_ok[c] = 0;
+    }
+    _line.valid = false;
+  }
+
+  // The working state, saved and restored around the base-point evaluations.
+  struct Snapshot {
+    Vec b, beta, z, mean, r, wr, h, value, fit_value;
+    std::vector<char> g, value_ok, fit_ok, selected, dirty;
+    bool selection = false;
+    int label = 0;
+  };
+
+  void take(Snapshot &x) const
+  {
+    x.b = _b; x.beta = _beta; x.z = _z; x.mean = _mean; x.r = _r; x.wr = _wr; x.h = _h;
+    x.value = _value; x.fit_value = _fit_value; x.g = _g; x.value_ok = _value_ok; x.fit_ok = _fit_ok;
+    x.selected = _selected; x.dirty = _dirty; x.selection = _selection; x.label = _label;
+  }
+
+  void put(Snapshot const &x)
+  {
+    _b = x.b; _beta = x.beta; _z = x.z; _mean = x.mean; _r = x.r; _wr = x.wr; _h = x.h;
+    _value = x.value; _fit_value = x.fit_value; _g = x.g; _value_ok = x.value_ok; _fit_ok = x.fit_ok;
+    _selected = x.selected; _dirty = x.dirty; _selection = x.selection; _label = x.label;
+    set_graph_label(_label);
+    _line.valid = false;
+  }
+
+  // The inner target's term of child c at the graph's label and the
+  // working mean (selection children their surrogate or exact term, the
+  // others their exact normal density).
+  double term_now(unsigned c)
+  {
+    if (!gaussian_child(c)) {
+      ensure_value(c);
+      return _value[c];
+    }
+    ChildSpec const &child = s().children[c];
+    const double v = exact_with_mean(c, &_mean[child.row0]);
+    if (std::isnan(v) || v == std::numeric_limits<double>::infinity()) {
+      throwNodeError(child.node, "Location block sampler: the log density of this likelihood node is not defined at a label");
+    }
+    return v;
+  }
+
+  // sum over the rows of a prepared shift's children of delta_a' W delta_b
+  // for the shift sa's deltas and sb's weighted deltas.
+  double shift_cross(Shift const &sa, Shift const &sb)
+  {
+    std::vector<int> &position = _tilt_position;
+    for (std::size_t q = 0; q < sb.children.size(); ++q) position[sb.children[q]] = static_cast<int>(q);
+    long double out = 0;
+    for (std::size_t q = 0; q < sa.children.size(); ++q) {
+      const int other = position[sa.children[q]];
+      if (other < 0) continue;
+      const unsigned n = s().children[sa.children[q]].n;
+      for (unsigned i = 0; i < n; ++i) {
+        out += static_cast<long double>(sa.delta[sa.offset[q] + i]) * sb.wdelta[sb.offset[static_cast<std::size_t>(other)] + i];
+      }
+    }
+    for (unsigned c : sb.children) position[c] = -1;
+    return static_cast<double>(out);
+  }
+
+  // K_a' B_E K_b over E (the partners' slab precisions, unit latents).
+  double prior_cross(SwapGeometry const &G, Vec const &Ka, Vec const &Kb) const
+  {
+    Shared const &S = s();
+    long double out = 0;
+    for (std::size_t i = 0; i < G.nq; ++i) {
+      const unsigned ki = G.L.partners[i];
+      GroupSpec const &gi = S.groups[S.coord_group[ki]];
+      for (std::size_t j = 0; j < G.nq; ++j) {
+        const unsigned kj = G.L.partners[j];
+        if (S.coord_group[kj] != S.coord_group[ki]) continue;
+        out += static_cast<long double>(Ka[i]) * gi.B[(ki - gi.coord0) * gi.d + (kj - gi.coord0)] * Kb[j];
+      }
+    }
+    for (std::size_t z = 0; z < G.nz; ++z) out += static_cast<long double>(Ka[G.nq + z]) * Kb[G.nq + z];
+    return static_cast<double>(out);
+  }
+
+  // The law of a Gaussian label's cell along the plane: the slope's
+  // quadratic (k + r theta - q theta^2 / 2 after integrating t when the gate
+  // is on) and t's conditional law given theta (gate on).
+  struct PlaneCell {
+    int slope = -1;
+    bool gate = true;
+    double q = 0, r = 0, k = 0;       // in theta
+    double Pt = 0, mt = 0, ct = 0;    // gate on: t | theta ~ N(mt - ct theta, 1 / Pt)
+    bool prior_cell = false;
+    double anchor = 0, log_e = negative_infinity;  // log evidence (label prior etc. excluded)
+  };
+
+  PlaneCell plane_cell(SwapBase const &base, int slope, bool gate)
+  {
+    BiasSpec const &B = bspec();
+    GroupSpec const &g0 = s().groups[B.intercept];
+    const double B0 = g0.B[0], m0 = g0.m0[0];
+    PlaneCell cell;
+    cell.slope = slope;
+    cell.gate = gate;
+    const double eta_b = slope >= 0 ? base.eta_b[slope] : 0.0;
+    const double Pi_bb = slope >= 0 ? base.Pi_bb[slope] : 0.0;
+    const double Pi_tb = slope >= 0 ? base.Pi_tb[slope] : 0.0;
+    if (gate) {
+      cell.Pt = base.Pi_tt + B0;
+      const double lin = base.eta_t + B0 * m0;
+      cell.mt = lin / cell.Pt;
+      cell.ct = Pi_tb / cell.Pt;
+      cell.q = Pi_bb - Pi_tb * Pi_tb / cell.Pt;
+      cell.r = eta_b - Pi_tb * lin / cell.Pt;
+      cell.k = 0.5 * std::log(B0 / cell.Pt) - 0.5 * B0 * m0 * m0 + lin * lin / (2.0 * cell.Pt);
+    } else {
+      cell.q = Pi_bb;
+      cell.r = eta_b;
+      cell.k = 0.0;
+    }
+    cell.log_e = base.G0 + cell.k;
+    if (slope < 0) return cell;
+    const SlopePrior prior = slope_prior(B.slope[slope], _chain);
+    double log_anchor = negative_infinity;
+    if (cell.q > 0 && cell.q >= 1e-12 * Pi_bb) {
+      const double mean = cell.r / cell.q, sd = 1.0 / std::sqrt(cell.q);
+      const double alpha = -mean / sd;
+      const double mills = std::exp(-0.5 * alpha * alpha - 0.91893853320467274178 - log_phi_upper(-alpha));
+      cell.anchor = mean + sd * mills;
+      if (cell.anchor > 0 && std::isfinite(cell.anchor)) log_anchor = slope_log_prior(prior, cell.anchor);
+    }
+    if (!std::isfinite(log_anchor)) {
+      cell.prior_cell = true;
+      return cell;
+    }
+    cell.log_e += log_anchor + 0.5 * std::log(2.0 * 3.14159265358979323846 / cell.q) + cell.r * cell.r / (2.0 * cell.q) +
+      log_phi_upper(cell.r / std::sqrt(cell.q));
+    return cell;
+  }
+
+  // log density of a Gaussian cell's coordinates: the slope (truncated
+  // normal or prior) and t given the slope (gate on) or the dormant slab.
+  double plane_log_density(PlaneCell const &cell, double theta, double beta0)
+  {
+    BiasSpec const &B = bspec();
+    long double out = 0;
+    if (cell.slope >= 0) {
+      out += cell.prior_cell ? slope_log_prior(slope_prior(B.slope[cell.slope], _chain), theta) :
+        log_truncated_normal_positive(theta, cell.r / cell.q, 1.0 / std::sqrt(cell.q));
+    }
+    if (cell.gate) {
+      const double e = (beta0 - (cell.mt - cell.ct * theta)) * std::sqrt(cell.Pt);
+      out += -0.5 * e * e - 0.91893853320467274178 + 0.5 * std::log(cell.Pt);
+    } else {
+      out += log_slab(s().groups[B.intercept], &beta0);
+    }
+    return static_cast<double>(out);
+  }
+
+  // log density of a selection cell's coordinates: t from the Laplace law
+  // (gate on) or the dormant slab.
+  double fit_log_density(SwapBase const &base, int l, bool gate, double beta0)
+  {
+    BiasSpec const &B = bspec();
+    if (!gate) return log_slab(s().groups[B.intercept], &beta0);
+    const std::size_t i = static_cast<std::size_t>(l - 1);
+    const double e = (beta0 - base.fit_mean[i]) * std::sqrt(base.fit_precision[i]);
+    return -0.5 * e * e - 0.91893853320467274178 + 0.5 * std::log(base.fit_precision[i]);
+  }
+
+  // The row-marginal screen of selection label l at the working means (the
+  // graph at l): sum over the selection rows of power (log omega_obs - log A).
+  double label_screen()
+  {
+    Shared const &S = s();
+    long double total = 0;
+    RowModel row;
+    for (unsigned c = 0; c < S.children.size(); ++c) {
+      if (!_selected[c]) continue;
+      ChildSpec const &child = S.children[c];
+      for (unsigned i = 0; i < child.n; ++i) {
+        const double mu = _mean[child.row0 + i];
+        double log_a, d1, d2, power;
+        int bin;
+        double omega_obs;
+        if (child.type == ChildType::step_switch && _step[c].valid) {
+          StepChild const &st = _step[c];
+          bin = st.bin;
+          if (bin == 0) continue;
+          power = st.power;
+          omega_obs = st.omega[bin - 1];
+          if (!step_row_log_normalizer(step_law(c), mu, &log_a, &d1, &d2)) return negative_infinity;
+        } else {
+          if (!row_model(child, i, row) || row.bin == 0) continue;
+          bin = row.bin;
+          power = row.power;
+          omega_obs = row.omega[bin - 1];
+          if (!row_log_normalizer(mu, row.sd, row.se, row.sign, row.omega, row.lower.data(), row.upper.data(), row.bins,
+                                  &log_a, &d1, &d2)) return negative_infinity;
+        }
+        if (!(omega_obs > 0)) return negative_infinity;
+        total += static_cast<long double>(power) * (std::log(omega_obs) - log_a);
+      }
+    }
+    return static_cast<double>(total);
+  }
+
+  // The base-point evaluations: moves the working state to the base point,
+  // evaluates the Gaussian plane, every Gaussian label's evidences, every
+  // selection label's screen and the absolute evidences and Laplace laws of
+  // the selection labels in `fits`, then restores the working state.
+  bool swap_base(SwapGeometry const &G, std::vector<int> const &fits, SwapBase &base)
+  {
+    Shared const &S = s();
+    BiasSpec const &B = bspec();
+    GroupSpec const &g0 = S.groups[B.intercept];
+    const int levels = B.levels;
+    const int b_now = B.slope_of[static_cast<std::size_t>(_label - 1)];
+    const double t = _b[g0.coord0];
+    const double th = b_now >= 0 ? _theta[b_now] : 0.0;
+    const Vec E = swap_E(G);
+    base.E0.assign(E.size(), 0.0);
+    for (std::size_t e = 0; e < E.size(); ++e) {
+      base.E0[e] = E[e] - G.Kt[e] * t - (b_now >= 0 ? G.Kb[b_now][e] * th : 0.0);
+    }
+    Vec dE(E.size());
+    for (std::size_t e = 0; e < E.size(); ++e) dE[e] = base.E0[e] - E[e];
+    Snapshot saved;
+    take(saved);
+    bool ok = true;
+    try {
+      Shift to_base;
+      swap_shift(G, -t, b_now, -th, dE, to_base);
+      swap_move_state(to_base);
+      for (unsigned c = 0; c < S.children.size(); ++c) _value_ok[c] = 0;
+      rebuild_h();
+      // the children's normal densities at the base point (a Gaussian label)
+      int gaussian_label = 0;
+      for (int l = 1; l <= levels && gaussian_label == 0; ++l) {
+        if (B.gaussian(l) && B.log_prior[static_cast<std::size_t>(l - 1)] > negative_infinity) gaussian_label = l;
+      }
+      swap_set_label(gaussian_label);
+      long double g0_sum = 0;
+      for (unsigned c = 0; c < S.children.size(); ++c) g0_sum += term_now(c);
+      base.G0 = static_cast<double>(g0_sum);
+      // the plane: t and each slope
+      Shift st;
+      swap_shift(G, 1.0, -1, 0.0, G.Kt, st);
+      long double qt1 = 0, qt2 = 0;
+      for (std::size_t q = 0; q < st.children.size(); ++q) { qt1 += st.q1[q]; qt2 += st.q2[q]; }
+      base.eta_t = static_cast<double>(qt1 + st.p1);
+      base.Pi_tt = static_cast<double>(qt2 + st.p2);
+      for (int b = 0; b < 2; ++b) {
+        if (!G.slope[b]) continue;
+        Shift sb;
+        swap_shift(G, 0.0, b, 1.0, G.Kb[b], sb);
+        long double q1 = 0, q2 = 0;
+        for (std::size_t q = 0; q < sb.children.size(); ++q) { q1 += sb.q1[q]; q2 += sb.q2[q]; }
+        base.eta_b[b] = static_cast<double>(q1 + sb.p1);
+        base.Pi_bb[b] = static_cast<double>(q2 + sb.p2);
+        base.Pi_tb[b] = shift_cross(st, sb) + prior_cross(G, G.Kt, G.Kb[b]);
+      }
+      // test hook (probe): the fitted quadratic of the plane against the
+      // children's own normal densities and the priors of E at a few points
+      if (S.probe) {
+        double worst = 0.0, scale = 1.0;
+        const double points[3][2] = {{0.1, 0.2}, {-0.2, 0.4}, {0.3, 0.05}};
+        for (int b = -1; b < 2; ++b) {
+          if (b >= 0 && !G.slope[b]) continue;
+          for (auto const &point : points) {
+            const double t = point[0], th = b >= 0 ? point[1] : 0.0;
+            Vec dE(G.Kt.size());
+            for (std::size_t e = 0; e < dE.size(); ++e) dE[e] = G.Kt[e] * t + (b >= 0 ? G.Kb[b][e] * th : 0.0);
+            Shift move;
+            swap_shift(G, t, b, th, dE, move);
+            const long double prior = prior_delta(move, 1.0);
+            Snapshot at_base;
+            take(at_base);
+            swap_move_state(move);
+            for (unsigned c = 0; c < S.children.size(); ++c) _value_ok[c] = 0;
+            long double direct = prior - base.G0;
+            for (unsigned c = 0; c < S.children.size(); ++c) direct += term_now(c);
+            put(at_base);
+            const double eta_b = b >= 0 ? base.eta_b[b] : 0.0, Pi_bb = b >= 0 ? base.Pi_bb[b] : 0.0;
+            const double Pi_tb = b >= 0 ? base.Pi_tb[b] : 0.0;
+            const double quadratic = base.eta_t * t + eta_b * th -
+              0.5 * (base.Pi_tt * t * t + 2.0 * Pi_tb * t * th + Pi_bb * th * th);
+            worst = std::max(worst, std::fabs(static_cast<double>(direct) - quadratic));
+            scale = std::max(scale, std::fabs(quadratic));
+          }
+        }
+        probe_raw(probe_swap, 2.0, worst, scale, 0.0, 0.0);
+      }
+      // evidences of every label (log prior, nested term and gate prior included)
+      base.log_e_off.assign(static_cast<std::size_t>(levels), negative_infinity);
+      base.log_e_on.assign(static_cast<std::size_t>(levels), negative_infinity);
+      base.screen.assign(static_cast<std::size_t>(levels), negative_infinity);
+      base.fit_mean.assign(static_cast<std::size_t>(levels), 0.0);
+      base.fit_precision.assign(static_cast<std::size_t>(levels), 0.0);
+      base.fit_ok.assign(static_cast<std::size_t>(levels), 0);
+      const bool gated = g0.gate != nullptr;
+      for (int l = 1; l <= levels; ++l) {
+        const std::size_t i = static_cast<std::size_t>(l - 1);
+        if (!(B.log_prior[i] > negative_infinity)) continue;
+        set_graph_label(l);
+        const double head = B.log_prior[i] + (S.mutant == 9 ? 0.0 : nested_term());
+        if (B.gaussian(l)) {
+          const int b = B.slope_of[i];
+          if (gated) base.log_e_off[i] = head + g0.log_off + plane_cell(base, b, false).log_e;
+          base.log_e_on[i] = head + (gated ? g0.log_on : 0.0) + plane_cell(base, b, true).log_e;
+        } else {
+          swap_set_label(l);
+          base.screen[i] = label_screen();
+        }
+      }
+      for (int l : fits) {
+        const std::size_t i = static_cast<std::size_t>(l - 1);
+        swap_set_label(l);
+        long double absolute = 0;
+        for (unsigned c = 0; c < S.children.size(); ++c) absolute += term_now(c);
+        const double head = B.log_prior[i] + (S.mutant == 9 ? 0.0 : nested_term());
+        // the absolute evidence at the base point with the gate off, and the
+        // Laplace odds of the gate along the intercept's line (prior odds
+        // included; LocationBlock::group_fit)
+        const double off = S.mutant == 10 ? 0.0 : head + static_cast<double>(absolute);
+        if (!group_line(B.intercept)) { ok = false; break; }
+        group_fit();
+        if (!_line.fit.ok || !std::isfinite(_line.log_odds)) { ok = false; break; }
+        if (gated) {
+          base.log_e_off[i] = off + g0.log_off;
+          base.log_e_on[i] = off + g0.log_off + _line.log_odds;
+        } else {
+          base.log_e_on[i] = off + _line.log_odds;
+        }
+        base.fit_mean[i] = _line.fit.xhat[0];
+        base.fit_precision[i] = _line.fit.Pt[0];
+        base.fit_ok[i] = 1;
+      }
+    } catch (...) {
+      put(saved);
+      throw;
+    }
+    put(saved);
+    return ok;
+  }
+
+  static double log_sum(double a, double b)
+  {
+    if (!(a > negative_infinity)) return b;
+    if (!(b > negative_infinity)) return a;
+    const double m = std::max(a, b);
+    return m + std::log(std::exp(a - m) + std::exp(b - m));
+  }
+
+  // The label proposal of each family: 5% uniform and 95% in proportion to
+  // the Gaussian labels' evidences (q_G) or the selection labels' screens
+  // (q_S); log probabilities, -Inf outside the family.
+  void swap_label_proposals(SwapBase const &base, Vec &log_qG, Vec &log_qS)
+  {
+    BiasSpec const &B = bspec();
+    const int levels = B.levels;
+    log_qG.assign(static_cast<std::size_t>(levels), negative_infinity);
+    log_qS.assign(static_cast<std::size_t>(levels), negative_infinity);
+    for (int family = 0; family < 2; ++family) {
+      Vec &out = family == 0 ? log_qG : log_qS;
+      std::vector<std::size_t> members;
+      Vec score;
+      for (int l = 1; l <= levels; ++l) {
+        const std::size_t i = static_cast<std::size_t>(l - 1);
+        if (!(B.log_prior[i] > negative_infinity) || B.gaussian(l) != (family == 0)) continue;
+        members.push_back(i);
+        score.push_back(family == 0 ? log_sum(base.log_e_off[i], base.log_e_on[i]) : base.screen[i]);
+      }
+      if (members.empty()) continue;
+      double maximum = negative_infinity;
+      for (double v : score) maximum = std::max(maximum, v);
+      long double total = 0;
+      for (double v : score) total += std::isfinite(maximum) && v > negative_infinity ? std::exp(static_cast<long double>(v - maximum)) : 0.0L;
+      const double uniform = 0.05 / static_cast<double>(members.size());
+      for (std::size_t m = 0; m < members.size(); ++m) {
+        const double share = total > 0 && score[m] > negative_infinity ?
+          static_cast<double>(std::exp(static_cast<long double>(score[m] - maximum)) / total) : 0.0;
+        out[members[m]] = std::log(uniform + (total > 0 ? 0.95 * share : 0.95 / static_cast<double>(members.size())));
+      }
+    }
+  }
+
+  // A state of the swap's coordinates: the label, the intercept's gate and
+  // slab value (its physical value when the gate is on), both slopes, E.
+  struct SwapState {
+    int label = 0;
+    bool gate = true;
+    double beta0 = 0;
+    double theta[2] = {0, 0};
+    Vec E;
+  };
+
+  SwapState swap_current(SwapGeometry const &G) const
+  {
+    BiasSpec const &B = bspec();
+    SwapState x;
+    x.label = _label;
+    x.gate = active(B.intercept);
+    x.beta0 = _beta[s().groups[B.intercept].coord0];
+    x.theta[0] = _theta[0];
+    x.theta[1] = _theta[1];
+    x.E = swap_E(G);
+    return x;
+  }
+
+  // The stage-1 log ratio of a move from label `from` to label `to`: the
+  // ratio of the cells' summed evidences times the label Hastings factor.
+  double swap_stage1(SwapBase const &base, Vec const &log_qG, Vec const &log_qS, int from, int to) const
+  {
+    BiasSpec const &B = bspec();
+    const std::size_t it = static_cast<std::size_t>(to - 1), ifr = static_cast<std::size_t>(from - 1);
+    const bool from_selection = !B.gaussian(from);
+    const double hastings = s().mutant == 6 ? 0.0 :
+      (from_selection ? log_qS : log_qG)[ifr] - (from_selection ? log_qG : log_qS)[it];
+    return log_sum(base.log_e_off[it], base.log_e_on[it]) - log_sum(base.log_e_off[ifr], base.log_e_on[ifr]) + hastings;
+  }
+
+  // log q(to | from): the label proposal of from's family, the gate share of
+  // the target label, the target cell's coordinates and the prior of the
+  // slope that becomes dormant (mutants 6, 7 and 8 omit one of them).
+  double swap_log_q(SwapBase const &base, Vec const &log_qG, Vec const &log_qS, SwapState const &from,
+                    SwapState const &to)
+  {
+    Shared const &S = s();
+    BiasSpec const &B = bspec();
+    GroupSpec const &g0 = S.groups[B.intercept];
+    const std::size_t it = static_cast<std::size_t>(to.label - 1), ifr = static_cast<std::size_t>(from.label - 1);
+    long double out = 0;
+    if (S.mutant != 6) out += (B.gaussian(from.label) ? log_qS : log_qG)[it];
+    if (g0.gate != nullptr && S.mutant != 7) {
+      out += (to.gate ? base.log_e_on[it] : base.log_e_off[it]) - log_sum(base.log_e_off[it], base.log_e_on[it]);
+    }
+    if (B.gaussian(to.label)) {
+      const int b = B.slope_of[it];
+      out += plane_log_density(plane_cell(base, b, to.gate), b >= 0 ? to.theta[b] : 0.0, to.beta0);
+    } else {
+      out += fit_log_density(base, to.label, to.gate, to.beta0);
+    }
+    const int slope_out = B.slope_of[ifr];
+    if (slope_out >= 0 && S.mutant != 8) out += slope_log_prior(slope_prior(B.slope[slope_out], _chain), to.theta[slope_out]);
+    return static_cast<double>(out);
+  }
+
+  // Draws the proposal from the current state: the target label's gate and
+  // cell coordinates (a Gaussian label's slope and then t, a selection label's
+  // t from its Laplace law, the dormant slab from its prior), the leaving
+  // slope from its prior, and E = E_0 + K_t t + K_b theta.
+  bool swap_draw(SwapGeometry const &G, SwapBase const &base, SwapState const &from, int target, RNG *rng,
+                 SwapState &to)
+  {
+    BiasSpec const &B = bspec();
+    GroupSpec const &g0 = s().groups[B.intercept];
+    const std::size_t it = static_cast<std::size_t>(target - 1);
+    to = from;
+    to.label = target;
+    to.gate = true;
+    if (g0.gate != nullptr) {
+      to.gate = rng->uniform() < std::exp(base.log_e_on[it] - log_sum(base.log_e_off[it], base.log_e_on[it]));
+    }
+    const int slope_in = B.slope_of[it];
+    const int slope_out = B.slope_of[static_cast<std::size_t>(from.label - 1)];
+    if (B.gaussian(target)) {
+      const PlaneCell cell = plane_cell(base, slope_in, to.gate);
+      double theta = 0.0;
+      if (slope_in >= 0) {
+        const SlopePrior prior = slope_prior(B.slope[slope_in], _chain);
+        theta = cell.prior_cell ? prior.dist->randomSample(prior.par, prior.lower, prior.upper, rng) :
+          truncated_normal_positive(cell.r / cell.q, 1.0 / std::sqrt(cell.q), rng);
+        to.theta[slope_in] = theta;
+      }
+      if (to.gate) to.beta0 = cell.mt - cell.ct * theta + rng->normal() / std::sqrt(cell.Pt);
+      else draw_prior(g0, rng, &to.beta0);
+    } else {
+      if (to.gate) to.beta0 = base.fit_mean[it] + rng->normal() / std::sqrt(base.fit_precision[it]);
+      else draw_prior(g0, rng, &to.beta0);
+    }
+    if (slope_out >= 0) {
+      const SlopePrior prior = slope_prior(B.slope[slope_out], _chain);
+      to.theta[slope_out] = prior.dist->randomSample(prior.par, prior.lower, prior.upper, rng);
+    }
+    const double t = to.gate ? to.beta0 : 0.0;
+    for (std::size_t e = 0; e < to.E.size(); ++e) {
+      to.E[e] = base.E0[e] + G.Kt[e] * t + (slope_in >= 0 ? G.Kb[slope_in][e] * to.theta[slope_in] : 0.0);
+    }
+    return std::isfinite(to.beta0) && std::isfinite(to.theta[0]) && std::isfinite(to.theta[1]) &&
+      all_finite(to.E.data(), to.E.size());
+  }
+
+  // Moves the working state from `from` (the current state) to `to` and
+  // returns the change of the inner target: every child's absolute term at
+  // both labels and means, the label prior, the nested node's term (mutant 9
+  // omits it), the gate prior, the intercept's slab, both slope priors and the
+  // priors of E.
+  long double swap_move(SwapGeometry const &G, SwapState const &from, SwapState const &to)
+  {
+    Shared const &S = s();
+    BiasSpec const &B = bspec();
+    GroupSpec const &g0 = S.groups[B.intercept];
+    long double old_terms = 0, new_terms = 0;
+    for (unsigned c = 0; c < S.children.size(); ++c) old_terms += term_now(c);
+    const double nested_old = S.mutant == 9 ? 0.0 : nested_term();
+    const double t_old = from.gate ? from.beta0 : 0.0, t_new = to.gate ? to.beta0 : 0.0;
+    Vec dE(to.E.size());
+    for (std::size_t e = 0; e < dE.size(); ++e) dE[e] = to.E[e] - from.E[e];
+    Shift sh;
+    swap_shift(G, t_new - t_old, -1, 0.0, dE, sh);
+    sh.slopes.clear();
+    sh.dslope.clear();
+    for (int b = 0; b < 2; ++b) {
+      if (B.slope[b].source == nullptr) continue;
+      const double now = physical_at(from.label, b);
+      const double next = B.slope[b].label == to.label ? to.theta[b] : 0.0;
+      if (next != now) {
+        sh.slopes.push_back(b);
+        sh.dslope.push_back(next - now);
+      }
+    }
+    prepare_shift(sh, G.L.partners);
+    long double delta = prior_delta(sh, 1.0);
+    swap_move_state(sh);
+    swap_set_label(to.label);
+    _theta[0] = to.theta[0];
+    _theta[1] = to.theta[1];
+    _g[B.intercept] = to.gate ? 1 : 0;
+    _beta[g0.coord0] = to.beta0;
+    _b[g0.coord0] = t_new;
+    for (unsigned c = 0; c < S.children.size(); ++c) new_terms += term_now(c);
+    const double nested_new = S.mutant == 9 ? 0.0 : nested_term();
+    delta += new_terms - old_terms + nested_new - nested_old;
+    delta += B.log_prior[static_cast<std::size_t>(to.label - 1)] - B.log_prior[static_cast<std::size_t>(from.label - 1)];
+    if (g0.gate != nullptr && to.gate != from.gate) delta += to.gate ? g0.log_on - g0.log_off : g0.log_off - g0.log_on;
+    delta += log_slab(g0, &to.beta0) - log_slab(g0, &from.beta0);
+    for (int b = 0; b < 2; ++b) {
+      if (B.slope[b].source == nullptr || to.theta[b] == from.theta[b]) continue;
+      const SlopePrior prior = slope_prior(B.slope[b], _chain);
+      delta += static_cast<long double>(slope_log_prior(prior, to.theta[b])) - slope_log_prior(prior, from.theta[b]);
+    }
+    return delta;
+  }
+
+  // Restores the working state saved before swap_move.
+  void swap_restore(Snapshot const &saved, SwapState const &from)
+  {
+    put(saved);
+    _theta[0] = from.theta[0];
+    _theta[1] = from.theta[1];
+  }
+
+  // One attempt of L2: propose a label of the other family, a gate, the
+  // intercept and the entering slope from the target cell's law at the base
+  // point (the leaving slope from its prior), E = E_0 + K_t t + K_b theta;
+  // stage 1 on the evidences and the label Hastings factor, stage 2 on the
+  // inner target with the complete proposal densities of both directions. A
+  // dry run (probe) records the frozen-state identities of the attempt and
+  // changes nothing.
+  void label_swap(RNG *rng, bool dry = false)
+  {
+    BiasSpec const &B = bspec();
+    int n_selection = 0, n_gaussian = 0;
+    for (int l = 1; l <= B.levels; ++l) {
+      if (!(B.log_prior[static_cast<std::size_t>(l - 1)] > negative_infinity)) continue;
+      (B.gaussian(l) ? n_gaussian : n_selection) += 1;
+    }
+    if (n_selection == 0 || n_gaussian == 0) return;
+    const int from = _label;
+    const bool from_selection = !B.gaussian(from);
+    SwapGeometry G;
+    if (!swap_geometry(G)) return;
+    if (!dry) bias_tally(bias_swap, 0);
+    // the base point: the Gaussian labels' evidences, the selection labels'
+    // screens and, leaving a selection label, its own Laplace evidence
+    SwapBase base;
+    std::vector<int> fits;
+    if (from_selection) fits.push_back(from);
+    if (!swap_base(G, fits, base)) return;
+    Vec log_qG, log_qS;
+    swap_label_proposals(base, log_qG, log_qS);
+    Vec const &forward_q = from_selection ? log_qG : log_qS;
+    int target = 0;
+    {
+      double u = rng->uniform();
+      for (int l = 1; l <= B.levels; ++l) {
+        const double q = forward_q[static_cast<std::size_t>(l - 1)];
+        if (!(q > negative_infinity)) continue;
+        target = l;
+        const double p = std::exp(q);
+        if (u < p) break;
+        u -= p;
+      }
+    }
+    if (target == 0) return;
+    // entering a selection label: its Laplace evidence at the base point
+    if (!from_selection && !swap_base(G, {target}, base)) return;
+    const double stage1 = swap_stage1(base, log_qG, log_qS, from, target);
+    if (!std::isfinite(stage1)) return;
+    if (!dry) {
+      swap_record_attempt(from_selection, stage1);
+      if (!metropolis(rng, stage1)) {
+        swap_trace(from, target, false, stage1, 0.0, false);
+        return;
+      }
+      bias_tally(bias_swap, 1);
+    }
+    const SwapState current = swap_current(G);
+    SwapState proposal;
+    if (!swap_draw(G, base, current, target, rng, proposal)) return;
+    Snapshot saved;
+    take(saved);
+    bool accepted = false;
+    double full = negative_infinity;
+    long double delta = 0;
+    try {
+      delta = swap_move(G, current, proposal);
+      const double forward = swap_log_q(base, log_qG, log_qS, current, proposal);
+      const double reverse = swap_log_q(base, log_qG, log_qS, proposal, current);
+      full = static_cast<double>(delta + reverse - forward);
+      if (dry) {
+        swap_probe(G, base, log_qG, log_qS, current, proposal, stage1, full, delta, forward);
+      } else {
+        accepted = std::isfinite(full) && metropolis(rng, full - stage1);
+      }
+      if (accepted) {
+        rebuild_h();
+        _repr_delta += delta;
+        bias_tally(bias_swap, 2);
+        swap_record_accepted(from_selection, stage1);
+      }
+    } catch (...) {
+      swap_restore(saved, current);
+      throw;
+    }
+    if (!accepted) swap_restore(saved, current);
+    if (!dry) swap_trace(from, target, true, stage1, full - stage1, accepted);
+  }
+
+  // Test hook (probe) of L2 at a proposal (the working state at it): the
+  // geometry, E_0, every label's evidences and the label proposals rebuilt
+  // from the proposal agree with those from the current state; the reverse
+  // move's stage-1 ratio and full ratio are the inverses; and the accepted
+  // probability flows of the two directions, from the target values and the
+  // proposal densities computed at each end, are equal.
+  void swap_probe(SwapGeometry const &G, SwapBase const &base, Vec const &log_qG, Vec const &log_qS,
+                  SwapState const &current, SwapState const &proposal, double stage1, double full,
+                  long double delta, double forward)
+  {
+    BiasSpec const &B = bspec();
+    SwapGeometry G2;
+    if (!swap_geometry(G2)) return;
+    double k_diff = 0.0;
+    for (std::size_t e = 0; e < G.Kt.size(); ++e) {
+      k_diff = std::max(k_diff, std::fabs(G2.Kt[e] - G.Kt[e]));
+      for (int b = 0; b < 2; ++b) k_diff = std::max(k_diff, std::fabs(G2.Kb[b][e] - G.Kb[b][e]));
+    }
+    std::vector<int> fits;
+    if (!B.gaussian(current.label)) fits.push_back(current.label);
+    if (!B.gaussian(proposal.label)) fits.push_back(proposal.label);
+    SwapBase base2;
+    if (!swap_base(G2, fits, base2)) return;
+    Vec qG2, qS2;
+    swap_label_proposals(base2, qG2, qS2);
+    double e_diff = 0.0, q_diff = 0.0, e0_diff = 0.0;
+    for (std::size_t e = 0; e < base.E0.size(); ++e) e0_diff = std::max(e0_diff, std::fabs(base2.E0[e] - base.E0[e]));
+    for (int l = 1; l <= B.levels; ++l) {
+      const std::size_t i = static_cast<std::size_t>(l - 1);
+      auto diff = [](double a, double b) { return (a == b) ? 0.0 : std::fabs(a - b); };
+      e_diff = std::max(e_diff, std::max(diff(base.log_e_off[i], base2.log_e_off[i]), diff(base.log_e_on[i], base2.log_e_on[i])));
+      q_diff = std::max(q_diff, std::max(diff(log_qG[i], qG2[i]), diff(log_qS[i], qS2[i])));
+    }
+    const double stage1_reverse = swap_stage1(base2, qG2, qS2, proposal.label, current.label);
+    const double forward2 = swap_log_q(base2, qG2, qS2, proposal, current);   // the reverse move's proposal
+    const double reverse2 = swap_log_q(base2, qG2, qS2, current, proposal);
+    const double full_reverse = static_cast<double>(-delta + reverse2 - forward2);
+    // accepted flows: pi(x) q(x'|x) a(x, x') against pi(x') q(x|x') a(x', x)
+    auto log_accept = [](double s1, double total) { return std::min(0.0, s1) + std::min(0.0, total - s1); };
+    const double flow_forward = forward + log_accept(stage1, full);
+    const double flow_reverse = static_cast<double>(delta) + forward2 + log_accept(stage1_reverse, full_reverse);
+    probe_raw(probe_swap, 0.0, stage1, stage1 + stage1_reverse, full, full + full_reverse);
+    probe_raw(probe_swap, 1.0, e0_diff, std::max(e_diff, q_diff), k_diff, flow_forward - flow_reverse);
+  }
+
+  // A raw probe record (type, five values).
+  void probe_raw(int type, double a, double b, double c, double d, double e)
+  {
+    ProbeStore &store = probe_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    store.records.insert(store.records.end(), {static_cast<double>(type), a, b, c, d, e});
+  }
+
+  // ---- the evidence record of the bias label (LocationBlockBias.h,
+  // BiasEvidence), over the updates after adaptation, flushed after each update
+  BiasEvidence _bias_evidence;
+  bool _bias_dirty = false;
+  bool _swap_kept = false;            // L2 accepted a swap in this sweep
+  bool _swap_kept_from_selection = false;
+  double _swap_kept_stage1 = 0.0;
+
+  // Counts a bias component's proposal (what 0), stage-1 pass (1) or
+  // acceptance (2) in the per-fit counters and the evidence record.
+  void bias_tally(int component, int what)
+  {
+    Counters &c = counters();
+    count(what == 0 ? c.bias_proposed[component] : what == 1 ? c.bias_stage1[component] : c.bias_accepted[component]);
+    const int i = bias_record_index(component);
+    if (_adapting || i < 0) return;
+    (what == 0 ? _bias_evidence.proposed[i] : what == 1 ? _bias_evidence.stage1[i] : _bias_evidence.accepted[i]) += 1;
+    _bias_dirty = true;
+  }
+
+  // An L2 attempt's stage-1 log ratio by direction (0 leaving the selection
+  // family, 1 leaving the Gaussian family).
+  void swap_record_attempt(bool from_selection, double stage1)
+  {
+    if (_adapting) return;
+    const int d = from_selection ? 0 : 1;
+    _bias_evidence.attempts[d] += 1;
+    _bias_evidence.attempt_sum[d] += stage1;
+    _bias_evidence.attempt_max[d] = std::max(_bias_evidence.attempt_max[d], stage1);
+    _bias_dirty = true;
+  }
+
+  void swap_record_accepted(bool from_selection, double stage1)
+  {
+    _swap_kept = true;
+    _swap_kept_from_selection = from_selection;
+    _swap_kept_stage1 = stage1;
+  }
+
+  // After the exact correction: the sweep's final label and, when the
+  // correction kept the sweep, its accepted swap.
+  void bias_after_correction(bool kept)
+  {
+    if (!bias() || _adapting) return;
+    const int label = kept ? _label : _label_entry;
+    if (_bias_evidence.label_sweeps.size() < static_cast<std::size_t>(bspec().levels)) {
+      _bias_evidence.label_sweeps.resize(static_cast<std::size_t>(bspec().levels), 0.0);
+    }
+    _bias_evidence.label_sweeps[static_cast<std::size_t>(label - 1)] += 1;
+    if (kept && _swap_kept) {
+      const int d = _swap_kept_from_selection ? 0 : 1;
+      _bias_evidence.kept[d] += 1;
+      _bias_evidence.kept_sum[d] += _swap_kept_stage1;
+      _bias_evidence.kept_max[d] = std::max(_bias_evidence.kept_max[d], _swap_kept_stage1);
+    }
+    _bias_dirty = true;
+  }
+
+  void flush_bias_evidence()
+  {
+    if (!_bias_dirty) return;
+    BiasEvidenceStore &store = bias_evidence_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    store.records[_chain].add(_bias_evidence);
+    _bias_evidence = BiasEvidence();
+    _bias_dirty = false;
+  }
+
+  // ---- the L2 records (evidence record and per-attempt trace)
+  // The per-attempt trace of L2 (test switch): chain, source and target
+  // labels, stage 1 passed, stage-1 log ratio, stage-2 log ratio, accepted,
+  // the first latent column entry (the random-effect SD) and the target
+  // label's first six weights at the attempt.
+  void swap_trace(int from, int target, bool passed, double stage1, double stage2, bool accepted)
+  {
+    if (!s().trace) return;
+    Shared const &S = s();
+    double sd = 0.0;
+    for (unsigned c = 0; c < S.children.size() && sd == 0.0; ++c) {
+      if (S.children[c].latent >= 0) sd = _d[S.children[c].row0];
+    }
+    double omega[6] = {0, 0, 0, 0, 0, 0};
+    set_graph_label(target);
+    for (unsigned c = 0; c < S.children.size(); ++c) {
+      ChildSpec const &child = S.children[c];
+      if (child.type == ChildType::normal) continue;
+      const unsigned slot = child.type == ChildType::mv ? 3 : 4;
+      Node const *weights = child.node->parents()[slot];
+      for (unsigned long i = 0; i < weights->length() && i < 6; ++i) omega[i] = weights->value(_chain)[i];
+      break;
+    }
+    set_graph_label(_label);
+    ProbeStore &store = trace_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    store.records.insert(store.records.end(), {static_cast<double>(_chain), static_cast<double>(from),
+      static_cast<double>(target), passed ? 1.0 : 0.0, stage1, stage2, accepted ? 1.0 : 0.0, sd,
+      omega[0], omega[1], omega[2], omega[3], omega[4], omega[5]});
+  }
+
+  // Test hook (probe) of sweep condition 5 at L0's slot: every label's exact
+  // score from the block's buffers (the working means shifted for the label's
+  // slopes, the label's parameters written to the graph) against the graph's
+  // own densities with the whole working state written to the graph (the
+  // children's PDF_LIKELIHOOD, the nested node, the label prior); the graph is
+  // restored to the update's entry and the working label afterwards.
+  void label_probe()
+  {
+    Shared const &S = s();
+    BiasSpec const &B = bspec();
+    Vec working = _entry;
+    for (unsigned j = 0; j < S.groups.size(); ++j) {
+      GroupSpec const &g = S.groups[j];
+      if (g.gate != nullptr) working[g.gate_pos] = _g[j] ? g.label : 3.0 - g.label;
+      for (unsigned i = 0; i < g.d; ++i) working[g.slab_pos + i] = _beta[g.coord0 + i];
+    }
+    for (unsigned lat = 0; lat < S.latents.size(); ++lat) working[S.latent_pos[lat]] = _z[lat];
+    for (int b = 0; b < 2; ++b) if (B.slope[b].source != nullptr) working[B.slope[b].pos] = _theta[b];
+    double worst = 0.0, scale = 1.0;
+    for (int l = 1; l <= B.levels; ++l) {
+      const double prior = B.log_prior[static_cast<std::size_t>(l - 1)];
+      if (!(prior > negative_infinity)) continue;
+      set_graph_label(l);
+      long double block = prior + nested_term();
+      for (unsigned c = 0; c < S.children.size(); ++c) {
+        ChildSpec const &child = S.children[c];
+        _shift_mean.assign(_mean.begin() + child.row0, _mean.begin() + child.row0 + child.n);
+        for (int b = 0; b < 2; ++b) {
+          if (B.slope[b].source == nullptr) continue;
+          const double change = physical_at(l, b) - physical_at(_label, b);
+          for (unsigned i = 0; i < child.n; ++i) _shift_mean[i] += change * B.slope[b].column[child.row0 + i];
+        }
+        block += exact_with_mean(c, _shift_mean.data());
+      }
+      working[B.pos] = l;
+      _view->setValue(working, _chain);
+      _graph_label = l;
+      long double graph = prior + nested_term();
+      for (ChildSpec const &child : S.children) graph += child.node->logDensity(_chain, PDF_LIKELIHOOD);
+      worst = std::max(worst, std::fabs(static_cast<double>(graph - block)));
+      scale = std::max(scale, std::fabs(static_cast<double>(graph)));
+    }
+    _view->setValue(_entry, _chain);
+    _graph_label = _label_entry;
+    for (unsigned c = 0; c < S.children.size(); ++c) if (_step_children[c]) refresh_step(c);
+    set_graph_label(_label);
+    probe_raw(probe_label, 0.0, worst, scale, 0.0, 0.0);
   }
 
   // ---- the bias slots of the sweep (L1, S and L2 above this point)
@@ -895,8 +1882,9 @@
 
   void bias_sweep_start(RNG *rng)
   {
-    _swap_this_sweep = false;
-    (void) rng;
+    _swap_kept = false;
+    // the schedule of L2: attempted with a fixed probability per sweep
+    _swap_this_sweep = s().swap_probability >= 1.0 || rng->uniform() < s().swap_probability;
   }
 
   Category bias_category(unsigned k) const
@@ -910,20 +1898,31 @@
     }
   }
 
+  // One bias slot. With the probe (test hook) each move first records its
+  // frozen-state identities at the state where it runs: in the reversed sweep
+  // after the location components have moved the state (sweep condition 5).
   void bias_component(unsigned k, RNG *rng)
   {
+    const bool probe = s().probe;
     switch (k) {
     case bias_dormant:
       dormant_draws(rng);
       break;
     case bias_label:
+      if (probe) label_probe();
       label_update(rng);
       break;
     case bias_gaussian:
+      if (probe) family_move(rng, true);
       family_move(rng);
       break;
     case bias_slope:
+      if (probe) slope_move(rng, true);
       slope_move(rng);
+      break;
+    case bias_swap:
+      if (probe) label_swap(rng, true);
+      if (_swap_this_sweep) label_swap(rng);
       break;
     default:
       break;

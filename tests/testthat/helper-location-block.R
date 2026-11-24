@@ -29,13 +29,13 @@
 .location_probe_records <- function(records) {
 
   if (length(records) == 0L) {
-    return(data.frame(type = integer(), selection = logical(), stage1 = numeric(), full = numeric(),
+    return(data.frame(type = integer(), selection = logical(), kind = numeric(), stage1 = numeric(), full = numeric(),
                       selection_part = numeric(), log_odds = numeric()))
   }
   m <- matrix(records, ncol = 6L, byrow = TRUE)
   data.frame(type = c("flip_on", "flip_off", "refresh", "study", "swap", "joint", "ellipse",
-                      "family", "slope", "label_swap")[m[, 1L] + 1L],
-             selection = m[, 2L] == 1, stage1 = m[, 3L], full = m[, 4L], selection_part = m[, 5L],
+                      "family", "slope", "label_swap", "label")[m[, 1L] + 1L],
+             selection = m[, 2L] == 1, kind = m[, 2L], stage1 = m[, 3L], full = m[, 4L], selection_part = m[, 5L],
              log_odds = m[, 6L])
 }
 
