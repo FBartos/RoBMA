@@ -438,12 +438,12 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
   original <- getFromNamespace(".bt_rjags_run", "BayesTools")
   testthat::local_mocked_bindings(
     .bt_rjags_run = function(model, data, inits, monitor, adapt, burnin, sample,
-                            thin, cl, silent, live_model = NULL, probability_plan = NULL) {
+                            thin, cl, silent, ..., probability_plan = NULL) {
       calls[[length(calls) + 1L]] <<- list(
         adapt = adapt, burnin = burnin, parallel = !is.null(cl), probability_plan = probability_plan
       )
       original(model, data, inits, monitor, adapt, burnin, sample, thin, cl, silent,
-               live_model = live_model, probability_plan = probability_plan)
+               ..., probability_plan = probability_plan)
     },
     .package = "BayesTools",
     .env = env
