@@ -405,6 +405,7 @@ certification_cases <- function() {
         "selection-factor-routing|selection-estimate-cells|",
         "selection-coarse-blocks|selection-coarse-exactness|selection-coarse-fallback|",
         "selection-corrected-block|selection-corrected-block-exactness|",
+        "selection-corrected-weights|selection-corrected-weights-exactness|",
         "jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
         "selection-node-memo|sampler-declarations-fits)|",
@@ -448,9 +449,19 @@ certification_cases <- function() {
           "the corrected block chain is exact on a dense selection child with a crude anchor grid",
           "the block surrogate does not depend on the evaluation history or on warm memos"
         )),
+        .required_tests("test-00-selection-corrected-weights.R", c(
+          "model-averaged fits claim their weights and indicators, also in parallel and through update()",
+          "fits without coarse-capable children, and the memo alone, draw as before"
+        )),
+        .required_tests("test-00-selection-corrected-weights-exactness.R", c(
+          "the three-branch ensemble is exact and its mutants are not",
+          "the two-branch ensemble is exact",
+          "the gated block is exact in its random order and not in a fixed one",
+          "the heterogeneity gate and the allocation block are exact"
+        )),
         .required_tests("test-00-selection-coarse-fallback.R", c(
           "stress fixtures fall back at the default threshold and are exact with and without the fallback",
-          "a sampler decides its kernel once, at the end of adaptation, by the first rule that holds",
+          "a sampler decides its kernel once, at the end of adaptation, from its evidence proposals",
           "the worst-sampler rate is the rate of one sampler over its whole run",
           "serial and parallel fits record their corrected samplers, and update() adds once",
           "the JASP path, alternating fits and leftover counts keep each fit's record its own",

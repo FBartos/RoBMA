@@ -662,7 +662,7 @@ test_that(".fit() declares an ensemble's allocation block and records fallbacks 
                      measure = "SMD", only_priors = TRUE)
   prior_list <- .declaration_prior_list(object)
   # one process's report: one of four corrected samplers fell back
-  report <- list(samplers = 4, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
+  report <- list(samplers = 4,
                  fallback_low_acceptance = 1, sampling_proposed = 500, sampling_accepted = 500,
                  min_sampler_rate = NA_real_)
   fake_fit <- function() structure(list(), runtime_report_values = list(list(report)))

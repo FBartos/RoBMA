@@ -7,12 +7,13 @@ skip_on_cran()
 # answer a call only when every input equals the remembered one, so the key and
 # the draws are what these tests pin.
 #
-# Known limit of the fit test: the memo exposes no hit or miss count, so the
-# on/off fit pins identical draws but cannot observe that the memo answered a
-# call; a key that never matched would pass it. That a stored call hits, and
-# that any changed input misses, is pinned at the level of the header by the
-# compiled memo probe (stored_call_hits, mutated_element_misses,
-# restored_call_hits, ...).
+# The memo keeps two entries per node (ROBMA_SELNORM_NODE_MEMO=1 keeps one, the
+# earlier memo, and 0 disables it). The fit test pins identical draws with two,
+# one and no entries and reads the lookup and hit counters of the test hook, so
+# the memo is seen to answer calls. That a stored call hits, that any changed
+# input misses and which entry a store replaces is pinned at the level of the
+# header by the compiled memo probe (stored_call_hits, mutated_element_misses,
+# restored_call_hits, third_call_replaces_least_recent, ...).
 
 .node_memo_repository_file <- function(...) {
 
@@ -91,7 +92,9 @@ test_that("the node memo key covers every input and the map stays bounded", {
     "store_carries_mutation", "store_replaces_old_value", "restored_call_hits",
     "qmc_design_is_not_an_input", "length_change_misses", "new_layout_hits",
     "old_layout_misses", "limit_keys_all_hit", "update_at_limit_keeps_keys",
-    "new_key_beyond_limit_clears", "concurrent_chains")
+    "new_key_beyond_limit_clears", "concurrent_chains", "two_entries_keep_previous",
+    "third_call_replaces_least_recent", "hit_refreshes_entry", "counters_count_lookups_and_hits",
+    "one_entry_keeps_last", "zero_entries_disable")
   expect_setequal(setdiff(names(results), "elements_checked"), expected)
   expect_identical(unname(results[expected]), rep(1L, length(expected)))
 })
@@ -139,6 +142,7 @@ test_that("the node memo key covers every input and the map stays bounded", {
       dll     = normalizePath(getLoadedDLLs()[["RoBMA"]][["path"]],
                               winslash = "/", mustWork = TRUE),
       memo    = Sys.getenv("ROBMA_SELNORM_NODE_MEMO", unset = "<unset>"),
+      counts  = .Call("RoBMA_corrected_sampler_test", NULL, FALSE, FALSE, PACKAGE = "RoBMA")[["memo"]],
       methods = RoBMA:::.data_selection_execution_plan(fit[["data"]])[["block_methods"]],
       draws   = as.data.frame(RoBMA::as_draws_df(fit))
     )
@@ -169,9 +173,11 @@ test_that("a selection fit with factor and cluster blocks draws identically with
   skip_if_not_installed("metafor")
   skip_if_not_installed("pkgload")
 
+  two_entries  <- .node_memo_fit_in_worker("2")
   with_memo    <- .node_memo_fit_in_worker("1")
   without_memo <- .node_memo_fit_in_worker("0")
 
+  expect_identical(two_entries[["memo"]], "2")
   expect_identical(with_memo[["memo"]], "1")
   expect_identical(without_memo[["memo"]], "0")
   # Both node kinds are evaluated and memoized: the rank-one blocks are cluster
@@ -180,6 +186,16 @@ test_that("a selection fit with factor and cluster blocks draws identically with
   expect_identical(with_memo[["methods"]], without_memo[["methods"]])
   expect_identical(dim(with_memo[["draws"]]), c(200L, ncol(with_memo[["draws"]])))
   expect_identical(with_memo[["draws"]], without_memo[["draws"]])
+  expect_identical(two_entries[["draws"]], without_memo[["draws"]])
+  # the memo answered calls of both kinds, the second entry no fewer (this
+  # fit rejects almost no proposal, so it may add none); without
+  # the memo there are no lookups
+  for (kind in c("cluster", "factor")) {
+    hits <- function(result) result[["counts"]][[paste0(kind, "_hits")]]
+    expect_gt(hits(with_memo), 0)
+    expect_gte(hits(two_entries), hits(with_memo))
+    expect_identical(without_memo[["counts"]][[paste0(kind, "_lookups")]], 0)
+  }
 })
 
 

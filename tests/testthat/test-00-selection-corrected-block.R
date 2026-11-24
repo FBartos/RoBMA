@@ -109,14 +109,15 @@ test_that("the module order is restored for the remaining tests", {
 test_that("after a fallback the block runs BayesTools' factor slice update, draw for draw", {
 
   skip_if_not_installed("rjags")
-  # no adaptive update and the fallback on: rule (a) switches the block to the
-  # exact kernel at once, the same calls in the same order as
-  # BayesTools::FactorSlice with unadapted axes
-  fallback <- .block_chain(.block_pair_model(min_acceptance = .9), c("mu", "nu"), 300L, adapt = 0L, burnin = 0L)
+  # no adaptive update and a fallback forced by the test hook at the end of
+  # adaptation: the block switches to the exact kernel at once, the same calls
+  # in the same order as BayesTools::FactorSlice with unadapted axes
+  fallback <- .with_corrected_flags(list(force_fallback = TRUE), .block_chain(
+    .block_pair_model(min_acceptance = .9), c("mu", "nu"), 300L, adapt = 0L, burnin = 0L))
   factor   <- .block_chain(.block_pair_model(sampler = "slice"), c("mu", "nu"), 300L, adapt = 0L, burnin = 0L)
   expect_identical(unname(fallback$samplers[c("mu", "nu")]), rep(.block_sampler, 2L))
   expect_identical(unname(factor$samplers[c("mu", "nu")]), rep("BayesTools::FactorSlice", 2L))
-  expect_identical(RoBMA:::.selection_sampler_report_read()[["fallback_few_proposals"]], 0)
+  expect_identical(fallback$report[["fallback_low_acceptance"]], 1)
   expect_identical(fallback$report[["sampling_proposed"]], 0)
   expect_identical(fallback$counters[["proposed"]], 0)
   expect_gt(length(unique(fallback$draws[, "mu"])), 100L)
@@ -133,8 +134,7 @@ test_that("after a fallback the block runs BayesTools' factor slice update, draw
 
 .block_switched <- function(reason) {
 
-  report <- list(samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
-                 fallback_low_acceptance = 0, sampling_proposed = 0, sampling_accepted = 0,
+  report <- list(samplers = 1, fallback_low_acceptance = 0, sampling_proposed = 0, sampling_accepted = 0,
                  sampling_judged = 0, min_sampler_rate = NA_real_)
   report[[reason]] <- 1
   report
@@ -144,16 +144,13 @@ test_that("after a fallback the block runs BayesTools' factor slice update, draw
 test_that("a block decides its kernel once, at the end of adaptation, judging rate^(1/d)", {
 
   skip_if_not_installed("rjags")
-  # (a) fewer than 50 adaptive proposals
-  tiny <- 1e-9
+  # fewer than 50 adaptive evidence proposals: the block stays corrected at any
+  # threshold below one, and its 200 later proposals are all evidence
   for (adapt in c(0L, 49L)) {
-    expect_identical(.block_decision(tiny, adapt), .block_switched("fallback_few_proposals"), info = adapt)
+    kept <- .block_decision(.9, adapt)
+    expect_identical(unlist(kept[c("samplers", "fallback_low_acceptance", "sampling_proposed")]),
+                     c(samplers = 1, fallback_low_acceptance = 0, sampling_proposed = 200), info = adapt)
   }
-  kept <- .block_decision(tiny, 50L)
-  expect_identical(unlist(kept[c("samplers", "fallback_few_proposals", "fallback_surrogate_exact",
-                                 "fallback_low_acceptance", "sampling_proposed")]),
-                   c(samplers = 1, fallback_few_proposals = 0, fallback_surrogate_exact = 0,
-                     fallback_low_acceptance = 0, sampling_proposed = 200))
 
   # (b) the adaptive rate of the block (the process counters count adaptation;
   # the adaptation does not depend on the threshold) judged as rate^(1/2)
@@ -170,14 +167,14 @@ test_that("a block decides its kernel once, at the end of adaptation, judging ra
   expect_identical(.block_decision(per_direction * (1 - 1e-12), 300L)[["fallback_low_acceptance"]], 0)
   expect_identical(.block_decision(per_direction * (1 + 1e-12), 300L), .block_switched("fallback_low_acceptance"))
 
-  # (c) a surrogate that is the exact density in every state: a vector rule that
-  # is a best-weight rule for both values of an indicator
+  # a surrogate that is the exact density in every state (a vector rule that is
+  # a best-weight rule for both values of an indicator) makes no evidence: the
+  # block stays corrected and counts nothing (nor does the screened indicator,
+  # the second corrected sampler)
   exact <- .block_decision(.9, 300L, vector_rule = "vr", extra = "  ind ~ dcat(c(.5, .5))\n  vr <- ind",
                            inits = list(ind = 1))
-  expect_identical(exact, .block_switched("fallback_surrogate_exact"))
-  # (a) comes before (c)
-  expect_identical(.block_decision(.9, 49L, vector_rule = "vr", extra = "  ind ~ dcat(c(.5, .5))\n  vr <- ind",
-                                   inits = list(ind = 1)), .block_switched("fallback_few_proposals"))
+  expect_identical(exact, list(samplers = 2, fallback_low_acceptance = 0, sampling_proposed = 0,
+                               sampling_accepted = 0, sampling_judged = 0, min_sampler_rate = NA_real_))
 
   # a later adaptOff() changes nothing: the block that switched counts once
   hand <- .block_pair_model(min_acceptance = .9)

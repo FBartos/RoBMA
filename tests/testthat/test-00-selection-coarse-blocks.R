@@ -603,7 +603,8 @@ test_that("blocks without a coarse rule leave their nodes the stock sampler", {
   expect_identical(cluster_assigned(), coarse)
   # a vector rule that is a node (a mixture of weight rules composes it from the bias
   # indicator, here product in every state or best in one) is a dynamic parameter:
-  # the block takes part, the discrete indicator keeps its sampler
+  # the block takes part, and the discrete indicator, whose children include it,
+  # takes the screened indicator sampler
   mixture_assigned <- function(rule) {
 
     .coarse_hand_model("cluster", 4L, 1L, .coarse_rules(c(7, 15, 31, 63, 127)),
@@ -612,8 +613,8 @@ test_that("blocks without a coarse rule leave their nodes the stock sampler", {
         "\n  ind ~ dcat(c(.5, .5))\n  vr <- ", rule),
       vector_rule = "vr", inits = list(mu = .1, ind = 1))$samplers
   }
-  expect_setequal(mixture_assigned("0 * equals(ind, 1) + 0 * equals(ind, 2)"), c(coarse, "base::Finite"))
-  expect_setequal(mixture_assigned("ind - 1"), c(coarse, "base::Finite"))
+  expect_setequal(mixture_assigned("0 * equals(ind, 1) + 0 * equals(ind, 2)"), c(coarse, "RoBMA::ScreenedFinite"))
+  expect_setequal(mixture_assigned("ind - 1"), c(coarse, "RoBMA::ScreenedFinite"))
   # a kernel mode fixed at the normal kernel, and a best-weight vector rule, have no rung
   expect_identical(cluster_assigned(mode = 0), stock)
   expect_identical(cluster_assigned(vector_rule = 1), stock)
