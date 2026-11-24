@@ -376,6 +376,7 @@
       total += mass[static_cast<std::size_t>(l - 1)];
     }
     const long double others = total - mass[static_cast<std::size_t>(k - 1)];
+    label_record(k, mass, total);
     if (!(others > 0)) return;
     bias_tally(bias_label, 0);
     long double draw = static_cast<long double>(rng->uniform()) * others;
@@ -391,6 +392,9 @@
     const long double ratio = others / others_at;
     if (!(ratio >= 1.0L || static_cast<long double>(rng->uniform()) < ratio)) return;
     bias_tally(bias_label, 2);
+    if (!_adapting && B.gaussian(proposed) != B.gaussian(k)) {
+      _bias_evidence.label_crossings[B.gaussian(k) ? 1 : 0] += 1;
+    }
     _repr_delta += static_cast<long double>(_label_score[static_cast<std::size_t>(proposed - 1)]) -
       _label_score[static_cast<std::size_t>(k - 1)];
     apply_label(proposed, &_label_terms[static_cast<std::size_t>(proposed - 1) * n]);
@@ -1783,15 +1787,60 @@
     _bias_dirty = true;
   }
 
-  // An L2 attempt's stage-1 log ratio by direction (0 leaving the selection
-  // family, 1 leaving the Gaussian family).
+  // An L2 attempt's stage-1 log ratio and pass probability by direction (0
+  // leaving the selection family, 1 leaving the Gaussian family).
   void swap_record_attempt(bool from_selection, double stage1)
   {
     if (_adapting) return;
     const int d = from_selection ? 0 : 1;
     _bias_evidence.attempts[d] += 1;
     _bias_evidence.attempt_sum[d] += stage1;
+    _bias_evidence.pass_sum[d] += std::exp(std::min(0.0, stage1));
     _bias_evidence.attempt_max[d] = std::max(_bias_evidence.attempt_max[d], stage1);
+    _bias_dirty = true;
+  }
+
+  // An L0 update from label k (its family's direction), from the label
+  // masses exp(score - max) it computed: the probability of moving to a label
+  // of the other family (Liu's Metropolized Gibbs: p_j / max(1 - p_k, 1 - p_j),
+  // with 1 - p_k summed over the other labels rather than subtracted) and
+  // log P(other family) - log P(own family) of the surrogate full
+  // conditional, from the scores (log-sum-exp).
+  void label_record(int k, std::vector<long double> const &mass, long double total)
+  {
+    if (_adapting) return;
+    BiasSpec const &B = bspec();
+    const bool gaussian = B.gaussian(k);
+    const int d = gaussian ? 1 : 0;
+    long double others = 0;
+    for (int l = 1; l <= B.levels; ++l) {
+      if (l != k) others += mass[static_cast<std::size_t>(l - 1)];
+    }
+    long double cross = 0;
+    double own_max = negative_infinity, other_max = negative_infinity;
+    for (int l = 1; l <= B.levels; ++l) {
+      const double v = _label_score[static_cast<std::size_t>(l - 1)];
+      if (B.gaussian(l) == gaussian) {
+        own_max = std::max(own_max, v);
+        continue;
+      }
+      other_max = std::max(other_max, v);
+      const long double m = mass[static_cast<std::size_t>(l - 1)];
+      if (m > 0) cross += m / std::max(others, total - m);
+    }
+    auto log_sum_exp = [&](bool family_gaussian, double top) {
+      if (!(top > negative_infinity)) return negative_infinity;
+      long double sum = 0;
+      for (int l = 1; l <= B.levels; ++l) {
+        const double v = _label_score[static_cast<std::size_t>(l - 1)];
+        if (B.gaussian(l) == family_gaussian && v > negative_infinity) sum += std::exp(static_cast<long double>(v - top));
+      }
+      return top + static_cast<double>(std::log(sum));
+    };
+    const double log_ratio = log_sum_exp(!gaussian, other_max) - log_sum_exp(gaussian, own_max);
+    _bias_evidence.label_updates[d] += 1;
+    _bias_evidence.label_cross_sum[d] += static_cast<double>(cross);
+    _bias_evidence.label_log_ratio_max[d] = std::max(_bias_evidence.label_log_ratio_max[d], log_ratio);
     _bias_dirty = true;
   }
 

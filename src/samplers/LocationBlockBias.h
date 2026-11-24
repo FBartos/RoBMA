@@ -505,17 +505,24 @@ inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
 // ---- the evidence record of the bias label (bias_evidence): per chain,
 // over the updates after adaptation, the sweeps ending in each label, the
 // proposals and acceptances of L0, L1, S and L2 (L2 also its stage-1 passes),
-// and for L2 by direction (0: leaving the selection family, 1: leaving the
-// Gaussian family) the count, sum and maximum of the stage-1 log ratio of
-// every attempt and of the swaps retained after the sweep's exact correction.
-// Never destroyed, like the counters.
+// and by source family (0: leaving the selection family, 1: leaving the
+// Gaussian family) for L2 the count, sum and maximum of the stage-1 log ratio
+// and the sum of its pass probabilities min(1, exp(stage 1)) over every
+// attempt, the count, sum and maximum of the stage-1 log ratio of the swaps
+// retained after the sweep's exact correction, and for L0 (from the label
+// scores it computes, no further evaluation) the updates made, the sum of
+// their probabilities of moving to the other family, the moves it made there
+// and the maximum of log P(other family) - log P(own family) of its
+// surrogate full conditional. Never destroyed, like the counters.
 struct BiasEvidence {
   std::vector<double> label_sweeps;
   double proposed[4] = {0, 0, 0, 0}, stage1[4] = {0, 0, 0, 0}, accepted[4] = {0, 0, 0, 0};
-  double attempts[2] = {0, 0}, attempt_sum[2] = {0, 0};
+  double attempts[2] = {0, 0}, attempt_sum[2] = {0, 0}, pass_sum[2] = {0, 0};
   double attempt_max[2] = {-std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
   double kept[2] = {0, 0}, kept_sum[2] = {0, 0};
   double kept_max[2] = {-std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+  double label_updates[2] = {0, 0}, label_cross_sum[2] = {0, 0}, label_crossings[2] = {0, 0};
+  double label_log_ratio_max[2] = {-std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
 
   void add(BiasEvidence const &other)
   {
@@ -529,10 +536,15 @@ struct BiasEvidence {
     for (int d = 0; d < 2; ++d) {
       attempts[d] += other.attempts[d];
       attempt_sum[d] += other.attempt_sum[d];
+      pass_sum[d] += other.pass_sum[d];
       attempt_max[d] = std::max(attempt_max[d], other.attempt_max[d]);
       kept[d] += other.kept[d];
       kept_sum[d] += other.kept_sum[d];
       kept_max[d] = std::max(kept_max[d], other.kept_max[d]);
+      label_updates[d] += other.label_updates[d];
+      label_cross_sum[d] += other.label_cross_sum[d];
+      label_crossings[d] += other.label_crossings[d];
+      label_log_ratio_max[d] = std::max(label_log_ratio_max[d], other.label_log_ratio_max[d]);
     }
   }
 };

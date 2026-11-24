@@ -1208,7 +1208,8 @@ extern "C" SEXP RoBMA_location_block_test_trace()
 
 // The evidence record of the location block's bias label in this process
 // (LocationBlockReport.h): a list of a matrix with one row per chain (the
-// components' counts and L2's stage-1 log ratios by direction) and a matrix
+// components' counts, L2's stage-1 log ratios and pass probabilities and L0's
+// family record by source family) and a matrix
 // of the sweeps ending in each label (chain, label, sweeps), read and cleared
 // when 'clear' is TRUE.
 extern "C" SEXP RoBMA_location_bias_evidence(SEXP clear)

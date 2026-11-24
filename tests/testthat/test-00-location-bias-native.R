@@ -231,6 +231,106 @@ test_that("the bias label's evidence record shows a family that is never visited
   expect_identical(bias[["kept_leave_selection"]], 0)
   expect_identical(bias[["swap_proposed"]], bias[["leave_selection_attempts"]])
   expect_gt(bias[["label_proposed"]], 0)
+  expect_lt(bias[["leave_selection_pass_probability_sum"]], 1e-4)
+  # the label update gives the Gaussian family a negligible probability in
+  # every sweep and never moves there; nothing leaves the Gaussian family
+  expect_identical(bias[["leave_selection_label_updates"]], 200)
+  expect_lt(bias[["leave_selection_label_probability_sum"]], 1e-6)
+  expect_identical(bias[["leave_selection_label_crossings"]], 0)
+  expect_lt(bias[["leave_selection_label_log_ratio_max"]], -10)
+  expect_identical(bias[["leave_gaussian_label_updates"]], 0)
+  expect_true(is.na(bias[["leave_gaussian_label_log_ratio_max"]]))
+  # the retained draws: one censored run in the selection family
+  sojourns <- evidence[["bias_sojourns"]]
+  expect_identical(sojourns[["first_family"]], "selection")
+  expect_identical(sojourns[["draws"]], 150L)
+  expect_identical(sojourns[["initial_run"]], 150L)
+  expect_true(sojourns[["initial_censored"]])
+  expect_identical(c(sojourns[["leave_selection_crossings"]], sojourns[["leave_gaussian_crossings"]]), c(0L, 0L))
+  expect_identical(c(sojourns[["longest_selection_run"]], sojourns[["longest_gaussian_run"]]), c(150L, 0L))
+})
+
+
+test_that("the bias label's family record agrees with the moves of the label update and the swap", {
+
+  skip_if_not_installed("rjags")
+  # A fixture whose label mixes between the families. The family changes that
+  # L0 makes (and the stage-1 passes of L2) are Bernoulli draws with the
+  # recorded probabilities given the past, so count minus probability sum is a
+  # martingale with variance sum p (1 - p) <= sum p: |count - sum| < 4
+  # sqrt(sum) fails with probability below 1e-4 for sums of this size
+  RoBMA:::.location_bias_evidence_read()
+  chain <- .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 4000L, burnin = 200L,
+                                adapt = 200L)
+  record <- as.list(RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ])
+  for (family in c("selection", "gaussian")) {
+    column <- function(name) record[[paste0("leave_", family, "_label_", name)]]
+    expect_gt(column("probability_sum"), 25, label = family)
+    expect_lt(abs(column("crossings") - column("probability_sum")), 4 * sqrt(column("probability_sum")),
+              label = paste(family, "label crossings"))
+    expect_lt(column("log_ratio_max"), Inf, label = family)
+  }
+  expect_identical(record[["leave_selection_label_updates"]] + record[["leave_gaussian_label_updates"]],
+                   record[["label_proposed"]])
+  passes <- record[["leave_selection_pass_probability_sum"]] + record[["leave_gaussian_pass_probability_sum"]]
+  expect_gt(passes, 25)
+  expect_lt(abs(record[["swap_stage1"]] - passes), 4 * sqrt(passes))
+  expect_lte(record[["leave_selection_pass_probability_sum"]], record[["leave_selection_attempts"]])
+  expect_lte(record[["leave_gaussian_pass_probability_sum"]], record[["leave_gaussian_attempts"]])
+})
+
+
+test_that("the bias label's sojourns match a direct count of the family runs", {
+
+  # an independent count over the draws, one at a time
+  reference <- function(selection) {
+    n <- length(selection)
+    runs <- list(selection = 0L, gaussian = 0L)
+    crossings <- c(selection = 0L, gaussian = 0L)
+    current <- 1L
+    initial <- NA_integer_
+    for (i in seq_len(n)) {
+      if (i < n && selection[i + 1L] == selection[i]) {
+        current <- current + 1L
+        next
+      }
+      family <- if (selection[i]) "selection" else "gaussian"
+      if (is.na(initial)) initial <- current
+      runs[[family]] <- max(runs[[family]], current)
+      if (i < n) crossings[[family]] <- crossings[[family]] + 1L
+      current <- 1L
+    }
+    list(first_family = if (selection[1L]) "selection" else "gaussian", initial_run = initial,
+         initial_censored = initial == n, leave_selection_crossings = crossings[["selection"]],
+         leave_gaussian_crossings = crossings[["gaussian"]], longest_selection_run = runs[["selection"]],
+         longest_gaussian_run = runs[["gaussian"]])
+  }
+  # labels 1 none, 2-3 step selection, 4 PET, 5 PEESE
+  codes <- c(0, 1, 1, 2, 3)
+  set.seed(7L)
+  sequences <- list(c(4, 4, 1, 2, 3, 2, 5, 1, 1, 3, 3, 3, 4), rep(2L, 9L), rep(5L, 6L), 3L, c(1, 2),
+                    sample(1:5, 500L, replace = TRUE, prob = c(.1, .4, .4, .05, .05)))
+  for (labels in sequences) {
+    summary <- RoBMA:::.sampler_bias_sojourns(codes[labels] == 1)
+    expected <- reference(codes[labels] == 1)
+    expect_identical(summary[["draws"]], length(labels))
+    for (name in names(expected)) {
+      expect_identical(summary[[name]], expected[[name]], label = paste(name, paste(head(labels, 6L), collapse = " ")))
+    }
+  }
+
+  # the record maps labels to families by the bias declaration's codes, per chain
+  fit <- list(data = list(RoBMA_location_bias_codes = codes),
+              mcmc = list(cbind(mu = 0, bias_indicator = sequences[[1L]]), cbind(mu = 0, bias_indicator = 2)))
+  declarations <- list(joint = list(markers = list(list(tag = "robma_location_bias"))))
+  record <- RoBMA:::.sampler_bias_sojourn_record(fit, declarations, "bias_indicator")
+  expect_identical(record[["chain"]], 1:2)
+  expect_identical(record[["first_family"]], c("gaussian", "selection"))
+  expect_identical(record[["initial_run"]], c(3L, 1L))
+  expect_identical(record[["leave_gaussian_crossings"]], c(2L, 0L))
+  expect_identical(record[["initial_censored"]], c(FALSE, TRUE))
+  expect_null(RoBMA:::.sampler_bias_sojourn_record(fit, declarations, "other_indicator"))
+  expect_null(RoBMA:::.sampler_bias_sojourn_record(fit, list(joint = list(markers = list())), "bias_indicator"))
 })
 
 

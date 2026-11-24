@@ -4106,9 +4106,15 @@ std::vector<char const *> const &location_bias_evidence_names()
     "chain", "label_proposed", "label_accepted", "family_proposed", "family_accepted", "slope_proposed",
     "slope_accepted", "swap_proposed", "swap_stage1", "swap_accepted",
     "leave_selection_attempts", "leave_selection_log_ratio_sum", "leave_selection_log_ratio_max",
+    "leave_selection_pass_probability_sum",
     "leave_gaussian_attempts", "leave_gaussian_log_ratio_sum", "leave_gaussian_log_ratio_max",
+    "leave_gaussian_pass_probability_sum",
     "kept_leave_selection", "kept_leave_selection_log_ratio_sum", "kept_leave_selection_log_ratio_max",
-    "kept_leave_gaussian", "kept_leave_gaussian_log_ratio_sum", "kept_leave_gaussian_log_ratio_max"};
+    "kept_leave_gaussian", "kept_leave_gaussian_log_ratio_sum", "kept_leave_gaussian_log_ratio_max",
+    "leave_selection_label_updates", "leave_selection_label_probability_sum", "leave_selection_label_crossings",
+    "leave_selection_label_log_ratio_max",
+    "leave_gaussian_label_updates", "leave_gaussian_label_probability_sum", "leave_gaussian_label_crossings",
+    "leave_gaussian_label_log_ratio_max"};
   return names;
 }
 
@@ -4127,8 +4133,11 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
       if (i == 3) out.push_back(e.stage1[i]);
       out.push_back(e.accepted[i]);
     }
-    for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.attempts[d], e.attempt_sum[d], e.attempt_max[d]});
+    for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.attempts[d], e.attempt_sum[d], e.attempt_max[d], e.pass_sum[d]});
     for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.kept[d], e.kept_sum[d], e.kept_max[d]});
+    for (int d = 0; d < 2; ++d) {
+      out.insert(out.end(), {e.label_updates[d], e.label_cross_sum[d], e.label_crossings[d], e.label_log_ratio_max[d]});
+    }
     for (std::size_t l = 0; l < e.label_sweeps.size(); ++l) {
       labels->insert(labels->end(), {chain, static_cast<double>(l + 1), e.label_sweeps[l]});
     }

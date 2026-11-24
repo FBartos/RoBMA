@@ -795,12 +795,25 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   mutants remove terms from the ratio only); the trace switch records every
   L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
   `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
-  L2, and for L2 by direction the count, sum and maximum of the stage-1 log
-  ratio of all attempts and of the swaps the exact correction kept) and
-  `evidence$bias_labels` (sweeps ending in each label): a family that is
-  never left although swaps out of it pass stage 1 points to a stuck chain,
-  while very negative ratios throughout are consistent with, but do not
-  prove, decisive evidence. Exactness fixtures (labels none, selection, PET,
+  L2; by source family, `leave_selection_*` and `leave_gaussian_*`, for L2
+  the count, sum and maximum of the stage-1 log ratio and the sum of
+  `min(1, exp(stage 1))` of all attempts and the count, sum and maximum of
+  the stage-1 log ratio of the swaps the exact correction kept, and for L0,
+  from the label scores it computes and without another likelihood
+  evaluation, its updates, the sum of their probabilities of moving to the
+  other family on the inner target (Liu: `p_j / max(1 - p_i, 1 - p_j)`), the
+  moves it made there and the maximum of `log P(other family) - log P(own
+  family)`), `evidence$bias_labels` (sweeps ending in each label) and
+  `evidence$bias_sojourns` (per chain, from all retained draws of a
+  monitored indicator: the first draw's family, the initial run's length and
+  whether it is censored, the crossings in each direction and the longest
+  run in each family). These records are descriptive (no status, warning or
+  default depends on them): a family that is never left although swaps out
+  of it pass stage 1 points to a stuck chain; very negative ratios and
+  near-zero L0 probability sums throughout are consistent with, but do not
+  prove, decisive evidence; the sums are conditional on each chain's state,
+  so a censored initial run in some chains only, while others visit the
+  other family, points to chains that do not mix. Exactness fixtures (labels none, selection, PET,
   PEESE; nested; a second selection label) in
   `test-00-location-block-exactness.R`; frozen-state identities and the
   sweep's discrete-chain check in `test-00-location-bias-native.R`.

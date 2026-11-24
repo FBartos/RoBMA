@@ -143,9 +143,23 @@
 # the mean and maximum full-conditional probability of leaving the current
 # level; for a bias label owned by the location block (`bias`, per chain) the
 # proposals and acceptances of its label update, Gaussian-family move, slope
-# update and cross-family swap, and per swap direction the count, sum and
-# maximum of the stage-1 log ratio of every attempt and of the swaps the exact
-# correction kept, with the sweeps ending in each label (`bias_labels`).
+# update and cross-family swap, and per source family (`leave_selection_*`,
+# `leave_gaussian_*`) for the swap the count, sum and maximum of the stage-1
+# log ratio and the sum of the stage-1 pass probabilities min(1, exp(.)) of
+# every attempt and the count, sum and maximum of the stage-1 log ratio of the
+# swaps the exact correction kept, and for the label update, from the label
+# scores it computes, its updates, the sum of their probabilities of moving to
+# a label of the other family on its inner target, the moves it made there
+# and the maximum of log P(other family) - log P(own family) of its surrogate
+# full conditional (`*_label_*`); with the sweeps ending in each label
+# (`bias_labels`) and, when the indicator is monitored, per chain from all
+# retained draws of the fit its runs in the two families (`bias_sojourns`:
+# the family of the first draw, the length of the initial run in it and
+# whether it is censored, the crossings in each direction and the longest run
+# in each family). The records describe; they do not classify. The
+# probability sums are conditional on each chain's state: near-zero sums with
+# a censored initial run in every chain are consistent with decisive data, in
+# some chains only with chains that do not mix.
 # Counts and sums are added and maxima taken over runs and processes;
 # NULL without any record. The native screened record numbers its samplers in
 # creation order, which is the order of their nodes in the sampler table; a
@@ -233,7 +247,8 @@
     out
   }
   bias <- combine(bias, c("leave_selection_log_ratio_max", "leave_gaussian_log_ratio_max",
-                          "kept_leave_selection_log_ratio_max", "kept_leave_gaussian_log_ratio_max"))
+                          "kept_leave_selection_log_ratio_max", "kept_leave_gaussian_log_ratio_max",
+                          "leave_selection_label_log_ratio_max", "leave_gaussian_label_log_ratio_max"))
   if (!is.null(bias)) {
     for (column in grep("_max$", names(bias), value = TRUE)) bias[[column]][!is.finite(bias[[column]])] <- NA_real_
   }
@@ -252,10 +267,59 @@
     screened[["leave_mean"]] <- screened[["leave_sum"]] / screened[["updates"]]
     screened <- screened[, c("node", "chain", "levels", "updates", "changes", "leave_mean", "leave_max")]
   }
-  if (is.null(location) && is.null(screened) && is.null(bias)) return(NULL)
+  sojourns <- .sampler_bias_sojourn_record(fit, declarations, indicator)
+  if (is.null(location) && is.null(screened) && is.null(bias) && is.null(sojourns)) return(NULL)
   out <- list(location = location, screened = screened)
   if (!is.null(bias)) out[c("bias", "bias_labels")] <- list(bias, bias_labels)
+  if (!is.null(sojourns)) out[["bias_sojourns"]] <- sojourns
   return(out)
+}
+
+
+# The sojourns of the location block's bias label in its families (step
+# selection against the Gaussian labels none, PET and PEESE, from the codes of
+# the block's bias declaration), per chain from all retained draws of the
+# indicator in the fit; NULL without the declaration or when the indicator is
+# not monitored.
+.sampler_bias_sojourn_record <- function(fit, declarations, indicator) {
+
+  declared <- any(vapply(declarations[["joint"]][["markers"]], function(marker) {
+    identical(marker[["tag"]], "robma_location_bias")
+  }, logical(1L)))
+  codes <- fit[["data"]][["RoBMA_location_bias_codes"]]
+  if (!declared || is.null(codes)) return(NULL)
+  chains <- fit[["mcmc"]]
+  if (length(chains) == 0L || !indicator %in% colnames(chains[[1L]]) ||
+      any(vapply(chains, NROW, integer(1L)) == 0L)) return(NULL)
+  rows <- lapply(seq_along(chains), function(chain) {
+    labels <- as.integer(round(as.numeric(chains[[chain]][, indicator])))
+    data.frame(node = indicator, chain = chain, .sampler_bias_sojourns(codes[labels] == 1), stringsAsFactors = FALSE)
+  })
+  do.call(rbind, rows)
+}
+
+# The family runs of one chain's label sequence (`selection` TRUE in a step
+# selection label): its draws, the family of the first draw, the length of the
+# initial run in it and whether that run is censored (the chain never left),
+# the crossings in each direction and the longest run in each family (0 when
+# never visited).
+.sampler_bias_sojourns <- function(selection) {
+
+  runs   <- rle(selection)
+  family <- ifelse(runs[["values"]], "selection", "gaussian")
+  longest <- function(value) if (any(runs[["values"]] == value)) max(runs[["lengths"]][runs[["values"]] == value]) else 0L
+  left <- utils::head(runs[["values"]], -1L)
+  data.frame(
+    draws                     = length(selection),
+    first_family              = family[1L],
+    initial_run               = runs[["lengths"]][1L],
+    initial_censored          = length(runs[["lengths"]]) == 1L,
+    leave_selection_crossings = sum(left),
+    leave_gaussian_crossings  = sum(!left),
+    longest_selection_run     = longest(TRUE),
+    longest_gaussian_run      = longest(FALSE),
+    stringsAsFactors          = FALSE
+  )
 }
 
 
