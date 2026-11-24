@@ -61,7 +61,9 @@ test_that("the closed-form tilt of a step-selection row has the derivatives of i
     first  <- function(k) (f[2 * k] - f[2 * k - 1]) / (2 * h / k)
     second <- function(k) (f[2 * k] - 2 * f[5] + f[2 * k - 1]) / (h / k)^2
     c(value = out$value, exact = f[5], first = out$first, first_fd = (4 * first(2) - first(1)) / 3,
-      second = out$second, second_fd = (4 * second(2) - second(1)) / 3, ok = out$ok)
+      second = out$second, second_fd = (4 * second(2) - second(1)) / 3, ok = out$ok,
+      # the block's direct row density is the distribution's, bit for bit
+      direct = identical(out$direct, out$exact))
   }
   two_sided <- list(omega = c(1, .4), lower = c(1.96, -1e300), upper = c(1e300, 1.96))
   three_bins <- list(omega = c(1, .5, .1), lower = c(1.96, 0, -1e300), upper = c(1e300, 1.96, 0))
@@ -82,6 +84,7 @@ test_that("the closed-form tilt of a step-selection row has the derivatives of i
     r <- rows[[name]]
     result <- probe(r$y, r$mean, r$row, r$omega, r$lower, r$upper, h = .005)
     expect_true(result[["ok"]] == 1, info = name)
+    expect_true(result[["direct"]] == 1, info = name)
     expect_true(all(is.finite(result)), info = name)
     expect_lte(abs(result[["value"]] - result[["exact"]]), 1e-10 * max(1, abs(result[["exact"]])), label = name)
     expect_lte(abs(result[["first"]] - result[["first_fd"]]), 1e-6 * max(1, abs(result[["first_fd"]])), label = name)

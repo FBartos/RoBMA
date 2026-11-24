@@ -749,21 +749,25 @@ extern "C" SEXP RoBMA_step_row_derivative_probe(SEXP y, SEXP mean, SEXP row, SEX
   const double second = power * (-1.0 / (sd * sd) - d2);
   const R_xlen_t n = XLENGTH(means);
   SEXP exact = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP direct = PROTECT(Rf_allocVector(REALSXP, n));
   for (R_xlen_t i = 0; i < n; ++i) {
     mean_value = REAL(means)[i];
     REAL(exact)[i] = distribution.logDensity(&observation, jags::PDF_LIKELIHOOD, par, len);
+    // the location block's direct evaluation of the same density (B1)
+    REAL(direct)[i] = jags::RoBMA::step_row_log_density(law, power, bin, 1, r[5] == 1, observation, mean_value);
   }
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 6));
   SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(ok));
   SET_VECTOR_ELT(out, 1, Rf_ScalarReal(value));
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal(first));
   SET_VECTOR_ELT(out, 3, Rf_ScalarReal(second));
   SET_VECTOR_ELT(out, 4, exact);
-  const char *names[] = {"ok", "value", "first", "second", "exact"};
-  for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  SET_VECTOR_ELT(out, 5, direct);
+  const char *names[] = {"ok", "value", "first", "second", "exact", "direct"};
+  for (int i = 0; i < 6; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   Rf_setAttrib(out, R_NamesSymbol, labels);
-  UNPROTECT(3);
+  UNPROTECT(4);
   return out;
   ROBMA_NATIVE_END
 }

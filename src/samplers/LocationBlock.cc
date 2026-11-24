@@ -839,6 +839,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   std::vector<StepChild> _step;
   Vec _bounds;
   std::vector<int> _tilt_position; // scratch of make_tilt, -1 outside it
+  Vec _dc_scratch, _dz_scratch;    // scratch of prepare_shift
 
   Shared const &s() const { return *_s; }
 
@@ -852,13 +853,23 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   }
 
   // The child's own exact density at the given mean (PDF_LIKELIHOOD).
-  double exact_with_mean(ChildSpec const &c, double const *mean)
+  double exact_with_mean(unsigned child, double const *mean)
   {
+    ChildSpec const &c = s().children[child];
+    count(counters().exact_evaluations);
+    count(counters().evaluations[_category]);
+    if (c.type == ChildType::step_switch) {
+      // the row's density with its parameters read once per update (B1); of
+      // the distribution's parameter check only the mean's finiteness depends
+      // on the mean
+      StepChild const &st = _step[child];
+      if (!st.valid || !std::isfinite(mean[0])) return negative_infinity;
+      return step_row_log_density(step_law(child), st.power, st.bin, st.mode, st.telescope != 0,
+                                  c.node->value(_chain)[0], mean[0]);
+    }
     read_params(c);
     _params[0] = mean;
     auto const *dist = static_cast<VectorDist const *>(c.node->distribution());
-    count(counters().exact_evaluations);
-    count(counters().evaluations[_category]);
     if (c.type == ChildType::normal) {
       const double tau = *_params[1];
       const double x = c.node->value(_chain)[0];
@@ -931,7 +942,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   double selected_value(unsigned child, double const *mean)
   {
     const double v = (_surrogate_mode && _surrogates[child]) ? surrogate_with_mean(child, mean) :
-      exact_with_mean(s().children[child], mean);
+      exact_with_mean(child, mean);
     if (std::isnan(v) || v == std::numeric_limits<double>::infinity()) {
       throwNodeError(s().children[child].node,
         "Location block sampler: the log density of this likelihood node is not defined at a proposal");
@@ -1213,9 +1224,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     for (unsigned lat = 0; lat < S; ++lat) {
       std::vector<unsigned> const &kids = sh.latent_children[lat];
-      // a = d' W d, u = d' W X, rho = d' W r0
-      std::vector<std::pair<Vec, Vec>> wxs;
-      std::vector<Vec> wds, wr0s;
+      // a = d' W d, u = d' W X, rho = d' W r0 (the children's products are
+      // recomputed in the second pass rather than stored per child)
       long double a = 0, rho = 0;
       std::vector<long double> u(p, 0.0L);
       for (unsigned c : kids) {
@@ -1227,9 +1237,6 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
           rho += static_cast<long double>(Wd[i]) * r0[row];
           for (unsigned k = 0; k < p; ++k) u[k] += static_cast<long double>(Wd[i]) * sh.X[row * p + k];
         }
-        wxs.emplace_back(WX, Vec());
-        wds.push_back(Wd);
-        wr0s.push_back(Wr0);
       }
       _a[lat] = static_cast<double>(a);
       _lambda[lat] = 1.0 + _a[lat];
@@ -1243,9 +1250,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       }
       for (std::size_t q = 0; q < kids.size(); ++q) {
         ChildSpec const &child = sh.children[kids[q]];
-        Vec const &wx = wxs[q].first;
-        Vec const &wd = wds[q];
-        Vec const &wr0 = wr0s[q];
+        child_products(child, WX, Wd, Wr0);
+        Vec const &wx = WX;
+        Vec const &wd = Wd;
+        Vec const &wr0 = Wr0;
         for (unsigned i = 0; i < child.n; ++i) {
           const unsigned row = child.row0 + i;
           const double di = _d[row];
@@ -1426,7 +1434,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     ++_stamp_id;
     sh.children.clear();
     sh.offset.clear();
-    std::vector<double> dc(p, 0.0);
+    Vec &dc = _dc_scratch;
+    dc.assign(p, 0.0);
     for (std::size_t i = 0; i < sh.coords.size(); ++i) {
       if (sh.dcoef[i] == 0.0) continue;
       dc[sh.coords[i]] += sh.dcoef[i];
@@ -1437,7 +1446,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         }
       }
     }
-    std::vector<double> dz(S.latents.size(), 0.0);
+    Vec &dz = _dz_scratch;
+    dz.assign(S.latents.size(), 0.0);
     for (std::size_t i = 0; i < sh.lats.size(); ++i) {
       if (sh.dlat[i] == 0.0) continue;
       dz[sh.lats[i]] += sh.dlat[i];
@@ -1448,7 +1458,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         }
       }
     }
-    std::sort(sh.children.begin(), sh.children.end());
+    // the children in the order they are first reached (a function of the
+    // shift's coordinates and latents)
     std::size_t total = 0;
     for (unsigned c : sh.children) {
       sh.offset.push_back(static_cast<unsigned>(total));
@@ -1845,13 +1856,14 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     Vec V;                         // rows x moving coordinates
   };
 
-  void make_tilt(Line const &L, Tilt &tilt)
+  void make_tilt(Line const &L, Tilt &tilt, std::vector<Shift> const *given = nullptr)
   {
     Shared const &S = s();
     tilt = Tilt();
     tilt.nm = L.moving.size();
-    std::vector<Shift> basis;
-    line_basis(L, basis);
+    std::vector<Shift> computed;
+    if (given == nullptr) line_basis(L, computed);
+    std::vector<Shift> const &basis = given != nullptr ? *given : computed;
     bool ok = true;
     for (std::size_t m = 0; m < tilt.nm && ok; ++m) {
       Shift const &b = basis[m];
@@ -2175,36 +2187,57 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   {
     Shared const &S = s();
     const std::size_t nm = basis.size();
-    std::map<unsigned, Vec> deltas;  // child -> rows x moving coordinates
+    // the selection children's rows x moving coordinates (the positions in
+    // _tilt_position are reset before returning)
+    std::vector<unsigned> kids;
+    std::vector<std::size_t> offset;
+    Vec deltas;
     for (std::size_t m = 0; m < nm; ++m) {
       Shift const &b = basis[m];
       for (std::size_t q = 0; q < b.children.size(); ++q) {
         const unsigned c = b.children[q];
         if (gaussian_child(c)) continue;
-        Vec &rows = deltas[c];
-        if (rows.empty()) rows.assign(S.children[c].n * nm, 0.0);
+        int &position = _tilt_position[c];
+        if (position < 0) {
+          position = static_cast<int>(kids.size());
+          kids.push_back(c);
+          offset.push_back(deltas.size());
+          deltas.resize(deltas.size() + S.children[c].n * nm, 0.0);
+        }
+        double *rows = &deltas[offset[static_cast<std::size_t>(position)]];
         for (unsigned i = 0; i < S.children[c].n; ++i) rows[i * nm + m] = b.delta[b.offset[q] + i];
       }
     }
+    for (unsigned c : kids) _tilt_position[c] = -1;
     long double total = 0;
     grad.assign(d, 0.0);
     hess.assign(d * d, 0.0);
     RowModel row;
-    for (auto const &entry : deltas) {
-      ChildSpec const &c = S.children[entry.first];
-      Vec const &rows = entry.second;
+    for (std::size_t k = 0; k < kids.size(); ++k) {
+      ChildSpec const &c = S.children[kids[k]];
+      double const *rows = &deltas[offset[k]];
       for (unsigned i = 0; i < c.n; ++i) {
-        if (!row_model(c, i, row) || row.bin == 0) continue;
         long double mu = _mean[c.row0 + i];
         for (std::size_t m = 0; m < nm; ++m) mu += static_cast<long double>(db[m]) * rows[i * nm + m];
-        double log_a, d1, d2;
-        if (!row_log_normalizer(static_cast<double>(mu), row.sd, row.se, row.sign, row.omega,
-                                row.lower.data(), row.upper.data(), row.bins, &log_a, &d1, &d2)) return false;
-        total -= static_cast<long double>(row.power) * log_a;
-        for (std::size_t k = 0; k < d; ++k) {
-          const double ak = rows[i * nm + first + k];
-          grad[k] -= row.power * d1 * ak;
-          for (std::size_t l = 0; l < d; ++l) hess[k * d + l] -= row.power * d2 * ak * rows[i * nm + first + l];
+        double log_a, d1, d2, power;
+        if (c.type == ChildType::step_switch && _step[kids[k]].valid) {
+          // a step-switch row's own normalizer, its parameters read once per update
+          StepChild const &st = _step[kids[k]];
+          if (st.bin == 0) continue;
+          power = st.power;
+          if (!step_row_log_normalizer(step_law(kids[k]), static_cast<double>(mu), &log_a, &d1, &d2)) return false;
+        } else {
+          if (!row_model(c, i, row) || row.bin == 0) continue;
+          power = row.power;
+          if (!row_log_normalizer(static_cast<double>(mu), row.sd, row.se, row.sign, row.omega,
+                                  row.lower.data(), row.upper.data(), row.bins, &log_a, &d1, &d2)) return false;
+        }
+        total -= static_cast<long double>(power) * log_a;
+        for (std::size_t a = 0; a < d; ++a) {
+          const double ak = rows[i * nm + first + a];
+          if (ak == 0.0) continue;
+          grad[a] -= power * d1 * ak;
+          for (std::size_t l = 0; l < d; ++l) hess[a * d + l] -= power * d2 * ak * rows[i * nm + first + l];
         }
       }
     }
@@ -2257,6 +2290,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     double log_screen = 0;       // clamped log C0
     bool fitted = false;
     Fit fit;
+    bool have_basis = false;     // the unit shifts of the line, shared by the screen and the fit
+    std::vector<Shift> basis;
     double log_odds = 0;         // Laplace log odds (prior odds included)
   };
   GroupLine _line;
@@ -2278,11 +2313,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   void group_screen()
   {
     if (_line.screened) return;
-    std::vector<Shift> basis;
-    line_basis(_line.L, basis);
+    if (!_line.have_basis) line_basis(_line.L, _line.basis);
+    _line.have_basis = true;
     Vec target(_line.L.m), zero(_line.L.m.size(), 0.0);
     _line.log_screen = clamp_screen(_line.log_odds_gauss + screen_tilt(
-      basis, _line.L, 0, target, zero, _line.L.m, _line.L.P, _line.L.Pchol, _line.L.log_det_P));
+      _line.basis, _line.L, 0, target, zero, _line.L.m, _line.L.P, _line.L.Pchol, _line.L.log_det_P));
     _line.screened = true;
   }
 
@@ -2293,7 +2328,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     Line const &L = _line.L;
     Vec target(L.m);
     Tilt tilt;
-    make_tilt(L, tilt);
+    if (!_line.have_basis) line_basis(L, _line.basis);
+    _line.have_basis = true;
+    make_tilt(L, tilt, &_line.basis);
     _line.fit = newton(tilt, L, 0, target, L.m, L.P, L.Pchol, L.log_det_P);
     // ell at the physical zero of the group (the off state)
     Vec zero(L.m.size(), 0.0);
@@ -2443,7 +2480,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     count(counters().stage0[swap]);
     const Category previous = enter(cat_fit);
     Tilt tilt;
-    make_tilt(L, tilt);
+    make_tilt(L, tilt, &basis);
     const Fit fa = newton(tilt, L, 0, target_a, cj, Cjp, Cj, lcj);
     const Fit fb = newton(tilt, L, dj, target_b, ck, Ckp, Ck, lck);
     const double ell_zero = fit_ell(tilt, L, 0, zero_j, zeros);
@@ -3033,6 +3070,23 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     enter(cat_move);
   }
 
+  // The graph's own log density of a child (PDF_LIKELIHOOD) at the graph's
+  // current mean: a step-switch row through the distribution's evaluations
+  // with its parameters read once per update (the same function and inputs as
+  // its logDensity, B1), every other child through JAGS.
+  double graph_density(unsigned c)
+  {
+    ChildSpec const &child = s().children[c];
+    if (child.type == ChildType::step_switch && _step[c].valid) {
+      StepChild const &st = _step[c];
+      const double mean = child.node->parents()[0]->value(_chain)[0];
+      if (!std::isfinite(mean)) return negative_infinity;
+      return step_row_log_density(step_law(c), st.power, st.bin, st.mode, st.telescope != 0,
+                                  child.node->value(_chain)[0], mean);
+    }
+    return child.node->logDensity(_chain, PDF_LIKELIHOOD);
+  }
+
   // The exact correction: accept the sweep with [pi(new) / pi~(new)] /
   // [pi(old) / pi~(old)] over the changed members and the children whose
   // means changed, the exact terms from the graph's own densities.
@@ -3071,7 +3125,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     long double old_exact = 0, new_exact = 0, old_endpoint = 0, new_endpoint = 0;
     for (unsigned m : changed_members) old_exact += members[m]->logDensity(_chain, PDF_PRIOR);
     for (unsigned c : kids) {
-      const double v = S.children[c].node->logDensity(_chain, PDF_LIKELIHOOD);
+      const double v = graph_density(c);
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
       old_exact += v;
@@ -3089,7 +3143,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     for (unsigned m : changed_members) new_exact += members[m]->logDensity(_chain, PDF_PRIOR);
     for (unsigned c : kids) {
-      const double v = S.children[c].node->logDensity(_chain, PDF_LIKELIHOOD);
+      const double v = graph_density(c);
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
       new_exact += v;

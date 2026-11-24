@@ -41,6 +41,7 @@
   if (any(gates %in% sub("\\[1\\]$", "", probabilities))) return(NULL)
 
   latents <- .sampler_location_latents(design)
+  if (length(latents) == 0L) latents <- .sampler_location_cluster_latents(prior_list)
   anchors <- vapply(groups, function(group) {
     if (is.null(group[["gate"]])) group[["slab"]] else group[["gate"]]
   }, character(1))
@@ -119,6 +120,19 @@
   if (!identical(term[["parameterization_resolved"]], "noncentered") || !isTRUE(term[["n_columns"]] == 1L) ||
       !isTRUE(term[["n_groups"]] >= 1L) || !is.character(term[["parameter_stem"]])) return(character())
   return(paste0(term[["parameter_stem"]], "_xRE_Zx[", seq_len(term[["n_groups"]]), ",1]"))
+}
+
+
+# The standardized cluster effects gamma[k] ~ N(0, 1) of a clustered RoBMA() or
+# BMA() fit (scaled by the between-cluster SD in each estimate's mean), one
+# latent per cluster; none when the fit has no sampled cluster effects. The
+# native factory verifies their laws and that each mean depends on one of them.
+.sampler_location_cluster_latents <- function(prior_list) {
+
+  if (is.null(prior_list[["gamma"]])) return(character())
+  sources <- BayesTools::JAGS_sampler_sources(prior_list, "gamma")
+  if (nrow(sources) == 0L || !all(sources[["status"]] == "eligible")) return(character())
+  return(sources[["node"]])
 }
 
 
