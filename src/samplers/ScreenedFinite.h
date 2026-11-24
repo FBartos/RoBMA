@@ -15,15 +15,19 @@
 // other level has mass), a move reversible for the surrogate law, and, when
 // k' != k, accepts it with probability
 //   min(1, exp((e_k' - s_k') - (e_k - s_k))),
-// e the same score with the exact densities, which keeps the update exact
-// whatever the surrogate as long as it is finite wherever the exact score is
-// (the surrogate falls back to the exact density where its rule is
-// unavailable). A self-proposal needs no exact evaluation. The plain
-// surrogate full-conditional draw (k' with probability proportional to
-// exp(s_l), the current level included: an independence proposal with the
+// e the same score with the exact densities. The update is exact for any
+// surrogate that is one function of the evaluated state (s_l depends on the
+// values of the graph with the node at l, never on the level the update
+// started from, so that both ends of a move see the same scores) and is finite
+// wherever the exact score is (the surrogate falls back to the exact density
+// where its rule is unavailable); the row cache (StepRowCache.h) computes each
+// row at the state it evaluates. A self-proposal needs no exact evaluation.
+// The plain surrogate full-conditional draw (k' with probability proportional
+// to exp(s_l), the current level included: an independence proposal with the
 // same correction) stays available through the test hook. Every score uses
-// the current values of all other nodes; nothing is kept across updates. The exact kernel enumerates the levels with the exact
-// scores, with the arithmetic and the one uniform draw of JAGS's base::Finite.
+// the current values of all other nodes. The exact kernel enumerates the
+// levels with the exact scores, with the arithmetic and the one uniform draw
+// of JAGS's base::Finite.
 // A sampler that owns an indicator jointly with other nodes can call the
 // kernel with a setter that writes the indicator and its descendants.
 //
@@ -55,7 +59,8 @@ public:
   // conditional, 1 the same without the exact correction (a test mutant that
   // is not exact).
   // row_cache: singleton step-selection children enter the surrogate scores
-  // through the row cache (StepRowCache.h), refreshed once per update.
+  // through the row cache (StepRowCache.h), which evaluates each row at the
+  // state of the level being scored.
   ScreenedFiniteKernel(StochasticNode *node, std::vector<StochasticNode *> const &children,
                        unsigned int chain, SelNormCoarseSettings const &settings, double lower,
                        unsigned int levels, int proposal, bool row_cache = false);
@@ -96,7 +101,7 @@ private:
   StepRowCache _rows;
 
   double prior_term() const;
-  double surrogate_score(bool *not_exact) const;
+  double surrogate_score(bool *not_exact);
   double exact_score() const;
 };
 

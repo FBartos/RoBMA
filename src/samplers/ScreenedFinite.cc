@@ -66,7 +66,7 @@ double ScreenedFiniteKernel::prior_term() const
 
 // The children's terms of one level (the node is set): the surrogate of each
 // coarse-capable child and the exact density of the others.
-double ScreenedFiniteKernel::surrogate_score(bool *not_exact) const
+double ScreenedFiniteKernel::surrogate_score(bool *not_exact)
 {
   double out = prior_term();
   for (std::size_t i = 0; i < _children.size(); ++i) {
@@ -96,7 +96,7 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
   if (current_index < 0 || current_index >= static_cast<long>(_levels)) {
     throwNodeError(_node, std::string(screened_label) + ": current value is outside the support");
   }
-  // the row cache of this update, at the entry level
+  // the row cache at the entry level (each level evaluates its rows at its own state)
   if (!_rows.empty()) _rows.refresh();
   // 1. the surrogate scores of every level with prior mass
   std::vector<double> score(_levels, negative_infinity);

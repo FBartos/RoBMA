@@ -462,7 +462,8 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
   const std::vector<double> u_start(u);
   const std::vector<double> totals_start(_totals);
   const double jacobian_old = log_jacobian(u);
-  // the row cache of this update, at the entry state
+  // the row cache at the entry state (the members reach the rows only through
+  // their weights, so the rows keep this state through the sweep)
   if (!_rows.empty()) _rows.refresh();
   // 1. both densities recomputed at block entry
   const double full_old = log_full("the current state") + jacobian_old;

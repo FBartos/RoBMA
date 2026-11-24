@@ -67,6 +67,65 @@ test_that("the row cache equals the rows' graph densities at frozen states of we
 })
 
 
+test_that("a level's screened score is one function of its state, whatever the entry level", {
+
+  skip_if_not_installed("rjags")
+  # the label fixture (PET, label 4, moves the rows' means): every level's
+  # surrogate score is the same, to the bit, from every entry level, for the
+  # cache and for a perturbed cache (a surrogate far from the exact density)
+  setup <- .rows_setup()
+  for (perturbation in c(0, .25)) {
+    scores <- .with_row_flags(list(perturbation = perturbation), lapply(1:5, function(b) {
+      .rows_build(setup, b = b, r = .35, eta = c(.7, 1.6, .4), pet = .6)
+      scores <- .weights_screened_scores()
+      scores[[length(scores)]]
+    }))
+    for (b in 2:5) {
+      label <- sprintf("perturbation %.2f, entry label %d", perturbation, b)
+      expect_identical(scores[[b]]$surrogate, scores[[1L]]$surrogate, label = paste(label, "surrogate"))
+      expect_identical(scores[[b]]$exact, scores[[1L]]$exact, label = paste(label, "exact"))
+    }
+  }
+
+  # the nested weight layout with a PET label (helper-step-row-cache.R)
+  nested <- .rows_nested_setup()
+  scores <- .with_row_flags(list(perturbation = .25), lapply(1:4, function(b) {
+    invisible(gc())
+    .rows_nested_model(nested, inits = list(b = b, a = .6, v = .4, u = .3, pet = .7))
+    scores <- .weights_screened_scores()
+    scores[[length(scores)]]
+  }))
+  for (b in 2:4) expect_identical(scores[[b]]$surrogate, scores[[1L]]$surrogate, label = paste("nested, entry", b))
+  # the perturbation makes the cache a different surrogate at the selection labels
+  expect_gt(max(abs(scores[[1L]]$surrogate - scores[[1L]]$exact)), 1)
+})
+
+
+test_that("a label whose interval masses the cache cannot resolve keeps its balance from both entry labels", {
+
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("BayesTools")
+  # the public fixture of a narrow central bin with weight 1e60: the cached
+  # interval mass of that bin rounds to zero, so the selection label's rows go
+  # to the node at every state; the two-state update then keeps the exact
+  # conditional probability of PET (about 1/2) from either entry label
+  fit <- .rows_narrow_bin_fit()
+  syntax <- paste(as.character(fit[["model"]]), collapse = "\n")
+  expect_lt(fit[["data"]][["sel_z_lower"]][[1L]], 1e-15)
+  from <- lapply(1:2, function(label) .rows_entry_scores(syntax, fit[["data"]], "bias_indicator", label))
+  expect_identical(from[[2L]]$surrogate, from[[1L]]$surrogate)
+  expect_identical(from[[2L]]$exact, from[[1L]]$exact)
+  exact <- from[[1L]]$exact
+  expect_lt(max(abs(from[[1L]]$surrogate - exact)), 1e-12)
+  target <- stats::plogis(exact[[2L]] - exact[[1L]])
+  expect_lt(abs(target - .5), 1e-6)
+  for (proposal in c("liu", "plain")) {
+    stationary <- .rows_two_state(from[[1L]]$surrogate, from[[2L]]$surrogate, exact, proposal)
+    expect_lt(abs(stationary - target), 1e-12, label = paste(proposal, "stationary probability of PET"))
+  }
+})
+
+
 test_that("the row cache's mutants differ from the rows' graph densities", {
 
   skip_if_not_installed("rjags")

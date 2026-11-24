@@ -3,8 +3,9 @@ source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 
 # The gated weight block, the screened indicator and the gamma-sum coordinates
-# leave the exact posterior invariant whatever their surrogate (the crude
-# schedule's three-node rule). The references integrate the package's exact
+# leave the exact posterior invariant for any surrogate that is one function
+# of the evaluated state (the crude schedule's three-node rule, the row cache
+# and its perturbations). The references integrate the package's exact
 # likelihood of the children (the distribution class the sampler evaluates)
 # over the weights and the allocation by fixed Gauss-Legendre rules
 # (helper-selection-corrected-weights.R).
@@ -120,6 +121,30 @@ test_that("the three-branch ensemble of step-selection rows is exact with a pert
                            "uncorrected indicator")
   .weights_expect_detected(.rows_weights_z(setup, reference, draws, list(drop_sum_jacobian = TRUE), perturbed),
                            "no Jacobian")
+})
+
+
+test_that("the nested weight layout with a PET label is exact with a perturbed cache and its mutant is not", {
+
+  skip_if_not_certification("The nested PET fixture (about 10 s) runs in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # helper-step-row-cache.R: PET moves the rows' means, so a selection label's
+  # surrogate must be one function of its state from every entry level
+  setup <- .rows_nested_setup()
+  reference <- .rows_nested_reference(setup)
+  expect_true(all(reference$estimate[c("I1", "I2", "I3", "I4")] > .2))
+  expect_true(all(reference$allowance < .01))
+  draws <- 60000L
+  perturbed <- list(perturbation = .25)
+  corrected <- .rows_nested_z(setup, reference, draws, row_flags = perturbed)
+  expect_identical(unname(attr(corrected, "samplers")[c("b", "a", "v", "u", "pet")]),
+                   c("RoBMA::ScreenedFinite", rep("RoBMA::GatedCorrectedBlock", 3L), "BayesTools::GatedSlice"))
+  .weights_expect_exact(corrected, "corrected, perturbed cache")
+  # the perturbed cache leaves the corrections work to do
+  kinds <- attr(corrected, "kinds")
+  expect_lt(kinds["finite", "accepted"] / kinds["finite", "proposed"], .9)
+  .weights_expect_detected(.rows_nested_z(setup, reference, draws, list(finite_proposal = 1), perturbed),
+                           "uncorrected indicator")
 })
 
 

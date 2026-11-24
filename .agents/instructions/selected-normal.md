@@ -665,18 +665,30 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `row_cache` argument; the declared-block sampler and the scalar corrected
   slice keep these rows as exact terms). In step mode with observed bin
   `o > 0` a row's density is `pw [log phi(sign y; sign m, sd) + log omega_o -
-  log A]`, `A = sum_b omega_b p_b`; while only the weights or only the label
-  move, `p_b`, both Gaussian terms (normal and step mode) and the fixed
-  parameters' checks are constants, so `refresh()` at the start of each
-  corrected update (and of the screened test scores) reads each row once and
-  caches them, and `value()` reads per row the kernel mode, the weights (their
+  log A]`, `A = sum_b omega_b p_b`; the fixed parameters' checks are made
+  once, both Gaussian terms (normal and step mode) are a function of the
+  row's observation, mean and SD and `p_b` of its mean and SD, so the cache
+  keeps them for the state it last saw and computes them again when an
+  evaluation finds another (the Gaussian terms at once, `p_b` at the first
+  step-mode evaluation that needs them; `refresh()` brings the rows to the
+  state at the start of each corrected update and of the screened test
+  scores), and `value()` reads per row the kernel mode, the weights (their
   validity once per weights vector) and the mean and SD, in the order of
-  `cpp_selnorm_kernel_lpdf`. A row goes to its node's own `logDensity` when a
-  parameter other than the mean, SD, weights and mode is not fixed or fails
-  the distribution's check, its SD or SE is infinite, no bin probability
-  exceeds 1e-280 (at the refresh), its mean or SD differs bitwise from the
-  refresh (PET and PEESE labels), or its cached `A` is not above 1e-280
-  (StepRowNormalizer's linear threshold; the log-scale rows). Telescoping
+  `cpp_selnorm_kernel_lpdf`. The corrections are exact for any surrogate that
+  is one function of the evaluated state, so every cached value and every
+  choice between the cache and the node depends on the evaluated state alone:
+  a screened level scores the same from every entry level (PET and PEESE
+  labels move the means), which the frozen-state test checks bitwise. A row
+  goes to its node's own `logDensity` when a parameter other than the mean,
+  SD, weights and mode is not fixed or fails the distribution's check, its SE
+  is infinite, at its mean and SD a Gaussian term or a bin probability is not
+  finite or no bin probability exceeds 1e-280, its cached `A` is not above
+  1e-280 (StepRowNormalizer's linear threshold; the log-scale rows), or the
+  linear interval masses cannot resolve `A`: the rounding bound `sum_b
+  omega_b e_b` (`e_b` from the tails the subtraction cancels and the rounding
+  of the standardized bounds) exceeds `1e-10 A` (a bin of large weight whose
+  probability is zero or lost its relative precision, such as a central bin
+  of width 2.8e-16 with weight 1e60). Telescoping
   changes only the exact normalizer's route. Evidence: a corrected proposal of
   a sampler with cached rows is evidence when `|log acceptance ratio| > 1e-9 *
   max(1, |exact log densities|)` (`step_row_cache_mismatch`) or its exact

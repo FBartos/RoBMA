@@ -105,6 +105,212 @@
 }
 
 
+# The public RoBMA() fixture of a narrow central bin: one estimate, fixed
+# effect and heterogeneity, a fixed weight function (1, 1e60, 1) on the
+# one-sided cut points 0.5 - eps / 2 and 0.5 (a central bin of width 2.8e-16
+# on the z scale) against a fixed PET slope, without joint samplers (the
+# screened indicator owns the bias label). The branch prior makes both labels
+# about equally probable. The linear interval mass of the central bin rounds
+# to zero, while the other bins keep the cached normalizer above the linear
+# threshold. Returns the backend fit (model syntax, data).
+.rows_narrow_bin_fit <- function() {
+
+  steps <- c(.5 - .Machine$double.eps / 2, .5)
+  cut   <- stats::qnorm(steps[1L], lower.tail = FALSE)
+  tau   <- sqrt(15)
+  y     <- cut / 2
+  pet   <- .2
+  fixed <- function(location) BayesTools::prior("point", list(location = location))
+  relative_mass <- stats::dnorm(y, y + pet, sqrt(1 + tau^2)) * cut
+  bias <- list(
+    BayesTools::prior_weightfunction("one-sided", steps, BayesTools::wf_fixed(c(1, 1e60, 1)),
+                                     prior_weights = relative_mass),
+    BayesTools::prior_PET("point", list(location = pet), prior_weights = 1))
+  previous <- RoBMA::RoBMA.options()[c("sampler.joint", "selection.sampler")]
+  on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
+  RoBMA::RoBMA.options(sampler.joint = "off", selection.sampler = "slice.coarse")
+  # the 1e60 weight disables probability telescoping (a warning of the
+  # fixture); RoBMA() is asked for the object only and .fit() draws, since the
+  # summary of the fixed parameters is not available
+  object <- suppressWarnings(RoBMA::RoBMA(
+    yi = y, sei = 1, measure = "SMD", effect_direction = "positive", prior_effect = fixed(y),
+    prior_effect_null = FALSE, prior_heterogeneity = fixed(tau), prior_heterogeneity_null = FALSE,
+    prior_bias = bias, prior_bias_null = FALSE, seed = 15L, sample = 100L, burnin = 50L, adapt = 50L,
+    chains = 1L, autofit = FALSE, silent = TRUE, only_priors = TRUE,
+    convergence_checks = RoBMA::set_convergence_checks(min_ESS = NULL, max_Rhat = NULL,
+                                                       allow_not_assessable = TRUE)))
+  suppressWarnings(.fit(object))
+}
+
+# The screened indicator's frozen scores of a model compiled at entry level
+# `entry` of node `node` (the scores of the most recent live sampler).
+.rows_entry_scores <- function(syntax, data, node, entry, inits = list()) {
+
+  invisible(gc())
+  inits[[node]] <- entry
+  hand <- .block_hand_model(syntax, data, inits = inits)
+  scores <- .weights_screened_scores()
+  scores[[length(scores)]]
+}
+
+# The stationary probability of level 2 of a two-level screened update whose
+# moves from level 1 use the surrogate scores `from1` and those from level 2
+# `from2` (each the scores of both levels), with exact scores `exact`: the
+# proposal's probability of the other level (Liu's step: the other level,
+# accepted with min(1, p_other / p_current); the plain draw: p_other) times
+# the exact correction. With one surrogate for both ends it is the exact
+# conditional probability for either proposal.
+.rows_two_state <- function(from1, from2, exact, proposal = c("liu", "plain")) {
+
+  proposal <- match.arg(proposal)
+  move <- function(scores, from, to) {
+    d <- scores[to] - scores[from]
+    first <- if (proposal == "liu") exp(min(d, 0)) else stats::plogis(d)
+    first * exp(min((exact[to] - scores[to]) - (exact[from] - scores[from]), 0))
+  }
+  up   <- move(from1, 1L, 2L)
+  down <- move(from2, 2L, 1L)
+  up / (up + down)
+}
+
+
+# The nested weight layout with a PET label on singleton step-selection rows
+# (the row cache): 16 rows at a fixed mean and SD = SE, four bins (z >= 2.326,
+# [1.96, 2.326), [0, 1.96), z < 0) and a label b over
+#   1  no selection (normal kernel);
+#   2  the coarse weight function (1, 1, a, a v), a ~ Beta(2, 1);
+#   3  the fine weight function (1, a + (1 - a) u, a, a v), a ~ Beta(2, 2);
+#   4  PET (normal kernel, the means move by pet se_i), pet ~ N+(0, 1);
+# with the label-dependent prior of the shared coordinate a (BayesTools'
+# nested layout), gates {a, v} open under labels 2 and 3, {u} under 3 and
+# {pet} under 4, sampled by the gated block, the screened indicator and the
+# gated slice sampler (pet). The prior balances the labels' posterior
+# probabilities (each about 1/4).
+.rows_nested_setup <- function() {
+
+  se <- rep(c(.35, .6, .9, 1.3), 4)
+  z  <- c(2.5, 2.1, 1.0, -.4, 2.4, 1.7, .3, -.9, 2.8, 2.0, .7, .1, 2.2, 1.2, .5, -.3)
+  setup <- list(se = se, z = z, y = z * se, mu = .1, sd = se, z_lower = c(2.326, 1.96, 0, -1e300),
+                z_upper = c(1e300, 2.326, 1.96, 0),
+                obs = ifelse(z >= 2.326, 1, ifelse(z >= 1.96, 2, ifelse(z >= 0, 3, 4))))
+  base <- .rows_nested_reference_at(setup, rep(.25, 4), 24L)
+  prior <- .25 / base[c("I1", "I2", "I3", "I4")]
+  setup$prior <- unname(prior / sum(prior))
+  setup
+}
+
+.rows_nested_model <- function(setup, inits = list(b = 1L, a = .5, v = .5, u = .5, pet = .2), ...) {
+
+  syntax <- paste0("model {\n",
+    "  b ~ dcat(prior[1:4])\n",
+    "  a ~ dbeta(1 + equals(b, 2) + equals(b, 3), 1 + equals(b, 3))\n",
+    "  v ~ dbeta(1, 1)\n  u ~ dbeta(1, 1)\n  pet ~ dnorm(0, 1)T(0,)\n",
+    "  gate_a ~ dbt_gate(a, equals(b, 2) + equals(b, 3))\n",
+    "  gate_v ~ dbt_gate(v, equals(b, 2) + equals(b, 3))\n",
+    "  gate_u ~ dbt_gate(u, equals(b, 3))\n",
+    "  gate_pet ~ dbt_gate(pet, equals(b, 4))\n",
+    "  omega[1] <- 1\n",
+    "  omega[2] <- equals(b, 1) + equals(b, 4) + equals(b, 2) + (a + (1 - a) * u) * equals(b, 3)\n",
+    "  omega[3] <- equals(b, 1) + equals(b, 4) + a * equals(b, 2) + a * equals(b, 3)\n",
+    "  omega[4] <- equals(b, 1) + equals(b, 4) + a * v * equals(b, 2) + a * v * equals(b, 3)\n",
+    "  mode <- equals(b, 2) + equals(b, 3)\n",
+    "  for (i in 1:N) {\n",
+    "    m[i] <- mu + pet * se[i] * equals(b, 4)\n",
+    "    y[i] ~ dselnorm_step_switch(m[i], sd[i], se[i], 1, omega[1:4], z_lower[1:4], z_upper[1:4], obs[i], 1, ",
+    "mode, 1)\n",
+    "  }\n}")
+  data <- list(y = setup$y, mu = setup$mu, sd = setup$sd, se = setup$se, obs = setup$obs, N = length(setup$y),
+               z_lower = setup$z_lower, z_upper = setup$z_upper, prior = setup$prior, gate_a = 0, gate_v = 0,
+               gate_u = 0, gate_pet = 0)
+  .block_hand_model(syntax, data, inits = inits, ...)
+}
+
+# The label probabilities and moments of the nested fixture at branch prior
+# `prior` by Gauss-Legendre rules of order n over a, v, u on (0, 1) and pet on
+# (0, 8), from the rows' likelihood written in R.
+.rows_nested_reference_at <- function(setup, prior, n) {
+
+  y <- setup$y
+  lower <- ifelse(setup$z_lower <= -1e299, -Inf, setup$z_lower)
+  upper <- ifelse(setup$z_upper >= 1e299, Inf, setup$z_upper)
+  bins <- t(vapply(seq_along(y), function(i) {
+    stats::pnorm((upper * setup$se[i] - setup$mu) / setup$sd[i]) -
+      stats::pnorm((lower * setup$se[i] - setup$mu) / setup$sd[i])
+  }, numeric(4L)))
+  gaussian <- sum(stats::dnorm(y, setup$mu, setup$sd, log = TRUE))
+  # the log likelihood of the step labels at weight matrices W (points x 4),
+  # relative to the normal kernel
+  step_log <- function(W) {
+    as.numeric(log(W[, setup$obs, drop = FALSE]) %*% rep(1, length(y))) - rowSums(log(W %*% t(bins)))
+  }
+  rule <- .weights_legendre(n)
+  Z <- numeric(4L)
+  m <- list()
+  Z[1L] <- prior[1L]
+  grid <- expand.grid(i = seq_len(n), j = seq_len(n))
+  a <- rule$nodes[grid$i]
+  v <- rule$nodes[grid$j]
+  w <- rule$weights[grid$i] * rule$weights[grid$j] * stats::dbeta(a, 2, 1) * exp(step_log(cbind(1, 1, a, a * v)))
+  Z[2L] <- prior[2L] * sum(w)
+  m$I2_a  <- prior[2L] * sum(w * a)
+  m$I2_v  <- prior[2L] * sum(w * v)
+  m$I2_a2 <- prior[2L] * sum(w * a^2)
+  grid <- expand.grid(i = seq_len(n), j = seq_len(n), k = seq_len(n))
+  a <- rule$nodes[grid$i]
+  v <- rule$nodes[grid$j]
+  u <- rule$nodes[grid$k]
+  w <- rule$weights[grid$i] * rule$weights[grid$j] * rule$weights[grid$k] * stats::dbeta(a, 2, 2) *
+    exp(step_log(cbind(1, a + (1 - a) * u, a, a * v)))
+  Z[3L] <- prior[3L] * sum(w)
+  m$I3_a  <- prior[3L] * sum(w * a)
+  m$I3_v  <- prior[3L] * sum(w * v)
+  m$I3_u  <- prior[3L] * sum(w * u)
+  m$I3_a2 <- prior[3L] * sum(w * a^2)
+  pet <- 8 * rule$nodes
+  like <- vapply(pet, function(slope) {
+    exp(sum(stats::dnorm(y, setup$mu + slope * setup$se, setup$sd, log = TRUE)) - gaussian)
+  }, numeric(1L))
+  w <- 8 * rule$weights * 2 * stats::dnorm(pet) * like
+  Z[4L] <- prior[4L] * sum(w)
+  m$I4_pet  <- prior[4L] * sum(w * pet)
+  m$I4_pet2 <- prior[4L] * sum(w * pet^2)
+  c(I1 = Z[1L], I2 = Z[2L], I3 = Z[3L], I4 = Z[4L], unlist(m)) / sum(Z)
+}
+
+# The reference of the fixture's prior (order 32) with the change from order
+# 16 as its allowance.
+.rows_nested_reference <- function(setup) {
+
+  fine   <- .rows_nested_reference_at(setup, setup$prior, 32L)
+  coarse <- .rows_nested_reference_at(setup, setup$prior, 16L)
+  list(estimate = fine, allowance = abs(fine - coarse))
+}
+
+.rows_nested_observables <- function(draws) {
+
+  b <- draws[, "b"]
+  I <- lapply(1:4, function(k) as.numeric(b == k))
+  cbind(I1 = I[[1L]], I2 = I[[2L]], I3 = I[[3L]], I4 = I[[4L]],
+        I2_a = I[[2L]] * draws[, "a"], I2_v = I[[2L]] * draws[, "v"], I2_a2 = I[[2L]] * draws[, "a"]^2,
+        I3_a = I[[3L]] * draws[, "a"], I3_v = I[[3L]] * draws[, "v"], I3_u = I[[3L]] * draws[, "u"],
+        I3_a2 = I[[3L]] * draws[, "a"]^2, I4_pet = I[[4L]] * draws[, "pet"], I4_pet2 = I[[4L]] * draws[, "pet"]^2)
+}
+
+# z-scores of a chain of the nested fixture against the reference.
+.rows_nested_z <- function(setup, reference, draws, flags = list(), row_flags = list()) {
+
+  .corrected_test_hook(clear = TRUE)
+  chain <- .with_row_flags(row_flags, .with_corrected_flags(flags, .block_chain(
+    .rows_nested_model(setup), c("b", "a", "v", "u", "pet"), draws, adapt = 500L, burnin = 500L)))
+  observables <- .rows_nested_observables(chain$draws)
+  comparison <- .weights_compare(observables, reference$estimate[colnames(observables)],
+                                 reference$allowance[colnames(observables)])
+  attr(comparison, "kinds") <- .corrected_test_hook(clear = TRUE)$kinds
+  attr(comparison, "samplers") <- chain$samplers
+  comparison
+}
+
+
 # The test hook of the row cache: flags of the samplers built from now on,
 # counters (cleared on request) and the frozen-state probe of the live blocks.
 .rows_test_hook <- function(flags = NULL, clear = FALSE, probe = FALSE) {
