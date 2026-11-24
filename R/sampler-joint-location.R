@@ -159,6 +159,14 @@
 }
 
 
+# The evidence record of the location gates in this process (one row per
+# declaration slot and chain, after adaptation), read and cleared in one call.
+.location_block_evidence_read <- function() {
+
+  .Call("RoBMA_location_block_evidence", TRUE, PACKAGE = "RoBMA")
+}
+
+
 # The counters of a fit's retained runs, summed over runs and processes (the
 # 'max_' entries are maxima), or NULL when no report covers them.
 .location_block_record <- function(values) {
@@ -186,7 +194,10 @@
   if (!selection && !location) return(NULL)
   callback <- function(context) {
     report <- if (selection) utils::getFromNamespace(".selection_sampler_report_read", "RoBMA")() else list()
-    if (location) report[["location"]] <- utils::getFromNamespace(".location_block_report_read", "RoBMA")()
+    if (location) {
+      report[["location"]] <- utils::getFromNamespace(".location_block_report_read", "RoBMA")()
+      report[["location_evidence"]] <- utils::getFromNamespace(".location_block_evidence_read", "RoBMA")()
+    }
     report
   }
   environment(callback) <- list2env(list(selection = selection, location = location), parent = baseenv())

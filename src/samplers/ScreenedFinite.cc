@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -109,6 +110,15 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
   // 2. the proposal from the surrogate probabilities
   std::vector<double> mass(_levels, 0.0);
   for (unsigned int l = 0; l < _levels; ++l) mass[l] = std::exp(score[l] - maximum);
+  {
+    // the evidence record: the surrogate probability of leaving level k
+    long double total = 0, others = 0;
+    for (unsigned int l = 0; l < _levels; ++l) {
+      total += mass[l];
+      if (l != k) others += mass[l];
+    }
+    outcome.leave = total > 0 ? static_cast<double>(others / total) : 0.0;
+  }
   unsigned int proposed = k;
   if (_proposal == 2) {
     // Liu's Metropolized Gibbs: a level other than k with probability
@@ -196,8 +206,9 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
 
 // The exact enumeration of JAGS 5's base::Finite: every level's full
 // conditional, the same arithmetic order and one uniform draw.
-void ScreenedFiniteKernel::enumerate(RNG *rng, std::function<void(double)> const &set_value)
+double ScreenedFiniteKernel::enumerate(RNG *rng, std::function<void(double)> const &set_value)
 {
+  const long current = static_cast<long>(_node->value(_chain)[0] - _lower);
   std::vector<double> likelihood(_levels);
   double maximum = negative_infinity;
   for (unsigned int i = 0; i < _levels; ++i) {
@@ -214,6 +225,10 @@ void ScreenedFiniteKernel::enumerate(RNG *rng, std::function<void(double)> const
   const double draw = rng->uniform() * total;
   const long index = std::upper_bound(likelihood.begin(), likelihood.end(), draw) - likelihood.begin();
   set_value(_lower + index);
+  // the exact probability of leaving the entry level (cumulative masses)
+  if (current < 0 || current >= static_cast<long>(_levels)) return 0.0;
+  const double stay = likelihood[current] - (current > 0 ? likelihood[current - 1] : 0.0);
+  return (total - stay) / total;
 }
 
 void ScreenedFiniteKernel::scores(std::function<void(double)> const &set_value, double restore,
@@ -248,6 +263,26 @@ LiveScreened &live_screened()
   return *screened;
 }
 
+// The evidence record (screened_finite_evidence): per sampler serial and chain,
+// the updates after adaptation, the changes of level and the sum and maximum
+// of the probability of leaving the current level. Never destroyed: samplers of
+// models that R frees late may still count.
+struct ScreenedEvidence {
+  double levels = 0, lower = 0, last = 0, updates = 0, changes = 0, leave_sum = 0, leave_max = 0;
+};
+
+struct EvidenceStore {
+  std::mutex mutex;
+  std::map<std::pair<unsigned, unsigned>, ScreenedEvidence> records;
+  unsigned next_serial = 0;
+};
+
+EvidenceStore &evidence_store()
+{
+  static EvidenceStore *store = new EvidenceStore();
+  return *store;
+}
+
 class ScreenedFinite : public MutableSampleMethod, public CorrectedSamplerWindow {
   SingletonGraphView const *_graph;
   const unsigned int _chain;
@@ -256,6 +291,25 @@ class ScreenedFinite : public MutableSampleMethod, public CorrectedSamplerWindow
   std::function<void(double)> _set_value;
   bool _exact;
   CorrectedTally _tally;
+  const unsigned _serial;
+  const unsigned _levels;
+  const double _lower_bound;
+  bool _adapting = true;
+
+  // One update after adaptation in the evidence record.
+  void record(double leave, bool changed)
+  {
+    EvidenceStore &store = evidence_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    ScreenedEvidence &e = store.records[std::make_pair(_serial, _chain)];
+    e.levels = _levels;
+    e.lower = _lower_bound;
+    e.last = _graph->node()->value(_chain)[0];
+    e.updates += 1;
+    if (changed) e.changes += 1;
+    e.leave_sum += leave;
+    e.leave_max = std::max(e.leave_max, leave);
+  }
 
   void leave_live()
   {
@@ -272,11 +326,11 @@ class ScreenedFinite : public MutableSampleMethod, public CorrectedSamplerWindow
 
 public:
   ScreenedFinite(SingletonGraphView const *graph, unsigned int chain, SelNormCoarseSettings const &settings,
-                 double min_acceptance, double lower, unsigned int levels, int proposal)
+                 double min_acceptance, double lower, unsigned int levels, int proposal, unsigned serial)
     : _graph(graph), _chain(chain), _min_acceptance(min_acceptance),
       _kernel(graph->node(), graph->stochasticChildren(), chain, settings, lower, levels, proposal),
       _set_value([graph, chain](double value) { graph->setValue(&value, 1, chain); }),
-      _exact(false), _tally(corrected_kind_finite)
+      _exact(false), _tally(corrected_kind_finite), _serial(serial), _levels(levels), _lower_bound(lower)
   {
     graph->checkFinite(chain);
     {
@@ -311,11 +365,13 @@ public:
     const double entry = _graph->node()->value(_chain)[0];
     try {
       if (_exact) {
-        _kernel.enumerate(rng, _set_value);
+        const double leave = _kernel.enumerate(rng, _set_value);
+        if (!_adapting) record(leave, _graph->node()->value(_chain)[0] != entry);
         return;
       }
       const ScreenedFiniteKernel::Outcome outcome = _kernel.update(rng, _set_value);
       if (outcome.proposed) _tally.count(outcome.accepted, outcome.evidence);
+      if (!_adapting) record(outcome.leave, _graph->node()->value(_chain)[0] != entry);
     }
     catch (...) {
       _graph->setValue(&entry, 1, _chain);
@@ -331,6 +387,7 @@ public:
   // The kernel is chosen once, at the first adaptOff(), by the evidence rule.
   void adaptOff() override
   {
+    _adapting = false;
     if (_tally.adapt_off(_min_acceptance, 1.0)) _exact = true;
   }
 
@@ -402,11 +459,17 @@ std::vector<Sampler *> ScreenedFiniteFactory::makeSamplers(
       std::unique_ptr<SingletonGraphView> view(new SingletonGraphView(node, graph));
       if (!has_selection_child(*view, config.settings)) continue;
       const unsigned int levels = static_cast<unsigned int>(upper - lower + 1);
+      unsigned serial;
+      {
+        EvidenceStore &store = evidence_store();
+        const std::lock_guard<std::mutex> lock(store.mutex);
+        serial = store.next_serial++;
+      }
       std::vector<std::unique_ptr<MutableSampleMethod> > owned_methods;
       std::vector<MutableSampleMethod *> methods;
       for (unsigned int chain = 0; chain < node->nchain(); ++chain) {
         owned_methods.emplace_back(new ScreenedFinite(view.get(), chain, config.settings, config.min_acceptance,
-                                                      lower, levels, flags.finite_proposal));
+                                                      lower, levels, flags.finite_proposal, serial));
         methods.push_back(owned_methods.back().get());
       }
       // The Sampler base adopts the graph, and owned_methods keeps the methods
@@ -441,6 +504,27 @@ std::vector<double> screened_finite_test_scores()
   const std::lock_guard<std::mutex> lock(screened.mutex);
   std::vector<double> out;
   for (ScreenedFinite *sampler : screened.live) sampler->append_scores(out);
+  return out;
+}
+
+std::vector<char const *> const &screened_finite_evidence_names()
+{
+  static const std::vector<char const *> names = {
+    "serial", "chain", "levels", "lower", "last", "updates", "changes", "leave_sum", "leave_max"};
+  return names;
+}
+
+std::vector<double> screened_finite_evidence(bool clear)
+{
+  EvidenceStore &store = evidence_store();
+  const std::lock_guard<std::mutex> lock(store.mutex);
+  std::vector<double> out;
+  for (auto const &entry : store.records) {
+    ScreenedEvidence const &e = entry.second;
+    out.insert(out.end(), {static_cast<double>(entry.first.first), static_cast<double>(entry.first.second),
+                           e.levels, e.lower, e.last, e.updates, e.changes, e.leave_sum, e.leave_max});
+  }
+  if (clear) store.records.clear();
   return out;
 }
 

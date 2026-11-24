@@ -226,3 +226,60 @@ test_that("the location block owns eligible fits, keeps its sampler on update() 
   expect_identical(attr(readout[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["probabilities"]][["status"]],
                    "active")
 })
+
+
+test_that("the evidence record tells a gate decided by the data from a mixing one", {
+
+  skip_if_not_installed("rjags")
+  dat <- .location_test_data()
+  # a moderator without any association with the effects: its gate mixes
+  dat$noise <- rep(c(-1, 1, 0.5, -0.5), 6L)
+  fit <- .location_one_chain(BMA.mv(
+    yi = yi, V = vi, mods = ~ x + noise, random = ~ 1 | study, data = dat, measure = "SMD",
+    adapt = 100L, burnin = 100L, sample = 1000L, chains = 2L, seed = 3L, autofit = FALSE, silent = TRUE))
+  record <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["evidence"]][["location"]]
+  expect_setequal(unique(record$node), c("mu_intercept_indicator", "mu_x_indicator", "mu_noise_indicator"))
+  expect_setequal(unique(record$chain), 1:2)
+  # updates after adaptation: one flip proposal per gate and sweep, every one
+  # reaching stage 1 in a Gaussian label
+  expect_true(all(record$flips_on_proposed + record$flips_off_proposed == 1100))
+  expect_true(all(record$odds_evaluated == 1100))
+  expect_true(all(record$screened_out == 0))
+  decided <- record[record$node == "mu_x_indicator", ]
+  expect_true(all(decided$flips_on_accepted + decided$flips_off_accepted == 0))
+  expect_true(all(decided$log_odds_max < -50))
+  mixing <- record[record$node == "mu_noise_indicator", ]
+  expect_true(all(mixing$flips_on_accepted > 10 & mixing$flips_off_accepted > 10))
+  expect_true(all(mixing$log_odds_max > -5))
+  draws <- as.matrix(fit[["fit"]][["mcmc"]])
+  expect_true(all(draws[, "mu_x_indicator"] == draws[1L, "mu_x_indicator"]))
+})
+
+
+test_that("the evidence record names the screened indicators of a selection fit", {
+
+  skip_if_not_installed("rjags")
+  dat <- .location_test_data()
+  # correlated sampling errors within study: cluster selection blocks, whose
+  # surrogate gives the bias and heterogeneity indicators the screened sampler
+  V <- diag(dat$vi)
+  for (s in unique(dat$study)) {
+    rows <- which(dat$study == s)
+    V[rows, rows] <- 0.5 * sqrt(outer(dat$vi[rows], dat$vi[rows]))
+    diag(V)[rows] <- dat$vi[rows]
+  }
+  fit <- .location_one_chain(RoBMA.mv(
+    yi = dat$yi, V = V, mods = ~ x, random = ~ 1 | study, data = dat, measure = "SMD",
+    adapt = 100L, burnin = 50L, sample = 100L, chains = 1L, seed = 4L, autofit = FALSE, silent = TRUE))
+  table <- fit[["fit"]][["samplers"]]
+  screened_nodes <- table[["Node"]][table[["Sampler"]] == "RoBMA::ScreenedFinite"]
+  record <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["evidence"]][["screened"]]
+  expect_gt(length(screened_nodes), 0L)
+  expect_setequal(record$node, screened_nodes)
+  expect_true(all(record$updates == 150))
+  expect_true(all(record$leave_mean >= 0 & record$leave_mean <= record$leave_max & record$leave_max <= 1))
+  # the names follow the samplers: the bias indicator has a level per bias branch
+  if ("bias_indicator" %in% record$node) expect_gt(record$levels[record$node == "bias_indicator"], 2)
+  heterogeneity <- grep("include_component_1_indicator$", record$node)
+  if (length(heterogeneity)) expect_identical(record$levels[heterogeneity], 2)
+})

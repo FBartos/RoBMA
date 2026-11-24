@@ -121,12 +121,139 @@
         ifelse(recorded, NA_character_, "The fitted sampler supplies no conditional branch probabilities.")
     )
   }
+  evidence <- .sampler_evidence_record(fit, declarations, assignments, workers)
+  if (!is.null(evidence)) record[["evidence"]] <- evidence
   if (length(record) > 0L) {
     record[["request"]] <- requested
     declarations[["robma"]] <- record
     attr(fit, "sampler_declarations") <- declarations
   }
   return(fit)
+}
+
+
+# The evidence record of indicators that do not switch, from the runtime
+# reports of this call's retained runs (updates after adaptation): per
+# location gate and chain the flips proposed and accepted in each direction,
+# the proposals the free screen removed and, for those that reached stage 1,
+# the count, sum and maximum of the log collapsed odds of the other state
+# against the current one (exact in Gaussian labels, Laplace in selection
+# labels); per screened indicator and chain the updates, changes of level and
+# the mean and maximum full-conditional probability of leaving the current
+# level. Counts and sums are added and maxima taken over runs and processes;
+# NULL without any record. The native screened record numbers its samplers in
+# creation order, which is the order of their nodes in the sampler table; a
+# mismatch of the counts leaves the names missing.
+.sampler_evidence_record <- function(fit, declarations, assignments, workers) {
+
+  values <- attr(fit, "runtime_report_values", exact = TRUE)
+  if (length(values) == 0L) return(NULL)
+  gates <- character()
+  for (marker in declarations[["joint"]][["markers"]]) {
+    arguments <- marker[["arguments"]]
+    if (identical(marker[["tag"]], "robma_location_group") && !isTRUE(arguments[[3L]] == 0)) {
+      gates[as.character(arguments[[5L]])] <- arguments[[1L]]
+    }
+  }
+  global_of <- function(process) {
+    chains <- if (is.null(workers)) NULL else workers[[process]][["chains"]]
+    function(local) if (is.null(chains)) as.integer(local) + 1L else chains[as.integer(local) + 1L]
+  }
+  # the screened samplers' nodes, matched in the last run (whose final state the
+  # fit keeps) and reused for the same sampler in earlier runs of the process
+  known <- list()
+  last  <- values[[length(values)]]
+  for (process in seq_along(last)) {
+    rows <- last[[process]][["screened"]]
+    if (!is.matrix(rows) || nrow(rows) == 0L) next
+    table  <- assignments[[min(process, length(assignments))]]
+    owners <- table[["Node"]][table[["Sampler"]] == "RoBMA::ScreenedFinite"]
+    known[[process]] <- stats::setNames(.sampler_screened_names(rows, owners, global_of(process), fit),
+                                        rows[, "serial"])
+  }
+  location <- list()
+  screened <- list()
+  for (run in values) {
+    for (process in seq_along(run)) {
+      report <- run[[process]]
+      if (is.null(report)) next
+      global <- global_of(process)
+      rows <- report[["location_evidence"]]
+      if (is.matrix(rows) && nrow(rows) > 0L) {
+        location[[length(location) + 1L]] <- data.frame(
+          node = unname(gates[as.character(rows[, "slot"])]), chain = global(rows[, "chain"]),
+          rows[, setdiff(colnames(rows), c("slot", "chain")), drop = FALSE], stringsAsFactors = FALSE)
+      }
+      rows <- report[["screened"]]
+      if (is.matrix(rows) && nrow(rows) > 0L) {
+        names <- if (process <= length(known)) known[[process]] else NULL
+        node  <- if (is.null(names)) rep(NA_character_, nrow(rows)) else unname(names[as.character(rows[, "serial"])])
+        screened[[length(screened) + 1L]] <- data.frame(
+          node = node, chain = global(rows[, "chain"]),
+          rows[, c("levels", "updates", "changes", "leave_sum", "leave_max"), drop = FALSE], stringsAsFactors = FALSE)
+      }
+    }
+  }
+  combine <- function(parts, maxima) {
+    if (length(parts) == 0L) return(NULL)
+    all <- do.call(rbind, parts)
+    key <- paste(all[["node"]], all[["chain"]])
+    out <- do.call(rbind, lapply(split(all, factor(key, levels = unique(key))), function(rows) {
+      row <- rows[1L, , drop = FALSE]
+      for (column in setdiff(names(rows), c("node", "chain", "levels"))) {
+        row[[column]] <- if (column %in% maxima) max(rows[[column]]) else sum(rows[[column]])
+      }
+      row
+    }))
+    out <- out[order(out[["node"]], out[["chain"]]), , drop = FALSE]
+    rownames(out) <- NULL
+    out
+  }
+  location <- combine(location, "log_odds_max")
+  if (!is.null(location)) location[["log_odds_max"]][!is.finite(location[["log_odds_max"]])] <- NA_real_
+  screened <- combine(screened, "leave_max")
+  if (!is.null(screened)) {
+    screened[["leave_mean"]] <- screened[["leave_sum"]] / screened[["updates"]]
+    screened <- screened[, c("node", "chain", "levels", "updates", "changes", "leave_mean", "leave_max")]
+  }
+  if (is.null(location) && is.null(screened)) return(NULL)
+  return(list(location = location, screened = screened))
+}
+
+
+# The node of each screened sampler's rows (one process): native samplers know
+# no node names, and JAGS orders its sampler table differently from the order
+# the factory creates them, so a serial is matched to the screened node whose
+# final value equals the sampler's last value in every chain of the process and
+# whose monitored draws lie in the sampler's support. A serial without exactly
+# one such node is left unnamed.
+.sampler_screened_names <- function(rows, owners, global, fit) {
+
+  end_state <- fit[["end_state"]]
+  draws     <- tryCatch(as.matrix(fit[["mcmc"]]), error = function(e) NULL)
+  value_of  <- function(node, chain) {
+    state <- end_state[[chain]]
+    base  <- sub("\\[.*$", "", node)
+    value <- state[[base]]
+    if (is.null(value)) return(NA_real_)
+    if (base == node) return(as.numeric(value)[1L])
+    index <- as.integer(strsplit(sub("^.*\\[(.*)\\]$", "\\1", node), ",", fixed = TRUE)[[1L]])
+    if (length(index) == 1L) return(as.numeric(value)[index])
+    as.numeric(value[matrix(index, nrow = 1L)])
+  }
+  names <- vapply(unique(rows[, "serial"]), function(serial) {
+    own    <- rows[rows[, "serial"] == serial, , drop = FALSE]
+    chains <- global(own[, "chain"])
+    lower  <- own[1L, "lower"]
+    upper  <- lower + own[1L, "levels"] - 1
+    fits <- vapply(owners, function(node) {
+      if (!isTRUE(all(vapply(chains, function(chain) value_of(node, chain), numeric(1)) == own[, "last"]))) return(FALSE)
+      if (is.null(draws) || !node %in% colnames(draws)) return(TRUE)
+      all(draws[, node] >= lower & draws[, node] <= upper)
+    }, logical(1))
+    if (sum(fits) == 1L) owners[fits] else NA_character_
+  }, character(1))
+  unname(names[match(rows[, "serial"], unique(rows[, "serial"]))])
 }
 
 

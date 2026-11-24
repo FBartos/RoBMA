@@ -602,6 +602,25 @@ extern "C" SEXP RoBMA_selnorm_factor_rule_affordable(SEXP order, SEXP rank)
   ROBMA_NATIVE_END
 }
 
+// An evidence record (rows of `columns.size()` values) as a numeric matrix with
+// those column names.
+static SEXP evidence_matrix(std::vector<double> const &values, std::vector<char const *> const &columns)
+{
+  const int width = static_cast<int>(columns.size());
+  const int rows = static_cast<int>(values.size()) / width;
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, rows, width));
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < width; ++c) REAL(out)[r + rows * c] = values[static_cast<std::size_t>(r * width + c)];
+  }
+  SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, width));
+  for (int c = 0; c < width; ++c) SET_STRING_ELT(names, c, Rf_mkChar(columns[static_cast<std::size_t>(c)]));
+  SET_VECTOR_ELT(dimnames, 1, names);
+  Rf_setAttrib(out, R_DimNamesSymbol, dimnames);
+  UNPROTECT(3);
+  return out;
+}
+
 // The per-fit counters of the corrected sampler in this process, read and then,
 // when 'clear' is TRUE, cleared (the runtime report of each fit).
 extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
@@ -620,15 +639,33 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
     static_cast<double>(report.sampling_accepted),
     report.sampling_judged,
     report.has_min_rate ? report.min_sampler_rate : NA_REAL};
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 6));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 7));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 7));
   for (int i = 0; i < 6; ++i) {
     SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }
+  // the screened indicators' evidence record (ScreenedFinite.h), one row per
+  // indicator and chain
+  SET_VECTOR_ELT(out, 6, evidence_matrix(jags::RoBMA::screened_finite_evidence(LOGICAL(clear)[0] != 0),
+                                         jags::RoBMA::screened_finite_evidence_names()));
+  SET_STRING_ELT(labels, 6, Rf_mkChar("screened"));
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
+}
+
+// The evidence record of the location gates of this process (one row per gate
+// slot and chain, LocationBlockReport.h), read and cleared when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_block_evidence(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  return evidence_matrix(jags::RoBMA::location_block_evidence(LOGICAL(clear)[0] != 0),
+                         jags::RoBMA::location_block_evidence_names());
   ROBMA_NATIVE_END
 }
 

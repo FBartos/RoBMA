@@ -137,6 +137,40 @@ std::atomic<int> test_refresh(0);
 std::atomic<int> test_fit_rule(0);
 std::atomic<bool> test_timing(false);
 
+// The evidence record of the location gates (location_block_evidence): per
+// gate slot and chain, over the updates after adaptation, the flips proposed
+// and accepted in each direction (on: off to on), the proposals the free
+// screen removed, and for the proposals that reached stage 1 the count, sum
+// and maximum of the log collapsed odds of the other state against the current
+// one. Never destroyed, like the counters.
+struct GateEvidence {
+  double on_proposed = 0, on_accepted = 0, off_proposed = 0, off_accepted = 0, screened_out = 0;
+  double odds_count = 0, odds_sum = 0, odds_max = -std::numeric_limits<double>::infinity();
+
+  void add(GateEvidence const &other)
+  {
+    on_proposed += other.on_proposed;
+    on_accepted += other.on_accepted;
+    off_proposed += other.off_proposed;
+    off_accepted += other.off_accepted;
+    screened_out += other.screened_out;
+    odds_count += other.odds_count;
+    odds_sum += other.odds_sum;
+    odds_max = std::max(odds_max, other.odds_max);
+  }
+};
+
+struct GateEvidenceStore {
+  std::mutex mutex;
+  std::map<std::pair<unsigned, unsigned>, GateEvidence> records;
+};
+
+GateEvidenceStore &gate_evidence_store()
+{
+  static GateEvidenceStore *store = new GateEvidenceStore();
+  return *store;
+}
+
 struct ProbeStore {
   std::mutex mutex;
   std::vector<double> records;
@@ -787,6 +821,53 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // least) the fits use the sampler's rule from the first adaptOff() on.
   bool _coarse_fit = false;
   std::uint64_t _fit_proposed = 0, _fit_accepted = 0;
+  // the evidence record of the gates (GateEvidence), flushed after each update
+  std::vector<GateEvidence> _gate_evidence;
+  bool _gate_dirty = false;
+
+  void evidence_proposed(unsigned j, bool on)
+  {
+    if (_adapting) return;
+    GateEvidence &e = _gate_evidence[j];
+    (on ? e.off_proposed : e.on_proposed) += 1;
+    _gate_dirty = true;
+  }
+
+  void evidence_accepted(unsigned j, bool on)
+  {
+    if (_adapting) return;
+    GateEvidence &e = _gate_evidence[j];
+    (on ? e.off_accepted : e.on_accepted) += 1;
+  }
+
+  void evidence_screened(unsigned j)
+  {
+    if (!_adapting) _gate_evidence[j].screened_out += 1;
+  }
+
+  // log odds of the other state against the current one of a proposal that
+  // reached stage 1
+  void evidence_odds(unsigned j, double other)
+  {
+    if (_adapting) return;
+    GateEvidence &e = _gate_evidence[j];
+    e.odds_count += 1;
+    e.odds_sum += other;
+    e.odds_max = std::max(e.odds_max, other);
+  }
+
+  void flush_evidence()
+  {
+    if (!_gate_dirty) return;
+    GateEvidenceStore &store = gate_evidence_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    for (unsigned j = 0; j < _gate_evidence.size(); ++j) {
+      if (s().groups[j].gate == nullptr) continue;
+      store.records[std::make_pair(j + 1, _chain)].add(_gate_evidence[j]);
+      _gate_evidence[j] = GateEvidence();
+    }
+    _gate_dirty = false;
+  }
   // The part of the update that runs (its child evaluations are counted, and
   // with the timing switch its exclusive wall time).
   Category _category = cat_move;
@@ -1635,6 +1716,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (!dry) {
       count(counters().proposed[type]);
       count(counters().stage0[type]);
+      // in a Gaussian label every proposal reaches stage 1 (no screen)
+      evidence_proposed(j, on);
+      evidence_odds(j, stage1);
       if (!metropolis(rng, stage1)) return;
       count(counters().stage1[type]);
     }
@@ -1671,6 +1755,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (!_selection) record_max(counters().max_stage2_gaussian, std::fabs(stage2));
     if (!std::isfinite(full) || !metropolis(rng, stage2)) return;
     count(counters().accepted[type]);
+    evidence_accepted(j, on);
     apply_shift(sh, 1.0);
     _g[j] = on ? 0 : 1;
     std::copy(proposal.begin(), proposal.end(), _beta.begin() + g.coord0);
@@ -2362,13 +2447,18 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const bool on = active(j);
     const Component type = on ? flip_off : flip_on;
     count(counters().proposed[type]);
+    evidence_proposed(j, on);
     group_screen();
     const double stage0 = on ? -_line.log_screen : _line.log_screen;
-    if (!metropolis(rng, stage0)) return;
+    if (!metropolis(rng, stage0)) {
+      evidence_screened(j);
+      return;
+    }
     count(counters().stage0[type]);
     group_fit();
     if (!_line.fit.ok) return;
     const double log_odds = _line.log_odds;
+    evidence_odds(j, on ? -log_odds : log_odds);
     const double stage1 = on ? -(log_odds - _line.log_screen) : (log_odds - _line.log_screen);
     if (!metropolis(rng, stage1)) return;
     count(counters().stage1[type]);
@@ -2399,6 +2489,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const double stage2 = full - (on ? -log_odds : log_odds);
     if (!std::isfinite(full) || !metropolis(rng, stage2)) return;
     count(counters().accepted[type]);
+    evidence_accepted(j, on);
     if (_adapting) ++_fit_accepted;
     apply_shift(sh, 1.0);
     _g[j] = on ? 0 : 1;
@@ -3068,6 +3159,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     enter(cat_correction);
     correct(rng);
     enter(cat_move);
+    flush_evidence();
   }
 
   // The graph's own log density of a child (PDF_LIKELIHOOD) at the graph's
@@ -3212,6 +3304,7 @@ public:
     _fit_ok.assign(S.children.size(), 0);
     _step.assign(S.children.size(), StepChild());
     _tilt_position.assign(S.children.size(), -1);
+    _gate_evidence.assign(G, GateEvidence());
     _coarse_fit = S.coarse_fit && S.fit_rule != 2;
     _stamp.assign(S.children.size(), 0);
     _a.assign(S.latents.size(), 0.0);
@@ -3742,6 +3835,29 @@ std::vector<double> location_block_test_take_probe()
   const std::lock_guard<std::mutex> lock(store.mutex);
   std::vector<double> out;
   out.swap(store.records);
+  return out;
+}
+
+std::vector<char const *> const &location_block_evidence_names()
+{
+  static const std::vector<char const *> names = {
+    "slot", "chain", "flips_on_proposed", "flips_on_accepted", "flips_off_proposed", "flips_off_accepted",
+    "screened_out", "odds_evaluated", "log_odds_sum", "log_odds_max"};
+  return names;
+}
+
+std::vector<double> location_block_evidence(bool clear)
+{
+  GateEvidenceStore &store = gate_evidence_store();
+  const std::lock_guard<std::mutex> lock(store.mutex);
+  std::vector<double> out;
+  for (auto const &entry : store.records) {
+    GateEvidence const &e = entry.second;
+    out.insert(out.end(), {static_cast<double>(entry.first.first), static_cast<double>(entry.first.second),
+                           e.on_proposed, e.on_accepted, e.off_proposed, e.off_accepted, e.screened_out,
+                           e.odds_count, e.odds_sum, e.odds_max});
+  }
+  if (clear) store.records.clear();
   return out;
 }
 

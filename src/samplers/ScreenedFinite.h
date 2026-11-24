@@ -63,13 +63,15 @@ public:
     bool proposed = false;
     bool accepted = false;
     bool evidence = false;
+    double leave = 0;   // the surrogate full-conditional probability of leaving the current level
   };
 
   // `set_value(v)` writes the node and its deterministic descendants. Both
   // updates leave the node at the drawn level; exceptions propagate (the caller
-  // restores the node).
+  // restores the node). enumerate() returns the exact full-conditional
+  // probability of leaving the current level.
   Outcome update(RNG *rng, std::function<void(double)> const &set_value);
-  void enumerate(RNG *rng, std::function<void(double)> const &set_value);
+  double enumerate(RNG *rng, std::function<void(double)> const &set_value);
 
   // Test hook and frozen-state checks: the surrogate and exact scores of every
   // level at the current values of the other nodes (prior-free levels -Inf),
@@ -107,6 +109,17 @@ ScreenedFiniteFactory *screened_finite_factory();
 // screened samplers, at the current state of their chains: per sampler its
 // chain, the number of levels L, then L surrogate and L exact scores.
 std::vector<double> screened_finite_test_scores();
+
+// The evidence record of the screened indicators of this process since the
+// last clearing read, over the updates after adaptation: per indicator and
+// chain the rows (serial, chain, levels and lower bound of the support, the
+// node's value after its last recorded update, updates, changes of level, sum
+// and maximum of the full-conditional probability of leaving the current
+// level). The serial identifies a sampler (numbered as the factory creates
+// them, across models); nodes have no names here, so R matches each serial to
+// its node by the support and the chains' final values.
+std::vector<char const *> const &screened_finite_evidence_names();
+std::vector<double> screened_finite_evidence(bool clear);
 
 }
 }

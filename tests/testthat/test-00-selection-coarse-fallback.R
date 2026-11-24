@@ -83,7 +83,11 @@ test_that("the native settings take an optional threshold and the per-fit counte
 
   .selection_sampler_report_read()
   report <- .Call("RoBMA_selnorm_sampler_report", FALSE, PACKAGE = "RoBMA")
-  expect_identical(report, .fallback_report_value(rate = NA_real_))
+  expect_identical(report[names(report) != "screened"], .fallback_report_value(rate = NA_real_))
+  # the screened indicators' evidence record: one row per indicator and chain
+  expect_identical(colnames(report[["screened"]]),
+                   c("serial", "chain", "levels", "lower", "last", "updates", "changes", "leave_sum", "leave_max"))
+  expect_identical(nrow(report[["screened"]]), 0L)
   expect_error(.Call("RoBMA_selnorm_sampler_report", NA, PACKAGE = "RoBMA"),
                "'clear' must be one non-missing logical value.", fixed = TRUE)
 })

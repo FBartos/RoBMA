@@ -132,6 +132,10 @@ test_that("after a fallback the block runs BayesTools' factor slice update, draw
   .block_chain(.block_pair_model(min_acceptance = threshold, ...), "mu", 100L, adapt = adapt, burnin = 100L)$report
 }
 
+# The counts of a runtime report without the screened indicators' evidence record.
+.report_counts <- function(report) report[names(report) != "screened"]
+
+
 .block_switched <- function(reason) {
 
   report <- list(samplers = 1, fallback_low_acceptance = 0, sampling_proposed = 0, sampling_accepted = 0,
@@ -165,7 +169,8 @@ test_that("a block decides its kernel once, at the end of adaptation, judging ra
   # between the block rate and its per-direction equivalent: kept
   expect_identical(.block_decision((rate + per_direction) / 2, 300L)[["fallback_low_acceptance"]], 0)
   expect_identical(.block_decision(per_direction * (1 - 1e-12), 300L)[["fallback_low_acceptance"]], 0)
-  expect_identical(.block_decision(per_direction * (1 + 1e-12), 300L), .block_switched("fallback_low_acceptance"))
+  expect_identical(.report_counts(.block_decision(per_direction * (1 + 1e-12), 300L)),
+                   .block_switched("fallback_low_acceptance"))
 
   # a surrogate that is the exact density in every state (a vector rule that is
   # a best-weight rule for both values of an indicator) makes no evidence: the
@@ -173,18 +178,18 @@ test_that("a block decides its kernel once, at the end of adaptation, judging ra
   # the second corrected sampler)
   exact <- .block_decision(.9, 300L, vector_rule = "vr", extra = "  ind ~ dcat(c(.5, .5))\n  vr <- ind",
                            inits = list(ind = 1))
-  expect_identical(exact, list(samplers = 2, fallback_low_acceptance = 0, sampling_proposed = 0,
+  expect_identical(.report_counts(exact), list(samplers = 2, fallback_low_acceptance = 0, sampling_proposed = 0,
                                sampling_accepted = 0, sampling_judged = 0, min_sampler_rate = NA_real_))
 
   # a later adaptOff() changes nothing: the block that switched counts once
   hand <- .block_pair_model(min_acceptance = .9)
   rjags::adapt(hand$model, 300L, end.adaptation = FALSE)
   expect_true(rjags::adapt(hand$model, 0L, end.adaptation = TRUE))
-  expect_identical(.Call("RoBMA_selnorm_sampler_report", FALSE, PACKAGE = "RoBMA"),
+  expect_identical(.report_counts(.Call("RoBMA_selnorm_sampler_report", FALSE, PACKAGE = "RoBMA")),
                    .block_switched("fallback_low_acceptance"))
   .Call("adapt_off", hand$model$ptr(), PACKAGE = "rjags")
   stats::update(hand$model, n.iter = 100L, progress.bar = "none")
-  expect_identical(RoBMA:::.selection_sampler_report_read(), .block_switched("fallback_low_acceptance"))
+  expect_identical(.report_counts(RoBMA:::.selection_sampler_report_read()), .block_switched("fallback_low_acceptance"))
 })
 
 

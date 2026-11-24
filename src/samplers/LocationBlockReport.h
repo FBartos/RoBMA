@@ -16,6 +16,15 @@ namespace RoBMA {
 std::vector<char const *> const &location_block_report_names();
 std::vector<double> location_block_report(bool clear);
 
+// The evidence record of the location gates of this process since the last
+// clearing read, over the updates after adaptation: per gate (its declaration
+// slot) and chain the rows of location_block_evidence_names() (flips proposed
+// and accepted in each direction, proposals the free screen removed, and the
+// count, sum and maximum of the log collapsed odds of the other state against
+// the current one for the proposals that reached stage 1).
+std::vector<char const *> const &location_block_evidence_names();
+std::vector<double> location_block_evidence(bool clear);
+
 // Test hook, not package interface: a deliberately broken kernel frozen into
 // the samplers built from now on (0 none; 1 a shear that differs between a
 // flip and its reverse; 2 flips without the reverse proposal density, in both
