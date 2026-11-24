@@ -125,3 +125,63 @@ test_that("the location block's bias-label moves target the exact posterior and 
     }
   }
 })
+
+
+# The heterogeneity scale move (src/samplers/LocationScale.cc, fixtures in
+# helper-location-scale.R): the location sweep, the sources' embedded ordinary
+# updates and the scale move together target the exact posterior. A Gaussian
+# fixture (four clusters, a sampled and an integrated level, a half-normal
+# total SD, an inclusion indicator, gamma weight sources) has a two-dimensional
+# quadrature reference; the selection fixture above with a random cluster SD
+# (L = 1) composes the move with the corrected location sweep and a corrected
+# source update. Same rule as above.
+test_that("the scale move keeps the exact posterior of the heterogeneity and broken moves do not", {
+
+  skip_if_not_certification("The scale move fixtures (about 2 min) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  setup <- .scale_allocation_setup(shapes = c(1, 1))
+  model <- .scale_allocation_model(setup)
+  reference <- .scale_allocation_reference(setup)
+  expect_lt(max(abs(reference - .scale_allocation_reference(setup, a_nodes = 80L, w_nodes = 80L))), 1e-6)
+  gaussian <- function(mutant) {
+    compiled <- .scale_compile(model, list(I = 1), mutant = mutant, seed = 9157L)
+    run <- .scale_run(compiled, c("g", "I", "a", "w", "sigma"), draws = 200000L, burnin = 1000L, adapt = 500L)
+    list(decision = compiled$decisions, report = run$report,
+         comparison = .location_compare(.scale_allocation_observables(run$draws), reference))
+  }
+  exact <- gaussian(0L)
+  expect_identical(exact$decision$status, "owned")
+  expect_true(attr(exact$comparison, "passes"), info = paste(round(exact$comparison$z, 2), collapse = " "))
+  # the move runs while the heterogeneity is included and is the identity otherwise
+  expect_gt(exact$report$counters[["moves"]], 0.5 * 200000)
+  expect_gt(exact$report$counters[["identity"]], 0)
+  # the exponent c^(1 - K), the factor a'^-(2L - 1) omitted, one latent left
+  # out of the transformation, the gamma total not preserved
+  for (mutant in 1:4) {
+    broken <- gaussian(mutant)
+    expect_false(attr(broken$comparison, "passes"),
+                 info = paste("mutant", mutant, ":", paste(round(broken$comparison$z, 2), collapse = " ")))
+  }
+
+  options <- RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules", "selection.coarse_min_acceptance")]
+  on.exit(do.call(RoBMA.options, options), add = TRUE)
+  RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = 3L,
+                selection.coarse_min_acceptance = 0)
+  setup <- .location_selection_setup()
+  model <- .scale_selection_model(setup)
+  reference <- .scale_selection_reference(setup, model)
+  expect_lt(max(abs(reference - .scale_selection_reference(setup, model, 30L, 16L, 32L))), 1e-4)
+  selection <- function(mutant) {
+    compiled <- .scale_compile(model, list(I = 1), mutant = mutant, seed = 4127L)
+    run <- .scale_run(compiled, c("g", "I", "b", "a", "sigma"), draws = 100000L, burnin = 1000L, adapt = 500L)
+    list(decision = compiled$decisions,
+         comparison = .location_compare(.scale_selection_observables(run$draws), reference))
+  }
+  exact <- selection(0L)
+  expect_identical(exact$decision$status, "owned")
+  expect_identical(exact$decision$embedded, "RoBMA::CoarseCorrectedSlice")
+  expect_true(attr(exact$comparison, "passes"), info = paste(round(exact$comparison$z, 2), collapse = " "))
+  broken <- selection(1L)
+  expect_false(attr(broken$comparison, "passes"),
+               info = paste("mutant 1:", paste(round(broken$comparison$z, 2), collapse = " ")))
+})

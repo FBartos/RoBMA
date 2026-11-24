@@ -172,6 +172,12 @@ standard_required_tests <- function() {
       "the bias label's evidence record shows a family that is never visited",
       "fixed component slots and reversed composites keep a small discrete chain stationary"
     )),
+    .required_tests("test-00-location-scale-native.R", c(
+      "the scale owner claims the declared sources and embeds their ordinary samplers",
+      "frozen states: the scale move keeps the children, the gamma total and its group law, and its density is Liu and Sabatti's",
+      "the production slice leaves a broad bounded target invariant and a fixed cap per side does not",
+      "the invariance check declines a dependence on the sampled SD that only the open gate shows"
+    )),
     .required_tests("test-00-carrier-integration.R", c(
       "public no-intercept moderator means use the fitted contrast basis",
       "whole marginal-means regions retain structural fixed-cell refusal",
@@ -443,7 +449,8 @@ certification_cases <- function() {
         )),
         .required_tests("test-00-location-block-exactness.R", c(
           "the location block chain targets the exact posterior and broken kernels do not",
-          "the location block's bias-label moves target the exact posterior and broken swaps do not"
+          "the location block's bias-label moves target the exact posterior and broken swaps do not",
+          "the scale move keeps the exact posterior of the heterogeneity and broken moves do not"
         )),
         .required_tests("test-00-sampler-declarations-fits.R", c(
           "declared nodes get the BayesTools samplers and the others keep theirs",
