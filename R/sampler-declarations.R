@@ -85,6 +85,7 @@
     record[["joint"]] <- list(policy = policy, status = status, reason = reason, sampler = expected, nodes = owned)
     if (expected == "RoBMA::LocationBlock") {
       record[["joint"]][["counters"]] <- .location_block_record(attr(fit, "runtime_report_values", exact = TRUE))
+      record[["joint"]][["scale"]] <- .location_scale_record(attr(fit, "runtime_report_values", exact = TRUE))
     }
   }
 

@@ -70,7 +70,8 @@
            arguments = list(latents[[i]], i))
     }),
     list(list(name = "RoBMA_location_setup", tag = "robma_location_setup",
-              arguments = list(anchors[[1L]], length(groups), length(latents))))
+              arguments = list(anchors[[1L]], length(groups), length(latents)))),
+    Filter(Negate(is.null), list(.sampler_location_scale(prior_list, design, latents)))
   )
   intercept <- fixed[["jags_name"]][fixed[["term"]] == "intercept"]
   slot      <- which(vapply(groups, `[[`, character(1), "physical") %in% intercept)
@@ -249,6 +250,7 @@
       report[["location"]] <- utils::getFromNamespace(".location_block_report_read", "RoBMA")()
       report[["location_evidence"]] <- utils::getFromNamespace(".location_block_evidence_read", "RoBMA")()
       report[["location_bias"]] <- utils::getFromNamespace(".location_bias_evidence_read", "RoBMA")()
+      report[["location_scale"]] <- utils::getFromNamespace(".location_scale_report_read", "RoBMA")()
     }
     report
   }

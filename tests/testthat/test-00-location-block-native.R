@@ -182,8 +182,10 @@ test_that("the location block owns eligible fits, keeps its sampler on update() 
     table[["Node"]][table[["Sampler"]] == "RoBMA::LocationBlock"]
   }
   request <- function(fit) attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
+  # with the study effects, the heterogeneity scale's source (LocationScale.cc)
   members <- c("mu_intercept_indicator", "mu_intercept_component_2", "mu_group_indicator",
-               "mu_group_component_2", paste0("mu__xREx__study_xRE_Zx[", 1:8, ",1]"))
+               "mu_group_component_2", paste0("mu__xREx__study_xRE_Zx[", 1:8, ",1]"),
+               "mu__xRE_ALLOCx_heterogeneity__allocation_sd")
 
   eligible <- fit_bma()
   expect_setequal(owned(eligible), members)
@@ -218,7 +220,8 @@ test_that("the location block owns eligible fits, keeps its sampler on update() 
   expect_identical(request(heavy)[["status"]], "graph_declined")
   partial <- fit_bma(mods = ~ x, prior_mods = prior("t", list(0, 0.25, 3)))
   expect_setequal(owned(partial), c("mu_intercept_indicator", "mu_intercept_component_2",
-                                    paste0("mu__xREx__study_xRE_Zx[", 1:8, ",1]")))
+                                    paste0("mu__xREx__study_xRE_Zx[", 1:8, ",1]"),
+                                    "mu__xRE_ALLOCx_heterogeneity__allocation_sd"))
 
   # an exact probability readout of a location gate keeps the enumerating sampler
   RoBMA.options(sampler.probabilities = "mu_intercept_indicator")
