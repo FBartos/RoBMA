@@ -607,9 +607,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
 - Corrected gated block (`src/samplers/GatedCorrectedBlock.cc`,
   `RoBMA::GatedCorrectedBlock`, asked before `BayesTools::GatedSlice`): the
   still-unclaimed gated scalar continuous nodes with a fixed support grouped by
-  pointer identity of their `<active>` node (with `sampler.nested.weights` the
-  shared coordinates and the fine branch's own coordinate form separate
-  blocks, so no live coordinate is redrawn from its prior). A group is claimed
+  pointer identity of their `<active>` node (with `sampler.nested.weights`,
+  the default, the shared coordinates and the fine branch's own coordinate
+  form separate blocks, so no live coordinate is redrawn from its prior; fits
+  whose weight priors do not qualify keep the ordinary layout). A group is claimed
   when no member depends on another, it has a coarse-capable selection child
   and every member reaches every coarse-capable child only through the child's
   weights (no other parameter of such a child is a member or a deterministic

@@ -591,6 +591,8 @@ test_that(".fit() passes the declarations to JAGS_fit() for fresh fits only", {
   expect_false(forwarded[["sampler_gates"]])
   expect_null(forwarded[["sampler_blocks"]])
 
+  # the nested weight layout is requested by default; FALSE keeps the ordinary layout
+  expect_true(.RoBMA_option_schema[["sampler.nested.weights"]][["default"]])
   joint <- RoBMA(yi = yi, vi = vi, data = setup[["data"]], measure = "SMD", only_priors = TRUE)
   RoBMA.options(sampler.joint = "auto", sampler.nested.weights = FALSE,
                 sampler.probabilities = "tau_indicator")
