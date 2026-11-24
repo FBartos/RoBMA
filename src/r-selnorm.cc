@@ -31,8 +31,10 @@
 #include "samplers/ScreenedFinite.h"
 #include "distributions/selnorm-node-memo.h"
 #include "samplers/LocationBlockReport.h"
+#include "samplers/StepRowNormalizer.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
+#include "distributions/DSELNORMSTEPSWITCH.h"
 #include "distributions/selnorm-jags-bounds.h"
 
 #ifndef FCONE
@@ -690,6 +692,76 @@ extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
   SET_VECTOR_ELT(out, 3, values);
   const char *names[] = {"mutant", "probe", "decision", "records"};
   for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(3);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the closed-form log density of one
+// step-selection row (dselnorm_step_switch in step mode) and its first two
+// derivatives in the mean, as the location block's analytic tilt computes
+// them (StepRowNormalizer.h), at `mean`, and the distribution's own log density
+// (DSELNORMSTEPSWITCH::logDensity) at every element of `means`, for central
+// differences. Bounds use the JAGS encoding (+-1e300 open).
+extern "C" SEXP RoBMA_step_row_derivative_probe(SEXP y, SEXP mean, SEXP row, SEXP omega, SEXP lower,
+                                                SEXP upper, SEXP means)
+{
+  ROBMA_NATIVE_BEGIN(y, mean, row, omega, lower, upper, means)
+  for (SEXP value : {y, mean, row, omega, lower, upper, means}) check_real(value, "argument");
+  if (Rf_length(y) != 1 || Rf_length(mean) != 1 || Rf_length(row) != 6 || Rf_length(omega) < 1 ||
+      Rf_length(lower) != Rf_length(omega) || Rf_length(upper) != Rf_length(omega)) {
+    Rf_error("'row' must be c(sd, se, power, bin, sign, telescope) and the bins must match.");
+  }
+  const double *r = REAL(row);
+  const int bins = Rf_length(omega);
+  const double observation = REAL(y)[0];
+  // the distribution's parameters: mean, sd, se, power, omega, lower, upper,
+  // bin, sign, kernel mode (step), telescoping
+  double mean_value = REAL(mean)[0], mode = 1.0;
+  std::vector<double const *> par = {&mean_value, &r[0], &r[1], &r[2], REAL(omega), REAL(lower), REAL(upper),
+                                     &r[3], &r[4], &mode, &r[5]};
+  std::vector<unsigned long> len = {1, 1, 1, 1, static_cast<unsigned long>(bins), static_cast<unsigned long>(bins),
+                                    static_cast<unsigned long>(bins), 1, 1, 1, 1};
+  jags::RoBMA::DSELNORMSTEPSWITCH distribution;
+  if (!distribution.checkParameterLength(len) || !distribution.checkParameterValue(par, len)) {
+    Rf_error("The row's parameters are not valid for dselnorm_step_switch.");
+  }
+  const SelNormJagsBounds decoded_lower(REAL(lower), static_cast<unsigned int>(bins));
+  const SelNormJagsBounds decoded_upper(REAL(upper), static_cast<unsigned int>(bins));
+  jags::RoBMA::StepRowLaw law;
+  law.sd = r[0];
+  law.se = r[1];
+  law.effect_sign = static_cast<int>(r[4]);
+  law.bins = bins;
+  law.omega = REAL(omega);
+  law.lower = decoded_lower.data();
+  law.upper = decoded_upper.data();
+  double log_a = NA_REAL, d1 = NA_REAL, d2 = NA_REAL;
+  const bool ok = jags::RoBMA::step_row_log_normalizer(law, mean_value, &log_a, &d1, &d2);
+  // the row's log density power * [log N(y; m, sd) + log omega_bin - log A(m)]
+  const double sd = r[0], power = r[2];
+  const int bin = static_cast<int>(r[3]);
+  const double residual = observation - mean_value;
+  const double value = power * (-0.5 * std::log(2 * M_PI) - std::log(sd) - 0.5 * residual * residual / (sd * sd) +
+                                std::log(REAL(omega)[bin - 1]) - log_a);
+  const double first = power * (residual / (sd * sd) - d1);
+  const double second = power * (-1.0 / (sd * sd) - d2);
+  const R_xlen_t n = XLENGTH(means);
+  SEXP exact = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; ++i) {
+    mean_value = REAL(means)[i];
+    REAL(exact)[i] = distribution.logDensity(&observation, jags::PDF_LIKELIHOOD, par, len);
+  }
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(ok));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarReal(value));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal(first));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarReal(second));
+  SET_VECTOR_ELT(out, 4, exact);
+  const char *names[] = {"ok", "value", "first", "second", "exact"};
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(3);
   return out;

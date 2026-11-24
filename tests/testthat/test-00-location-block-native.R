@@ -47,6 +47,50 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
 })
 
 
+test_that("the closed-form tilt of a step-selection row has the derivatives of its density", {
+
+  # The analytic Newton path of the location block (StepRowNormalizer.h): the
+  # row's log density and its first two derivatives in the mean in closed form,
+  # against Richardson-extrapolated central differences of the distribution's
+  # own density (DSELNORMSTEPSWITCH::logDensity).
+  probe <- function(y, mean, row, omega, lower, upper, h) {
+    at <- mean + c(-h, h, -h / 2, h / 2, 0)
+    out <- .Call("RoBMA_step_row_derivative_probe", y, mean, as.double(row), as.double(omega),
+                 as.double(lower), as.double(upper), at, PACKAGE = "RoBMA")
+    f <- out$exact
+    first  <- function(k) (f[2 * k] - f[2 * k - 1]) / (2 * h / k)
+    second <- function(k) (f[2 * k] - 2 * f[5] + f[2 * k - 1]) / (h / k)^2
+    c(value = out$value, exact = f[5], first = out$first, first_fd = (4 * first(2) - first(1)) / 3,
+      second = out$second, second_fd = (4 * second(2) - second(1)) / 3, ok = out$ok)
+  }
+  two_sided <- list(omega = c(1, .4), lower = c(1.96, -1e300), upper = c(1e300, 1.96))
+  three_bins <- list(omega = c(1, .5, .1), lower = c(1.96, 0, -1e300), upper = c(1e300, 1.96, 0))
+  one_sided <- list(omega = c(1, 0), lower = c(1.96, -1e300), upper = c(1e300, 1.96))
+  rows <- list(
+    # an ordinary row (sd, se, power, bin, sign, telescoping)
+    ordinary  = c(list(y = .3, mean = .1, row = c(.25, .2, 1, 2, 1, 1)), two_sided),
+    # the observation at a cut point
+    cut_point = c(list(y = 1.96 * .2, mean = .2, row = c(.25, .2, 1, 1, 1, 1)), two_sided),
+    # a negative effect direction, three bins and an observation weight
+    negative  = c(list(y = -.5, mean = -.3, row = c(.3, .2, .5, 1, -1, 1)), three_bins),
+    # far in the lower tail: P(observed) = Q(41.6) underflows outside the log scale
+    lower_tail = c(list(y = .5, mean = -10, row = c(.25, .2, 1, 1, 1, 1)), one_sided),
+    # far in the upper tail of a two-sided selection
+    upper_tail = c(list(y = .5, mean = 9, row = c(.25, .2, 1, 1, 1, 1)), two_sided)
+  )
+  for (name in names(rows)) {
+    r <- rows[[name]]
+    result <- probe(r$y, r$mean, r$row, r$omega, r$lower, r$upper, h = .005)
+    expect_true(result[["ok"]] == 1, info = name)
+    expect_true(all(is.finite(result)), info = name)
+    expect_lte(abs(result[["value"]] - result[["exact"]]), 1e-10 * max(1, abs(result[["exact"]])), label = name)
+    expect_lte(abs(result[["first"]] - result[["first_fd"]]), 1e-6 * max(1, abs(result[["first_fd"]])), label = name)
+    expect_lte(abs(result[["second"]] - result[["second_fd"]]), 1e-6 * max(1, abs(result[["second_fd"]])),
+               label = name)
+  }
+})
+
+
 .location_test_data <- function() {
 
   # 8 studies of 3 estimates with independent sampling errors (several

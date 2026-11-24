@@ -1,6 +1,7 @@
 #include "LocationBlock.h"
 #include "CoarseSurrogate.h"
 #include "CorrectedSampler.h"
+#include "StepRowNormalizer.h"
 #include "../distributions/selnorm-jags-bounds.h"
 
 #include <BayesTools/factor_slice_kernel.h>
@@ -825,6 +826,20 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   std::vector<double const *> _params;
   Vec _scratch;
 
+  // The parameters of each step-switch child, read once per update (the
+  // analytic tilt and the direct row densities): valid when they pass the
+  // distribution's parameter check at the entry mean.
+  struct StepChild {
+    bool valid = false;
+    double sd = 1, se = 1, power = 1;
+    int bin = 0, sign = 1, mode = 0, telescope = 0, bins = 0;
+    double const *omega = nullptr;
+    std::size_t bounds = 0;        // offset of the decoded lower and upper bounds in _bounds
+  };
+  std::vector<StepChild> _step;
+  Vec _bounds;
+  std::vector<int> _tilt_position; // scratch of make_tilt, -1 outside it
+
   Shared const &s() const { return *_s; }
 
   // ---- child densities
@@ -1041,6 +1056,44 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return true;
   }
 
+  // The parameters of a step-switch child for this update (StepChild).
+  void read_step(unsigned c)
+  {
+    ChildSpec const &child = s().children[c];
+    auto const &par = child.node->parents();
+    StepChild &st = _step[c];
+    st.sd = par[1]->value(_chain)[0];
+    st.se = par[2]->value(_chain)[0];
+    st.power = par[3]->value(_chain)[0];
+    st.omega = par[4]->value(_chain);
+    st.bins = static_cast<int>(child.lengths[4]);
+    st.bin = static_cast<int>(par[7]->value(_chain)[0]);
+    st.sign = static_cast<int>(par[8]->value(_chain)[0]);
+    st.mode = static_cast<int>(par[9]->value(_chain)[0]);
+    st.telescope = static_cast<int>(par[10]->value(_chain)[0]);
+    st.bounds = _bounds.size();
+    for (unsigned side = 5; side <= 6; ++side) {
+      double const *values = par[side]->value(_chain);
+      for (int b = 0; b < st.bins; ++b) _bounds.push_back(selnorm_jags_bound_to_ieee(values[b]));
+    }
+    read_params(child);
+    st.valid = static_cast<VectorDist const *>(child.node->distribution())->checkParameterValue(_params, child.lengths);
+  }
+
+  StepRowLaw step_law(unsigned c) const
+  {
+    StepChild const &st = _step[c];
+    StepRowLaw law;
+    law.sd = st.sd;
+    law.se = st.se;
+    law.effect_sign = st.sign;
+    law.bins = st.bins;
+    law.omega = st.omega;
+    law.lower = &_bounds[st.bounds];
+    law.upper = &_bounds[st.bounds + static_cast<std::size_t>(st.bins)];
+    return law;
+  }
+
   void prepare()
   {
     Shared const &sh = s();
@@ -1059,6 +1112,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     for (unsigned k = 0; k < S; ++k) _z[k] = _entry[sh.latent_pos[k]];
 
     _selection = false;
+    _bounds.clear();
     for (unsigned c = 0; c < sh.children.size(); ++c) {
       ChildSpec const &child = sh.children[c];
       double const *mean = child.node->parents()[0]->value(_chain);
@@ -1070,6 +1124,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       if (!precision(child, &_W[child.woff])) {
         throwNodeError(child.node, "Location block sampler: the covariance of this likelihood node is not positive definite");
       }
+      if (child.type == ChildType::step_switch) read_step(c);
       _selected[c] = is_selected(child);
       if (_selected[c]) _selection = true;
       _value_ok[c] = 0;
@@ -1776,14 +1831,168 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     double ell_hat = 0;
   };
 
+  // The tilt of a line in closed form (A2): when every selection child the
+  // line moves is a step-switch row, ell(x) = -sum_rows power log A_row(mean
+  // at x) with A_row the row's selected-normal normalizer, and its gradient
+  // and Hessian in the free coordinates V' g and V' diag(h) V from the rows'
+  // closed-form derivatives in one pass (V the rows' mean changes per unit of
+  // each moving coordinate). Otherwise the fits use central differences of
+  // line_ell. Both are deterministic functions of the line.
+  struct Tilt {
+    bool analytic = false;
+    std::size_t nm = 0;
+    std::vector<unsigned> kids, rows;
+    Vec V;                         // rows x moving coordinates
+  };
+
+  void make_tilt(Line const &L, Tilt &tilt)
+  {
+    Shared const &S = s();
+    tilt = Tilt();
+    tilt.nm = L.moving.size();
+    std::vector<Shift> basis;
+    line_basis(L, basis);
+    bool ok = true;
+    for (std::size_t m = 0; m < tilt.nm && ok; ++m) {
+      Shift const &b = basis[m];
+      for (std::size_t q = 0; q < b.children.size(); ++q) {
+        const unsigned c = b.children[q];
+        if (gaussian_child(c)) continue;
+        ChildSpec const &child = S.children[c];
+        if (child.type != ChildType::step_switch || !_step[c].valid) {
+          ok = false;
+          break;
+        }
+        int &position = _tilt_position[c];
+        if (position < 0) {
+          position = static_cast<int>(tilt.kids.size());
+          tilt.kids.push_back(c);
+          tilt.rows.push_back(child.row0);
+          tilt.V.resize(tilt.V.size() + tilt.nm, 0.0);
+        }
+        tilt.V[static_cast<std::size_t>(position) * tilt.nm + m] = b.delta[b.offset[q]];
+      }
+    }
+    for (unsigned c : tilt.kids) _tilt_position[c] = -1;
+    tilt.analytic = ok;
+    if (!ok) {
+      tilt.kids.clear();
+      tilt.rows.clear();
+      tilt.V.clear();
+    }
+  }
+
+  // ell (absolute) at a point of the subline of the free coordinates [first,
+  // first + d), with its gradient and Hessian there when asked.
+  bool tilt_at(Tilt const &tilt, Line const &L, std::size_t first, Vec const &point, Vec const &target,
+               double &ell, Vec *grad, Vec *hess)
+  {
+    const std::size_t d = point.size(), nm = tilt.nm;
+    Vec db;
+    subline_db(L, first, point, target, db);
+    if (grad != nullptr) {
+      grad->assign(d, 0.0);
+      hess->assign(d * d, 0.0);
+    }
+    long double value = 0;
+    for (std::size_t r = 0; r < tilt.kids.size(); ++r) {
+      const unsigned c = tilt.kids[r];
+      double const *v = &tilt.V[r * nm];
+      long double mean = _mean[tilt.rows[r]];
+      for (std::size_t m = 0; m < nm; ++m) mean += static_cast<long double>(db[m]) * v[m];
+      double log_a, d1, d2;
+      count(counters().evaluations[_category]);
+      if (!step_row_log_normalizer(step_law(c), static_cast<double>(mean), &log_a, &d1, &d2)) return false;
+      const double power = _step[c].power;
+      value -= static_cast<long double>(power) * log_a;
+      if (grad == nullptr) continue;
+      for (std::size_t k = 0; k < d; ++k) {
+        const double ak = v[first + k];
+        if (ak == 0.0) continue;
+        (*grad)[k] -= power * d1 * ak;
+        for (std::size_t l = 0; l < d; ++l) (*hess)[k * d + l] -= power * d2 * ak * v[first + l];
+      }
+    }
+    ell = static_cast<double>(value);
+    return std::isfinite(ell);
+  }
+
+  // ell at a point of a subline by the tilt's own evaluator.
+  double fit_ell(Tilt const &tilt, Line const &L, std::size_t first, Vec const &point, Vec const &target)
+  {
+    if (tilt.analytic) {
+      double ell;
+      return tilt_at(tilt, L, first, point, target, ell, nullptr, nullptr) ? ell : negative_infinity;
+    }
+    Vec db;
+    Shift sh;
+    subline_db(L, first, point, target, db);
+    return line_ell(L, db.data(), sh);
+  }
+
+  // The damped Newton fit with the closed-form tilt (A2): the same iteration
+  // as newton() with exact derivatives at every accepted point.
+  Fit newton_analytic(Tilt const &tilt, Line const &L, std::size_t first, Vec const &target, Vec const &m,
+                      Vec const &P, Vec const &Pchol, double log_det_P)
+  {
+    const std::size_t d = m.size();
+    Fit fit;
+    Vec x(m), grad, hess;
+    double e;
+    if (!tilt_at(tilt, L, first, x, target, e, &grad, &hess)) return fit;
+    auto f_at = [&](Vec const &point, double ell) {
+      return log_normal_precision(point.data(), m, Pchol, log_det_P) + ell;
+    };
+    for (int iteration = 0; iteration < 2; ++iteration) {
+      Vec Pt;
+      if (!floor_precision(P, Pchol, hess, d, Pt)) return fit;
+      Vec step(d);
+      for (std::size_t i = 0; i < d; ++i) {
+        long double g = grad[i];
+        for (std::size_t k = 0; k < d; ++k) g -= static_cast<long double>(P[i * d + k]) * (x[k] - m[k]);
+        step[i] = static_cast<double>(g);
+      }
+      Vec chol(Pt);
+      if (!cholesky(chol, d)) return fit;
+      solve_lower(chol, d, step.data());
+      solve_lower_transpose(chol, d, step.data());
+      const double f0 = f_at(x, e);
+      bool moved = false;
+      double scale = 1.0;
+      for (int halving = 0; halving <= 5 && !moved; ++halving, scale *= 0.5) {
+        Vec next(x), g_next, h_next;
+        for (std::size_t i = 0; i < d; ++i) next[i] += scale * step[i];
+        double en;
+        if (tilt_at(tilt, L, first, next, target, en, &g_next, &h_next) && f_at(next, en) >= f0) {
+          x = next;
+          e = en;
+          grad = g_next;
+          hess = h_next;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    if (!floor_precision(P, Pchol, hess, d, fit.Pt)) return fit;
+    fit.Ptchol = fit.Pt;
+    if (!cholesky(fit.Ptchol, d)) return fit;
+    fit.log_det_Pt = log_det_cholesky(fit.Ptchol, d);
+    fit.xhat = x;
+    fit.ell_hat = e;
+    fit.ok = std::isfinite(fit.log_det_Pt) && all_finite(x.data(), d);
+    return fit;
+  }
+
   // The damped Newton fit of f(x) = log N(x; m, P^-1) + ell(x) along the
   // subline of the free coordinates (spec: two iterations from m, curvature
   // floored at 0.25 P, at most five halvings, central differences with steps
   // of a quarter of the law's SD; the full Hessian up to four coordinates and
-  // its diagonal beyond). A deterministic function of the line.
-  Fit newton(Line const &L, std::size_t first, Vec const &target, Vec const &m, Vec const &P,
+  // its diagonal beyond), or with the closed-form tilt when it applies. A
+  // deterministic function of the line.
+  Fit newton(Tilt const &tilt, Line const &L, std::size_t first, Vec const &target, Vec const &m, Vec const &P,
              Vec const &Pchol, double log_det_P)
   {
+    if (tilt.analytic) return newton_analytic(tilt, L, first, target, m, P, Pchol, log_det_P);
     const std::size_t d = m.size();
     Fit fit;
     Vec db, x(m), h(d);
@@ -2083,12 +2292,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const Category previous = enter(cat_fit);
     Line const &L = _line.L;
     Vec target(L.m);
-    _line.fit = newton(L, 0, target, L.m, L.P, L.Pchol, L.log_det_P);
+    Tilt tilt;
+    make_tilt(L, tilt);
+    _line.fit = newton(tilt, L, 0, target, L.m, L.P, L.Pchol, L.log_det_P);
     // ell at the physical zero of the group (the off state)
-    Vec zero(L.m.size(), 0.0), db;
-    Shift sh;
-    subline_db(L, 0, zero, zero, db);
-    const double ell_zero = line_ell(L, db.data(), sh);
+    Vec zero(L.m.size(), 0.0);
+    const double ell_zero = fit_ell(tilt, L, 0, zero, zero);
     if (!_line.fit.ok || !std::isfinite(ell_zero)) {
       // a deterministic fallback of the line: the Gaussian law, its ell at m
       Fit fallback;
@@ -2096,8 +2305,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       fallback.Pt = L.P;
       fallback.Ptchol = L.Pchol;
       fallback.log_det_Pt = L.log_det_P;
-      subline_db(L, 0, L.m, L.m, db);
-      fallback.ell_hat = line_ell(L, db.data(), sh);
+      fallback.ell_hat = fit_ell(tilt, L, 0, L.m, L.m);
       fallback.ok = std::isfinite(fallback.ell_hat) && std::isfinite(ell_zero);
       _line.fit = fallback;
     }
@@ -2234,12 +2442,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (!metropolis(rng, screen)) return;
     count(counters().stage0[swap]);
     const Category previous = enter(cat_fit);
-    const Fit fa = newton(L, 0, target_a, cj, Cjp, Cj, lcj);
-    const Fit fb = newton(L, dj, target_b, ck, Ckp, Ck, lck);
-    Vec db;
-    Shift sh;
-    subline_db(L, 0, zero_j, zeros, db);
-    const double ell_zero = line_ell(L, db.data(), sh);
+    Tilt tilt;
+    make_tilt(L, tilt);
+    const Fit fa = newton(tilt, L, 0, target_a, cj, Cjp, Cj, lcj);
+    const Fit fb = newton(tilt, L, dj, target_b, ck, Ckp, Ck, lck);
+    const double ell_zero = fit_ell(tilt, L, 0, zero_j, zeros);
     enter(previous);
     if (!fa.ok || !fb.ok || !std::isfinite(ell_zero)) return;
     const double log_odds = gauss + laplace_tilt(fb, ck, Ck, lck, ell_zero) - laplace_tilt(fa, cj, Cj, lcj, ell_zero);
@@ -2949,6 +3156,8 @@ public:
     _value_entry.assign(S.children.size(), 0.0);
     _fit_value.assign(S.children.size(), 0.0);
     _fit_ok.assign(S.children.size(), 0);
+    _step.assign(S.children.size(), StepChild());
+    _tilt_position.assign(S.children.size(), -1);
     _coarse_fit = S.coarse_fit && S.fit_rule != 2;
     _stamp.assign(S.children.size(), 0);
     _a.assign(S.latents.size(), 0.0);
