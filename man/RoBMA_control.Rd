@@ -17,7 +17,10 @@ set_autofit_control(
   max_extend = 10,
   check_indicators = FALSE,
   monitor = NULL,
-  allow_not_assessable = FALSE
+  allow_not_assessable = FALSE,
+  burnin_max_Rhat = 1.5,
+  burnin_extend = 500,
+  burnin_max_extend = 10
 )
 
 set_convergence_checks(
@@ -91,13 +94,37 @@ convergence checks. A base name selects all indexed elements. Defaults to
 
 \item{allow_not_assessable}{whether requested sampled parameters with
 undefined diagnostics may be ignored. Defaults to \code{FALSE}.}
+
+\item{burnin_max_Rhat}{threshold of the readiness check between burn-in and
+sampling, which runs in every fit, also with \code{autofit = FALSE}.
+Defaults to \code{1.5}; \code{NULL} turns the check off. The last
+\code{burnin_extend} iterations of burn-in run with the monitors on and
+their draws are checked and then dropped: the chains are ready when the
+split-chain R-hat point estimate (each chain's block split into halves) is at
+most \code{burnin_max_Rhat} for every parameter of the convergence check
+(\code{monitor}, \code{check_indicators}). With \code{autofit}, burn-in of
+chains that are not ready is extended by blocks of \code{burnin_extend}
+iterations until they are, \code{burnin_max_extend} blocks were added, or
+\code{max_time} is exceeded; without it, burn-in is kept. Chains that are
+still not ready start sampling with a warning. A fit whose chains are ready
+at once has the draws it would have with the check off, unless a monitored
+node has no observed descendants (see \code{autofit_control} in
+\code{\link[BayesTools]{JAGS_fit}}).}
+
+\item{burnin_extend}{number of final burn-in iterations that the readiness
+check assesses and of each extension of burn-in; at least \code{100}.
+Defaults to \code{500}.}
+
+\item{burnin_max_extend}{largest number of extensions of burn-in, with
+\code{autofit} only. Defaults to \code{10}.}
 }
 \value{
 \code{set_autofit_control} returns a list of autofit control settings
 including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{sample_extend},
 \code{restarts}, \code{max_extend}, \code{check_indicators},
-\code{monitor}, and \code{allow_not_assessable}.
+\code{monitor}, \code{allow_not_assessable}, \code{burnin_max_Rhat},
+\code{burnin_extend}, and \code{burnin_max_extend}.
 \code{set_convergence_checks} returns a list with convergence thresholds
 \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
 \code{check_indicators}, \code{monitor}, and
@@ -116,9 +143,9 @@ The autofit control manages computational resources by setting maximum time limi
 determining how many additional samples to draw if convergence criteria are not met.
 The convergence checks determine the quality standards that fitted models must meet.
 Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
-\code{max_SD_error}, \code{max_time}, \code{restarts}, and
-\code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
-positive integer or \code{"auto"}. The routing controls are delegated to
+\code{max_SD_error}, \code{max_time}, \code{restarts}, \code{max_extend},
+and \code{burnin_max_Rhat} can be set to \code{NULL}; \code{sample_extend}
+must be a positive integer or \code{"auto"}. The routing controls are delegated to
 \code{BayesTools::JAGS_check_convergence()}.
 Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and

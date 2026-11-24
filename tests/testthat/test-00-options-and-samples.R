@@ -170,6 +170,56 @@ test_that("automatic extensions default to sample_extend = 'auto' and keep a fix
 })
 
 
+test_that("the readiness settings of burn-in are validated and survive control updates", {
+
+  burnin_names <- c("burnin_max_Rhat", "burnin_extend", "burnin_max_extend")
+  defaults <- set_autofit_control()
+  expect_identical(utils::tail(names(formals(set_autofit_control)), 3L), burnin_names)
+  expect_identical(defaults[burnin_names],
+    list(burnin_max_Rhat = 1.5, burnin_extend = 500, burnin_max_extend = 10))
+  # an explicit NULL turns the check off and is kept as a named element
+  off <- set_autofit_control(burnin_max_Rhat = NULL)
+  expect_true("burnin_max_Rhat" %in% names(off))
+  expect_null(off[["burnin_max_Rhat"]])
+
+  # validated by BayesTools
+  expect_error(set_autofit_control(burnin_extend = 50),
+    "Checking 'autofit_control':\n\tThe 'burnin_extend' must be equal or higher than 100.", fixed = TRUE)
+  expect_error(set_autofit_control(burnin_max_Rhat = 0.5), "'burnin_max_Rhat' must be equal or higher than 1.")
+  expect_error(set_autofit_control(burnin_max_Rhat = Inf), "'burnin_max_Rhat' argument must contain only finite values.")
+  expect_error(set_autofit_control(burnin_max_extend = -1), "'burnin_max_extend' must be equal or higher than 0.")
+  expect_error(set_autofit_control(burnin_extend = NULL), "The 'burnin_extend' argument cannot be NULL.")
+
+  # the convergence checks do not get them
+  expect_false(any(grepl("^burnin_", names(formals(set_convergence_checks)))))
+  expect_false(any(grepl("^burnin_", names(set_convergence_checks()))))
+  expect_false(any(grepl("^burnin_", names(.update_convergence_checks(set_convergence_checks(), list())))))
+
+  # update(): a supplied value or NULL replaces the stored one, an omitted one is kept
+  stored <- set_autofit_control(burnin_max_Rhat = 1.3, burnin_extend = 300, burnin_max_extend = 4)
+  expect_identical(.update_autofit_control(stored, NULL)[burnin_names], stored[burnin_names])
+  expect_identical(.update_autofit_control(stored, list(burnin_extend = 200))[burnin_names],
+    list(burnin_max_Rhat = 1.3, burnin_extend = 200, burnin_max_extend = 4))
+  cleared <- .update_autofit_control(stored, list(burnin_max_Rhat = NULL))
+  expect_true("burnin_max_Rhat" %in% names(cleared))
+  expect_null(cleared[["burnin_max_Rhat"]])
+  later <- .update_autofit_control(cleared, list(max_extend = 2))
+  expect_true("burnin_max_Rhat" %in% names(later))
+  expect_null(later[["burnin_max_Rhat"]])
+  # a control stored before the settings existed takes their defaults
+  legacy <- set_autofit_control(max_extend = 3)
+  legacy[burnin_names] <- NULL
+  expect_identical(.update_autofit_control(legacy, list())[burnin_names], defaults[burnin_names])
+
+  # the constructors store the control as given
+  object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD", only_priors = TRUE, silent = TRUE,
+    autofit_control = set_autofit_control(burnin_max_Rhat = NULL, burnin_extend = 200))
+  expect_true("burnin_max_Rhat" %in% names(object[["autofit_control"]]))
+  expect_null(object[["autofit_control"]][["burnin_max_Rhat"]])
+  expect_identical(object[["autofit_control"]][["burnin_extend"]], 200)
+})
+
+
 test_that("convergence checks expose BayesTools routing controls", {
 
   checks <- set_convergence_checks()

@@ -563,6 +563,46 @@ test_that("automatic extensions of a fit use its adaptation", {
   expect_identical(vapply(.draws_by_chain(fit), nrow, integer(1)), c(120L, 120L))
 })
 
+test_that("the readiness check of burn-in receives the autofit control and the fit reports the burn-in run", {
+
+  # the chains disagree in the first checked block and agree in the next
+  checks <- 0L
+  testthat::local_mocked_bindings(
+    .bt_burnin_block_Rhat = function(block, ...) {
+      checks <<- checks + 1L
+      c(mu = if (checks == 1L) 3 else 1)
+    },
+    .package = "BayesTools"
+  )
+  fit <- .adaptation_fit(
+    autofit = TRUE,
+    autofit_control = set_autofit_control(max_Rhat = NULL, min_ESS = NULL, burnin_extend = 100,
+                                          burnin_max_extend = 2)
+  )
+  record <- attr(fit[["fit"]], "burnin_check")
+  expect_identical(checks, 2L)
+  expect_identical(record[c("block", "burnin_extend", "extension", "status")],
+    list(block = 100L, burnin_extend = 100, extension = 100, status = "ready"))
+  expect_equal(fit[["fit"]][["burnin"]], 200)
+  expect_equal(fit[["fit_control"]][["burnin"]], 100)
+  expect_identical(vapply(coda::as.mcmc.list(fit[["fit"]]), stats::start, numeric(1)), c(501, 501))
+
+  # without autofit the chains keep their burn-in and the warning reaches the fit
+  checks <- 0L
+  fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_extend = 100))
+  record <- attr(fit[["fit"]], "burnin_check")
+  expect_identical(record[["stop_reason"]], "no_autofit")
+  expect_equal(fit[["fit"]][["burnin"]], 100)
+  expect_true(any(grepl("The chains had not reached agreement at the end of burn-in",
+    fit[["fit"]][["warnings"]], fixed = TRUE)))
+
+  # an explicit NULL turns the check off
+  checks <- 0L
+  fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_max_Rhat = NULL))
+  expect_identical(checks, 0L)
+  expect_null(attr(fit[["fit"]], "burnin_check"))
+})
+
 test_that("update.brma sizes an 'auto' extension from the convergence check of the stored fit", {
 
   fit <- .adaptation_fit()

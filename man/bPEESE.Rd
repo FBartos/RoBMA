@@ -221,7 +221,12 @@ likely to be selected; \code{"negative"} mirrors the selection direction;
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
-\item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
+\item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.
+The chains are checked for agreement over the last iterations of burn-in
+before sampling starts, and with \code{autofit} burn-in is extended until they
+agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}}). The fitted JAGS
+object (\code{object$fit$burnin}) reports the burn-in that was run; the fitting
+settings (\code{object$fit_control$burnin}) keep the requested value.}
 
 \item{adapt}{numeric. Number of adaptation iterations. Defaults to \code{500}.}
 
