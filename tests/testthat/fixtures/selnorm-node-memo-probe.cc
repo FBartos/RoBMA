@@ -95,8 +95,11 @@ void report(const char *name, bool ok)
 int main()
 {
   const void *node = reinterpret_cast<const void *>(0x1000);
+  // The checks below pin the one-entry memo (ROBMA_SELNORM_NODE_MEMO=1, the
+  // earlier memo); the two-entry checks follow them.
+  selnorm_node_memo_set_slots(1);
   {
-    SelNormNodeMemo memo;
+    SelNormNodeMemo memo(0);
     Call call;
     report("empty_misses", !hit(memo, node, call));
     store(memo, node, call, 1.5);
@@ -112,7 +115,7 @@ int main()
     // Every element of every input, mutated in place, must miss; the design
     // array must not matter. Then a store must carry the mutation, and only
     // the changed array, so the next call with the old value misses.
-    SelNormNodeMemo memo;
+    SelNormNodeMemo memo(0);
     Call call;
     store(memo, node, call, 1.5);
     int checked = 0, missed = 0, restored = 0, stored = 0, reverted = 0;
@@ -147,7 +150,7 @@ int main()
   }
   {
     // A different length is a different call; the entry follows the new layout.
-    SelNormNodeMemo memo;
+    SelNormNodeMemo memo(0);
     Call four(4U), three(3U);
     store(memo, node, four, 1.5);
     report("length_change_misses", !hit(memo, node, three));
@@ -159,7 +162,7 @@ int main()
   {
     // The map is bounded: a new key beyond the limit empties it, while
     // updating an existing key at the limit does not.
-    SelNormNodeMemo memo;
+    SelNormNodeMemo memo(0);
     Call call;
     const int limit = SelNormNodeMemo::maximum_keys;
     for (int i = 1; i <= limit; ++i) {
@@ -176,7 +179,7 @@ int main()
            hit(memo, reinterpret_cast<const void *>(static_cast<std::size_t>(limit + 1)), call));
   }
   {
-    SelNormNodeMemo memo;
+    SelNormNodeMemo memo(0);
     std::atomic<int> ready{0};
     bool correct[2] = {true, true};
     auto chain = [&](int id) {
@@ -197,6 +200,41 @@ int main()
     first.join();
     second.join();
     report("concurrent_chains", correct[0] && correct[1]);
+  }
+  {
+    // Two entries per node: a second distinct call keeps the first; a third
+    // replaces the one used least recently (a hit counts as a use); one entry
+    // keeps only the last; the counters count lookups and hits.
+    selnorm_node_memo_set_slots(2);
+    SelNormNodeMemo memo(1);
+    Call a, b, c;
+    b.x[0] += 1.0;
+    c.x[0] += 2.0;
+    SelNormMemoCounters &counters = selnorm_node_memo_counters();
+    const std::uint64_t lookups = counters.lookups[1].load();
+    const std::uint64_t hits = counters.hits[1].load();
+    store(memo, node, a, 1.0);
+    store(memo, node, b, 2.0);
+    double va = 0.0, vb = 0.0;
+    report("two_entries_keep_previous", hit(memo, node, a, &va) && va == 1.0 && hit(memo, node, b, &vb) && vb == 2.0);
+    // b was used last: c replaces a
+    store(memo, node, c, 3.0);
+    double vc = 0.0;
+    report("third_call_replaces_least_recent", !hit(memo, node, a) && hit(memo, node, b) && hit(memo, node, c, &vc) &&
+           vc == 3.0);
+    // a hit of b makes c the least recent: a replaces c
+    hit(memo, node, b);
+    store(memo, node, a, 1.0);
+    report("hit_refreshes_entry", hit(memo, node, b) && hit(memo, node, a) && !hit(memo, node, c));
+    report("counters_count_lookups_and_hits",
+           counters.lookups[1].load() - lookups == 9 && counters.hits[1].load() - hits == 7);
+    selnorm_node_memo_set_slots(1);
+    SelNormNodeMemo single(1);
+    store(single, node, a, 1.0);
+    store(single, node, b, 2.0);
+    report("one_entry_keeps_last", !hit(single, node, a) && hit(single, node, b));
+    selnorm_node_memo_set_slots(0);
+    report("zero_entries_disable", !selnorm_node_memo_enabled());
   }
   return 0;
 }
