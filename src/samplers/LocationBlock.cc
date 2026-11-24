@@ -83,6 +83,9 @@ struct Counters {
   std::atomic<std::uint64_t> correction_evaluations{0};
   std::atomic<std::uint64_t> fit_rule_fallback{0};
   std::atomic<std::uint64_t> ellipse_shrinks{0};
+  // groups of two or more coordinates whose refresh became the slice update
+  // (a composite component that reverses its coordinates in reversed sweeps)
+  std::atomic<std::uint64_t> slice_refresh_multi{0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
@@ -900,7 +903,13 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   std::vector<unsigned> _stamp;
   unsigned _stamp_id = 0;
   bool _selection = false;         // some child is a selection child in step mode
-  bool _surrogate_mode = false;    // the surrogate replaces the exact selection densities
+  bool _selection_seen = false;    // the sweep was in a selection label at some point
+  bool _backward = false;          // this sweep runs the component list reversed
+  // The surrogate replaces the exact selection densities: a property of the fit
+  // (corrected and not fallen back to exact mode), so that every component of
+  // a sweep targets one inner target whatever the label (sweep condition 2);
+  // in a Gaussian label no surrogate is evaluated.
+  bool _surrogate_mode = false;
   bool _not_exact = false;         // a surrogate evaluated this update was not exact
   long double _repr_delta = 0;     // accumulated log density change of the inner target
   Vec _a, _lambda, _u, _P, _h;     // Gaussian working model
@@ -1223,7 +1232,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       _fit_ok[c] = 0;
       _dirty[c] = 0;
     }
-    _surrogate_mode = _selection && sh.corrected && !_exact;
+    _surrogate_mode = sh.corrected && !_exact;
+    _selection_seen = _selection;
     _line.valid = false;
     _not_exact = false;
     _repr_delta = 0;
@@ -1843,7 +1853,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   }
 
   // R_j of an active group in a selection label (stage 1): a slice update of
-  // each coordinate along its sheared line, width 2.5 line SDs.
+  // each coordinate along its sheared line, width 2.5 line SDs. A composite
+  // component: its coordinates run in reverse order in the reversed sweep
+  // (sweep condition 3), so that the whole sweep stays a palindrome.
   void slice_refresh(unsigned j, RNG *rng)
   {
     GroupSpec const &g = s().groups[j];
@@ -1852,7 +1864,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const std::size_t nm = L.moving.size();
     std::vector<unsigned> prior_coords(L.partners);
     prior_coords.push_back(g.coord0);
-    for (std::size_t i = 0; i < nm; ++i) {
+    for (std::size_t step = 0; step < nm; ++step) {
+      const std::size_t i = _backward ? nm - 1 - step : step;
       count(counters().proposed[refresh]);
       Vec db(nm, 0.0);
       db[i] = 1.0;
@@ -3093,7 +3106,6 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     prepare();
     enter(cat_move);
     count(counters().sweeps);
-    if (_selection) count(counters().sweeps_selection);
     std::vector<Step> steps;
     for (unsigned j = 0; j < S.groups.size(); ++j) {
       if (S.groups[j].gate != nullptr) steps.push_back({kind_flip, j, 0});
@@ -3101,13 +3113,16 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     const std::vector<std::pair<unsigned, unsigned>> pairs = swap_pairs();
     for (auto const &pair : pairs) steps.push_back({kind_swap, pair.first, pair.second});
-    // the joint refresh is Gaussian only: the untilted joint law is rejected
-    // under selection
-    if (!_selection && !S.groups.empty()) steps.push_back({kind_joint, 0, 0});
-    // E in selection labels: after the flips and swaps, before the latents
+    // The slot list is a function of the fit and of non-members only (sweep
+    // condition 1): components whose eligibility depends on the label occupy
+    // fixed slots and decide when they run whether they act. The joint
+    // refresh acts in Gaussian labels only (the untilted joint law is rejected
+    // under selection), E in selection labels only, after the flips and swaps
+    // and before the latents.
+    if (!S.groups.empty()) steps.push_back({kind_joint, 0, 0});
     const int variant = refresh_variant();
     const int ellipses = variant == 3 ? 2 : (variant == 2 || variant == 4) ? 1 : 0;
-    if (_selection) for (int e = 0; e < ellipses; ++e) steps.push_back({kind_ellipse, 0, 0});
+    for (int e = 0; e < ellipses; ++e) steps.push_back({kind_ellipse, 0, 0});
     for (unsigned lat = 0; lat < S.latents.size(); ++lat) steps.push_back({kind_latent, lat, 0});
     if (S.probe) {
       // test hook: dry runs of every collapsed Gaussian move at the entry state
@@ -3121,9 +3136,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       ellipse(rng, true);
     }
     // one coin per update: the whole list forward or reversed
-    const bool backward = rng->uniform() < 0.5;
+    _backward = rng->uniform() < 0.5;
     for (std::size_t i = 0; i < steps.size(); ++i) {
-      Step const &step = steps[backward ? steps.size() - 1 - i : i];
+      Step const &step = steps[_backward ? steps.size() - 1 - i : i];
       // The line of a group serves its F_j and R_j, adjacent in either order;
       // any other component changes it.
       if ((step.kind != kind_flip && step.kind != kind_refresh) || _line.group != step.a) _line.valid = false;
@@ -3141,14 +3156,14 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         else tilted_refresh(step.a, rng);
         break;
       case kind_ellipse:
-        ellipse(rng);
+        if (_selection) ellipse(rng);
         break;
       case kind_swap:
         if (_selection) tilted_swap(step.a, step.b, rng);
         else gaussian_swap(step.a, step.b, rng);
         break;
       case kind_joint:
-        gaussian_joint(rng);
+        if (!_selection) gaussian_joint(rng);
         break;
       case kind_latent:
         if (_selection) slice_latent(step.a, rng);
@@ -3156,6 +3171,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         break;
       }
     }
+    if (_selection_seen) count(counters().sweeps_selection);
     enter(cat_correction);
     correct(rng);
     enter(cat_move);
@@ -3254,24 +3270,25 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       accepted = metropolis(rng, log_ratio);
     }
     if (std::isfinite(log_ratio)) {
-      record_max(_selection ? counters().max_correction : counters().max_correction_gaussian, std::fabs(log_ratio));
+      record_max(_selection_seen ? counters().max_correction : counters().max_correction_gaussian, std::fabs(log_ratio));
     }
-    if (_selection) {
+    if (_selection_seen) {
       record_max(counters().max_endpoint, std::fabs(static_cast<double>(new_endpoint)));
       record_max(counters().max_endpoint_change, std::fabs(static_cast<double>(new_endpoint - old_endpoint)));
     }
     if (accepted) {
       count(counters().corrections_accepted);
-      if (_selection) count(counters().corrections_selection_accepted);
+      if (_selection_seen) count(counters().corrections_selection_accepted);
     } else {
       _view->setValue(_entry, _chain);
     }
-    // evidence about the surrogate: a selection label with a surrogate that
-    // was not exact
+    // evidence about the surrogate: a sweep that evaluated a surrogate that
+    // was not exact (only selection labels evaluate surrogates)
     const bool evidence = _surrogate_mode && _not_exact;
     // the shared bookkeeping of the corrected samplers (process counters,
-    // adaptive evidence, reporting window)
-    if (_surrogate_mode) _tally.count(accepted, evidence);
+    // adaptive evidence, reporting window), for sweeps that visited a
+    // selection label (a sweep entirely in Gaussian labels needs no surrogate)
+    if (_surrogate_mode && _selection_seen) _tally.count(accepted, evidence);
     if (!evidence) return;
     count(counters().sweeps_evidence);
     if (accepted) count(counters().corrections_evidence_accepted);
@@ -3364,6 +3381,7 @@ public:
     for (std::size_t j = 0; j < _slice_refresh.size(); ++j) {
       _slice_refresh[j] = _refresh_proposed[j] > 0 &&
         static_cast<double>(_refresh_accepted[j]) < 0.4 * static_cast<double>(_refresh_proposed[j]);
+      if (_slice_refresh[j] && s().groups[j].d > 1) count(counters().slice_refresh_multi);
     }
     // the coarse rung of the Newton fits, from the stage-2 acceptance of the
     // tilted flips and swaps that passed stage 1 while adapting (A1)
@@ -3769,6 +3787,7 @@ std::vector<char const *> const &location_block_report_names()
       "samplers", "sweeps", "sweeps_selection", "sweeps_evidence", "corrections_accepted",
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
+      "slice_refresh_multi",
       "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
       "max_stage2_gaussian"};
     static std::vector<std::string> storage;
@@ -3800,6 +3819,7 @@ std::vector<double> location_block_report(bool clear)
     take(c.corrections_accepted), take(c.corrections_selection_accepted),
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
+    take(c.slice_refresh_multi),
     take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
   for (int i = 0; i < component_count; ++i) {
