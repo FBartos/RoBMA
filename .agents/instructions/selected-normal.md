@@ -462,22 +462,29 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   full-event projection (`.zplot_full_event_projection`) judges its event
   integrals through `.selection_joint_checked_event`, which is scaled.
   Deterministic rules do not use the multiplier.
-- Last-evaluation memo: JAGS evaluates a node first at its current value, so
-  about 17% of the node calls repeat the previous one. Each factor and cluster
-  step node keeps owned copies of every input of a deterministic result (`x`,
-  all parameter arrays including the quadrature tables, scalar controls, dims
-  and flags) and its log density, and answers a call only when every stored
-  value is equal (pointer identity never suffices: JAGS mutates in place). The
-  QMC design is not an input. Only results the kernel flags `deterministic`
-  (ladders, tier, rank-one interval refinement, sparse grid; the batch results carry the flag as an attribute
-  of that name) are stored, never a randomized, non-finite or thrown one. The
-  memo is a function-local map keyed by node, never deleted, and cleared as a
-  whole above 4096 keys. Each entry copies the quadrature tables (about 32 KB
-  for a cluster node, 5 KB for a factor node), so the map can hold roughly
-  130 MB for the rest of the R session, entries of finished models included;
-  a process with more step nodes than the cap clears it repeatedly and gains
-  little from it. `ROBMA_SELNORM_NODE_MEMO=0`, read once per process, disables
-  it. Draws are bitwise identical with and without it.
+- Evaluation memo: JAGS evaluates a node first at its current value, so
+  about 17% of the node calls repeat the previous one, and a sampler that
+  restores an earlier state (a rejected correction, an enumerated indicator)
+  leaves that state one evaluation back. Each factor and cluster step node
+  keeps two entries, each with owned copies of every input of a deterministic
+  result (`x`, all parameter arrays including the quadrature tables, scalar
+  controls, dims and flags) and its log density, and answers a call only when
+  every stored value of an entry is equal (pointer identity never suffices:
+  JAGS mutates in place); a store replaces the entry used least recently (a
+  hit counts as a use). The QMC design is not an input. Only results the
+  kernel flags `deterministic` (ladders, tier, rank-one interval refinement,
+  sparse grid; the batch results carry the flag as an attribute of that name)
+  are stored, never a randomized, non-finite or thrown one. The memo is a
+  function-local map keyed by node, never deleted, and cleared as a whole
+  above 4096 keys. Each entry copies the quadrature tables (about 32 KB for a
+  cluster node, 5 KB for a factor node), so the map can hold roughly 260 MB
+  for the rest of the R session, entries of finished models included; a
+  process with more step nodes than the cap clears it repeatedly and gains
+  little from it. `ROBMA_SELNORM_NODE_MEMO`, read once per process, is `0` to
+  disable it and `1` for one entry per node (the earlier memo); the test hook
+  `RoBMA_corrected_sampler_test` changes the entry count at run time and reads
+  its lookup and hit counters. Draws are bitwise identical with two, one and
+  no entries.
 - Lean arithmetic: the nested-forest rung with its shifted copies and the
   rank-one cluster rung accumulate node products in double. A row's node
   normalizers are computed into a call-owned workspace and all validated (the
@@ -528,14 +535,37 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   pins the surrogate values, fallbacks and purity, and
   `test-00-selection-coarse-exactness.R` the exactness of the corrected chains
   against QUADPACK references. The scalar factory skips any node with a
-  `dbt_block` or `dbt_gate` marker child, whatever the factory order.
+  `dbt_block` or `dbt_gate` marker child, whatever the factory order. A dense
+  child whose kernel mode is fixed at NORMAL is not coarse-capable (its
+  surrogate is its exact density), so `child_kind` decides from fixed parents
+  that no surrogate of a sampler can ever differ from the exact density and the
+  sampler is not created.
 - Corrected block sampler (`src/samplers/CoarseCorrectedBlock.cc`,
-  `RoBMA::CoarseCorrectedBlock`): a declared block (`sampler.blocks`) whose
+  `RoBMA::CoarseCorrectedBlock`, a thin owner of the kernel in
+  `CorrectedBlockKernel.cc` that the gated block shares): a declared block
+  (`sampler.blocks`) whose
   multilevel view has a coarse-capable selection child. Its factory groups the
   marked members as BayesTools' factor slice factory does (markers read the
   same way) and is asked first: RoBMA's module loads after BayesTools', and
   JAGS asks a later module's factories first; other groups go to
-  `BayesTools::FactorSlice`. One update: the full density and the surrogate
+  `BayesTools::FactorSlice`. Gamma-sum coordinates (`GammaGroup.cc`): members
+  `eta_i ~ dgamma(a_i, r)` with fixed shapes, one fixed common rate and no
+  truncation whose only children (checked on the compiled graph) are sampler
+  markers, one aggregate of exactly the group, `sum()` of that aggregate and
+  divisions `eta_i / sum` (every other path declines the group) are held as
+  the m - 1 log-ratio coordinates `z_i = log(eta_i / eta_m)` and the total
+  `T`: `T ~ Gamma(sum a, r)` is independent of the proportions and of the
+  likelihood. The Jacobian of `(T, z) -> eta` is `T^(m-1) prod_i p_i`; the
+  kernel adds `(m - 1) log T + sum_i log p_i` to the members' own densities.
+  The corrected update draws a new `T` from its law after the surrogate sweep
+  and before the full evaluation and corrects with `log Gamma(T) - log
+  Gamma(T')` (the total's terms cancel in exact arithmetic, so the acceptance
+  is that of the proportions, and the last full evaluation is at the state the
+  update keeps, which the node memo then holds); the exact kernel draws `T`
+  first (Gibbs) and sweeps. A heterogeneity allocation block (allocation SD and
+  two Dirichlet gammas) thus has two directions and one gamma draw; the test
+  hook's `drop_sum_jacobian` mutant fails the exactness fixtures. One update:
+  the full density and the surrogate
   (each member's full density, the exact terms of the other children, the
   selected children's surrogates) at block entry, a fair forward or backward
   order draw, one slice update of the surrogate per direction with chained
@@ -556,11 +586,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   optimistic; a block kept on that reading is still exact (the rule guards
   efficiency only), and the per-fit warning judges the rate after adaptation.
   The
-  fallback rules are the scalar sampler's, judged on acceptance^(1/d) (a block
-  move composes d direction moves), the rate exponent that the worst-sampler
-  rate and the warning (`sampling_judged`) also use; after a fallback the block
-  runs BayesTools' fixed-order sweep of the full conditional with the learned
-  axes, call for call. A member with two finite bounds whose span is not
+  fallback rule is the scalar sampler's, judged on acceptance^(1/d) (d the
+  number of directions; a block move composes d direction moves), the rate
+  exponent that the worst-sampler rate and the warning (`sampling_judged`)
+  also use; after a fallback the block runs BayesTools' fixed-order sweep of
+  the full conditional with the learned axes, call for call (the test hook's
+  `force_fallback` pins this against `BayesTools::FactorSlice`). A member with two finite bounds whose span is not
   finite stops at construction, as in BayesTools' sampler; every error of
   either block sampler gets the hint `sampler.blocks = FALSE`
   (`.sampler_error_hint()`), a member on a bound also the interior start. Test
@@ -573,35 +604,93 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   bound is not resolved, and this is not detected (see the kernel header). The
   scalar samplers do not have this limit; `sampler.blocks = FALSE` is the
   remedy.
-- Fallback and record: each sampler object (node or block x chain, per model build)
-  keeps its own adaptation flag (JAGS has no accessor), counts its adaptive
-  proposals and accepted corrections, and records whether any adaptive
+- Corrected gated block (`src/samplers/GatedCorrectedBlock.cc`,
+  `RoBMA::GatedCorrectedBlock`, asked before `BayesTools::GatedSlice`): the
+  still-unclaimed gated scalar continuous nodes with a fixed support grouped by
+  pointer identity of their `<active>` node (with `sampler.nested.weights` the
+  shared coordinates and the fine branch's own coordinate form separate
+  blocks, so no live coordinate is redrawn from its prior). A group is claimed
+  when no member depends on another, it has a coarse-capable selection child
+  and every member reaches every coarse-capable child only through the child's
+  weights (no other parameter of such a child is a member or a deterministic
+  descendant of one): selection weights, not a PET or PEESE slope (which keeps
+  `GatedSlice`; under the normal kernel of its branch its surrogate is exact).
+  Gate closed: every member drawn from its own distribution, redrawn up to 100
+  times while a value is not strictly inside its support or a deterministic
+  descendant is not finite, otherwise kept (each attempt is an independent
+  prior draw, so the kernel is the restricted prior or, with a probability that
+  does not depend on the state, no move); while adapting, a change of the
+  children's log density is `GatedSlice`'s declaration error. Gate open: one
+  update of the shared block kernel, whose axes learn from these updates only;
+  until they are first refreshed (100 open adaptive updates) the coordinate
+  axes have widths of 2.5 prior SDs (trigamma of the shapes for gamma and beta
+  members and log-ratio coordinates, 1 otherwise). `checkAdaptation()` is true
+  after any update, so a branch never open while adapting does not hold up the
+  adaptation. Errors start with "Corrected slice (gated block)" and get the
+  `selection.sampler = "slice"` hint.
+- Screened indicator (`src/samplers/ScreenedFinite.cc`,
+  `RoBMA::ScreenedFinite`; the kernel `ScreenedFiniteKernel` takes a setter so
+  that a joint owner can call it): a scalar `dcat` (fixed probabilities) or
+  `dbern` (fixed probability) without truncation, with a fixed finite support,
+  a coarse-capable selection child among the stochastic children of its view,
+  no `bt_finite_tag`/`bt_finite_witness_tag` child (a `sampler.probabilities`
+  readout keeps the enumerating `BayesTools::Finite`, whose recorded
+  probabilities are the exact conditionals; a surrogate proposal's
+  probabilities are not), and not claimed by RoBMA's joint samplers (asked
+  first). One update scores every level of nonzero prior mass with
+  `s_l = log prior(l) + sum` of each stochastic child's surrogate (the exact
+  density of children without one, the label-dependent prior of shared nested
+  weights included), draws `k'` from `exp(s)` (the current level included), and
+  for `k' != k` evaluates the exact scores of `k` and then `k'` (so the last
+  exact evaluation is the proposed state) and accepts with
+  `min(1, exp((e_k' - s_k') - (e_k - s_k)))`; a self-proposal costs no exact
+  evaluation. The optional Liu proposal (test hook `finite_proposal = 2`) is
+  reversible for the surrogate law and keeps the same correction. The exact
+  kernel is base::Finite's enumeration, arithmetic and single uniform. The
+  `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
+  Batch scoring of the six selection labels was not built.
+- Fallback and record: each sampler object (node, block or indicator x chain,
+  per model build) keeps its own adaptation flag (JAGS has no accessor) and
+  counts its adaptive evidence proposals and their accepted corrections
+  (`CorrectedTally`). Evidence is a proposal during which at least one
   surrogate used a normalizer that is not the exact one (the trailing
   `surrogate_not_exact` flag of the three `surrogateLogDensity`: a cluster or
   factor child's coarse rung, never its `exact_fallback`; a dense child's
   anchor integral or unit normalizer; no child under the NORMAL kernel, whose
-  anchor normalizer is the exact one). At its first `adaptOff()` (a second
-  call changes nothing) and with `selection.coarse_min_acceptance > 0`
-  (default 0.90, frozen with the
+  anchor normalizer is the exact one); for an indicator, a change of level
+  whose surrogate at either level was not exact. A Gaussian label's proposals
+  are therefore not evidence (their correction is one). At its first
+  `adaptOff()` (a second call changes nothing) and with
+  `selection.coarse_min_acceptance > 0` (default 0.90, frozen with the
   runtime settings; settings without it, from 4.1.1 fits, mean 0) it switches
   for good to the exact kernel, an ordinary slice update of the full
-  conditional through the same `logDensity()`, when (a) it made fewer than 50
-  adaptive proposals, (c) no adaptive surrogate was not exact, or (b) its
-  adaptive acceptance is below the threshold, the first that holds being the
-  recorded reason. Both kernels are exact and the choice uses adaptation draws
-  only, so no switch happens after adaptation. Adaptation ends where BayesTools
+  conditional through the same `logDensity()`, only when it made at least 50
+  adaptive evidence proposals and their acceptance (rate^(1/d) for a block) is
+  below the threshold; with fewer it stays corrected, and the per-fit warning
+  over evidence proposals after adaptation is the safety net. (Earlier
+  development versions also fell back after fewer than 50 adaptive proposals or
+  without an inexact surrogate, which disabled every corrected sampler of a
+  chain that adapted in a Gaussian label; those two reasons are retired and
+  their record elements dropped.) A sampler whose children can never use an
+  inexact surrogate is not created (`child_kind`, fixed parents). Both kernels
+  are exact and the choice uses adaptation draws only, so no switch happens
+  after adaptation. Adaptation ends where BayesTools
   calls `rjags::adapt(end.adaptation = TRUE)` during fitting or reconstruction,
   or where JAGS ends it on setting a monitor (`coda.samples()`); rjags'
   `update()` alone does not, so a hand model updated without either keeps its
   samplers adapting (and counting as adaptive). Per-fit counters
   (`RoBMA_selnorm_sampler_report`, read and cleared) count objects, fallbacks
-  by reason, post-adaptation proposals and acceptances of samplers still
-  corrected (burn-in and all sampling iterations, including thinned iterations) and the lowest rate
-  of one sampler over its proposals since the last clearing read (a registry
+  (`fallback_low_acceptance`), post-adaptation evidence proposals and
+  acceptances of samplers still corrected (burn-in and all sampling
+  iterations, including thinned iterations) and the lowest rate
+  of one sampler over its evidence proposals since the last clearing read (a registry
   of live samplers under a mutex; a sampler destroyed earlier leaves its rate
   in a retired minimum; samplers with fewer than 1,000 such proposals do not
   count); the three
-  process-wide counters of `selection_sampler_info()` are unchanged. `.fit()`
+  process-wide counters of `selection_sampler_info()` count every corrected
+  proposal (evidence or not, adaptation included; an indicator's changes of
+  level), and the test hook `RoBMA_corrected_sampler_test` counts updates,
+  proposals, evidence, fallbacks and exact scores per sampler kind. `.fit()`
   passes a report callback (`BayesTools::JAGS_fit(runtime_report = )`, also on
   extensions) for selection fits, sums the retained runs over processes, adds
   the input fit's record once and stores `attr(fit, "selection_sampler")`
@@ -642,9 +731,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   The values of `selection.sampler` are tiers: `"slice.coarse"` (corrected
   sampler and declarations), `"slice"` (declarations only) and `"jags.default"`
   (no declaration and no corrected sampler in any model, as `"default"` in
-  4.1.1). Under `"slice.coarse"` gated nodes stay with the gated sampler and a
+  4.1.1). Under `"slice.coarse"` gated selection weights go to the corrected
+  gated block and other gated nodes stay with the gated sampler, a
   declared block goes to the corrected block sampler when it has a
-  coarse-capable selection child, to the factor slice sampler otherwise.
+  coarse-capable selection child, to the factor slice sampler otherwise, and
+  eligible indicators go to the screened indicator sampler;
+  `sampler.gates = FALSE` removes the gates the gated block reads.
   The released `"coarse_corrected"` and `"default"` are deprecated aliases of
   `"slice.coarse"` and `"jags.default"`; settings frozen in fits keep their
   string and `.selection_sampler_corrected()` reads both spellings.
