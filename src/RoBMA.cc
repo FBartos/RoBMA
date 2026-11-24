@@ -76,6 +76,7 @@ namespace jags {
       insert(new LocationTag(0));
       insert(new LocationTag(1));
       insert(new LocationTag(2));
+      insert(new LocationTag(3));
       insert(location_block_factory());
     }
 

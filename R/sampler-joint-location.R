@@ -72,7 +72,49 @@
     list(list(name = "RoBMA_location_setup", tag = "robma_location_setup",
               arguments = list(anchors[[1L]], length(groups), length(latents))))
   )
-  return(list(markers = markers))
+  intercept <- fixed[["jags_name"]][fixed[["term"]] == "intercept"]
+  slot      <- which(vapply(groups, `[[`, character(1), "physical") %in% intercept)
+  bias      <- .sampler_location_bias(prior_list, slot, probabilities)
+  if (is.null(bias)) return(list(markers = markers))
+  return(list(markers = c(markers, list(bias[["marker"]])), data = bias[["data"]]))
+}
+
+
+# The bias label of the location block (src/samplers/LocationBlockBias.h): the
+# bias indicator, each label's family (0 none, 1 step selection, 2 PET,
+# 3 PEESE) and the PET and PEESE slope sources, declared when the fit has a
+# publication-bias mixture of these families with positive prior weights, a
+# location group for the intercept and no exact probability readout of the
+# indicator; NULL otherwise. The native factory verifies the compiled graph and
+# keeps the ordinary samplers of the bias nodes when it declines.
+.sampler_location_bias <- function(prior_list, intercept_slot, probabilities) {
+
+  if (length(intercept_slot) != 1L || !inherits(prior_list[["bias"]], "prior.bias_mixture") ||
+      length(prior_list[["bias"]]) < 2L) return(NULL)
+  mixture  <- BayesTools::JAGS_mixture_sources(prior_list, "bias")
+  if (mixture[["gate"]] %in% sub("\\[1\\]$", "", probabilities)) return(NULL)
+  branches <- mixture[["branches"]]
+  codes    <- c(none = 0, selection = 1, PET = 2, PEESE = 3)[vapply(branches, `[[`, character(1), "family")]
+  if (anyNA(codes) || !any(codes == 1) || sum(codes == 2) > 1L || sum(codes == 3) > 1L ||
+      !all(is.finite(mixture[["probabilities"]]) & mixture[["probabilities"]] > 0)) return(NULL)
+  zero   <- "RoBMA_location_zero"
+  source <- function(code) {
+    branch <- branches[codes == code]
+    if (length(branch) == 0L) return(zero)
+    branch <- branch[[1L]]
+    if (!isTRUE(branch[["stochastic"]]) || is.na(branch[["source"]])) return(NA_character_)
+    branch[["source"]]
+  }
+  sources <- c(source(2), source(3))
+  if (anyNA(sources)) return(NULL)
+  data <- list(RoBMA_location_bias_codes = unname(codes))
+  if (zero %in% sources) data[[zero]] <- 0
+  list(
+    marker = list(name = "RoBMA_location_bias", tag = "robma_location_bias",
+                  arguments = list(mixture[["gate"]], "RoBMA_location_bias_codes", sources[[1L]], sources[[2L]],
+                                   intercept_slot)),
+    data   = data
+  )
 }
 
 

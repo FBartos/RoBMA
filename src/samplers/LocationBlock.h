@@ -13,6 +13,8 @@
 //   robma_location_group(gate, slab, label, physical, slot)   one per group
 //   robma_location_latent(Z, slot)                            one per latent
 //   robma_location_setup(first gate, groups, latents)         one per model
+//   robma_location_bias(indicator, codes, PET, PEESE, slot)   optional: the bias
+//                                       label and slope sources (LocationBlockBias.h)
 // An ungated scalar group passes its slab for the gate, slab and physical, and
 // label 0. A slab is one dnorm or dmnorm node or an array of scalar dnorm nodes.
 
@@ -29,7 +31,7 @@ namespace RoBMA {
 class LocationTag : public JointSamplerTag {
   const int _kind;
 public:
-  // kind 0 group, 1 latent, 2 setup
+  // kind 0 group, 1 latent, 2 setup, 3 bias
   explicit LocationTag(int kind);
   bool checkParameterLength(std::vector<unsigned long> const &lengths) const override;
 };

@@ -164,6 +164,10 @@ standard_required_tests <- function() {
       "Gaussian children: closed-form gate probabilities, exact stages, no selection evaluation",
       "frozen-state identities of the line moves hold in selection and Gaussian labels"
     )),
+    .required_tests("test-00-location-bias-native.R", c(
+      "the location block owns the bias label, its slopes and the nested node's label and declines what it cannot verify",
+      "public fits give the bias label to the location block unless its probabilities are read"
+    )),
     .required_tests("test-00-carrier-integration.R", c(
       "public no-intercept moderator means use the fitted contrast basis",
       "whole marginal-means regions retain structural fixed-cell refusal",

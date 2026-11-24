@@ -3,9 +3,11 @@
 #include "CorrectedSampler.h"
 #include "StepRowNormalizer.h"
 #include "../distributions/selnorm-jags-bounds.h"
+#include "../selnorm/selnorm.h"
 
 #include <BayesTools/factor_slice_kernel.h>
 
+#include <distribution/ScalarDist.h>
 #include <distribution/VectorDist.h>
 #include <graph/AggNode.h>
 #include <graph/DeterministicNode.h>
@@ -16,6 +18,7 @@
 #include <sampler/GraphView.h>
 #include <sampler/MutableSampleMethod.h>
 #include <sampler/MutableSampler.h>
+#include <JRmath.h>
 
 #include <algorithm>
 #include <atomic>
@@ -61,13 +64,20 @@ enum Component { flip_on, flip_off, refresh, study, swap, joint, ellipse_move, c
 const char *const component_names[component_count] = {
   "flip_on", "flip_off", "refresh", "study", "swap", "joint", "ellipse"};
 
+// The bias-label components (LocationBlockBiasMoves.h): D, L0, L1, S, L2.
+enum BiasComponent { bias_dormant, bias_label, bias_gaussian, bias_slope, bias_swap, bias_component_count };
+const char *const bias_component_names[bias_component_count] = {
+  "dormant", "label", "gaussian_family", "slope", "label_swap"};
+
 // Where an update spends its work: child evaluations of the moves' acceptance
 // ratios, of the Newton-Laplace fits, of the elliptical slice steps and of the
 // latent updates (the exact correction has its own count), and, with the
 // timing test switch, the wall time of each part.
-enum Category { cat_prepare, cat_move, cat_fit, cat_ellipse, cat_latent, cat_correction, category_count };
+enum Category { cat_prepare, cat_move, cat_fit, cat_ellipse, cat_latent, cat_correction,
+                cat_dormant, cat_label, cat_gaussian, cat_slope, cat_swap, category_count };
 const char *const category_names[category_count] = {
-  "prepare", "move", "fit", "ellipse", "latent", "correction"};
+  "prepare", "move", "fit", "ellipse", "latent", "correction",
+  "dormant", "label", "gaussian_family", "slope", "label_swap"};
 
 struct Counters {
   std::atomic<std::uint64_t> samplers{0};
@@ -90,6 +100,9 @@ struct Counters {
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
   std::atomic<std::uint64_t> accepted[component_count];
+  std::atomic<std::uint64_t> bias_proposed[bias_component_count];
+  std::atomic<std::uint64_t> bias_stage1[bias_component_count];
+  std::atomic<std::uint64_t> bias_accepted[bias_component_count];
   std::atomic<std::uint64_t> evaluations[category_count];
   std::atomic<std::uint64_t> nanoseconds[category_count];
   std::atomic<double> max_correction{0.0};
@@ -105,6 +118,11 @@ struct Counters {
       stage0[i] = 0;
       stage1[i] = 0;
       accepted[i] = 0;
+    }
+    for (int i = 0; i < bias_component_count; ++i) {
+      bias_proposed[i] = 0;
+      bias_stage1[i] = 0;
+      bias_accepted[i] = 0;
     }
     for (int i = 0; i < category_count; ++i) {
       evaluations[i] = 0;
@@ -499,6 +517,9 @@ struct ChildSpec {
   std::vector<unsigned long> lengths;
 };
 
+// The bias members (LocationBlockBias.h), when the block owns the bias label.
+struct BiasSpec;
+
 struct Shared {
   std::vector<GroupSpec> groups;
   std::vector<StochasticNode *> latents;
@@ -521,6 +542,7 @@ struct Shared {
   int fit_rule = 0;                        // test hook: 0 coarse with safeguard, 1 coarse, 2 sampler's
   int refresh = 0;                         // test hook: the refresh variant (0 the default)
   bool timing = false;                     // test hook: wall time of the update's parts
+  std::shared_ptr<BiasSpec> bias;          // the bias indicator and slope sources, or null
 };
 
 // The stochastic coordinates of a slab reference: the node itself, or the
@@ -607,6 +629,8 @@ bool unobserved(StochasticNode const *node)
   return true;
 }
 
+#include "LocationBlockBias.h"
+
 // The declared gate chart: physical = slab * (gate == label) + zero * (gate == other)
 // in either order of the sum.
 bool match_chart(GroupSpec &g)
@@ -653,12 +677,28 @@ ChildType child_type(StochasticNode const *child, bool *ok)
 // child_latent receives the latent of each child's mean (-1 none); latents_ok
 // is false when a child's mean depends on two latents.
 bool verify_structure(GraphView const &view, Graph const &graph, std::vector<GroupSpec> const &groups,
-                      std::vector<StochasticNode *> const &latents,
+                      std::vector<StochasticNode *> const &latents, BiasSpec *bias,
                       std::vector<int> &child_latent, bool &latents_ok)
 {
   std::set<Node const *> coef, zdep, gated, raw, members;
   std::map<Node const *, int> latent_id;
   std::set<Node const *> chart_nodes, physical_nodes;
+  // an owned bias label (LocationBlockBias.h): the indicator and its
+  // deterministic descendants outside the slope charts are label nodes; the
+  // slope sources enter only through their charts, whose physical slopes are
+  // coefficients of the means
+  std::set<Node const *> labels, slope_raw;
+  if (bias != nullptr) {
+    members.insert(bias->indicator);
+    labels.insert(bias->indicator);
+    bias->label_nodes.clear();
+    for (SlopeSpec const &spec : bias->slope) {
+      if (spec.source == nullptr) continue;
+      members.insert(spec.source);
+      slope_raw.insert(spec.source);
+      physical_nodes.insert(spec.physical);
+    }
+  }
   for (GroupSpec const &g : groups) {
     for (StochasticNode const *node : g.slab_nodes) members.insert(node);
     if (g.gate == nullptr) {
@@ -702,11 +742,14 @@ bool verify_structure(GraphView const &view, Graph const &graph, std::vector<Gro
       continue;
     }
     bool from_coef = false, from_z = false, from_gate = false, from_raw = false;
+    bool from_label = false, from_slope = false;
     int id = -1;
     for (Node const *parent : node->parents()) {
       if (coef.count(parent)) from_coef = true;
       if (gated.count(parent)) from_gate = true;
       if (raw.count(parent)) from_raw = true;
+      if (labels.count(parent)) from_label = true;
+      if (slope_raw.count(parent)) from_slope = true;
       if (zdep.count(parent)) {
         from_z = true;
         const int other = latent_id[parent];
@@ -714,8 +757,12 @@ bool verify_structure(GraphView const &view, Graph const &graph, std::vector<Gro
         else if (id == -1) id = other;
       }
     }
+    if (from_label) labels.insert(node);
     if (!reaches[i]) continue;
     if (from_gate || from_raw) return fail("structure: gate or raw slab outside its chart");
+    if (from_slope) return fail("structure: slope source outside its chart");
+    if (from_label && (from_coef || from_z)) return fail("structure: the bias label enters a mean outside the slope charts");
+    if (from_label) bias->label_nodes.push_back(const_cast<DeterministicNode *>(node));
     if (from_coef) {
       if (!node->isClosed(coef, DNODE_LINEAR, true)) return fail("structure: not linear in the coefficients with fixed coefficients");
       coef.insert(node);
@@ -746,12 +793,30 @@ bool verify_structure(GraphView const &view, Graph const &graph, std::vector<Gro
     }
   }
 
+  // The slope sources: their chart and the bias tag are their only
+  // deterministic dependants, gate markers their only stochastic ones.
+  if (bias != nullptr) {
+    for (SlopeSpec const &spec : bias->slope) {
+      if (spec.source == nullptr) continue;
+      for (DeterministicNode *child : *spec.source->deterministicChildren()) {
+        if (child == spec.physical || terminal_tag(child, bias_tag_name, 5, graph)) continue;
+        return fail("structure: slope source has another dependant");
+      }
+      for (StochasticNode *child : *spec.source->stochasticChildren()) {
+        if (!bias->skip.count(child)) return fail("structure: slope source has a stochastic dependant");
+      }
+    }
+  }
+
   latents_ok = true;
   child_latent.clear();
   for (StochasticNode const *child : view.stochasticChildren()) {
+    // gate markers and the nested weight node of an owned bias label are not
+    // likelihood children (LocationBlockBias.h)
+    if (bias != nullptr && bias->skip.count(child)) continue;
     if (members.count(child)) return fail("structure: a member is a child");
     bool ok;
-    child_type(child, &ok);
+    const ChildType type = child_type(child, &ok);
     if (!ok || !isObserved(child) || child->lowerBound() != nullptr || child->upperBound() != nullptr) {
       return fail("structure: child distribution, observation or bounds");
     }
@@ -760,9 +825,12 @@ bool verify_structure(GraphView const &view, Graph const &graph, std::vector<Gro
       Node const *parent = par[i];
       if (members.count(parent) || coef.count(parent) || zdep.count(parent) || gated.count(parent) ||
           raw.count(parent)) return fail("structure: member enters a non-mean parameter");
+      if (labels.count(parent) && !label_slot_allowed(type, i)) {
+        return fail("structure: the bias label enters a likelihood parameter the block reads");
+      }
     }
     Node const *mean = par[0];
-    if (gated.count(mean) || raw.count(mean)) return fail("structure: mean depends on a gate or raw slab");
+    if (gated.count(mean) || raw.count(mean) || labels.count(mean)) return fail("structure: mean depends on a gate or raw slab");
     if (!coef.count(mean) && !zdep.count(mean)) return fail("structure: mean does not depend on the members");
     int id = -1;
     if (zdep.count(mean)) id = latent_id[mean];
@@ -789,6 +857,8 @@ struct Shift {
   Vec dcoef;
   std::vector<unsigned> lats;
   Vec dlat;
+  std::vector<int> slopes;         // physical slope changes (owned bias label)
+  Vec dslope;
   std::vector<unsigned> children;
   std::vector<unsigned> offset;    // into delta / wdelta per listed child
   Vec delta, wdelta, q1, q2, value;
@@ -801,6 +871,8 @@ struct Shift {
     dcoef.clear();
     lats.clear();
     dlat.clear();
+    slopes.clear();
+    dslope.clear();
   }
 };
 
@@ -903,7 +975,6 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   std::vector<unsigned> _stamp;
   unsigned _stamp_id = 0;
   bool _selection = false;         // some child is a selection child in step mode
-  bool _selection_seen = false;    // the sweep was in a selection label at some point
   bool _backward = false;          // this sweep runs the component list reversed
   // The surrogate replaces the exact selection densities: a property of the fit
   // (corrected and not fallen back to exact mode), so that every component of
@@ -921,6 +992,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // distribution's parameter check at the entry mean.
   struct StepChild {
     bool valid = false;
+    bool free_ok = false;          // the checks that do not depend on the bias label
+    bool step_ok = false;          // the step-mode checks that do not (bin, bounds)
     double sd = 1, se = 1, power = 1;
     int bin = 0, sign = 1, mode = 0, telescope = 0, bins = 0;
     double const *omega = nullptr;
@@ -1046,10 +1119,14 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   {
     if (_value_ok[child]) return;
     ChildSpec const &c = s().children[child];
-    // A child is first evaluated before any move changes it: its entry value.
+    // A child first evaluated before any move changes it (its mean and the
+    // label) gives its entry value.
     _value[child] = selected_value(child, &_mean[c.row0]);
-    _value_entry[child] = _value[child];
     _value_ok[child] = 1;
+    if (!_dirty[child] && _label == _label_entry) {
+      _value_entry[child] = _value[child];
+      _entry_valued[child] = 1;
+    }
   }
 
   // ---- per-update preparation
@@ -1140,22 +1217,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return false;
   }
 
-  bool is_selected(ChildSpec const &c)
-  {
-    auto const &par = c.node->parents();
-    switch (c.type) {
-    case ChildType::normal:
-      return false;
-    case ChildType::step_switch:
-      return par[9]->value(_chain)[0] != SELKERNEL_NORMAL && par[7]->value(_chain)[0] != 0;
-    case ChildType::cluster:
-    case ChildType::factor:
-      return par[10]->value(_chain)[0] != SELKERNEL_NORMAL;
-    case ChildType::mv:
-      return par[9]->value(_chain)[0] != SELKERNEL_NORMAL;
-    }
-    return true;
-  }
+  bool is_selected(ChildSpec const &c) const { return kernel_selected(c, _chain); }
 
   // The parameters of a step-switch child for this update (StepChild).
   void read_step(unsigned c)
@@ -1179,6 +1241,16 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     read_params(child);
     st.valid = static_cast<VectorDist const *>(child.node->distribution())->checkParameterValue(_params, child.lengths);
+    // the label-free parts of the distribution's parameter check, for the
+    // validity at another bias label (LocationBlockBiasMoves.h, refresh_step)
+    st.free_ok = st.sd > 0 && st.se > 0 && st.power > 0 && (st.sign == 1 || st.sign == -1) &&
+      (st.telescope == 0 || st.telescope == 1) && par[8]->value(_chain)[0] == st.sign &&
+      par[10]->value(_chain)[0] == st.telescope;
+    st.step_ok = selnorm_jags_integer_in_range(par[7]->value(_chain)[0], 0, st.bins) &&
+      selnorm_is_descending_step_partition(&_bounds[st.bounds], &_bounds[st.bounds + static_cast<std::size_t>(st.bins)], st.bins);
+    for (int b = 0; st.step_ok && b < st.bins; ++b) {
+      st.step_ok = _bounds[st.bounds + static_cast<std::size_t>(b)] < _bounds[st.bounds + static_cast<std::size_t>(st.bins + b)];
+    }
   }
 
   StepRowLaw step_law(unsigned c) const
@@ -1231,9 +1303,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       _value_ok[c] = 0;
       _fit_ok[c] = 0;
       _dirty[c] = 0;
+      _entry_valued[c] = 0;
     }
     _surrogate_mode = sh.corrected && !_exact;
-    _selection_seen = _selection;
+    _selection_entry = _selection;
     _line.valid = false;
     _not_exact = false;
     _repr_delta = 0;
@@ -1383,6 +1456,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         _h[g.coord0 + i] += static_cast<double>(bm);
       }
     }
+    bias_prepare();
   }
 
   // ---- lines
@@ -1549,6 +1623,16 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         }
       }
     }
+    // physical slope changes (an owned bias label): their columns
+    for (std::size_t i = 0; i < sh.slopes.size(); ++i) {
+      if (sh.dslope[i] == 0.0) continue;
+      for (unsigned c : S.bias->slope[sh.slopes[i]].children) {
+        if (_stamp[c] != _stamp_id) {
+          _stamp[c] = _stamp_id;
+          sh.children.push_back(c);
+        }
+      }
+    }
     // the children in the order they are first reached (a function of the
     // shift's coordinates and latents)
     std::size_t total = 0;
@@ -1571,6 +1655,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
           if (dc[k] != 0.0) v += static_cast<long double>(S.X[row * p + k]) * dc[k];
         }
         if (child.latent >= 0) v += static_cast<long double>(_d[row]) * dz[child.latent];
+        for (std::size_t b = 0; b < sh.slopes.size(); ++b) {
+          v += static_cast<long double>(S.bias->slope[sh.slopes[b]].column[row]) * sh.dslope[b];
+        }
         delta[i] = static_cast<double>(v);
       }
       double const *W = &_W[child.woff];
@@ -3088,9 +3175,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return pairs;
   }
 
+#include "LocationBlockBiasMoves.h"
+
   // ---- the update
 
-  enum Kind { kind_flip, kind_refresh, kind_swap, kind_joint, kind_ellipse, kind_latent };
+  enum Kind { kind_flip, kind_refresh, kind_swap, kind_joint, kind_ellipse, kind_latent, kind_bias };
   struct Step { Kind kind; unsigned a, b; };
 
   // The refresh kernels of the active coefficients in selection labels (test
@@ -3107,6 +3196,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     enter(cat_move);
     count(counters().sweeps);
     std::vector<Step> steps;
+    // the bias-label components first (D, L0, L1, S, L2; mirrored in the
+    // reversed sweep), their slots fixed for the fit
+    if (bias()) {
+      for (unsigned k = 0; k < bias_component_count; ++k) steps.push_back({kind_bias, k, 0});
+      bias_sweep_start(rng);
+    }
     for (unsigned j = 0; j < S.groups.size(); ++j) {
       if (S.groups[j].gate != nullptr) steps.push_back({kind_flip, j, 0});
       steps.push_back({kind_refresh, j, 0});
@@ -3142,8 +3237,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       // The line of a group serves its F_j and R_j, adjacent in either order;
       // any other component changes it.
       if ((step.kind != kind_flip && step.kind != kind_refresh) || _line.group != step.a) _line.valid = false;
-      enter(step.kind == kind_latent ? cat_latent : step.kind == kind_ellipse ? cat_ellipse : cat_move);
+      enter(step.kind == kind_latent ? cat_latent : step.kind == kind_ellipse ? cat_ellipse :
+            step.kind == kind_bias ? bias_category(step.a) : cat_move);
       switch (step.kind) {
+      case kind_bias:
+        bias_component(step.a, rng);
+        break;
       case kind_flip:
         if (_selection) tilted_flip(step.a, rng);
         else gaussian_flip(step.a, rng);
@@ -3171,7 +3270,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         break;
       }
     }
-    if (_selection_seen) count(counters().sweeps_selection);
+    if (selection_endpoint()) count(counters().sweeps_selection);
     enter(cat_correction);
     correct(rng);
     enter(cat_move);
@@ -3209,6 +3308,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       for (unsigned i = 0; i < g.d; ++i) _final[g.slab_pos + i] = _beta[g.coord0 + i];
     }
     for (unsigned lat = 0; lat < S.latents.size(); ++lat) _final[S.latent_pos[lat]] = _z[lat];
+    const bool label_changed = bias() && _label != _label_entry;
+    if (bias()) {
+      _final[S.bias->pos] = _label;
+      for (int b = 0; b < 2; ++b) if (S.bias->slope[b].source != nullptr) _final[S.bias->slope[b].pos] = _theta[b];
+    }
     if (_final == _entry) {
       count(counters().corrections_accepted);
       return;
@@ -3226,7 +3330,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       }
     }
     std::vector<unsigned> kids;
-    for (unsigned c = 0; c < S.children.size(); ++c) if (_dirty[c]) kids.push_back(c);
+    // every child counts as changed when the label changed (its weights,
+    // kernel mode or mean may differ), and so does the nested node
+    for (unsigned c = 0; c < S.children.size(); ++c) if (_dirty[c] || label_changed) kids.push_back(c);
+    // the graph holds the entry state once the bias label's nodes are written
+    // back (the block wrote them to evaluate other labels, never the means)
+    if (bias()) set_graph_label(_label_entry);
     // the exact terms at the entry (the graph still holds it), and the
     // endpoint differences of the selection children, sum (log A - log A~)
     // up to sign: inner-target value minus exact value
@@ -3237,9 +3346,16 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
       old_exact += v;
-      if (!gaussian_child(c)) old_endpoint += static_cast<long double>(_value_entry[c]) - v;
+      if (_entry_valued[c]) old_endpoint += static_cast<long double>(_value_entry[c]) - v;
     }
+    if (label_changed) old_exact += nested_term();
     _view->setValue(_final, _chain);
+    if (label_changed) {
+      // the graph's label is the final one: the rows' parameters follow it
+      _graph_label = _label;
+      for (unsigned c = 0; c < S.children.size(); ++c) if (_step_children[c]) refresh_step(c);
+      new_exact += nested_term();
+    }
     bool hidden = false;
     for (unsigned c = 0; c < S.children.size() && !hidden; ++c) {
       if (_dirty[c]) continue;
@@ -3255,7 +3371,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
       new_exact += v;
-      if (!gaussian_child(c)) new_endpoint += static_cast<long double>(_value[c]) - v;
+      if (!gaussian_child(c) && _value_ok[c]) new_endpoint += static_cast<long double>(_value[c]) - v;
     }
     if (std::isnan(static_cast<double>(new_exact))) {
       throwNodeError(members[0], "Location block sampler: the log density of the proposed state is not defined");
@@ -3270,25 +3386,25 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       accepted = metropolis(rng, log_ratio);
     }
     if (std::isfinite(log_ratio)) {
-      record_max(_selection_seen ? counters().max_correction : counters().max_correction_gaussian, std::fabs(log_ratio));
+      record_max(selection_endpoint() ? counters().max_correction : counters().max_correction_gaussian, std::fabs(log_ratio));
     }
-    if (_selection_seen) {
+    if (selection_endpoint()) {
       record_max(counters().max_endpoint, std::fabs(static_cast<double>(new_endpoint)));
       record_max(counters().max_endpoint_change, std::fabs(static_cast<double>(new_endpoint - old_endpoint)));
     }
     if (accepted) {
       count(counters().corrections_accepted);
-      if (_selection_seen) count(counters().corrections_selection_accepted);
+      if (selection_endpoint()) count(counters().corrections_selection_accepted);
     } else {
       _view->setValue(_entry, _chain);
     }
     // evidence about the surrogate: a sweep that evaluated a surrogate that
     // was not exact (only selection labels evaluate surrogates)
-    const bool evidence = _surrogate_mode && _not_exact;
+    const bool evidence = _surrogate_mode && _not_exact && selection_endpoint();
     // the shared bookkeeping of the corrected samplers (process counters,
     // adaptive evidence, reporting window), for sweeps that visited a
     // selection label (a sweep entirely in Gaussian labels needs no surrogate)
-    if (_surrogate_mode && _selection_seen) _tally.count(accepted, evidence);
+    if (_surrogate_mode && selection_endpoint()) _tally.count(accepted, evidence);
     if (!evidence) return;
     count(counters().sweeps_evidence);
     if (accepted) count(counters().corrections_evidence_accepted);
@@ -3320,6 +3436,9 @@ public:
     _fit_value.assign(S.children.size(), 0.0);
     _fit_ok.assign(S.children.size(), 0);
     _step.assign(S.children.size(), StepChild());
+    _entry_valued.assign(S.children.size(), 0);
+    _step_children.assign(S.children.size(), 0);
+    for (unsigned c = 0; c < S.children.size(); ++c) _step_children[c] = S.children[c].type == ChildType::step_switch;
     _tilt_position.assign(S.children.size(), -1);
     _gate_evidence.assign(G, GateEvidence());
     _coarse_fit = S.coarse_fit && S.fit_rule != 2;
@@ -3405,6 +3524,9 @@ public:
 struct Declared {
   std::vector<GroupSpec> groups;
   std::vector<StochasticNode *> latents;
+  bool has_bias = false;            // a valid bias declaration (LocationBlockBias.h)
+  BiasDeclared bias;
+  std::string bias_reason;          // why a bias tag was not taken
 };
 
 bool integer_value(Node const *node, double lower, double upper, double *out)
@@ -3422,6 +3544,8 @@ bool collect(std::list<StochasticNode *> const &free, Graph const &graph, Declar
   Node const *setup = nullptr;
   std::map<unsigned, GroupSpec> groups;
   std::map<unsigned, StochasticNode *> latents;
+  Node const *bias_tag = nullptr;
+  bool bias_tags_valid = true;
   for (StochasticNode *node : free) {
     for (Node const *tag : direct_terminal_tags(node, setup_tag_name, 3, graph)) {
       if (setup != nullptr) return fail("declaration: two setup tags");
@@ -3457,6 +3581,10 @@ bool collect(std::list<StochasticNode *> const &free, Graph const &graph, Declar
       double slot = 0;
       if (!integer_value(tag->parents()[1], 1, 1e7, &slot) || latents.count(static_cast<unsigned>(slot))) return fail("declaration: latent slot");
       latents[static_cast<unsigned>(slot)] = node;
+    }
+    for (Node const *tag : direct_terminal_tags(node, bias_tag_name, 5, graph)) {
+      if (bias_tag != nullptr) bias_tags_valid = false;
+      bias_tag = tag;
     }
   }
   if (setup == nullptr) return false;  // not a location model: no decision recorded
@@ -3499,6 +3627,17 @@ bool collect(std::list<StochasticNode *> const &free, Graph const &graph, Declar
     if (!available.count(z) || !unobserved(z) || !read_latent(z) || !distinct.insert(z).second) {
       out.latents.clear();
       break;
+    }
+  }
+  // the bias members: a refusal keeps the location members owned
+  if (bias_tag != nullptr) {
+    if (!bias_tags_valid) out.bias_reason = "two bias tags";
+    else out.has_bias = read_bias_declaration(bias_tag, available, out.groups.size(), out.bias, out.bias_reason);
+    if (out.has_bias && (distinct.count(out.bias.indicator) ||
+                          (out.bias.sources[0] != nullptr && distinct.count(out.bias.sources[0])) ||
+                          (out.bias.sources[1] != nullptr && distinct.count(out.bias.sources[1])))) {
+      out.has_bias = false;
+      out.bias_reason = "a bias member is a location member";
     }
   }
   return true;
@@ -3636,7 +3775,7 @@ bool probe_design(GraphView const &view, Shared &S)
   return ok;
 }
 
-std::shared_ptr<Shared> build_shared(Declared &declared, Graph const &graph, bool with_latents,
+std::shared_ptr<Shared> build_shared(Declared &declared, Graph const &graph, bool with_latents, bool with_bias,
                                      std::unique_ptr<GraphView> &view)
 {
   auto S = std::make_shared<Shared>();
@@ -3649,17 +3788,36 @@ std::shared_ptr<Shared> build_shared(Declared &declared, Graph const &graph, boo
     for (unsigned i = 0; i < g.d; ++i) S->coord_group.push_back(static_cast<unsigned>(&g - &S->groups[0]));
   }
   S->p = coord;
-  const std::vector<StochasticNode *> members = member_list(S->groups, S->latents, S->latent_pos, S->length);
+  std::vector<StochasticNode *> members = member_list(S->groups, S->latents, S->latent_pos, S->length);
+  // the bias members after the location members (LocationBlockBias.h)
+  if (with_bias) {
+    auto B = std::make_shared<BiasSpec>();
+    if (!init_bias(declared.bias, *S, *B)) return nullptr;
+    B->pos = S->length++;
+    members.push_back(B->indicator);
+    for (SlopeSpec &spec : B->slope) {
+      if (spec.source == nullptr) continue;
+      spec.pos = S->length++;
+      members.push_back(spec.source);
+    }
+    S->bias = B;
+  }
   try {
     view.reset(new GraphView(members, graph, false));
   } catch (std::exception const &) {
     return fail_null("view construction");
   }
+  if (with_bias && !classify_bias_children(*view, *S->bias)) return nullptr;
   std::vector<int> child_latent;
   bool latents_ok = true;
-  if (!verify_structure(*view, graph, S->groups, S->latents, child_latent, latents_ok)) return nullptr;
+  if (!verify_structure(*view, graph, S->groups, S->latents, S->bias.get(), child_latent, latents_ok)) return nullptr;
   if (!latents_ok) return fail_null("latents: a child depends on two latents");
-  std::vector<StochasticNode *> const &children = view->stochasticChildren();
+  // the likelihood children (gate markers and the nested node of an owned
+  // bias label left out)
+  std::vector<StochasticNode *> children;
+  for (StochasticNode *child : view->stochasticChildren()) {
+    if (S->bias == nullptr || !S->bias->skip.count(child)) children.push_back(child);
+  }
   unsigned row = 0, woff = 0;
   S->latent_children.assign(S->latents.size(), {});
   for (std::size_t c = 0; c < children.size(); ++c) {
@@ -3692,6 +3850,7 @@ std::shared_ptr<Shared> build_shared(Declared &declared, Graph const &graph, boo
     }
   }
   if (!probe_design(*view, *S)) return fail_null("design probe");
+  if (with_bias && !probe_bias(*view, *S, *S->bias)) return nullptr;
   S->coord_children.assign(S->p, {});
   for (unsigned c = 0; c < S->children.size(); ++c) {
     ChildSpec const &child = S->children[c];
@@ -3716,9 +3875,21 @@ public:
     Declared declared;
     if (!collect(free, graph, declared)) return {};
     std::unique_ptr<GraphView> view;
-    std::shared_ptr<Shared> shared = build_shared(declared, graph, true, view);
-    // If the latents fail their checks, own the gates and slabs only.
-    if (shared == nullptr && !declared.latents.empty()) shared = build_shared(declared, graph, false, view);
+    // With the bias label first; a bias label that fails its checks leaves the
+    // location members owned. If the latents fail their checks, own the gates
+    // and slabs only.
+    std::shared_ptr<Shared> shared;
+    std::string bias_status = declared.bias_reason;
+    for (const bool latents : {true, false}) {
+      if (!latents && declared.latents.empty()) break;
+      if (declared.has_bias) {
+        shared = build_shared(declared, graph, latents, true, view);
+        if (shared != nullptr) break;
+        bias_status = decision();
+      }
+      shared = build_shared(declared, graph, latents, false, view);
+      if (shared != nullptr) break;
+    }
     if (shared == nullptr) return {};
 
     const CorrectedSamplerConfig config = corrected_sampler_configuration();
@@ -3749,6 +3920,8 @@ public:
     std::unique_ptr<Sampler> sampler(new MutableSampler(view.release(), raw, name));
     for (auto &method : methods) method.release();
     decision() = shared->latents.empty() ? "claimed without latents" : "claimed";
+    if (shared->bias != nullptr) decision() += " with the bias label";
+    else if (!bias_status.empty()) decision() += "; bias label declined: " + bias_status;
     std::vector<Sampler *> out{sampler.get()};
     sampler.release();
     return out;
@@ -3758,8 +3931,8 @@ public:
 } // namespace
 
 LocationTag::LocationTag(int kind)
-  : JointSamplerTag(kind == 0 ? group_tag_name : kind == 1 ? latent_tag_name : setup_tag_name,
-                    kind == 0 ? 5 : kind == 1 ? 2 : 3),
+  : JointSamplerTag(kind == 0 ? group_tag_name : kind == 1 ? latent_tag_name : kind == 2 ? setup_tag_name : bias_tag_name,
+                    kind == 0 ? 5 : kind == 1 ? 2 : kind == 2 ? 3 : 5),
     _kind(kind) {}
 
 bool LocationTag::checkParameterLength(std::vector<unsigned long> const &len) const
@@ -3769,6 +3942,8 @@ bool LocationTag::checkParameterLength(std::vector<unsigned long> const &len) co
     return len.size() == 5 && len[0] == 1 && len[1] >= 1 && len[2] == 1 && len[3] == len[1] && len[4] == 1;
   case 1:
     return len.size() == 2 && len[0] == 1 && len[1] == 1;
+  case 3:
+    return len.size() == 5 && len[0] == 1 && len[1] >= 2 && len[2] == 1 && len[3] == 1 && len[4] == 1;
   default:
     return len.size() == 3 && len[0] == 1 && len[1] == 1 && len[2] == 1;
   }
@@ -3794,6 +3969,11 @@ std::vector<char const *> const &location_block_report_names()
     for (int i = 0; i < component_count; ++i) {
       for (char const *stage : {"proposed", "stage0", "stage1", "accepted"}) {
         storage.push_back(std::string(component_names[i]) + "_" + stage);
+      }
+    }
+    for (int i = 0; i < bias_component_count; ++i) {
+      for (char const *stage : {"proposed", "stage1", "accepted"}) {
+        storage.push_back(std::string("bias_") + bias_component_names[i] + "_" + stage);
       }
     }
     for (int i = 0; i < category_count; ++i) storage.push_back(std::string("evaluations_") + category_names[i]);
@@ -3827,6 +4007,11 @@ std::vector<double> location_block_report(bool clear)
     out.push_back(take(c.stage0[i]));
     out.push_back(take(c.stage1[i]));
     out.push_back(take(c.accepted[i]));
+  }
+  for (int i = 0; i < bias_component_count; ++i) {
+    out.push_back(take(c.bias_proposed[i]));
+    out.push_back(take(c.bias_stage1[i]));
+    out.push_back(take(c.bias_accepted[i]));
   }
   for (int i = 0; i < category_count; ++i) out.push_back(take(c.evaluations[i]));
   for (int i = 0; i < category_count; ++i) out.push_back(take(c.nanoseconds[i]) * 1e-9);
