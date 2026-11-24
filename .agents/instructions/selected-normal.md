@@ -698,6 +698,70 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   direction, screened proposals, log odds of the other state) and, for the
   screened indicators, per indicator and chain (`sampler_declarations$robma$
   evidence`), for consumers that tell decided from stuck indicators.
+  With a publication-bias mixture of none, step-selection, PET and PEESE
+  branches the block also owns the bias indicator and the PET and PEESE slope
+  sources (`src/samplers/LocationBlockBias.h` for the declaration and
+  verification, `LocationBlockBiasMoves.h` for the moves). R declares them with
+  one tag (`robma_location_bias`: indicator, family codes, sources, intercept
+  slot) unless `sampler.probabilities` names the indicator; the factory
+  verifies the indicator's fixed categorical law, each source's scalar prior
+  with fixed parameters and support exactly `[0, Inf)` entering only through
+  `source * equals(indicator, label)`, the probed slope columns of the means
+  (affine, additive, without effect at other labels), the kernel mode (NORMAL
+  exactly on the labels none, PET and PEESE), and that the label reaches the
+  likelihood otherwise only through parameters the Gaussian working model does
+  not read; gate markers and the nested weight node (`BayesTools_nested_a`,
+  whose density enters every label score) are the only other stochastic
+  descendants. A failed check declines the bias members and keeps the
+  location members (the factory decision names the reason); the selection
+  weights keep `GatedCorrectedBlock` or `GatedSlice`. A label is evaluated by
+  writing the indicator and its label nodes (weights, kernel modes, rules,
+  the nested node's parameters) without the means: every child is scored at
+  the block's working means. Sweep conditions: the slot list is fixed for the
+  fit (label-dependent components decide when they run whether they act), the
+  surrogate inner target is a property of the fit, composite components
+  reverse their order in the reversed sweep, the correction writes the
+  indicator back to its entry value before reading the entry's exact
+  densities and counts every child and the nested node as changed when the
+  label changed, and a sweep counts as evidence about the surrogate only when
+  an endpoint is a selection label. Components, first in the forward sweep and
+  mirrored in the reversed one: D draws dormant slopes from their priors; L0
+  is Liu's Metropolized Gibbs step on the label's surrogate full conditional;
+  L1 (Gaussian labels) proposes label, intercept gate and slab, both slopes
+  and the latents from the collapsed Gaussian cells (an independence
+  Metropolis-Hastings step computed from the inner target and both proposal
+  densities; prior cells propose the slope from its prior); S (PET and PEESE)
+  slice-samples the active slope on its collapsed conditional, draws the
+  intercept and latents from their conditionals and accepts with the ratio of
+  the inner target to that law; L2 swaps between the families with label,
+  gate, intercept and slope moved together along the shears `K_t` (the
+  intercept's line) and `K_b` (the slope's conditional-mean shear), holding
+  `E_0 = E - K_t t - K_b theta`: label proposals by the selection labels'
+  row-marginal screens or the Gaussian labels' evidences (5% uniform),
+  absolute evidences at the base point (`t = 0`, no slope, `E_0`: the
+  Gaussian plane in closed form, a selection label's value there times its
+  Laplace odds along the line), stage 1 on the evidences and the label
+  Hastings factor, stage 2 on the inner target with the complete proposal
+  densities. L2 runs with probability 1/2 per sweep (`default_swap_probability`;
+  at one it took 9.5% of the sampling sweep on the Assink full-V moderator fit
+  and 6.7% on the 18-moderator tutorial fit, above the 5% of the rule), decided
+  before any component and independent of the state. The test hook's
+  probe records, at each component's slot, L1's analytic against computed
+  ratio, S's acceptance ratio, L2's reciprocity, rebuilt base quantities and
+  probability flows, the fitted plane against the children's densities, and
+  L0's buffered scores against the graph's; mutants 6-11 remove parts of L2
+  or take the joint slot from the entry label; the trace switch records every
+  L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
+  `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
+  L2, and for L2 by direction the count, sum and maximum of the stage-1 log
+  ratio of all attempts and of the swaps the exact correction kept) and
+  `evidence$bias_labels` (sweeps ending in each label): a family that is
+  never left although swaps out of it pass stage 1 points to a stuck chain,
+  while very negative ratios throughout are consistent with, but do not
+  prove, decisive evidence. Exactness fixtures (labels none, selection, PET,
+  PEESE; nested; a second selection label) in
+  `test-00-location-block-exactness.R`; frozen-state identities and the
+  sweep's discrete-chain check in `test-00-location-bias-native.R`.
 - Fallback and record: each sampler object (node, block or indicator x chain,
   per model build) keeps its own adaptation flag (JAGS has no accessor) and
   counts its adaptive evidence proposals and their accepted corrections
