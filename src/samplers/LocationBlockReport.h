@@ -33,6 +33,15 @@ std::string location_block_test_decision();
 // probe < 0 reads the flag; otherwise sets it and returns the previous one.
 bool location_block_test_probe(int probe);
 std::vector<double> location_block_test_take_probe();
+// Test hook: switches frozen into the samplers built from now on; a negative
+// argument keeps a setting. refresh: the kernels that refresh the active
+// coefficients in selection labels (0 the default, 1 the per-group refreshes
+// R_j only, 2 one elliptical slice step E, 3 two E steps, 4 E and the R_j);
+// fit_rule: the rule of the Newton-Laplace fits (0 the coarsest rung with the
+// acceptance safeguard, 1 the coarsest rung always, 2 the sampler's rule);
+// timing: 1 accumulates the wall time of the update's parts in the report.
+// Returns the previous three settings.
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing);
 
 }
 }

@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -56,6 +57,14 @@ enum Component { flip_on, flip_off, refresh, study, swap, joint, component_count
 const char *const component_names[component_count] = {
   "flip_on", "flip_off", "refresh", "study", "swap", "joint"};
 
+// Where an update spends its work: child evaluations of the moves' acceptance
+// ratios, of the Newton-Laplace fits, of the elliptical slice steps and of the
+// latent updates (the exact correction has its own count), and, with the
+// timing test switch, the wall time of each part.
+enum Category { cat_prepare, cat_move, cat_fit, cat_ellipse, cat_latent, cat_correction, category_count };
+const char *const category_names[category_count] = {
+  "prepare", "move", "fit", "ellipse", "latent", "correction"};
+
 struct Counters {
   std::atomic<std::uint64_t> samplers{0};
   std::atomic<std::uint64_t> sweeps{0};
@@ -68,10 +77,13 @@ struct Counters {
   std::atomic<std::uint64_t> surrogate_evaluations{0};
   std::atomic<std::uint64_t> exact_evaluations{0};
   std::atomic<std::uint64_t> correction_evaluations{0};
+  std::atomic<std::uint64_t> fit_rule_fallback{0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
   std::atomic<std::uint64_t> accepted[component_count];
+  std::atomic<std::uint64_t> evaluations[category_count];
+  std::atomic<std::uint64_t> nanoseconds[category_count];
   std::atomic<double> max_correction{0.0};
   std::atomic<double> max_correction_gaussian{0.0};
   std::atomic<double> max_endpoint{0.0};
@@ -85,6 +97,10 @@ struct Counters {
       stage0[i] = 0;
       stage1[i] = 0;
       accepted[i] = 0;
+    }
+    for (int i = 0; i < category_count; ++i) {
+      evaluations[i] = 0;
+      nanoseconds[i] = 0;
     }
   }
 };
@@ -111,6 +127,10 @@ void record_max(std::atomic<double> &target, double value)
 
 std::atomic<int> test_mutant(0);
 std::atomic<bool> test_probe(false);
+// Test switches, frozen into the samplers built from now on (LocationBlockReport.h).
+std::atomic<int> test_refresh(0);
+std::atomic<int> test_fit_rule(0);
+std::atomic<bool> test_timing(false);
 
 struct ProbeStore {
   std::mutex mutex;
@@ -449,11 +469,15 @@ struct Shared {
   Vec X;                                   // rows x p, row-major
   std::unique_ptr<GraphView> latent_view;  // latents only, for the per-update probe
   SelNormCoarseSettings settings;
+  SelNormCoarseSettings fit_settings;      // the coarsest rung of each schedule (Newton fits)
   bool corrected = false;                  // the surrogate is configured
   bool any_surrogate = false;              // some child has a surrogate evaluator
+  bool coarse_fit = false;                 // some cluster or factor child has a coarse rung
   double min_acceptance = 0.0;
   int mutant = 0;
   bool probe = false;                      // test hook: dry-run records of the Gaussian moves
+  int fit_rule = 0;                        // test hook: 0 coarse with safeguard, 1 coarse, 2 sampler's
+  bool timing = false;                     // test hook: wall time of the update's parts
 };
 
 // The stochastic coordinates of a slab reference: the node itself, or the
@@ -751,6 +775,31 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // update along the line, decided at the first adaptOff()
   std::vector<std::uint64_t> _refresh_proposed, _refresh_accepted;
   std::vector<char> _slice_refresh;
+  // The Newton fits evaluate each cluster or factor child at the coarsest rung
+  // of its schedule; while adapting, the stage-2 acceptance of the tilted flips
+  // and swaps that passed stage 1 is tallied, and below 0.9 (50 proposals at
+  // least) the fits use the sampler's rule from the first adaptOff() on.
+  bool _coarse_fit = false;
+  std::uint64_t _fit_proposed = 0, _fit_accepted = 0;
+  // The part of the update that runs (its child evaluations are counted, and
+  // with the timing switch its exclusive wall time).
+  Category _category = cat_move;
+  std::chrono::steady_clock::time_point _part_start;
+
+  // Enters a part of the update and returns the previous one.
+  Category enter(Category part)
+  {
+    if (s().timing) {
+      const auto now = std::chrono::steady_clock::now();
+      counters().nanoseconds[_category].fetch_add(static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now - _part_start).count()),
+        std::memory_order_relaxed);
+      _part_start = now;
+    }
+    const Category previous = _category;
+    _category = part;
+    return previous;
+  }
 
   // ---- per-update state
   Vec _entry, _final;
@@ -759,6 +808,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   Vec _y, _mean_entry, _mean, _r, _wr, _d, _W;
   std::vector<char> _selected, _value_ok, _dirty;
   Vec _value, _value_entry;        // inner-target terms of the selection children
+  Vec _fit_value;                  // the coarse rung's terms at the current state
+  std::vector<char> _fit_ok;
   std::vector<unsigned> _stamp;
   unsigned _stamp_id = 0;
   bool _selection = false;         // some child is a selection child in step mode
@@ -787,6 +838,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _params[0] = mean;
     auto const *dist = static_cast<VectorDist const *>(c.node->distribution());
     count(counters().exact_evaluations);
+    count(counters().evaluations[_category]);
     if (c.type == ChildType::normal) {
       const double tau = *_params[1];
       const double x = c.node->value(_chain)[0];
@@ -796,7 +848,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return dist->logDensity(c.node->value(_chain), PDF_LIKELIHOOD, _params, c.lengths);
   }
 
-  double surrogate_with_mean(unsigned child, double const *mean)
+  // The child's surrogate at a mean with the given settings (the sampler's,
+  // or the coarsest rung for the Newton fits); not_exact flags an inexact
+  // normalizer.
+  double surrogate_with_mean(unsigned child, double const *mean, SelNormCoarseSettings const &settings,
+                             bool *not_exact)
   {
     SelectedChild const &sc = *_surrogates[child];
     for (std::size_t i = 0; i < sc.parents.size(); ++i) sc.parameters[i] = sc.parents[i]->value(_chain);
@@ -812,8 +868,43 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       valid = static_cast<VectorDist const *>(sc.distribution)->checkParameterValue(sc.parameters, sc.lengths);
     }
     count(counters().surrogate_evaluations);
+    count(counters().evaluations[_category]);
     if (!valid) return negative_infinity;
-    return sc.surrogate(_chain, s().settings, &_not_exact);
+    return sc.surrogate(_chain, settings, not_exact);
+  }
+
+  double surrogate_with_mean(unsigned child, double const *mean)
+  {
+    return surrogate_with_mean(child, mean, s().settings, &_not_exact);
+  }
+
+  // Whether the Newton fits evaluate this child at its coarsest rung (A1): a
+  // cluster or factor child with a surrogate, while the coarse fits are on.
+  bool coarse_child(unsigned child) const
+  {
+    return _coarse_fit && _surrogates[child] &&
+      (_surrogates[child]->kind == ChildKind::cluster || _surrogates[child]->kind == ChildKind::factor);
+  }
+
+  // The coarse rung's term of a child at a mean; it is never the inner target,
+  // so it is no evidence about the surrogate.
+  double coarse_value(unsigned child, double const *mean)
+  {
+    bool ignored = false;
+    const double v = surrogate_with_mean(child, mean, s().fit_settings, &ignored);
+    if (std::isnan(v) || v == std::numeric_limits<double>::infinity()) {
+      throwNodeError(s().children[child].node,
+        "Location block sampler: the log density of this likelihood node is not defined at a proposal");
+    }
+    return v;
+  }
+
+  void ensure_fit_value(unsigned child)
+  {
+    if (_fit_ok[child]) return;
+    ChildSpec const &c = s().children[child];
+    _fit_value[child] = coarse_value(child, &_mean[c.row0]);
+    _fit_ok[child] = 1;
   }
 
   // The inner target's term of a selection child at a mean.
@@ -977,6 +1068,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       _selected[c] = is_selected(child);
       if (_selected[c]) _selection = true;
       _value_ok[c] = 0;
+      _fit_ok[c] = 0;
       _dirty[c] = 0;
     }
     _surrogate_mode = _selection && sh.corrected && !_exact;
@@ -1412,6 +1504,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         _wr[row] -= t * wdelta[i];
       }
       if (!gaussian_child(c)) _value[c] = sh.value[q];
+      _fit_ok[c] = 0;
       _dirty[c] = 1;
     }
   }
@@ -1619,15 +1712,44 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // ell at a change db of the line's moving coordinates from the current
   // state: the inner target's terms of the children the line moves minus their
   // Gaussian part, i.e. -log A~ + const (zero for Gaussian children).
+  // Only the Newton-Laplace fits evaluate ell: each cluster or factor child at
+  // its coarsest rung while the coarse fits are on (A1), every other selection
+  // child as the inner target does; the change from the current state, so
+  // that the terms of children the shift leaves alone are zero.
   double line_ell(Line const &L, double const *db, Shift &sh)
   {
+    const Category previous = enter(cat_fit);
     line_shift(L, db, sh);
     prepare_shift(sh, {});
-    const long double children = children_delta(sh, 1.0);
-    if (!(children > negative_infinity)) return negative_infinity;
+    long double out = 0;
+    for (std::size_t q = 0; q < sh.children.size() && out > negative_infinity; ++q) {
+      const unsigned c = sh.children[q];
+      if (gaussian_child(c)) continue;
+      ChildSpec const &child = s().children[c];
+      _scratch.resize(child.n);
+      double const *delta = &sh.delta[sh.offset[q]];
+      for (unsigned i = 0; i < child.n; ++i) _scratch[i] = _mean[child.row0 + i] + delta[i];
+      double v, base;
+      if (coarse_child(c)) {
+        ensure_fit_value(c);
+        base = _fit_value[c];
+        v = coarse_value(c, _scratch.data());
+      } else {
+        ensure_value(c);
+        base = _value[c];
+        v = selected_value(c, _scratch.data());
+      }
+      out = v == negative_infinity ? negative_infinity : out + (static_cast<long double>(v) - base);
+    }
+    enter(previous);
+    if (!(out > negative_infinity)) return negative_infinity;
+    // the selection children's terms minus their Gaussian part (zero for
+    // Gaussian children, whose terms are exactly their quadratic forms)
     long double gaussian = 0;
-    for (std::size_t q = 0; q < sh.children.size(); ++q) gaussian += sh.q1[q] - 0.5L * sh.q2[q];
-    return static_cast<double>(children - gaussian);
+    for (std::size_t q = 0; q < sh.children.size(); ++q) {
+      if (!gaussian_child(sh.children[q])) gaussian += sh.q1[q] - 0.5L * sh.q2[q];
+    }
+    return static_cast<double>(out - gaussian);
   }
 
   // The change of the line's moving coordinates that puts the free ones
@@ -1953,6 +2075,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   void group_fit()
   {
     if (_line.fitted) return;
+    const Category previous = enter(cat_fit);
     Line const &L = _line.L;
     Vec target(L.m);
     _line.fit = newton(L, 0, target, L.m, L.P, L.Pchol, L.log_det_P);
@@ -1976,6 +2099,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _line.log_odds = _line.fit.ok ?
       _line.log_odds_gauss + laplace_tilt(_line.fit, L.m, L.Pchol, L.log_det_P, ell_zero) : negative_infinity;
     _line.fitted = true;
+    enter(previous);
   }
 
   // F_j in a selection label (stage 2): the tilted flip with the free screen
@@ -1998,6 +2122,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const double stage1 = on ? -(log_odds - _line.log_screen) : (log_odds - _line.log_screen);
     if (!metropolis(rng, stage1)) return;
     count(counters().stage1[type]);
+    if (_adapting) ++_fit_proposed;
     Fit const &fit = _line.fit;
     Vec proposal(g.d), db(g.d);
     double const *old_beta = &_beta[g.coord0];
@@ -2024,6 +2149,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const double stage2 = full - (on ? -log_odds : log_odds);
     if (!std::isfinite(full) || !metropolis(rng, stage2)) return;
     count(counters().accepted[type]);
+    if (_adapting) ++_fit_accepted;
     apply_shift(sh, 1.0);
     _g[j] = on ? 0 : 1;
     std::copy(proposal.begin(), proposal.end(), _beta.begin() + g.coord0);
@@ -2102,16 +2228,19 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       screen_tilt(basis, L, 0, target_a, zeros, cj, Cjp, Cj, lcj));
     if (!metropolis(rng, screen)) return;
     count(counters().stage0[swap]);
+    const Category previous = enter(cat_fit);
     const Fit fa = newton(L, 0, target_a, cj, Cjp, Cj, lcj);
     const Fit fb = newton(L, dj, target_b, ck, Ckp, Ck, lck);
     Vec db;
     Shift sh;
     subline_db(L, 0, zero_j, zeros, db);
     const double ell_zero = line_ell(L, db.data(), sh);
+    enter(previous);
     if (!fa.ok || !fb.ok || !std::isfinite(ell_zero)) return;
     const double log_odds = gauss + laplace_tilt(fb, ck, Ck, lck, ell_zero) - laplace_tilt(fa, cj, Cj, lcj, ell_zero);
     if (!metropolis(rng, log_odds - screen)) return;
     count(counters().stage1[swap]);
+    if (_adapting) ++_fit_proposed;
     Vec beta_k(dk), dormant_j(dj);
     draw_precision(fb.xhat, fb.Ptchol, rng, beta_k.data());
     draw_prior(gj, rng, dormant_j.data());
@@ -2132,6 +2261,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const double full = static_cast<double>(target + proposals);
     if (!std::isfinite(full) || !metropolis(rng, full - log_odds)) return;
     count(counters().accepted[swap]);
+    if (_adapting) ++_fit_accepted;
     apply_shift(move, 1.0);
     _g[j] = 0;
     _g[k] = 1;
@@ -2412,7 +2542,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   void sweep(RNG *rng)
   {
     Shared const &S = s();
+    if (S.timing) _part_start = std::chrono::steady_clock::now();
+    _category = cat_prepare;
     prepare();
+    enter(cat_move);
     count(counters().sweeps);
     if (_selection) count(counters().sweeps_selection);
     std::vector<Step> steps;
@@ -2443,6 +2576,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       // The line of a group serves its F_j and R_j, adjacent in either order;
       // any other component changes it.
       if ((step.kind != kind_flip && step.kind != kind_refresh) || _line.group != step.a) _line.valid = false;
+      enter(step.kind == kind_latent ? cat_latent : cat_move);
       switch (step.kind) {
       case kind_flip:
         if (_selection) tilted_flip(step.a, rng);
@@ -2467,7 +2601,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         break;
       }
     }
+    enter(cat_correction);
     correct(rng);
+    enter(cat_move);
   }
 
   // The exact correction: accept the sweep with [pi(new) / pi~(new)] /
@@ -2510,6 +2646,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     for (unsigned c : kids) {
       const double v = S.children[c].node->logDensity(_chain, PDF_LIKELIHOOD);
       count(counters().correction_evaluations);
+      count(counters().evaluations[cat_correction]);
       old_exact += v;
       if (!gaussian_child(c)) old_endpoint += static_cast<long double>(_value_entry[c]) - v;
     }
@@ -2527,6 +2664,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     for (unsigned c : kids) {
       const double v = S.children[c].node->logDensity(_chain, PDF_LIKELIHOOD);
       count(counters().correction_evaluations);
+      count(counters().evaluations[cat_correction]);
       new_exact += v;
       if (!gaussian_child(c)) new_endpoint += static_cast<long double>(_value[c]) - v;
     }
@@ -2589,6 +2727,9 @@ public:
     _dirty.assign(S.children.size(), 0);
     _value.assign(S.children.size(), 0.0);
     _value_entry.assign(S.children.size(), 0.0);
+    _fit_value.assign(S.children.size(), 0.0);
+    _fit_ok.assign(S.children.size(), 0);
+    _coarse_fit = S.coarse_fit && S.fit_rule != 2;
     _stamp.assign(S.children.size(), 0);
     _a.assign(S.latents.size(), 0.0);
     _lambda.assign(S.latents.size(), 1.0);
@@ -2647,6 +2788,13 @@ public:
     for (std::size_t j = 0; j < _slice_refresh.size(); ++j) {
       _slice_refresh[j] = _refresh_proposed[j] > 0 &&
         static_cast<double>(_refresh_accepted[j]) < 0.4 * static_cast<double>(_refresh_proposed[j]);
+    }
+    // the coarse rung of the Newton fits, from the stage-2 acceptance of the
+    // tilted flips and swaps that passed stage 1 while adapting (A1)
+    if (_coarse_fit && s().fit_rule == 0 && _fit_proposed >= 50 &&
+        static_cast<double>(_fit_accepted) < 0.9 * static_cast<double>(_fit_proposed)) {
+      _coarse_fit = false;
+      count(counters().fit_rule_fallback);
     }
     if (!_registered) return;
     if (_tally.adapt_off(s().min_acceptance, 1.0)) {
@@ -2983,11 +3131,16 @@ public:
     shared->corrected = config.enabled;
     shared->settings = config.settings;
     shared->min_acceptance = config.min_acceptance;
+    shared->fit_settings = config.settings;
+    shared->fit_settings.rule = 1;
     shared->mutant = test_mutant.load(std::memory_order_relaxed);
     shared->probe = test_probe.load(std::memory_order_relaxed);
+    shared->fit_rule = test_fit_rule.load(std::memory_order_relaxed);
+    shared->timing = test_timing.load(std::memory_order_relaxed);
     for (ChildSpec &child : shared->children) {
       child.kind = child_kind(child.node, config.settings);
       if (child.kind != ChildKind::other) shared->any_surrogate = true;
+      if (child.kind == ChildKind::cluster || child.kind == ChildKind::factor) shared->coarse_fit = true;
     }
 
     std::vector<std::unique_ptr<MutableSampleMethod>> methods;
@@ -3038,7 +3191,7 @@ std::vector<char const *> const &location_block_report_names()
     std::vector<char const *> out = {
       "samplers", "sweeps", "sweeps_selection", "sweeps_evidence", "corrections_accepted",
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
-      "surrogate_evaluations", "exact_evaluations", "correction_evaluations",
+      "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback",
       "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
       "max_stage2_gaussian"};
     static std::vector<std::string> storage;
@@ -3047,6 +3200,8 @@ std::vector<char const *> const &location_block_report_names()
         storage.push_back(std::string(component_names[i]) + "_" + stage);
       }
     }
+    for (int i = 0; i < category_count; ++i) storage.push_back(std::string("evaluations_") + category_names[i]);
+    for (int i = 0; i < category_count; ++i) storage.push_back(std::string("seconds_") + category_names[i]);
     for (std::string const &name : storage) out.push_back(name.c_str());
     return out;
   }();
@@ -3067,15 +3222,17 @@ std::vector<double> location_block_report(bool clear)
     take(c.samplers), take(c.sweeps), take(c.sweeps_selection), take(c.sweeps_evidence),
     take(c.corrections_accepted), take(c.corrections_selection_accepted),
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
-    take(c.exact_evaluations), take(c.correction_evaluations), take_max(c.max_correction),
-    take_max(c.max_correction_gaussian), take_max(c.max_endpoint), take_max(c.max_endpoint_change),
-    take_max(c.max_stage2_gaussian)};
+    take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback),
+    take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
+    take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
   for (int i = 0; i < component_count; ++i) {
     out.push_back(take(c.proposed[i]));
     out.push_back(take(c.stage0[i]));
     out.push_back(take(c.stage1[i]));
     out.push_back(take(c.accepted[i]));
   }
+  for (int i = 0; i < category_count; ++i) out.push_back(take(c.evaluations[i]));
+  for (int i = 0; i < category_count; ++i) out.push_back(take(c.nanoseconds[i]) * 1e-9);
   return out;
 }
 
@@ -3102,6 +3259,17 @@ std::vector<double> location_block_test_take_probe()
   std::vector<double> out;
   out.swap(store.records);
   return out;
+}
+
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing)
+{
+  std::vector<int> previous = {test_refresh.load(std::memory_order_relaxed),
+                               test_fit_rule.load(std::memory_order_relaxed),
+                               test_timing.load(std::memory_order_relaxed) ? 1 : 0};
+  if (refresh >= 0) test_refresh.store(refresh, std::memory_order_relaxed);
+  if (fit_rule >= 0) test_fit_rule.store(fit_rule, std::memory_order_relaxed);
+  if (timing >= 0) test_timing.store(timing != 0, std::memory_order_relaxed);
+  return previous;
 }
 
 }

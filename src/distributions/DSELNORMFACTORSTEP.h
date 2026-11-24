@@ -18,8 +18,9 @@ class DSELNORMFACTORSTEP : public VectorDist
                     std::vector<unsigned long> const &lengths) const override;
   // The corrected sampler's surrogate density: the exact numerator minus the
   // log normalizer of one rule of the block's own schedule (rule number
-  // settings.max_rules, or the last) at the actual parameters, and the exact
-  // density where that rule is unavailable. Not memoized (see logDensity).
+  // settings.max_rules or the named settings.rule, or the last) at the actual
+  // parameters, and the exact density where that rule is unavailable. Not
+  // memoized (see logDensity).
   // surrogate_not_exact, when given, is set to true (never cleared) when the
   // value returned was computed with a normalizer that is not the exact one.
   double surrogateLogDensity(double const *x, PDFType type,

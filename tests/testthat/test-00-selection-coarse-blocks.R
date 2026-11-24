@@ -116,6 +116,40 @@ test_that("the factor surrogate follows rule j of tensors, compacted columns and
 })
 
 
+test_that("a named rule integrates that rule of the schedule whatever the rule count", {
+
+  # The location block's Newton fits name rule 1 (SelNormCoarseSettings::rule);
+  # a named rule bypasses the exact route of a rule count below three.
+  named <- function(block, rule, max_rules = 3L) {
+    .Call("RoBMA_selnorm_surrogate_probe", block[["kind"]], block[["x"]], block[["parameters"]],
+          c(.05, .05, .01, as.double(max_rules), as.double(rule)), FALSE, PACKAGE = "RoBMA")
+  }
+  cluster <- .coarse_cluster_block()
+  for (rule in 1:3) {
+    for (max_rules in c(1L, 3L, 5L)) {
+      probe <- named(cluster, rule, max_rules)
+      expect_identical(probe[["rule"]], rule)
+      expect_false(probe[["exact_fallback"]])
+      .expect_coarse_value(probe, cluster, .coarse_rule_order(cluster, rule),
+                           info = paste("cluster, rule", rule, "max_rules", max_rules))
+    }
+  }
+  # rule 3 named equals the sampler's rule 3, bit for bit
+  expect_identical(named(cluster, 3L)[["surrogate"]], .coarse_probe(cluster, 3L)[["surrogate"]])
+  # a one-node rule: the normalizer is the product of the row probabilities at
+  # the latent's mean
+  crude <- .coarse_cluster_block(rules = .coarse_rules(c(1, 2, 3, 7, 15, 31, 63, 127, 255, 511)))
+  .expect_coarse_value(named(crude, 1L), crude, 1L, info = "one-node rule")
+  # a named rule beyond the schedule is its last rule
+  short <- .coarse_cluster_block(rules = .coarse_rules(c(7, 15)))
+  expect_identical(named(short, 5L)[["rule"]], 2L)
+  .expect_coarse_value(named(short, 5L), short, 15L, info = "named rule beyond the schedule")
+  rank_two <- .coarse_factor_block()
+  .expect_coarse_value(named(rank_two, 1L, 1L), rank_two, .coarse_rule_order(rank_two, 1L),
+                       info = "factor, rule 1")
+})
+
+
 test_that("blocks without an available rule fall back to the exact density", {
 
   same_as_exact <- function(probe, info) {

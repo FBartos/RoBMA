@@ -696,6 +696,39 @@ extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
   ROBMA_NATIVE_END
 }
 
+// Test hook, not package interface: the location block sampler's switches
+// (LocationBlockReport.h, location_block_test_config) for samplers built from
+// now on, as an integer vector c(refresh, fit_rule, timing) whose negative
+// elements keep a setting, or NULL. Returns the previous settings.
+extern "C" SEXP RoBMA_location_block_test_config(SEXP config)
+{
+  ROBMA_NATIVE_BEGIN(config)
+  std::vector<int> wanted = {-1, -1, -1};
+  if (config != R_NilValue) {
+    if (TYPEOF(config) != INTSXP || XLENGTH(config) != 3) {
+      Rf_error("The location block configuration must be NULL or three integers.");
+    }
+    const int upper[3] = {4, 2, 1};
+    for (int i = 0; i < 3; ++i) {
+      const int value = INTEGER(config)[i];
+      if (value == NA_INTEGER || value > upper[i]) Rf_error("The location block configuration is out of range.");
+      wanted[static_cast<std::size_t>(i)] = value;
+    }
+  }
+  const std::vector<int> previous = jags::RoBMA::location_block_test_config(wanted[0], wanted[1], wanted[2]);
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 3));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 3));
+  const char *names[] = {"refresh", "fit_rule", "timing"};
+  for (int i = 0; i < 3; ++i) {
+    INTEGER(out)[i] = previous[static_cast<std::size_t>(i)];
+    SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  }
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 // Test hook, not package interface: the corrected block sampler's fixed-order
 // mutant (for block samplers built from now on) and its evaluation trace. A
 // NULL argument keeps the setting. Returns the settings, the slice intervals
@@ -879,10 +912,11 @@ extern "C" SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores
 // classes the sampler uses, with the validators and the surrogate's pieces
 // (numerator, log normalizer of the rung, whether it fell back to the exact
 // density). `settings` is the sampler's setting vector (three grid steps, rule
-// count). An exception of an evaluation is returned as its message. With
-// `unchecked` the evaluations also run on blocks whose validators refuse them only
-// because the quadrature nodes or log weights have non-finite values, to reach the
-// branches those values guard; every other control (lengths, orders that sum to the
+// count) and optionally a named rule (SelNormCoarseSettings::rule). An
+// exception of an evaluation is returned as its message. With `unchecked` the
+// evaluations also run on blocks whose validators refuse them only because the
+// quadrature nodes or log weights have non-finite values, to reach the branches
+// those values guard; every other control (lengths, orders that sum to the
 // tables, bins, the QMC array) must pass, since the evaluators index with them.
 extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings,
                                               SEXP unchecked)
@@ -897,7 +931,9 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   check_real(x, "x");
   check_real(settings, "settings");
   check_logical(unchecked, "unchecked");
-  if (Rf_length(settings) != 4) Rf_error("'settings' must contain three grid steps and a rule count.");
+  if (Rf_length(settings) != 4 && Rf_length(settings) != 5) {
+    Rf_error("'settings' must contain three grid steps, a rule count and optionally a named rule.");
+  }
   if (TYPEOF(parameters) != VECSXP || Rf_length(parameters) != 20) {
     Rf_error("'parameters' must be a list of the 20 distribution parameters.");
   }
@@ -906,6 +942,7 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   coarse.diagonal_step = REAL(settings)[1];
   coarse.log_weight_step = REAL(settings)[2];
   coarse.max_rules = static_cast<unsigned int>(REAL(settings)[3]);
+  if (Rf_length(settings) == 5) coarse.rule = static_cast<unsigned int>(REAL(settings)[4]);
   std::vector<double const *> par(20);
   std::vector<unsigned long> len(20);
   for (int i = 0; i < 20; ++i) {
@@ -1032,7 +1069,7 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   SET_VECTOR_ELT(output, 8, Rf_mkString(surrogate_error.c_str()));
   SET_VECTOR_ELT(output, 9, Rf_mkString(exact_error.c_str()));
   SET_VECTOR_ELT(output, 10, Rf_ScalarInteger(static_cast<int>(
-    std::min(coarse.max_rules, static_cast<unsigned int>(len[13])))));
+    std::min(coarse.rule > 0 ? coarse.rule : coarse.max_rules, static_cast<unsigned int>(len[13])))));
   for (int i = 0; i < slots; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   Rf_setAttrib(output, R_NamesSymbol, names);
   UNPROTECT(2);

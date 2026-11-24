@@ -7067,12 +7067,14 @@ double cpp_selnorm_factor_step_lpdf(
 namespace {
 
 // Offset into the quadrature tables and order of rule min(max_rules, count) of
-// a schedule (1-based), the one rule the surrogate integrates over.
-void surrogate_rule_span(const double *orders, int rule_count, unsigned int max_rules,
+// a schedule (1-based), the one rule the surrogate integrates over; a named
+// rule (settings.rule > 0) replaces max_rules.
+void surrogate_rule_span(const double *orders, int rule_count, const SelNormCoarseSettings &settings,
                          int *offset, int *order)
 {
+  const unsigned int wanted = settings.rule > 0 ? settings.rule : settings.max_rules;
   const int rule = static_cast<int>(
-    std::min(max_rules, static_cast<unsigned int>(rule_count)));
+    std::min(wanted, static_cast<unsigned int>(rule_count)));
   *offset = 0;
   for (int previous = 0; previous + 1 < rule; ++previous) {
     *offset += static_cast<int>(orders[previous]);
@@ -7124,16 +7126,15 @@ double cpp_selnorm_factor_step_surrogate_lpdf(
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
     return numerator;
   }
-  // Rule min(max_rules, rule_count) of a product schedule; every other case
-  // (the numerator call has already refused a missing schedule) is the exact
-  // density's.
-  if (vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3) {
+  // Rule min(max_rules, rule_count) (or the named rule) of a product schedule;
+  // every other case (the numerator call has already refused a missing
+  // schedule) is the exact density's.
+  if (vector_rule != SELVECTOR_PRODUCT || (settings.rule == 0 && settings.max_rules < 3)) {
     *exact_fallback = true;
     return unavailable;
   }
   int offset, order;
-  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings.max_rules,
-                      &offset, &order);
+  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings, &offset, &order);
 
   // The block the exact kernel integrates: zero loading columns dropped, its
   // forest plan and its node budget.
@@ -7445,13 +7446,12 @@ double cpp_selnorm_cluster_step_surrogate_lpdf(
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
     return numerator;
   }
-  if (vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3) {
+  if (vector_rule != SELVECTOR_PRODUCT || (settings.rule == 0 && settings.max_rules < 3)) {
     *exact_fallback = true;
     return unavailable;
   }
   int offset, order;
-  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings.max_rules,
-                      &offset, &order);
+  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings, &offset, &order);
   const StepKernelSelection selection(n_bins, effect_sign, z_lower, z_upper,
                                       telescope_probabilities);
   ClusterNormalizerContext context;

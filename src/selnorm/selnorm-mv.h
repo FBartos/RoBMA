@@ -105,6 +105,11 @@ struct SelNormCoarseSettings {
   double diagonal_step = 0.05;
   double log_weight_step = 0.01;
   unsigned int max_rules = 3;
+  // A named rule (1-based, clamped to the schedule) that the cluster and
+  // factor surrogates integrate instead of rule min(max_rules, rule_count),
+  // without the exact route of max_rules < 3; 0 keeps the sampler's rule.
+  // The location block's Newton fits use rule 1 (they only build proposals).
+  unsigned int rule = 0;
 };
 
 double cpp_selnorm_mnorm_step_surrogate_lpdf(
@@ -344,7 +349,8 @@ double cpp_selnorm_factor_step_lpdf(
 // Surrogates of the rank-one cluster and factor blocks of the corrected sampler:
 // the kernel's own numerator (Gaussian log density plus observed log weights)
 // minus the log normalizer of ONE rule of the block's own quadrature schedule,
-// rule min(settings.max_rules, rule_count) at the actual parameters, with no
+// rule min(settings.max_rules, rule_count) (or the named settings.rule) at the
+// actual parameters, with no
 // change test, certificate, refinement, sparse grid, QMC, memo or rounding. The
 // result is a deterministic function of the arguments. `*exact_fallback` is set
 // (and NaN returned) when that rule is unavailable: a non-product vector rule,
