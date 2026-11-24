@@ -27,8 +27,8 @@ test_that("the location block owns the bias label, its slopes and the nested nod
     expect_gt(counters[["bias_label_accepted"]], 100)
     expect_gt(counters[["bias_dormant_proposed"]], 1000)
     expect_identical(counters[["bias_dormant_accepted"]], counters[["bias_dormant_proposed"]])
-    # the swap L2 is attempted in half of the sweeps (a coin independent of the state)
-    expect_lt(abs(counters[["bias_label_swap_proposed"]] / counters[["sweeps"]] - 0.5), 0.05)
+    # the swap L2 is attempted in a quarter of the sweeps (a coin independent of the state)
+    expect_lt(abs(counters[["bias_label_swap_proposed"]] / counters[["sweeps"]] - 0.25), 0.05)
     # every label is visited and the physical slopes are zero outside their labels
     expect_setequal(unique(chain$draws[, "bias_indicator"]), 1:4)
     expect_true(all(chain$draws[chain$draws[, "bias_indicator"] != 3, "PET"] == 0))

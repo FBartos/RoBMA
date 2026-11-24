@@ -81,7 +81,7 @@ test_that("the location block's bias-label moves target the exact posterior and 
   draws <- 100000L
   run <- function(setup, mutant = 0L, n = draws) {
     model <- .bias_model(setup)
-    # L2 in every sweep (the test switch; the default schedule is one half)
+    # L2 in every sweep (the test switch; the default schedule is one quarter)
     chain <- .location_hand_chain(model, c("bias_indicator", "g", "b", "PET", "PEESE"), draws = n,
                                   burnin = 1000L, adapt = 500L, mutant = mutant,
                                   config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = -1L))

@@ -742,9 +742,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   Gaussian plane in closed form, a selection label's value there times its
   Laplace odds along the line), stage 1 on the evidences and the label
   Hastings factor, stage 2 on the inner target with the complete proposal
-  densities. L2 runs with probability 1/2 per sweep (`default_swap_probability`;
-  at one it took 9.5% of the sampling sweep on the Assink full-V moderator fit
-  and 6.7% on the 18-moderator tutorial fit, above the 5% of the rule), decided
+  densities. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
+  with its Laplace fits it took 15.7% of the sampling sweep on the Assink
+  full-V moderator fit and 10.6% on the 18-moderator tutorial fit at one, 8.5%
+  and 5.6% at 1/2, above the 5% of the rule, and 4.4% and 2.9% at 1/4), decided
   before any component and independent of the state. The test hook's
   probe records, at each component's slot, L1's analytic against computed
   ratio, S's acceptance ratio, L2's reciprocity, rebuilt base quantities and

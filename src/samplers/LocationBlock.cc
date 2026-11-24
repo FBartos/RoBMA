@@ -164,8 +164,9 @@ std::atomic<bool> test_trace(false);
 // (wp3-spec.md, schedule): one unless L2 costs more than 5% of the sampling
 // sweep on the Assink full-V moderator fit or the 18-moderator tutorial fit,
 // then the largest of 1/2 and 1/4 within 5% on both. Measured at one (wp3
-// profiles): 9.5% and 6.7%; at 1/2: 5.0% and 3.4%.
-constexpr double default_swap_probability = 0.5;
+// profiles, L2's Laplace fits counted as L2): 15.7% and 10.6%; at 1/2: 8.5%
+// and 5.6%; at 1/4: 4.4% and 2.9%.
+constexpr double default_swap_probability = 0.25;
 
 // The evidence record of the location gates (location_block_evidence): per
 // gate slot and chain, over the updates after adaptation, the flips proposed
