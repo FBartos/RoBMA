@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <limits>
 #include <map>
+#include <mutex>
 #include <memory>
 #include <set>
 #include <stdexcept>
@@ -109,6 +110,19 @@ void record_max(std::atomic<double> &target, double value)
 }
 
 std::atomic<int> test_mutant(0);
+std::atomic<bool> test_probe(false);
+
+struct ProbeStore {
+  std::mutex mutex;
+  std::vector<double> records;
+};
+
+// Never destroyed, like the sampler registry: samplers may run late.
+ProbeStore &probe_store()
+{
+  static ProbeStore *store = new ProbeStore();
+  return *store;
+}
 
 // The outcome of the last factory call that found a declaration (test hook):
 // "claimed" or the first check that declined. Factories run on the main thread.
@@ -439,6 +453,7 @@ struct Shared {
   bool any_surrogate = false;              // some child has a surrogate evaluator
   double min_acceptance = 0.0;
   int mutant = 0;
+  bool probe = false;                      // test hook: dry-run records of the Gaussian moves
 };
 
 // The stochastic coordinates of a slab reference: the node itself, or the
@@ -1445,7 +1460,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
 
   // F_j in a Gaussian label: the collapsed flip along the sheared line with a
   // two-stage (factorized) acceptance.
-  void gaussian_flip(unsigned j, RNG *rng)
+  void gaussian_flip(unsigned j, RNG *rng, bool dry = false)
   {
     Shared const &S = s();
     GroupSpec const &g = S.groups[j];
@@ -1453,15 +1468,17 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (!build_line({j}, L)) return;
     const bool on = active(j);
     const Component type = on ? flip_off : flip_on;
-    count(counters().proposed[type]);
-    count(counters().stage0[type]);
     // Savage-Dickey form of the collapsed odds of the line
     Vec zero(g.d, 0.0);
     const double log_odds = (g.log_on - g.log_off) + log_slab(g, zero.data()) -
       log_normal_precision(zero.data(), L.m, L.Pchol, L.log_det_P);
     const double stage1 = on ? -log_odds : log_odds;
-    if (!metropolis(rng, stage1)) return;
-    count(counters().stage1[type]);
+    if (!dry) {
+      count(counters().proposed[type]);
+      count(counters().stage0[type]);
+      if (!metropolis(rng, stage1)) return;
+      count(counters().stage1[type]);
+    }
     Vec proposal(g.d), db(g.d);
     double const *old_beta = &_beta[g.coord0];
     long double proposal_terms;
@@ -1482,10 +1499,15 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     line_shift(L, db.data(), sh, (S.mutant == 1 && on) ? 1.5 : 1.0);
     prepare_shift(sh, L.partners);
     const long double children = children_delta(sh, 1.0);
-    const long double target = children + prior_delta(sh, 1.0) +
+    const long double rest = prior_delta(sh, 1.0) +
       (on ? g.log_off - g.log_on : g.log_on - g.log_off) +
       log_slab(g, proposal.data()) - log_slab(g, old_beta);
+    const long double target = children + rest;
     const double full = static_cast<double>(target + proposal_terms);
+    if (dry) {
+      probe_record(type, stage1, gaussian_part(sh) + rest + proposal_terms, children - gaussian_part(sh), log_odds);
+      return;
+    }
     const double stage2 = full - stage1;
     if (!_selection) record_max(counters().max_stage2_gaussian, std::fabs(stage2));
     if (!std::isfinite(full) || !metropolis(rng, stage2)) return;
@@ -1497,13 +1519,35 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _repr_delta += target;
   }
 
+  // The Gaussian part of the children terms of a shift at t = 1.
+  long double gaussian_part(Shift const &sh) const
+  {
+    long double out = 0;
+    for (std::size_t q = 0; q < sh.children.size(); ++q) out += sh.q1[q] - 0.5L * sh.q2[q];
+    return out;
+  }
+
+  // Test hook (probe): one dry-run record of a collapsed Gaussian move: its
+  // type, label, stage-1 log ratio, the full log ratio from the direct
+  // Gaussian evaluation of priors, children and proposal densities (equal to
+  // the stage-1 ratio when the line algebra is right), the selection part of
+  // the inner target's ratio (log A~(old) - log A~(new)) and the collapsed log
+  // odds.
+  void probe_record(int type, double stage1, long double gaussian_full, long double selection, double log_odds)
+  {
+    ProbeStore &store = probe_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    store.records.insert(store.records.end(), {static_cast<double>(type), _selection ? 1.0 : 0.0, stage1,
+      static_cast<double>(gaussian_full), static_cast<double>(selection), log_odds});
+  }
+
   // R_j of an active group in a Gaussian label: an exact draw along the line.
-  void gaussian_refresh(unsigned j, RNG *rng)
+  void gaussian_refresh(unsigned j, RNG *rng, bool dry = false)
   {
     GroupSpec const &g = s().groups[j];
     Line L;
     if (!build_line({j}, L)) return;
-    count(counters().proposed[refresh]);
+    if (!dry) count(counters().proposed[refresh]);
     Vec proposal(g.d), db(g.d);
     draw_precision(L.m, L.Pchol, rng, proposal.data());
     if (!all_finite(proposal.data(), g.d)) return;
@@ -1515,10 +1559,16 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     std::vector<unsigned> prior_coords(L.partners);
     prior_coords.push_back(g.coord0);
     prepare_shift(sh, prior_coords);
-    const long double target = children_delta(sh, 1.0) + prior_delta(sh, 1.0);
-    const double full = static_cast<double>(target +
-      log_normal_precision(old_beta, L.m, L.Pchol, L.log_det_P) -
-      log_normal_precision(proposal.data(), L.m, L.Pchol, L.log_det_P));
+    const long double children = children_delta(sh, 1.0);
+    const long double proposals = log_normal_precision(old_beta, L.m, L.Pchol, L.log_det_P) -
+      log_normal_precision(proposal.data(), L.m, L.Pchol, L.log_det_P);
+    const long double target = children + prior_delta(sh, 1.0);
+    const double full = static_cast<double>(target + proposals);
+    if (dry) {
+      probe_record(refresh, 0.0, gaussian_part(sh) + prior_delta(sh, 1.0) + proposals,
+                   children - gaussian_part(sh), 0.0);
+      return;
+    }
     if (!_selection) record_max(counters().max_stage2_gaussian, std::fabs(full));
     if (!std::isfinite(full) || !metropolis(rng, full)) return;
     count(counters().accepted[refresh]);
@@ -2160,10 +2210,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   }
 
   // Z_s in a Gaussian label: an exact draw from its conditional.
-  void gaussian_latent(unsigned lat, RNG *rng)
+  void gaussian_latent(unsigned lat, RNG *rng, bool dry = false)
   {
     Shared const &S = s();
-    count(counters().proposed[study]);
+    if (!dry) count(counters().proposed[study]);
     long double score = static_cast<long double>(_a[lat]) * _z[lat];
     for (unsigned c : S.latent_children[lat]) {
       ChildSpec const &child = S.children[c];
@@ -2178,9 +2228,15 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     sh.lats.push_back(lat);
     sh.dlat.push_back(proposal - _z[lat]);
     prepare_shift(sh, {});
-    const long double target = children_delta(sh, 1.0) + prior_delta(sh, 1.0);
+    const long double children = children_delta(sh, 1.0);
+    const long double target = children + prior_delta(sh, 1.0);
     const double zo = (_z[lat] - mean) / sd, zn = (proposal - mean) / sd;
     const double full = static_cast<double>(target) - 0.5 * zo * zo + 0.5 * zn * zn;
+    if (dry) {
+      probe_record(study, 0.0, gaussian_part(sh) + prior_delta(sh, 1.0) - 0.5 * zo * zo + 0.5 * zn * zn,
+                   children - gaussian_part(sh), 0.0);
+      return;
+    }
     if (!_selection) record_max(counters().max_stage2_gaussian, std::fabs(full));
     if (!std::isfinite(full) || !metropolis(rng, full)) return;
     count(counters().accepted[study]);
@@ -2200,7 +2256,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
 
   // J: all active coefficients from their joint Gaussian law with the latent
   // shear (Gaussian labels only).
-  void gaussian_joint(RNG *rng)
+  void gaussian_joint(RNG *rng, bool dry = false)
   {
     Shared const &S = s();
     const unsigned p = S.p;
@@ -2211,7 +2267,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     const std::size_t na = A.size();
     if (na == 0) return;
-    count(counters().proposed[joint]);
+    if (!dry) count(counters().proposed[joint]);
     Vec PA(na * na), hA(na);
     for (std::size_t i = 0; i < na; ++i) {
       hA[i] = _h[A[i]];
@@ -2243,9 +2299,15 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       sh.dlat.push_back(static_cast<double>(-v / _lambda[lat]));
     }
     prepare_shift(sh, A);
-    const long double target = children_delta(sh, 1.0) + prior_delta(sh, 1.0);
-    const double full = static_cast<double>(target + log_normal_precision(old.data(), mean, chol, log_det) -
-      log_normal_precision(proposal.data(), mean, chol, log_det));
+    const long double children = children_delta(sh, 1.0);
+    const long double proposals = log_normal_precision(old.data(), mean, chol, log_det) -
+      log_normal_precision(proposal.data(), mean, chol, log_det);
+    const long double target = children + prior_delta(sh, 1.0);
+    const double full = static_cast<double>(target + proposals);
+    if (dry) {
+      probe_record(joint, 0.0, gaussian_part(sh) + prior_delta(sh, 1.0) + proposals, children - gaussian_part(sh), 0.0);
+      return;
+    }
     if (!_selection) record_max(counters().max_stage2_gaussian, std::fabs(full));
     if (!std::isfinite(full) || !metropolis(rng, full)) return;
     count(counters().accepted[joint]);
@@ -2255,7 +2317,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
 
   // S_jk: exchange the gates of two correlated groups, the one switched on
   // drawn from its law along the line given the other off (Gaussian labels).
-  void gaussian_swap(unsigned first, unsigned second, RNG *rng)
+  void gaussian_swap(unsigned first, unsigned second, RNG *rng, bool dry = false)
   {
     Shared const &S = s();
     if (active(first) == active(second)) return;
@@ -2265,60 +2327,24 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     GroupSpec const &gk = S.groups[k];
     Line L;
     if (!build_line({j, k}, L)) return;
-    count(counters().proposed[swap]);
-    count(counters().stage0[swap]);
+    if (!dry) {
+      count(counters().proposed[swap]);
+      count(counters().stage0[swap]);
+    }
     const std::size_t dj = gj.d, dk = gk.d, nm = dj + dk;
     // marginal laws of each group (from the joint of the pair) and the
     // conditionals of one given the other at zero
-    auto block = [&](std::size_t r0, std::size_t n0, std::size_t c0, std::size_t n1) {
-      Vec out(n0 * n1);
-      for (std::size_t i = 0; i < n0; ++i) for (std::size_t l = 0; l < n1; ++l) out[i * n1 + l] = L.Sigma[(r0 + i) * nm + c0 + l];
-      return out;
-    };
-    auto marginal = [&](std::size_t r0, std::size_t n0, Vec &m, Vec &Pchol, double &log_det) {
-      Vec Sg = block(r0, n0, r0, n0);
-      m.assign(L.m.begin() + r0, L.m.begin() + r0 + n0);
-      if (!cholesky(Sg, n0)) return false;
-      Pchol = inverse_from_cholesky(Sg, n0);
-      if (!cholesky(Pchol, n0)) return false;
-      log_det = log_det_cholesky(Pchol, n0);
-      return true;
-    };
-    // conditional of block (r0, n0) given the other block (c0, n1) = 0
-    auto conditional = [&](std::size_t r0, std::size_t n0, std::size_t c0, std::size_t n1,
-                           Vec &m, Vec &Pchol, double &log_det) {
-      Vec Soo = block(c0, n1, c0, n1);
-      if (!cholesky(Soo, n1)) return false;
-      const Vec Sinv = inverse_from_cholesky(Soo, n1);
-      const Vec Sro = block(r0, n0, c0, n1);
-      Vec Srr = block(r0, n0, r0, n0);
-      m.assign(n0, 0.0);
-      for (std::size_t i = 0; i < n0; ++i) {
-        long double mi = L.m[r0 + i];
-        for (std::size_t a = 0; a < n1; ++a) {
-          long double coef = 0;
-          for (std::size_t b = 0; b < n1; ++b) coef += static_cast<long double>(Sro[i * n1 + b]) * Sinv[b * n1 + a];
-          mi -= coef * L.m[c0 + a];
-          for (std::size_t l = 0; l < n0; ++l) Srr[i * n0 + l] -= static_cast<double>(coef * Sro[l * n1 + a]);
-        }
-        m[i] = static_cast<double>(mi);
-      }
-      if (!cholesky(Srr, n0)) return false;
-      Pchol = inverse_from_cholesky(Srr, n0);
-      if (!cholesky(Pchol, n0)) return false;
-      log_det = log_det_cholesky(Pchol, n0);
-      return true;
-    };
     Vec mj, Pj, mk, Pk, cj, Cj, ck, Ck;
     double lj, lk, lcj, lck;
-    if (!marginal(0, dj, mj, Pj, lj) || !marginal(dj, dk, mk, Pk, lk) ||
-        !conditional(0, dj, dj, dk, cj, Cj, lcj) || !conditional(dj, dk, 0, dj, ck, Ck, lck)) return;
+    if (!swap_laws(L, dj, dk, mj, Pj, lj, mk, Pk, lk, cj, Cj, lcj, ck, Ck, lck)) return;
     Vec zero_j(dj, 0.0), zero_k(dk, 0.0);
     const double stage1 = (gj.log_off + gk.log_on - gj.log_on - gk.log_off) +
       log_slab(gk, zero_k.data()) + log_normal_precision(zero_j.data(), mj, Pj, lj) -
       log_slab(gj, zero_j.data()) - log_normal_precision(zero_k.data(), mk, Pk, lk);
-    if (!metropolis(rng, stage1)) return;
-    count(counters().stage1[swap]);
+    if (!dry) {
+      if (!metropolis(rng, stage1)) return;
+      count(counters().stage1[swap]);
+    }
     Vec beta_k(dk), dormant_j(dj);
     draw_precision(ck, Ck, rng, beta_k.data());
     draw_prior(gj, rng, dormant_j.data());
@@ -2331,12 +2357,17 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     Shift sh;
     line_shift(L, db.data(), sh);
     prepare_shift(sh, L.partners);
-    const long double target = children_delta(sh, 1.0) + prior_delta(sh, 1.0) +
-      (gj.log_off + gk.log_on - gj.log_on - gk.log_off) +
+    const long double children = children_delta(sh, 1.0);
+    const long double rest = prior_delta(sh, 1.0) + (gj.log_off + gk.log_on - gj.log_on - gk.log_off) +
       log_slab(gj, dormant_j.data()) - log_slab(gj, old_j) + log_slab(gk, beta_k.data()) - log_slab(gk, old_k);
+    const long double target = children + rest;
     const long double proposals = log_normal_precision(old_j, cj, Cj, lcj) + log_slab(gk, old_k) -
       log_normal_precision(beta_k.data(), ck, Ck, lck) - log_slab(gj, dormant_j.data());
     const double full = static_cast<double>(target + proposals);
+    if (dry) {
+      probe_record(swap, stage1, gaussian_part(sh) + rest + proposals, children - gaussian_part(sh), stage1);
+      return;
+    }
     const double stage2 = full - stage1;
     if (!_selection) record_max(counters().max_stage2_gaussian, std::fabs(stage2));
     if (!std::isfinite(full) || !metropolis(rng, stage2)) return;
@@ -2394,11 +2425,22 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       if (S.groups[j].gate != nullptr) steps.push_back({kind_flip, j, 0});
       steps.push_back({kind_refresh, j, 0});
     }
-    for (auto const &pair : swap_pairs()) steps.push_back({kind_swap, pair.first, pair.second});
+    const std::vector<std::pair<unsigned, unsigned>> pairs = swap_pairs();
+    for (auto const &pair : pairs) steps.push_back({kind_swap, pair.first, pair.second});
     // the joint refresh is Gaussian only: the untilted joint law is rejected
     // under selection
     if (!_selection && !S.groups.empty()) steps.push_back({kind_joint, 0, 0});
     for (unsigned lat = 0; lat < S.latents.size(); ++lat) steps.push_back({kind_latent, lat, 0});
+    if (S.probe) {
+      // test hook: dry runs of every collapsed Gaussian move at the entry state
+      for (unsigned j = 0; j < S.groups.size(); ++j) {
+        if (S.groups[j].gate != nullptr) gaussian_flip(j, rng, true);
+        if (active(j)) gaussian_refresh(j, rng, true);
+      }
+      for (auto const &pair : pairs) gaussian_swap(pair.first, pair.second, rng, true);
+      if (!S.groups.empty()) gaussian_joint(rng, true);
+      for (unsigned lat = 0; lat < S.latents.size(); ++lat) gaussian_latent(lat, rng, true);
+    }
     // one coin per update: the whole list forward or reversed
     const bool backward = rng->uniform() < 0.5;
     for (std::size_t i = 0; i < steps.size(); ++i) {
@@ -2966,6 +3008,7 @@ public:
     shared->settings = config.settings;
     shared->min_acceptance = config.min_acceptance;
     shared->mutant = test_mutant.load(std::memory_order_relaxed);
+    shared->probe = test_probe.load(std::memory_order_relaxed);
     for (ChildSpec &child : shared->children) {
       child.kind = child_kind(child.node, config.settings);
       if (child.kind != ChildKind::other) shared->any_surrogate = true;
@@ -3068,6 +3111,21 @@ int location_block_test_mutant(int mutant)
 std::string location_block_test_decision()
 {
   return decision();
+}
+
+bool location_block_test_probe(int probe)
+{
+  if (probe < 0) return test_probe.load(std::memory_order_relaxed);
+  return test_probe.exchange(probe != 0, std::memory_order_relaxed);
+}
+
+std::vector<double> location_block_test_take_probe()
+{
+  ProbeStore &store = probe_store();
+  const std::lock_guard<std::mutex> lock(store.mutex);
+  std::vector<double> out;
+  out.swap(store.records);
+  return out;
 }
 
 }

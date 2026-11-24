@@ -29,7 +29,7 @@ extern SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP clea
 extern SEXP RoBMA_selnorm_sampler_report(SEXP clear);
 extern SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace);
 extern SEXP RoBMA_location_block_report(SEXP clear);
-extern SEXP RoBMA_location_block_test(SEXP mutant);
+extern SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe);
 extern SEXP RoBMA_selnorm_factor_rule_affordable(SEXP order, SEXP rank);
 extern SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings,
                                           SEXP unchecked);
@@ -441,7 +441,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_sampler_report", (DL_FUNC) &RoBMA_selnorm_sampler_report, 1},
     {"RoBMA_corrected_block_test", (DL_FUNC) &RoBMA_corrected_block_test, 2},
     {"RoBMA_location_block_report", (DL_FUNC) &RoBMA_location_block_report, 1},
-    {"RoBMA_location_block_test", (DL_FUNC) &RoBMA_location_block_test, 1},
+    {"RoBMA_location_block_test", (DL_FUNC) &RoBMA_location_block_test, 2},
     {"RoBMA_selnorm_factor_rule_affordable", (DL_FUNC) &RoBMA_selnorm_factor_rule_affordable, 2},
     /* Test hook: surrogate and exact density of a cluster or factor block. */
     {"RoBMA_selnorm_surrogate_probe", (DL_FUNC) &RoBMA_selnorm_surrogate_probe, 5},

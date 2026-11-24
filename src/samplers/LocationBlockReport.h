@@ -25,6 +25,15 @@ int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
 std::string location_block_test_decision();
+// The probe (frozen into samplers built from now on): every sweep first
+// dry-runs each collapsed Gaussian move and records, per move, its type
+// (0 flip on, 1 flip off, 2 refresh, 3 study effect, 4 swap, 5 joint), the
+// label (1 selection), the stage-1 log ratio, the full log ratio from the
+// direct Gaussian evaluation of priors, children and proposal densities, the
+// selection part log A~(old) - log A~(new), and the collapsed log odds.
+// probe < 0 reads the flag; otherwise sets it and returns the previous one.
+bool location_block_test_probe(int probe);
+std::vector<double> location_block_test_take_probe();
 
 }
 }
