@@ -1427,10 +1427,6 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   void draw_prior(GroupSpec const &g, RNG *rng, double *out)
   {
     draw_precision(g.m0, g.Bchol, rng, out);
-    if (s().mutant == 2) {
-      // the reverse-density mutant: the dormant redraw is twice too wide
-      for (unsigned i = 0; i < g.d; ++i) out[i] = g.m0[i] + 2.0 * (out[i] - g.m0[i]);
-    }
   }
 
   bool all_finite(double const *x, std::size_t n) const
@@ -1486,7 +1482,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       draw_prior(g, rng, proposal.data());
       for (unsigned i = 0; i < g.d; ++i) db[i] = -old_beta[i];
       // reverse: the line law at the current slab; forward: the dormant prior
-      proposal_terms = log_normal_precision(old_beta, L.m, L.Pchol, L.log_det_P) -
+      proposal_terms = (S.mutant == 2 ? 0.0 : log_normal_precision(old_beta, L.m, L.Pchol, L.log_det_P)) -
         log_slab(g, proposal.data());
     } else {
       draw_precision(L.m, L.Pchol, rng, proposal.data());
@@ -2010,7 +2006,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (on) {
       draw_prior(g, rng, proposal.data());
       for (unsigned i = 0; i < g.d; ++i) db[i] = -old_beta[i];
-      proposal_terms = log_normal_precision(old_beta, fit.xhat, fit.Ptchol, fit.log_det_Pt) -
+      proposal_terms = (S.mutant == 2 ? 0.0 : log_normal_precision(old_beta, fit.xhat, fit.Ptchol, fit.log_det_Pt)) -
         log_slab(g, proposal.data());
     } else {
       draw_precision(fit.xhat, fit.Ptchol, rng, proposal.data());

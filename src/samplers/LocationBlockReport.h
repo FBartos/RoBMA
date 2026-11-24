@@ -18,9 +18,8 @@ std::vector<double> location_block_report(bool clear);
 
 // Test hook, not package interface: a deliberately broken kernel frozen into
 // the samplers built from now on (0 none; 1 a shear that differs between a
-// move and its reverse; 2 dormant slab draws from a law other than the prior
-// that the reverse densities assume, and a collapsed flip without its reverse
-// density; 3 no final correction). Returns the previous value.
+// flip and its reverse; 2 flips without the reverse proposal density, in both
+// directions; 3 no final correction). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
