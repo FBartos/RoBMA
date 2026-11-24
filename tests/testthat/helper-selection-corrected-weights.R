@@ -142,7 +142,10 @@
 # Posterior label probabilities and weight moments of the weights fixture by
 # quadrature of the exact likelihood: E[I_k] and, for branch 2, E[I_2 r] and
 # E[I_2 r^2]; for branch 3, E[I_3 w2], E[I_3 w3], E[I_3 w2^2] and E[I_3 w3^2]
-# (w2 = p2 + p3, w3 = p3). The exact likelihood is a numerical integral whose
+# (w2 = p2 + p3, w3 = p3), and with `setup$log_moments` E[I_3 log p_k] (the
+# Dirichlet's sufficient statistics; log p2 is singular at t = 1, so its rule
+# converges slowly: 1.7e-4 from a 192-node rule at 64 nodes, within the
+# allowance, in the open step-row fixture). The exact likelihood is a numerical integral whose
 # accepted rung changes with the weights (relative steps within its tolerance),
 # so the references use fixed Gauss-Legendre rules (over r; over w2 and
 # t = w3 / w2 with Jacobian w2) and allow the change from a rule of half the
@@ -183,6 +186,9 @@
         out[["I3_w3"]] <- prior[i] * sum(weight * w3)
         out[["I3_w22"]] <- prior[i] * sum(weight * w2^2)
         out[["I3_w32"]] <- prior[i] * sum(weight * w3^2)
+        if (isTRUE(setup$log_moments)) {
+          for (k in 1:3) out[[paste0("I3_logp", k)]] <- prior[i] * sum(weight * log(p[, k]))
+        }
       }
     }
     values <- unlist(out)
@@ -195,8 +201,9 @@
 
 
 # The observables of the weights fixture from the draws of b, r, eta: means
-# estimate the reference's entries; T = sum(eta) has the Gamma(sum alpha, 1)
-# law under every label (its mean and second moment).
+# estimate the reference's entries (the log proportions with
+# `setup$log_moments`); T = sum(eta) has the Gamma(sum alpha, 1) law under
+# every label (its mean and second moment).
 .weights_observables <- function(draws, setup) {
 
   branches <- setup$branches
@@ -219,6 +226,9 @@
       out[["I3_w3"]] <- indicator * w3
       out[["I3_w22"]] <- indicator * w2^2
       out[["I3_w32"]] <- indicator * w3^2
+      if (isTRUE(setup$log_moments)) {
+        for (k in 1:3) out[[paste0("I3_logp", k)]] <- ifelse(indicator == 1, log(eta[, k] / total), 0)
+      }
       out[["T"]] <- total
       out[["T2"]] <- total^2
     }

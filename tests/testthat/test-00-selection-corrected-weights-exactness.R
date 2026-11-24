@@ -128,10 +128,14 @@ test_that("the gated block of step-selection rows is exact in its random order a
   skip_if_not_certification("The open step-row block (about 35 s) runs in the numerical-kernels case.")
   skip_if_not_installed("rjags")
   # one open branch of 24 rows under strong selection and a perturbed cache:
-  # the block accepts about two thirds of its sweeps, and a fixed direction
-  # order with one correction is biased by about 7 standard errors per 200,000
-  # draws
+  # the block accepts about two thirds of its sweeps. A fixed direction order
+  # with one correction biases the weights along its adapted directions, which
+  # vary with the RNG stream (the one-label indicator's screened proposal
+  # included); the log proportions show it in every chain (max |z| of the
+  # weight moments 2.3-11.3, of the log proportions 13.7-30.5 over seeds 1-8 at
+  # 400,000 draws; random order at most 2.7 over 18 quantities)
   setup <- .rows_weights_setup(3L, x = .weights_strong_x)
+  setup$log_moments <- TRUE
   reference <- .weights_reference(setup, children_log = .rows_children_log)
   draws <- 400000L
   perturbed <- list(perturbation = 1)
