@@ -43,7 +43,10 @@ indicator, the heterogeneity inclusion indicator and effect and moderator
 indicators with fixed prior probabilities) with such a selection block among
 its children is updated by the screened indicator sampler, unless a joint
 sampler updates it or \code{sampler.probabilities} records its conditional
-probabilities.
+probabilities. Independent step-selection rows (the estimates of
+\code{RoBMA()} and the single-estimate clusters of \code{RoBMA.mv()}) take
+part in the gated weights and the bias indicator through a row cache
+(below).
 Every proposal is corrected against the full original likelihood and prior.
 Only the selection normalizer used to construct proposals is coarsened.
 A reversible slice transition for that surrogate is followed by a
@@ -91,6 +94,20 @@ A scalar update is eligible when at least one stochastic child of the updated
 node is a dense multivariate block or a coarse-capable cluster or factor
 block; its other children enter the surrogate through their exact densities.
 
+Step-selection rows. The weights of a branch whose estimates enter as
+independent step-selection rows, and an indicator that sets the weights or
+the kernel of such rows (the bias indicator), take part through a row
+cache: while only those weights or only the indicator move, the
+probabilities of each row's selection intervals are fixed, so they are
+computed once per update and each surrogate evaluation is a weighted sum
+and a logarithm per row. This is the rows' exact density up to rounding; a
+row whose mean moves with the indicator (the PET and PEESE branches), or
+whose normalizer is too small for the cached sum, enters with its exact
+density. A proposal is evidence for the cache (below) only when its
+surrogate and exact changes differ by more than a relative \eqn{10^{-9}}.
+Indicators that change only the rows' means or variances (heterogeneity,
+effect and moderator indicators) keep their samplers.
+
 Blocks. The corrected block sampler makes one factor slice sweep on the
 surrogate over all parameters of a declared block, in forward or backward
 direction order chosen at random at each update, and accepts or rejects the
@@ -114,7 +131,8 @@ with one Metropolis step against the exact scores of both levels, so the
 chain targets the exact posterior and a draw of the current level costs no
 exact evaluation.
 Vector-valued and unrelated updates, and updates whose selection
-children are all without a coarse rule, retain ordinary JAGS samplers.
+children are all without a coarse rule (other than the step-selection rows
+above), retain ordinary JAGS samplers.
 Whatever the surrogate, the corrected chain targets the exact full
 conditional; a coarser rule changes the acceptance rate and the cost, not
 the posterior.

@@ -379,7 +379,11 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 }
 
 
-# Gates: a bias-mixture prior, with or without a weight function branch.
+# Gates: a bias-mixture prior, with or without a weight function branch. Under
+# 'selection.sampler = "slice.coarse"' the weights of a branch go to RoBMA's
+# corrected gated block when its selection children take part (selection
+# blocks with a coarse rule, or independent step-selection rows through the
+# row cache); the other gated parameters keep BayesTools' gated slice sampler.
 .sampler_gates_declared <- function(fit_priors) {
 
   return(.sampler_module_samplers() && isTRUE(RoBMA.get_option("sampler.gates")) &&
