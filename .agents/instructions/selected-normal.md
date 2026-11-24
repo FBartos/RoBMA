@@ -612,9 +612,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   form separate blocks, so no live coordinate is redrawn from its prior; fits
   whose weight priors do not qualify keep the ordinary layout). A group is claimed
   when no member depends on another, it has a coarse-capable selection child
-  and every member reaches every coarse-capable child only through the child's
-  weights (no other parameter of such a child is a member or a deterministic
-  descendant of one): selection weights, not a PET or PEESE slope (which keeps
+  or a singleton step-switch row (the row cache, below) and every member
+  reaches every such child only through the child's weights (no other
+  parameter of such a child is a member or a deterministic descendant of one):
+  selection weights, not a PET or PEESE slope (which keeps
   `GatedSlice`; under the normal kernel of its branch its surrogate is exact).
   Gate closed: every member drawn from its own distribution, redrawn up to 100
   times while a value is not strictly inside its support or a deterministic
@@ -633,7 +634,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `RoBMA::ScreenedFinite`; the kernel `ScreenedFiniteKernel` takes a setter so
   that a joint owner can call it): a scalar `dcat` (fixed probabilities) or
   `dbern` (fixed probability) without truncation, with a fixed finite support,
-  a coarse-capable selection child among the stochastic children of its view,
+  a coarse-capable selection child among the stochastic children of its view
+  or a singleton step-switch row whose weights or kernel mode the node reaches
+  (the bias label; the row cache, below),
   no `bt_finite_tag`/`bt_finite_witness_tag` child (a `sampler.probabilities`
   readout keeps the enumerating `BayesTools::Finite`, whose recorded
   probabilities are the exact conditionals; a surrogate proposal's
@@ -655,6 +658,37 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   kernel is base::Finite's enumeration, arithmetic and single uniform. The
   `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
   Batch scoring of the six selection labels was not built.
+- Row cache of step-switch rows (`src/samplers/StepRowCache.{h,cc}`): the
+  surrogate term of the singleton `dselnorm_step_switch` children of the
+  corrected gated block and of a screened indicator that reaches their weights
+  or kernel mode (`CorrectedBlockOptions::row_cache`, the kernel's
+  `row_cache` argument; the declared-block sampler and the scalar corrected
+  slice keep these rows as exact terms). In step mode with observed bin
+  `o > 0` a row's density is `pw [log phi(sign y; sign m, sd) + log omega_o -
+  log A]`, `A = sum_b omega_b p_b`; while only the weights or only the label
+  move, `p_b`, both Gaussian terms (normal and step mode) and the fixed
+  parameters' checks are constants, so `refresh()` at the start of each
+  corrected update (and of the screened test scores) reads each row once and
+  caches them, and `value()` reads per row the kernel mode, the weights (their
+  validity once per weights vector) and the mean and SD, in the order of
+  `cpp_selnorm_kernel_lpdf`. A row goes to its node's own `logDensity` when a
+  parameter other than the mean, SD, weights and mode is not fixed or fails
+  the distribution's check, its SD or SE is infinite, no bin probability
+  exceeds 1e-280 (at the refresh), its mean or SD differs bitwise from the
+  refresh (PET and PEESE labels), or its cached `A` is not above 1e-280
+  (StepRowNormalizer's linear threshold; the log-scale rows). Telescoping
+  changes only the exact normalizer's route. Evidence: a corrected proposal of
+  a sampler with cached rows is evidence when `|log acceptance ratio| > 1e-9 *
+  max(1, |exact log densities|)` (`step_row_cache_mismatch`) or its exact
+  proposal density is zero with a finite surrogate, in addition to the
+  coarse children's flag; exact up to rounding, the cache alone neither
+  falls back nor enters the record's acceptance rate. Heterogeneity, effect
+  and moderator indicators move the rows' means or SDs and keep their
+  samplers. Test hook `RoBMA_step_row_cache_test` (mutants: power, observed
+  bin, stale cache; a perturbation of the cached probabilities; `disable`,
+  the eligibility before the cache; counters; the frozen-state probe of the
+  live block kernels); tests in `test-00-selection-step-row-cache.R`,
+  exactness fixtures in `test-00-selection-corrected-weights-exactness.R`.
 - Location block sampler (`src/samplers/LocationBlock.cc`,
   `RoBMA::LocationBlock`, declared by `R/sampler-joint-location.R` under
   `sampler.joint` "auto" or "location"): one owner of the location gates, their
@@ -775,7 +809,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   factor child's coarse rung, never its `exact_fallback`; a dense child's
   anchor integral or unit normalizer; no child under the NORMAL kernel, whose
   anchor normalizer is the exact one); for an indicator, a change of level
-  whose surrogate at either level was not exact. A Gaussian label's proposals
+  whose surrogate at either level was not exact; for cached step-switch rows,
+  a mismatch beyond rounding (the row cache, above). A Gaussian label's proposals
   are therefore not evidence (their correction is one). At its first
   `adaptOff()` (a second call changes nothing) and with
   `selection.coarse_min_acceptance > 0` (default 0.90, frozen with the
@@ -789,7 +824,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   without an inexact surrogate, which disabled every corrected sampler of a
   chain that adapted in a Gaussian label; those two reasons are retired and
   their record elements dropped.) A sampler whose children can never use an
-  inexact surrogate is not created (`child_kind`, fixed parents). Both kernels
+  inexact surrogate is not created (`child_kind`, fixed parents), except for
+  cached step-switch rows, whose gain is the cheaper evaluation. Both kernels
   are exact and the choice uses adaptation draws only, so no switch happens
   after adaptation. Adaptation ends where BayesTools
   calls `rjags::adapt(end.adaptation = TRUE)` during fitting or reconstruction,
