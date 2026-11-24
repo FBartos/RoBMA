@@ -108,7 +108,7 @@ CorrectedTestFlags corrected_test_flags()
 
 void corrected_test_set_flags(CorrectedTestFlags const &flags)
 {
-  if (flags.finite_proposal < 0 || flags.finite_proposal > 2) {
+  if (flags.finite_proposal < 0 || flags.finite_proposal > 3) {
     throw std::invalid_argument("Unknown screened indicator proposal.");
   }
   ConfigurationStore &store = configuration_store();

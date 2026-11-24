@@ -9,23 +9,30 @@
 //   s_l = log prior(l) + sum over the stochastic children of the surrogate log
 //         density with the node at l (children without a surrogate contribute
 //         their exact density),
-// proposes by Liu's Metropolized Gibbs sampler on these scores (a level k'
-// other than the current level k with probability p_k' / (1 - p_k), accepted
-// on the surrogate with min(1, (1 - p_k) / (1 - p_k')); the identity when no
-// other level has mass), a move reversible for the surrogate law, and, when
-// k' != k, accepts it with probability
+// proposes a level k' on these scores, p_l = exp(s_l) / sum exp(s), by one of
+// two moves reversible for the surrogate law, chosen at each update by a coin
+// that does not depend on the state:
+//   - with probability 3/4 Liu's Metropolized Gibbs sampler (a level other
+//     than the current level k with probability p_k' / (1 - p_k), accepted on
+//     the surrogate with min(1, (1 - p_k) / (1 - p_k')); the identity when no
+//     other level has mass);
+//   - with probability 1/4 the plain surrogate full-conditional draw (k' with
+//     probability p_k', the current level included: an independence proposal),
+// and, when k' != k, accepts it with probability
 //   min(1, exp((e_k' - s_k') - (e_k - s_k))),
-// e the same score with the exact densities. The update is exact for any
+// e the same score with the exact densities. Each move with its correction
+// leaves the target invariant, and so does their mixture. The plain draw's
+// holding probability makes the chain aperiodic: Liu's step alone between two
+// equally scored levels swaps them at every update, so an evenly thinned chain
+// would keep the level it started in. The update is exact for any
 // surrogate that is one function of the evaluated state (s_l depends on the
 // values of the graph with the node at l, never on the level the update
 // started from, so that both ends of a move see the same scores) and is finite
 // wherever the exact score is (the surrogate falls back to the exact density
 // where its rule is unavailable); the row cache (StepRowCache.h) computes each
 // row at the state it evaluates. A self-proposal needs no exact evaluation.
-// The plain surrogate full-conditional draw (k' with probability proportional
-// to exp(s_l), the current level included: an independence proposal with the
-// same correction) stays available through the test hook. Every score uses
-// the current values of all other nodes. The exact kernel enumerates the
+// The test hook selects either move alone. Every score uses the current values
+// of all other nodes. The exact kernel enumerates the
 // levels with the exact scores, with the arithmetic and the one uniform draw
 // of JAGS's base::Finite.
 // A sampler that owns an indicator jointly with other nodes can call the
@@ -53,11 +60,15 @@ namespace jags {
 struct RNG;
 namespace RoBMA {
 
+// The screened indicator's proposals (the test hook's finite_proposal): the
+// plain surrogate full conditional, the same without the exact correction (a
+// test mutant that is not exact), Liu's Metropolized Gibbs, and the default
+// mixture of the plain draw (1/4) and Liu's step (3/4).
+enum ScreenedProposal { proposal_plain = 0, proposal_uncorrected = 1, proposal_liu = 2, proposal_mixture = 3 };
+
 class ScreenedFiniteKernel {
 public:
-  // proposal: 2 Liu's Metropolized Gibbs (the default), 0 the surrogate full
-  // conditional, 1 the same without the exact correction (a test mutant that
-  // is not exact).
+  // proposal: a ScreenedProposal.
   // row_cache: singleton step-selection children enter the surrogate scores
   // through the row cache (StepRowCache.h), which evaluates each row at the
   // state of the level being scored.

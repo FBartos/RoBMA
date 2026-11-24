@@ -138,15 +138,16 @@ test_that("the two-entry memo and absent samplers leave the draws unchanged", {
 })
 
 
-test_that("the Liu proposal and the corrected sum direction keep the indicator and the total on their laws", {
+test_that("the screened proposals and the corrected sum direction keep the indicator and the total on their laws", {
 
   skip_if_not_installed("rjags")
   # a quick check of the per-kind counters: every update of the screened
   # indicator either keeps its level without an exact score or makes one
   # corrected proposal with two; the gated blocks only propose while open
+  # (the plain draw, Liu's step and their default mixture)
   setup <- .weights_setup(1:3)
   invisible(.corrected_test_hook(clear = TRUE))
-  for (proposal in c(0, 2)) {
+  for (proposal in c(0, 2, 3)) {
     chain <- .with_corrected_flags(list(finite_proposal = proposal), .block_chain(
       .weights_build(setup), c("b", "eta"), 1000L, adapt = 100L, burnin = 100L))
     kinds <- .corrected_test_hook(clear = TRUE)$kinds
@@ -157,6 +158,47 @@ test_that("the Liu proposal and the corrected sum direction keep the indicator a
     total <- rowSums(chain$draws[, paste0("eta[", 1:3, "]")])
     expect_lt(abs(mean(total) - 3), 5 * sqrt(3 / coda::effectiveSize(total)), label = paste("total", proposal))
   }
+})
+
+
+test_that("the screened indicator's default kernel is aperiodic between two tied labels", {
+
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("BayesTools")
+  # The tie fixture (helper-step-row-cache.R): both labels score the same, so
+  # Liu's step alone swaps them at every update and a chain thinned by two
+  # keeps its initial label. The default kernel takes Liu's step (moves with
+  # probability one) with probability 3/4 and the plain draw (moves with
+  # probability 1/2) with 1/4: the label changes with probability q = 7/8 per
+  # update and 2 q (1 - q) = 7/32 per two. A two-state chain that switches
+  # with probability q per retained draw keeps each label with frequency 1/2
+  # and variance (1 - q) / (4 n q) over n draws; the bound is 4 of its
+  # standard deviations.
+  fit <- .rows_tie_fit()
+  syntax <- paste(as.character(fit[["model"]]), collapse = "\n")
+  n <- 4000L
+  frequency <- function(entry, thin, flags = list()) {
+    invisible(gc())
+    hand <- .with_corrected_flags(flags, .block_hand_model(syntax, fit[["data"]],
+                                                           inits = list(bias_indicator = entry)))
+    expect_identical(unname(hand$samplers["bias_indicator"]), "RoBMA::ScreenedFinite")
+    rjags::adapt(hand$model, 0L, end.adaptation = TRUE)
+    draws <- rjags::coda.samples(hand$model, "bias_indicator", n.iter = thin * n, thin = thin,
+                                 progress.bar = "none")
+    mean(as.matrix(draws[[1L]])[, 1L] == 2)
+  }
+  for (thin in c(2L, 1L)) {
+    q <- if (thin == 1L) 7 / 8 else 2 * (7 / 8) * (1 / 8)
+    bound <- 4 * sqrt((1 - q) / (4 * n * q))
+    for (entry in 1:2) {
+      label <- sprintf("thin %d, initial label %d", thin, entry)
+      expect_lt(abs(frequency(entry, thin) - .5), bound, label = label)
+    }
+  }
+  # Liu's step alone retains one label at even thinning, the one its phase
+  # (the initial label) gives
+  liu <- vapply(1:2, function(entry) frequency(entry, 2L, list(finite_proposal = 2)), numeric(1L))
+  expect_identical(sort(liu), c(0, 1))
 })
 
 

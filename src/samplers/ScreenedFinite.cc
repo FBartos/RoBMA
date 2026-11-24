@@ -32,6 +32,8 @@ const char *const screened_label = "Corrected finite sampler";
 const double negative_infinity = -std::numeric_limits<double>::infinity();
 // Larger supports keep the stock sampler.
 const double maximum_levels = 10000;
+// The probability of the plain proposal in the default mixture.
+const double plain_proposal_probability = 0.25;
 
 }
 
@@ -91,6 +93,12 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
                                                            std::function<void(double)> const &set_value)
 {
   Outcome outcome;
+  // the default kernel: a coin that does not depend on the state chooses the
+  // plain proposal or Liu's step (each exact with its correction, so their
+  // mixture is too, and its holding probability breaks the period two of
+  // Liu's step between two equally scored levels)
+  const int proposal = _proposal != proposal_mixture ? _proposal :
+    rng->uniform() < plain_proposal_probability ? proposal_plain : proposal_liu;
   const double current_value = _node->value(_chain)[0];
   const long current_index = static_cast<long>(current_value - _lower);
   if (current_index < 0 || current_index >= static_cast<long>(_levels)) {
@@ -131,7 +139,7 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
     outcome.leave = total > 0 ? static_cast<double>(others / total) : 0.0;
   }
   unsigned int proposed = k;
-  if (_proposal == 2) {
+  if (proposal == proposal_liu) {
     // Liu's Metropolized Gibbs: a level other than k with probability
     // p_l / (1 - p_k), accepted on the surrogate with min(1, (1 - p_k) / (1 - p_l))
     double others = 0.0, total = 0.0;
@@ -180,7 +188,7 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
   outcome.proposed = true;
   outcome.evidence = inexact[k] || inexact[proposed];
   const double proposed_value = _lower + proposed;
-  if (_proposal == 1) {
+  if (proposal == proposal_uncorrected) {
     // test mutant: the surrogate draw without its correction
     set_value(proposed_value);
     outcome.accepted = true;

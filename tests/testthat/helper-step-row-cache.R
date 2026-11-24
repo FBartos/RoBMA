@@ -120,26 +120,44 @@
   tau   <- sqrt(15)
   y     <- cut / 2
   pet   <- .2
-  fixed <- function(location) BayesTools::prior("point", list(location = location))
   relative_mass <- stats::dnorm(y, y + pet, sqrt(1 + tau^2)) * cut
   bias <- list(
     BayesTools::prior_weightfunction("one-sided", steps, BayesTools::wf_fixed(c(1, 1e60, 1)),
                                      prior_weights = relative_mass),
     BayesTools::prior_PET("point", list(location = pet), prior_weights = 1))
+  # the 1e60 weight disables probability telescoping (a warning of the fixture)
+  suppressWarnings(.rows_screened_fit(y, effect = y, heterogeneity = tau, bias = bias))
+}
+
+# The public RoBMA() fixture of two tied labels: one estimate at zero, fixed
+# effect and heterogeneity zero, a flat one-sided weight function (1, 1)
+# against no bias, equal prior weights: both labels have the same likelihood,
+# so each has probability 1/2. Returns the backend fit (model syntax, data).
+.rows_tie_fit <- function() {
+
+  bias <- list(BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, 1))),
+               BayesTools::prior_none())
+  .rows_screened_fit(0, effect = 0, heterogeneity = 0, bias = bias)
+}
+
+# A one-estimate RoBMA() fit with fixed effect and heterogeneity and the bias
+# priors `bias`, without joint samplers (the screened indicator owns the bias
+# label). RoBMA() is asked for the object only and .fit() draws, since the
+# summary of the fixed parameters is not available.
+.rows_screened_fit <- function(y, effect, heterogeneity, bias) {
+
+  fixed <- function(location) BayesTools::prior("point", list(location = location))
   previous <- RoBMA::RoBMA.options()[c("sampler.joint", "selection.sampler")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
   RoBMA::RoBMA.options(sampler.joint = "off", selection.sampler = "slice.coarse")
-  # the 1e60 weight disables probability telescoping (a warning of the
-  # fixture); RoBMA() is asked for the object only and .fit() draws, since the
-  # summary of the fixed parameters is not available
-  object <- suppressWarnings(RoBMA::RoBMA(
-    yi = y, sei = 1, measure = "SMD", effect_direction = "positive", prior_effect = fixed(y),
-    prior_effect_null = FALSE, prior_heterogeneity = fixed(tau), prior_heterogeneity_null = FALSE,
+  object <- RoBMA::RoBMA(
+    yi = y, sei = 1, measure = "SMD", effect_direction = "positive", prior_effect = fixed(effect),
+    prior_effect_null = FALSE, prior_heterogeneity = fixed(heterogeneity), prior_heterogeneity_null = FALSE,
     prior_bias = bias, prior_bias_null = FALSE, seed = 15L, sample = 100L, burnin = 50L, adapt = 50L,
     chains = 1L, autofit = FALSE, silent = TRUE, only_priors = TRUE,
     convergence_checks = RoBMA::set_convergence_checks(min_ESS = NULL, max_Rhat = NULL,
-                                                       allow_not_assessable = TRUE)))
-  suppressWarnings(.fit(object))
+                                                       allow_not_assessable = TRUE))
+  .fit(object)
 }
 
 # The screened indicator's frozen scores of a model compiled at entry level

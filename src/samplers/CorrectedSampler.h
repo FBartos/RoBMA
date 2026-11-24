@@ -100,10 +100,11 @@ CorrectedKindCounters &corrected_kind_counters(int kind);
 // Test flags (process-wide, read by the factories at model construction):
 // the samplers of this round (gated weight blocks and screened indicators)
 // left out, the gamma-sum Jacobian dropped (a kernel that is not exact), and
-// the screened indicator's proposal: 2 (the default) Liu's Metropolized Gibbs on
-// the surrogate with the exact correction, 0 the plain surrogate full
-// conditional with the exact correction, 1 the same without the correction
-// (not exact).
+// the screened indicator's proposal (ScreenedProposal): 3 (the default) the
+// state-independent mixture of the plain surrogate full conditional (1/4) and
+// Liu's Metropolized Gibbs on the surrogate (3/4), each with the exact
+// correction; 2 Liu's step alone, 0 the plain draw alone, 1 the plain draw
+// without the correction (not exact).
 // Read at adaptOff() and update() instead: force_fallback switches every
 // sampler that ends its adaptation to its exact kernel (counted as a
 // low-acceptance fallback), and freeze_finite makes the screened indicators
@@ -115,7 +116,7 @@ struct CorrectedTestFlags {
   bool disable_finite = false;
   bool disable_sum = false;
   bool drop_sum_jacobian = false;
-  int finite_proposal = 2;
+  int finite_proposal = 3;
   bool force_fallback = false;
   bool freeze_finite = false;
 };
