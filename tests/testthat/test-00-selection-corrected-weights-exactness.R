@@ -91,6 +91,56 @@ test_that("the gated block is exact in its random order and not in a fixed one",
 })
 
 
+# Singleton step-selection rows (the row cache of helper-step-row-cache.R): the
+# rows of the weights fixtures as independent dselnorm_step_switch rows at SD
+# and selection SE one. The test hook perturbs the cache (each bin probability
+# scaled by 1 + c (b + 1) / 3) so that the corrections reject a part of the
+# proposals; the references integrate the rows' likelihood written in R.
+.rows_mild_x <- rbind(c(2.4, 1.3, .6, -.3), c(2.1, 1.7, .9, -.8), c(2.9, 1.1, .2, -.5), c(2.2, 1.5, .4, -.2))
+
+test_that("the three-branch ensemble of step-selection rows is exact with a perturbed cache and its mutants are not", {
+
+  skip_if_not_certification("The step-row ensemble (about 10 s) runs in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  setup <- .rows_weights_setup(1:3, x = .rows_mild_x)
+  reference <- .weights_reference(setup, children_log = .rows_children_log)
+  expect_true(all(reference$allowance < 1e-3))
+  expect_true(all(reference$estimate[c("I1", "I2", "I3")] > .02))
+
+  draws <- 40000L
+  perturbed <- list(perturbation = .25)
+  corrected <- .rows_weights_z(setup, reference, draws, row_flags = perturbed)
+  .weights_expect_exact(corrected, "corrected")
+  # the perturbed cache leaves the corrections work to do
+  kinds <- attr(corrected, "kinds")
+  expect_lt(kinds["finite", "accepted"] / kinds["finite", "proposed"], .9)
+  expect_lt(kinds["gated", "accepted"] / kinds["gated", "proposed"], .99)
+  .weights_expect_exact(.rows_weights_z(setup, reference, draws, list(finite_proposal = 2), perturbed), "Liu proposal")
+  .weights_expect_detected(.rows_weights_z(setup, reference, draws, list(finite_proposal = 1), perturbed),
+                           "uncorrected indicator")
+  .weights_expect_detected(.rows_weights_z(setup, reference, draws, list(drop_sum_jacobian = TRUE), perturbed),
+                           "no Jacobian")
+})
+
+
+test_that("the gated block of step-selection rows is exact in its random order and not in a fixed one", {
+
+  skip_if_not_certification("The open step-row block (about 35 s) runs in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # one open branch of 24 rows under strong selection and a perturbed cache:
+  # the block accepts about two thirds of its sweeps, and a fixed direction
+  # order with one correction is biased by about 7 standard errors per 200,000
+  # draws
+  setup <- .rows_weights_setup(3L, x = .weights_strong_x)
+  reference <- .weights_reference(setup, children_log = .rows_children_log)
+  draws <- 400000L
+  perturbed <- list(perturbation = 1)
+  .weights_expect_exact(.rows_weights_z(setup, reference, draws, row_flags = perturbed), "random order")
+  .weights_expect_detected(.rows_weights_z(setup, reference, draws, row_flags = perturbed, fixed_order = TRUE),
+                           "fixed order")
+})
+
+
 test_that("the heterogeneity gate and the allocation block are exact", {
 
   skip_if_not_certification("The heterogeneity fixture (about 30 s) runs in the numerical-kernels case.")

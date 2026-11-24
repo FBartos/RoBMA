@@ -147,12 +147,12 @@
 # so the references use fixed Gauss-Legendre rules (over r; over w2 and
 # t = w3 / w2 with Jacobian w2) and allow the change from a rule of half the
 # order.
-.weights_reference <- function(setup, order = 64L) {
+.weights_reference <- function(setup, order = 64L, children_log = .weights_children_log) {
 
   branches <- setup$branches
   prior <- setup$prior
   # a common shift keeps the integrands representable
-  shift <- .weights_children_log(setup, c(1, 1, 1), 0)
+  shift <- children_log(setup, c(1, 1, 1), 0)
   one_rule <- function(n) {
     rule <- .weights_legendre(n)
     out <- list()
@@ -163,7 +163,7 @@
       } else if (branch == 2L) {
         r <- rule$nodes
         weight <- rule$weights * stats::dbeta(r, setup$beta[1], setup$beta[2]) *
-          vapply(r, function(value) exp(.weights_children_log(setup, c(1, value, value), 1) - shift), numeric(1L))
+          vapply(r, function(value) exp(children_log(setup, c(1, value, value), 1) - shift), numeric(1L))
         out[["I2"]] <- prior[i] * sum(weight)
         out[["I2_r"]] <- prior[i] * sum(weight * r)
         out[["I2_r2"]] <- prior[i] * sum(weight * r^2)
@@ -175,7 +175,7 @@
         p <- cbind(1 - w2, w2 - w3, w3)
         density <- exp(lgamma(sum(alpha)) - sum(lgamma(alpha)) + as.numeric(log(p) %*% (alpha - 1)))
         like <- vapply(seq_along(w2), function(k) {
-          exp(.weights_children_log(setup, c(1, w2[k], w3[k]), 1) - shift)
+          exp(children_log(setup, c(1, w2[k], w3[k]), 1) - shift)
         }, numeric(1L))
         weight <- rule$weights[grid$i] * rule$weights[grid$j] * w2 * density * like
         out[["I3"]] <- prior[i] * sum(weight)

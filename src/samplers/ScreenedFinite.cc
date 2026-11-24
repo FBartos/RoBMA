@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -449,6 +450,23 @@ bool has_selection_child(SingletonGraphView const &view, SelNormCoarseSettings c
   return false;
 }
 
+// A singleton step-selection row whose weights (parameter 4) or kernel mode
+// (parameter 9) the node reaches (itself or a deterministic descendant): the
+// label of a weight function, whose moves leave the rows' bin probabilities
+// unchanged (the row cache). Indicators that reach the rows only through
+// their means or SDs gain nothing from the cache and keep their sampler.
+bool has_row_cache_child(SingletonGraphView const &view)
+{
+  std::set<Node const *> reached(view.deterministicChildren().begin(), view.deterministicChildren().end());
+  reached.insert(view.node());
+  for (StochasticNode *child : view.stochasticChildren()) {
+    if (!is_step_switch_row(child)) continue;
+    std::vector<Node const *> const &parents = child->parents();
+    if (reached.count(parents[4]) > 0 || reached.count(parents[9]) > 0) return true;
+  }
+  return false;
+}
+
 }
 
 std::vector<Sampler *> ScreenedFiniteFactory::makeSamplers(
@@ -475,7 +493,8 @@ std::vector<Sampler *> ScreenedFiniteFactory::makeSamplers(
           upper != std::floor(upper) || upper - lower + 1 > maximum_levels) continue;
       if (has_finite_tag(node)) continue;
       std::unique_ptr<SingletonGraphView> view(new SingletonGraphView(node, graph));
-      if (!has_selection_child(*view, config.settings)) continue;
+      const bool row_cache = !step_row_cache_test_flags().disable && has_row_cache_child(*view);
+      if (!row_cache && !has_selection_child(*view, config.settings)) continue;
       const unsigned int levels = static_cast<unsigned int>(upper - lower + 1);
       unsigned serial;
       {
@@ -487,7 +506,7 @@ std::vector<Sampler *> ScreenedFiniteFactory::makeSamplers(
       std::vector<MutableSampleMethod *> methods;
       for (unsigned int chain = 0; chain < node->nchain(); ++chain) {
         owned_methods.emplace_back(new ScreenedFinite(view.get(), chain, config.settings, config.min_acceptance,
-                                                      lower, levels, flags.finite_proposal, serial));
+                                                      lower, levels, flags.finite_proposal, serial, row_cache));
         methods.push_back(owned_methods.back().get());
       }
       // The Sampler base adopts the graph, and owned_methods keeps the methods

@@ -3,6 +3,7 @@
 #include "CorrectedBlockKernel.h"
 #include "CorrectedSampler.h"
 #include "GammaGroup.h"
+#include "StepRowCache.h"
 
 #include <BayesTools/factor_slice_kernel.h>
 #include <BayesTools/sampler_declarations.h>
@@ -163,16 +164,28 @@ bool members_depend(std::vector<StochasticNode *> const &members)
   return false;
 }
 
-// A coarse-capable selection child exists, and every member reaches every
-// coarse-capable child only through the child's weights: no other parameter of
-// such a child is a member or a deterministic descendant of the members.
+// A coarse-capable selection child or a singleton step-selection row exists,
+// and every member reaches every such child only through the child's weights:
+// no other parameter of such a child is a member or a deterministic descendant
+// of the members.
 bool weights_only(GraphView const &view, SelNormCoarseSettings const &settings)
 {
   std::set<Node const *> reached(view.nodes().begin(), view.nodes().end());
   for (DeterministicNode const *node : view.deterministicChildren()) reached.insert(node);
   bool capable = false;
+  const bool rows = !step_row_cache_test_flags().disable;
   for (StochasticNode const *child : view.stochasticChildren()) {
     const ChildKind kind = child_kind(child, settings);
+    if (kind == ChildKind::other && rows && is_step_switch_row(child)) {
+      // a singleton step-selection row of the row cache, reached only through
+      // its weights (parameter 4)
+      capable = true;
+      std::vector<Node const *> const &parents = child->parents();
+      for (unsigned int i = 0; i < parents.size(); ++i) {
+        if (i != 4 && reached.count(parents[i]) > 0) return false;
+      }
+      continue;
+    }
     if (kind == ChildKind::other) continue;
     capable = true;
     const unsigned int weights = SelectedChild::weights_parent(kind);
@@ -260,6 +273,7 @@ std::vector<Sampler *> GatedCorrectedBlockFactory::makeSamplers(
       options.drop_sum_jacobian = flags.drop_sum_jacobian;
       options.groups = flags.disable_sum ? std::vector<GammaGroup>() : find_gamma_groups(view->nodes());
       options.initial_widths = prior_widths(view->nodes(), options.groups);
+      options.row_cache = !step_row_cache_test_flags().disable;
       std::vector<std::unique_ptr<MutableSampleMethod> > owned_methods;
       std::vector<MutableSampleMethod *> methods;
       for (unsigned int chain = 0; chain < group.second[0]->nchain(); ++chain) {

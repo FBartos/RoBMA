@@ -418,6 +418,7 @@ certification_cases <- function() {
         "selection-coarse-blocks|selection-coarse-exactness|selection-coarse-fallback|",
         "selection-corrected-block|selection-corrected-block-exactness|location-block-exactness|",
         "selection-corrected-weights|selection-corrected-weights-exactness|",
+        "selection-step-row-cache|",
         "jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
         "selection-node-memo|sampler-declarations-fits)|",
@@ -473,6 +474,8 @@ certification_cases <- function() {
           "the three-branch ensemble is exact and its mutants are not",
           "the two-branch ensemble is exact",
           "the gated block is exact in its random order and not in a fixed one",
+          "the three-branch ensemble of step-selection rows is exact with a perturbed cache and its mutants are not",
+          "the gated block of step-selection rows is exact in its random order and not in a fixed one",
           "the heterogeneity gate and the allocation block are exact"
         )),
         .required_tests("test-00-selection-coarse-fallback.R", c(

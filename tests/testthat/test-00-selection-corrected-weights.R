@@ -199,9 +199,10 @@ test_that("model-averaged fits claim their weights and indicators, also in paral
   expect_identical(sampler_of("PEESE_1"), "BayesTools::GatedSlice")
   expect_identical(sampler_of("mu__xRE_ALLOCx_heterogeneity__allocation_sd"), "RoBMA::CoarseCorrectedBlock")
   # the record counts every corrected sampler object, one per claimed node,
-  # block or indicator and chain
+  # block or indicator and chain (the location block included)
   record <- selection_sampler_info(fit = serial)
-  objects <- length(unique(table[["Index.No"]][grepl("^RoBMA::(Coarse|Gated|Screened)", table[["Sampler"]])]))
+  objects <- length(unique(table[["Index.No"]][grepl("^RoBMA::(Coarse|Gated|Screened|LocationBlock)",
+                                                     table[["Sampler"]])]))
   expect_identical(record[["samplers"]], 2 * objects)
   expect_true(record[["complete"]])
 
@@ -226,10 +227,14 @@ test_that("fits without coarse-capable children, and the memo alone, draw as bef
   skip_if_not_installed("metafor")
   draws <- function(fit) coda::as.mcmc.list(fit[["fit"]])
 
-  # V = vi: every row is a singleton switch node, no child has a coarse rung,
-  # and neither the samplers nor the gamma coordinates enter
-  vi_new <- .weights_fit(vi = TRUE)
-  vi_old <- .with_corrected_flags(list(disable_new = TRUE), .weights_fit(vi = TRUE))
+  # V = vi: every row is a singleton switch node and no child has a coarse
+  # rung. The row cache gives the weights to the gated block
+  # (test-00-selection-step-row-cache.R); without it neither the samplers nor
+  # the gamma coordinates enter
+  vi_rows <- .weights_fit(vi = TRUE)
+  vi_new  <- .with_row_flags(list(disable = TRUE), .weights_fit(vi = TRUE))
+  vi_old  <- .with_corrected_flags(list(disable_new = TRUE), .weights_fit(vi = TRUE))
+  expect_true("RoBMA::GatedCorrectedBlock" %in% .weights_fit_samplers(vi_rows))
   expect_false(any(grepl("^RoBMA::(Gated|Screened)", .weights_fit_samplers(vi_new))))
   expect_identical(draws(vi_new), draws(vi_old))
 
