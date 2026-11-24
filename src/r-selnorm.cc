@@ -28,6 +28,7 @@
 #include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CorrectedSampler.h"
 #include "samplers/CoarseCorrectedBlock.h"
+#include "samplers/LocationBlockReport.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/selnorm-jags-bounds.h"
@@ -624,6 +625,60 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
     SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// The per-fit counters of the location block samplers of this process (a
+// named numeric vector), read and cleared when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_block_report(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  const std::vector<double> values = jags::RoBMA::location_block_report(LOGICAL(clear)[0] != 0);
+  std::vector<char const *> const &names = jags::RoBMA::location_block_report_names();
+  const R_xlen_t n = static_cast<R_xlen_t>(values.size());
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, n));
+  for (R_xlen_t i = 0; i < n; ++i) {
+    REAL(out)[i] = values[static_cast<std::size_t>(i)];
+    SET_STRING_ELT(labels, i, Rf_mkChar(names[static_cast<std::size_t>(i)]));
+  }
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the location block sampler's mutant
+// (LocationBlockReport.h) for samplers built from now on; NULL keeps it.
+// Returns the previous mutant and the outcome of the last factory call that
+// found a declaration.
+extern "C" SEXP RoBMA_location_block_test(SEXP mutant)
+{
+  ROBMA_NATIVE_BEGIN(mutant)
+  if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 3)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 3.");
+  }
+  int previous;
+  if (mutant == R_NilValue) {
+    previous = jags::RoBMA::location_block_test_mutant(0);
+    jags::RoBMA::location_block_test_mutant(previous);
+  } else {
+    previous = jags::RoBMA::location_block_test_mutant(INTEGER(mutant)[0]);
+  }
+  const std::string decision = jags::RoBMA::location_block_test_decision();
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarInteger(previous));
+  SET_VECTOR_ELT(out, 1, Rf_mkString(decision.c_str()));
+  SET_STRING_ELT(labels, 0, Rf_mkChar("mutant"));
+  SET_STRING_ELT(labels, 1, Rf_mkChar("decision"));
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
   return out;

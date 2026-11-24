@@ -20,6 +20,7 @@ static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
 #include "samplers/IndependentBiasJoint.h"
 #include "samplers/GaussianJoint.h"
 #include "samplers/JointCluster.h"
+#include "samplers/LocationBlock.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -63,6 +64,12 @@ namespace jags {
       insert(new ClusterTag(false));
       insert(new ClusterTag(true));
       insert(joint_cluster_factory());
+      // Inserted last, so asked first: the location block claims the
+      // declared location members before the corrected selection samplers.
+      insert(new LocationTag(0));
+      insert(new LocationTag(1));
+      insert(new LocationTag(2));
+      insert(location_block_factory());
     }
 
     // destructor (executed when unloading the module)
