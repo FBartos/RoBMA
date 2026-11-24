@@ -1726,6 +1726,33 @@
     const double flow_reverse = static_cast<double>(delta) + forward2 + log_accept(stage1_reverse, full_reverse);
     probe_raw(probe_swap, 0.0, stage1, stage1 + stage1_reverse, full, full + full_reverse);
     probe_raw(probe_swap, 1.0, e0_diff, std::max(e_diff, q_diff), k_diff, flow_forward - flow_reverse);
+    // the reverse move's stage-1 and full ratios plus the forward's, from the
+    // forward move's base quantities (the proposal densities are functions
+    // of the base quantities and the two states only)
+    const double stage1_shared = stage1 + swap_stage1(base, log_qG, log_qS, proposal.label, current.label);
+    const double full_shared = full + static_cast<double>(-delta + swap_log_q(base, log_qG, log_qS, current, proposal) -
+                                                          swap_log_q(base, log_qG, log_qS, proposal, current));
+    probe_raw(probe_swap, 3.0, stage1_shared, full_shared, 0.0, 0.0);
+    // the base point's functions rebuilt from the two ends (relative
+    // differences of G0 and of the Gaussian plane) against the refitted
+    // Laplace laws (largest difference of the means in units of the law's SD,
+    // largest relative difference of the precisions): the damped Newton fit
+    // can turn rounding of its inputs into a different last step
+    auto relative = [](double a, double b) { return a == b ? 0.0 : std::fabs(a - b) / std::max(1.0, std::fabs(a)); };
+    double plane_diff = std::max(relative(base.eta_t, base2.eta_t), relative(base.Pi_tt, base2.Pi_tt));
+    for (int b = 0; b < 2; ++b) {
+      plane_diff = std::max(plane_diff, std::max(relative(base.eta_b[b], base2.eta_b[b]),
+                                                 std::max(relative(base.Pi_bb[b], base2.Pi_bb[b]),
+                                                          relative(base.Pi_tb[b], base2.Pi_tb[b]))));
+    }
+    double mean_diff = 0.0, precision_diff = 0.0;
+    for (int l = 1; l <= B.levels; ++l) {
+      const std::size_t i = static_cast<std::size_t>(l - 1);
+      if (!base.fit_ok[i] || !base2.fit_ok[i]) continue;
+      mean_diff = std::max(mean_diff, std::fabs(base.fit_mean[i] - base2.fit_mean[i]) * std::sqrt(base.fit_precision[i]));
+      precision_diff = std::max(precision_diff, relative(base.fit_precision[i], base2.fit_precision[i]));
+    }
+    probe_raw(probe_swap, 4.0, relative(base.G0, base2.G0), plane_diff, mean_diff, precision_diff);
   }
 
   // A raw probe record (type, five values).

@@ -776,7 +776,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   Gaussian plane in closed form, a selection label's value there times its
   Laplace odds along the line), stage 1 on the evidences and the label
   Hastings factor, stage 2 on the inner target with the complete proposal
-  densities. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
+  densities. The full ratio of the reverse move equals the inverse of the
+  forward ratio up to the rounding of the refitted Laplace laws (at most
+  8.1e-8 relative over 13 chain seeds of each fixture variant: the base
+  point rebuilt from either end agrees to rounding, but the damped Newton
+  fit can take a different last step). L2 runs with probability 1/4 per sweep (`default_swap_probability`;
   with its Laplace fits it took 15.7% of the sampling sweep on the Assink
   full-V moderator fit and 10.6% on the 18-moderator tutorial fit at one, 8.5%
   and 5.6% at 1/2, above the 5% of the rule, and 4.4% and 2.9% at 1/4), decided

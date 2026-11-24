@@ -68,7 +68,11 @@ std::string location_block_test_decision();
 // reverse stage 1, full, full plus the reverse full; kind 1: differences of
 // E_0, of the evidences and label proposals and of the shears rebuilt from
 // the proposal, and of the accepted flows of the two directions; kind 2: the
-// fitted Gaussian plane's largest error and scale) and type 10 L0 (the
+// fitted Gaussian plane's largest error and scale; kind 3: stage 1 and the
+// full ratio plus their reverses from the forward move's base quantities;
+// kind 4: relative differences of G0 and of the plane rebuilt from the
+// proposal, the largest difference of the refitted Laplace means in SDs and
+// of their precisions, relative) and type 10 L0 (the
 // largest difference of a label's buffered exact score from the graph's and
 // the scale).
 // probe < 0 reads the flag; otherwise sets it and returns the previous one.
