@@ -95,3 +95,49 @@ test_that("public fits give the bias label to the location block unless its prob
   expect_identical(attr(readout[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["probabilities"]][["status"]],
                    "active")
 })
+
+
+test_that("frozen-state identities of the Gaussian-family moves hold for regular and prior cells", {
+
+  skip_if_not_installed("rjags")
+  # the L1 probe records the analytic log ratio F_c'(theta') / F_c(theta)
+  # (stage1) and the ratio computed from the inner target and the proposal
+  # densities at both states (full); the S probe the slice move's acceptance
+  # ratio, one when the collapsed Gaussian algebra is exact
+  identity <- function(setup, draws = 1500L) {
+    chain <- .location_hand_chain(.bias_model(setup), "bias_indicator", draws = draws, burnin = 100L, adapt = 100L,
+                                  probe = TRUE)
+    expect_true(grepl("with the bias label", chain$decision), info = chain$decision)
+    probe <- chain$probe
+    family <- probe[probe$type == "family" & is.finite(probe$stage1), ]
+    slope  <- probe[probe$type == "slope", ]
+    expect_gt(nrow(family), 50L)
+    expect_lt(max(abs(family$full - family$stage1) / pmax(1, abs(family$stage1))), 1e-10)
+    if (nrow(slope) > 0L) expect_lt(max(abs(slope$full)), 1e-10)
+    list(family = family, slope = slope)
+  }
+  # the fixture: gated intercept with slab mean 0.2, half-Cauchy PET of scale
+  # 0.5, Gamma(2, 2) PEESE
+  base <- identity(.bias_setup())
+  expect_gt(nrow(base$slope), 10L)
+  # near-equal standard errors (the PET slope nearly collinear with the
+  # intercept) and a PEESE slope that enters no mean (not identified: prior
+  # cells): moves between regular and prior cells in both directions
+  flat <- .bias_setup()
+  flat$se <- .21 + 1e-4 * c(1, -1, 2, 0, -2, 1, 0, -1, 2, 1)
+  flat$residual_sd <- flat$se * sqrt(1 - .85)
+  flat$loading <- flat$se * sqrt(.85)
+  flat$peese_column <- rep(0, 10L)
+  cells <- identity(flat)$family
+  expect_gt(sum(cells$selection_part %in% c(1, 3)), 0L)   # from a prior cell
+  expect_gt(sum(cells$selection_part %in% c(2, 3)), 0L)   # to a prior cell
+  expect_gt(sum(cells$selection_part == 0), 0L)
+  # an ungated intercept, no PEESE label and a Gamma(2, 1) PET prior (zero
+  # density at zero) with data that pull the slope below zero
+  ungated <- .bias_setup()
+  ungated$gated_intercept <- FALSE
+  ungated$peese <- FALSE
+  ungated$pet_prior <- "dgamma(2, 1)"
+  ungated$y <- 0.6 - 2 * ungated$se + c(.02, -.01, .03, -.02, .01, .02, -.03, .01, .02, -.01)
+  identity(ungated)
+})

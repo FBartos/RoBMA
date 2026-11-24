@@ -3229,6 +3229,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       if (!S.groups.empty()) gaussian_joint(rng, true);
       for (unsigned lat = 0; lat < S.latents.size(); ++lat) gaussian_latent(lat, rng, true);
       ellipse(rng, true);
+      if (bias()) {
+        family_move(rng, true);
+        slope_move(rng, true);
+      }
     }
     // one coin per update: the whole list forward or reversed
     _backward = rng->uniform() < 0.5;

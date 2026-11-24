@@ -30,6 +30,11 @@
     nested_shape = c(3, 2),         # the step weight's beta prior at the selection label
     pet_scale   = .5,
     peese_shape = c(2, 2),
+    # variants of the frozen-state tests: the PET prior's JAGS text, a model
+    # without the PEESE label (three labels), an ungated intercept
+    pet_prior   = "dt(0, pet_precision, 1) T(0, )",
+    peese       = TRUE,
+    gated_intercept = TRUE,
     rules       = .coarse_rules(c(1L, 2L, 3L, 7L, 15L, 31L, 63L, 127L, 255L, 511L, 1023L))
   )
 }
@@ -38,6 +43,8 @@
 .bias_model <- function(setup) {
 
   clusters <- split(seq_along(setup$y), setup$cluster)
+  intercept <- if (setup$gated_intercept) "b[1]" else "b0"
+  labels <- if (setup$peese) 4L else 3L
   child <- function(s) {
     n <- length(clusters[[s]])
     paste0("  y", s, "[1:", n, "] ~ dselnorm_cluster_step(m", s, "[1:", n, "], rsd", s, "[1:", n, "], ld", s,
@@ -46,8 +53,8 @@
   }
   means <- unlist(lapply(seq_along(clusters), function(s) {
     rows <- clusters[[s]]
-    paste0("  m", s, "[", seq_along(rows), "] <- b[1] + b[2] * x1[", rows, "] + scale * Z[", s,
-           "] + PET * pet_col[", rows, "] + PEESE * peese_col[", rows, "]")
+    paste0("  m", s, "[", seq_along(rows), "] <- ", intercept, " + b[2] * x1[", rows, "] + scale * Z[", s,
+           "] + PET * pet_col[", rows, "]", if (setup$peese) paste0(" + PEESE * peese_col[", rows, "]") else "")
   }))
   weight <- if (setup$nested) {
     c("  a ~ dbeta(1 + (shape[1] - 1) * equals(bias_indicator, 2), 1 + (shape[2] - 1) * equals(bias_indicator, 2))",
@@ -57,36 +64,43 @@
   }
   syntax <- c(
     "model {",
-    "  for (j in 1:2) {",
+    paste0("  for (j in ", if (setup$gated_intercept) 1L else 2L, ":2) {"),
     "    g[j] ~ dcat(gate_weights)",
     "    slab[j] ~ dnorm(prior_mean[j], prior_precision[j])",
     "    b[j] <- 0 * (g[j] == 1) + slab[j] * (g[j] == 2)",
     "  }",
+    if (!setup$gated_intercept) "  b0 ~ dnorm(prior_mean[1], prior_precision[1])",
     "  for (s in 1:3) { Z[s] ~ dnorm(0, 1) }",
     "  bias_indicator ~ dcat(bias_weights)",
-    "  PET_1 ~ dt(0, pet_precision, 1) T(0, )",
-    "  PEESE_1 ~ dgamma(peese_shape[1], peese_shape[2])",
+    paste0("  PET_1 ~ ", setup$pet_prior),
     "  PET <- PET_1 * equals(bias_indicator, 3)",
-    "  PEESE <- PEESE_1 * equals(bias_indicator, 4)",
+    if (setup$peese) c("  PEESE_1 ~ dgamma(peese_shape[1], peese_shape[2])",
+                        "  PEESE <- PEESE_1 * equals(bias_indicator, 4)"),
     "  kernel <- equals(bias_indicator, 2)",
     "  omega[1] <- 1",
     weight,
     means,
     vapply(seq_along(clusters), child, character(1)),
-    paste0("  tag_group_", 1:2, " <- robma_location_group(g[", 1:2, "], slab[", 1:2, "], 2, b[", 1:2, "], ", 1:2, ")"),
+    if (setup$gated_intercept) "  tag_group_1 <- robma_location_group(g[1], slab[1], 2, b[1], 1)" else
+      "  tag_group_1 <- robma_location_group(b0, b0, 0, b0, 1)",
+    "  tag_group_2 <- robma_location_group(g[2], slab[2], 2, b[2], 2)",
     paste0("  tag_latent_", 1:3, " <- robma_location_latent(Z[", 1:3, "], ", 1:3, ")"),
-    "  tag_setup <- robma_location_setup(g[1], 2, 3)",
-    "  tag_bias <- robma_location_bias(bias_indicator, codes[1:4], PET_1, PEESE_1, 1)",
+    paste0("  tag_setup <- robma_location_setup(", if (setup$gated_intercept) "g[1]" else "b0", ", 2, 3)"),
+    paste0("  tag_bias <- robma_location_bias(bias_indicator, codes[1:", labels, "], PET_1, ",
+           if (setup$peese) "PEESE_1" else "0", ", 1)"),
     "}")
   design <- BayesTools::selection_qmc_design(2L, 512L, 8L, 9049L)
-  data <- list(x1 = setup$x1, pet_col = setup$se, peese_col = setup$se^2, scale = setup$scale,
+  data <- list(x1 = setup$x1, pet_col = setup$se,
+               peese_col = if (is.null(setup$peese_column)) setup$se^2 else setup$peese_column, scale = setup$scale,
                prior_mean = setup$prior_mean, prior_precision = setup$prior_precision,
-               gate_weights = setup$gate_weights, bias_weights = setup$bias_weights, codes = c(0, 1, 2, 3),
-               pet_precision = 1 / setup$pet_scale^2, peese_shape = setup$peese_shape,
+               gate_weights = setup$gate_weights, bias_weights = setup$bias_weights[seq_len(labels)],
+               codes = c(0, 1, 2, 3)[seq_len(labels)], pet_precision = 1 / setup$pet_scale^2,
                z_lower = c(0, -1e300), z_upper = c(1e300, 0), qmc = as.numeric(design), nqmc = length(design),
                nodes = setup$rules$nodes, log_weights = setup$rules$log_weights, orders = setup$rules$orders,
                nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
   if (setup$nested) data$shape <- setup$nested_shape else data$omega_fixed <- setup$omega
+  if (setup$peese) data$peese_shape <- setup$peese_shape else data$peese_col <- NULL
+  if (!grepl("pet_precision", setup$pet_prior, fixed = TRUE)) data$pet_precision <- NULL
   for (s in seq_along(clusters)) {
     rows <- clusters[[s]]
     data[[paste0("y", s)]]   <- setup$y[rows]
