@@ -83,13 +83,16 @@ public:
     bool proposed = false;
     bool accepted = false;
     bool evidence = false;
-    double leave = 0;   // the surrogate full-conditional probability of leaving the current level
+    // the probability that the proposal that ran (Liu's step or the plain
+    // draw, on the surrogate) changes the level before the exact correction
+    double leave = 0;
   };
 
   // `set_value(v)` writes the node and its deterministic descendants. Both
   // updates leave the node at the drawn level; exceptions propagate (the caller
   // restores the node). enumerate() returns the exact full-conditional
-  // probability of leaving the current level.
+  // probability of leaving the current level (its probability of changing it).
+  // Outcome::leave and that probability are the evidence record's statistic.
   Outcome update(RNG *rng, std::function<void(double)> const &set_value);
   double enumerate(RNG *rng, std::function<void(double)> const &set_value);
 
@@ -134,11 +137,14 @@ std::vector<double> screened_finite_test_scores();
 // The evidence record of the screened indicators of this process since the
 // last clearing read, over the updates after adaptation: per indicator and
 // chain the rows (serial, chain, levels and lower bound of the support, the
-// node's value after its last recorded update, updates, changes of level, sum
-// and maximum of the full-conditional probability of leaving the current
-// level). The serial identifies a sampler (numbered as the factory creates
-// them, across models); nodes have no names here, so R matches each serial to
-// its node by the support and the chains' final values.
+// node's value after its last recorded update, updates, observed changes of
+// level, sum and maximum of the probability that the update changes the level
+// before the exact correction, for the kernel that ran: Liu's move
+// probability or the plain draw's 1 - p_k on the surrogate, or the exact
+// enumeration's 1 - p_k after a fallback). The serial identifies a sampler
+// (numbered as the factory creates them, across models, never reused in a
+// process); nodes have no names here, so R matches each serial to its node by
+// the support and the chains' final values.
 std::vector<char const *> const &screened_finite_evidence_names();
 std::vector<double> screened_finite_evidence(bool clear);
 

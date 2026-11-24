@@ -144,9 +144,12 @@
 # screen removed and, for those that reached stage 1, the count, sum and
 # maximum of the log collapsed odds of the other state against the current
 # one (exact in Gaussian labels, Laplace in selection labels; conditional on
-# the state where each flip was proposed); per screened indicator and chain the updates, changes of level and
-# the mean and maximum full-conditional probability of leaving the current
-# level; for a bias label owned by the location block (`bias`, per chain) the
+# the state where each flip was proposed); per screened indicator and chain
+# the updates, the observed changes of level and the mean and maximum
+# probability that an update changes the level before its exact correction,
+# for the kernel that ran (Liu's move probability or the plain draw's 1 - p_k
+# on the surrogate, the exact enumeration's 1 - p_k after a fallback); for a
+# bias label owned by the location block (`bias`, per chain) the
 # proposals and acceptances of its label update, Gaussian-family move, slope
 # update and cross-family swap, and per source family (`leave_selection_*`,
 # `leave_gaussian_*`) for the swap the count, sum and maximum of the stage-1

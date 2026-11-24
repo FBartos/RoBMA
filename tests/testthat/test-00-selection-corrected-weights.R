@@ -202,6 +202,51 @@ test_that("the screened indicator's default kernel is aperiodic between two tied
 })
 
 
+test_that("the screened evidence records the move probability of the kernel that ran", {
+
+  skip_if_not_installed("rjags")
+  # two levels with equal exact and surrogate scores (normal kernel, equal
+  # means): the plain draw and the exact enumeration change the level with
+  # probability 1/2, Liu's step with probability one, and the correction
+  # accepts every proposal, so the recorded probabilities predict the changes
+  syntax <- paste0("model {\n  b ~ dcat(prior[1:2])\n  m <- means[b]\n  mode <- modes[b]\n",
+                   "  for (j in 1:2) { w[j] <- weights[b, j] }\n",
+                   "  y ~ dselnorm_step_switch(m, 1, 1, 1, w[1:2], lo[1:2], hi[1:2], 1, 1, mode, 1)\n}")
+  data <- list(prior = c(.5, .5), means = c(0, 0), modes = c(0, 0), weights = rbind(c(1, .2), c(1, .8)), y = .25,
+               lo = c(0, -1e300), hi = c(1e300, 0))
+  updates <- 400
+  # (force_fallback is read at the end of adaptation)
+  record <- function(flags) {
+    invisible(gc())
+    .with_corrected_flags(flags, {
+      hand <- .block_hand_model(syntax, data, inits = list(b = 1L))
+      expect_identical(unname(hand$samplers["b"]), "RoBMA::ScreenedFinite")
+      rjags::adapt(hand$model, 0L, end.adaptation = TRUE)
+    })
+    invisible(.selection_sampler_report_read())
+    stats::update(hand$model, n.iter = updates, progress.bar = "none")
+    rows <- .selection_sampler_report_read()$screened
+    expect_identical(nrow(rows), 1L)
+    rows[1L, ]
+  }
+  liu <- record(list(finite_proposal = 2))
+  expect_identical(unname(liu[c("updates", "changes", "leave_sum", "leave_max")]), c(updates, updates, updates, 1))
+  for (flags in list(list(finite_proposal = 0), list(force_fallback = TRUE))) {
+    half <- record(flags)
+    expect_identical(unname(half[c("updates", "leave_sum", "leave_max")]), c(updates, updates / 2, .5))
+    # the observed changes are their own count: binomial(400, 1/2) within 4 SD
+    expect_lt(abs(half[["changes"]] - updates / 2), 4 * sqrt(updates / 4))
+  }
+  # the default mixture: Liu's step (1) or the plain draw (1/2) per update
+  mixture <- record(list())
+  expect_identical(mixture[["leave_max"]], 1)
+  expect_gt(mixture[["leave_sum"]], updates / 2)
+  expect_lt(mixture[["leave_sum"]], updates)
+  expect_true(mixture[["leave_sum"]] * 2 == round(mixture[["leave_sum"]] * 2))
+  expect_lt(abs(mixture[["changes"]] - mixture[["leave_sum"]]), 4 * sqrt(updates / 4))
+})
+
+
 # ---------------------------------------------------------------------------- #
 # Fits (certification case 'numerical-kernels').
 # ---------------------------------------------------------------------------- #

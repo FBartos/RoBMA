@@ -35,6 +35,37 @@ const double maximum_levels = 10000;
 // The probability of the plain proposal in the default mixture.
 const double plain_proposal_probability = 0.25;
 
+// The probability that a proposal on the surrogate masses changes level k
+// before the exact correction: 1 - p_k for the plain draw, and for Liu's step
+//   sum over l != k of p_l / (1 - p_k) min(1, (1 - p_k) / (1 - p_l))
+//     = sum over l != k of m_l / max(o_k, o_l),
+// o_j the mass of the levels other than j (sums of the masses before and
+// after j, so that no difference cancels).
+double leave_probability(std::vector<double> const &mass, unsigned int k, int proposal)
+{
+  const std::size_t n = mass.size();
+  std::vector<long double> before(n), after(n);
+  long double sum = 0;
+  for (std::size_t l = 0; l < n; ++l) {
+    before[l] = sum;
+    sum += mass[l];
+  }
+  sum = 0;
+  for (std::size_t l = n; l-- > 0;) {
+    after[l] = sum;
+    sum += mass[l];
+  }
+  const long double others = before[k] + after[k];
+  if (!(others > 0)) return 0.0;
+  if (proposal != proposal_liu) return static_cast<double>(others / (others + mass[k]));
+  long double out = 0;
+  for (std::size_t l = 0; l < n; ++l) {
+    if (l == k || mass[l] == 0.0) continue;
+    out += mass[l] / std::max(others, before[l] + after[l]);
+  }
+  return static_cast<double>(std::min(out, 1.0L));
+}
+
 }
 
 ScreenedFiniteKernel::ScreenedFiniteKernel(StochasticNode *node, std::vector<StochasticNode *> const &children,
@@ -129,15 +160,9 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
   // 2. the proposal from the surrogate probabilities
   std::vector<double> mass(_levels, 0.0);
   for (unsigned int l = 0; l < _levels; ++l) mass[l] = std::exp(score[l] - maximum);
-  {
-    // the evidence record: the surrogate probability of leaving level k
-    long double total = 0, others = 0;
-    for (unsigned int l = 0; l < _levels; ++l) {
-      total += mass[l];
-      if (l != k) others += mass[l];
-    }
-    outcome.leave = total > 0 ? static_cast<double>(others / total) : 0.0;
-  }
+  // the evidence record: the probability that this update's proposal changes
+  // the level before the exact correction
+  outcome.leave = leave_probability(mass, k, proposal);
   unsigned int proposed = k;
   if (proposal == proposal_liu) {
     // Liu's Metropolized Gibbs: a level other than k with probability
@@ -290,8 +315,9 @@ LiveScreened &live_screened()
 }
 
 // The evidence record (screened_finite_evidence): per sampler serial and chain,
-// the updates after adaptation, the changes of level and the sum and maximum
-// of the probability of leaving the current level. Never destroyed: samplers of
+// the updates after adaptation, the observed changes of level and the sum and
+// maximum of the probability that the update changes the level before the
+// exact correction (ScreenedFinite.h). Never destroyed: samplers of
 // models that R frees late may still count.
 struct ScreenedEvidence {
   double levels = 0, lower = 0, last = 0, updates = 0, changes = 0, leave_sum = 0, leave_max = 0;
