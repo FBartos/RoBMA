@@ -89,17 +89,31 @@ test_that("the nested and ordinary weight layouts of a RoBMA() fit keep the cach
 
   skip_if_not_installed("rjags")
   skip_if_not_installed("metadat")
-  for (nested in c(FALSE, TRUE)) {
-    fit <- .rows_robma_fit(nested)
+  bias_side <- c("bias_indicator", "PET_1", "PEESE_1")
+  # the default policy: the location block owns the bias label and the slopes
+  # (frozen-state identities of its label scores in
+  # test-00-location-bias-native.R), the gated block the weights; without
+  # joint samplers the screened indicator owns the label and the gated slices
+  # the slopes
+  owners <- list(auto = rep("RoBMA::LocationBlock", 3L),
+                 off = c("RoBMA::ScreenedFinite", "BayesTools::GatedSlice", "BayesTools::GatedSlice"))
+  for (joint in names(owners)) for (nested in c(FALSE, TRUE)) {
+    fit <- .rows_robma_fit(nested, joint = joint)
     table <- fit[["samplers"]]
-    expect_identical(table[["Sampler"]][match("bias_indicator", table[["Node"]])], "RoBMA::ScreenedFinite")
+    expect_identical(table[["Sampler"]][match(bias_side, table[["Node"]])], owners[[joint]])
     weights <- table[["Node"]][grepl("^(eta_component|omega_ratio|BayesTools_nested)", table[["Node"]])]
     expect_true(all(table[["Sampler"]][match(weights, table[["Node"]])] == "RoBMA::GatedCorrectedBlock"))
     for (label in 2:9) {
-      .rows_recompile(fit, label)
+      context <- sprintf("sampler.joint %s, nested %s, label %d", joint, nested, label)
+      hand <- .rows_recompile(fit, label)
+      expect_identical(unname(hand$samplers[bias_side]), owners[[joint]], label = context)
       gaps <- .rows_frozen_gaps()
-      expect_lt(gaps[["label"]], 1e-10, label = sprintf("nested %s, label %d, label scores", nested, label))
-      expect_lt(gaps[["weights"]], 1e-10, label = sprintf("nested %s, label %d, weight moves", nested, label))
+      if (joint == "off") {
+        expect_lt(gaps[["label"]], 1e-10, label = paste(context, "label scores"))
+      } else {
+        expect_true(is.na(gaps[["label"]]), label = paste(context, "no screened label"))
+      }
+      expect_lt(gaps[["weights"]], 1e-10, label = paste(context, "weight moves"))
     }
   }
 })

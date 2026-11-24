@@ -190,31 +190,66 @@ test_that("model-averaged fits claim their weights and indicators, also in paral
   skip_if_not_installed("metadat")
   skip_if_not_installed("metafor")
 
-  serial <- .weights_fit()
-  table <- serial[["fit"]][["samplers"]]
-  sampler_of <- function(node) table[["Sampler"]][match(node, table[["Node"]])]
-  expect_identical(sampler_of("bias_indicator"), "RoBMA::ScreenedFinite")
-  expect_identical(sampler_of("eta_component_3[1]"), "RoBMA::GatedCorrectedBlock")
-  expect_identical(sampler_of("PET_1"), "BayesTools::GatedSlice")
-  expect_identical(sampler_of("PEESE_1"), "BayesTools::GatedSlice")
-  expect_identical(sampler_of("mu__xRE_ALLOCx_heterogeneity__allocation_sd"), "RoBMA::CoarseCorrectedBlock")
+  sampler_of <- function(fit, node) {
+    table <- fit[["fit"]][["samplers"]]
+    table[["Sampler"]][match(node, table[["Node"]])]
+  }
   # the record counts every corrected sampler object, one per claimed node,
-  # block or indicator and chain (the location block included)
+  # block or indicator and chain: the location block, and the samplers its
+  # heterogeneity scale runs embedded (named in the scale record, not in the
+  # sampler table)
+  objects <- function(fit) {
+    table <- fit[["fit"]][["samplers"]]
+    scale <- attr(fit[["fit"]], "sampler_declarations")[["robma"]][["joint"]][["scale"]]
+    embedded <- if (is.null(scale)) character(0L) else
+      unlist(strsplit(scale[["decisions"]][["embedded"]], ",", fixed = TRUE))
+    length(unique(table[["Index.No"]][grepl("^RoBMA::(Coarse|Gated|Screened|LocationBlock)", table[["Sampler"]])])) +
+      sum(grepl("^RoBMA::(Coarse|Gated|Screened)", embedded))
+  }
+  bias_side <- c("bias_indicator", "PET_1", "PEESE_1")
+  allocation_sd <- "mu__xRE_ALLOCx_heterogeneity__allocation_sd"
+
+  # the default policy: the location block owns the bias label, the PET and
+  # PEESE slopes and (through its heterogeneity scale) the allocation SD; the
+  # weights keep the gated block and the heterogeneity indicator the screened
+  # indicator
+  serial <- .weights_fit()
+  expect_identical(sampler_of(serial, c(bias_side, allocation_sd)), rep("RoBMA::LocationBlock", 4L))
+  expect_identical(sampler_of(serial, "eta_component_3[1]"), "RoBMA::GatedCorrectedBlock")
+  expect_identical(sampler_of(serial, "mu__xRE_ALLOCx_heterogeneity__include_component_1_indicator"),
+                   "RoBMA::ScreenedFinite")
   record <- selection_sampler_info(fit = serial)
-  objects <- length(unique(table[["Index.No"]][grepl("^RoBMA::(Coarse|Gated|Screened|LocationBlock)",
-                                                     table[["Sampler"]])]))
-  expect_identical(record[["samplers"]], 2 * objects)
+  expect_identical(record[["samplers"]], 2 * objects(serial))
   expect_true(record[["complete"]])
 
   extended <- suppressWarnings(stats::update(serial, sample_extend = 50L))
-  expect_true(all(c("RoBMA::ScreenedFinite", "RoBMA::GatedCorrectedBlock") %in% .weights_fit_samplers(extended)))
-  expect_identical(selection_sampler_info(fit = extended)[["samplers"]], 4 * objects)
+  expect_true(all(c("RoBMA::ScreenedFinite", "RoBMA::GatedCorrectedBlock", "RoBMA::LocationBlock") %in%
+                    .weights_fit_samplers(extended)))
+  expect_identical(selection_sampler_info(fit = extended)[["samplers"]], 4 * objects(serial))
 
   parallel <- .weights_fit(parallel = TRUE)
   for (worker in parallel[["fit"]][["samplers_by_worker"]]) {
-    expect_true(all(c("RoBMA::ScreenedFinite", "RoBMA::GatedCorrectedBlock") %in% worker[["samplers"]][["Sampler"]]))
+    expect_true(all(c("RoBMA::ScreenedFinite", "RoBMA::GatedCorrectedBlock", "RoBMA::LocationBlock") %in%
+                      worker[["samplers"]][["Sampler"]]))
   }
-  expect_identical(selection_sampler_info(fit = parallel)[["samplers"]], 2 * objects)
+  expect_identical(selection_sampler_info(fit = parallel)[["samplers"]], 2 * objects(serial))
+
+  # without joint samplers the screened indicator owns the bias label, the
+  # gated slices the slopes and the corrected block the allocation SD
+  options <- RoBMA.options()["sampler.joint"]
+  on.exit(do.call(RoBMA.options, options), add = TRUE)
+  RoBMA.options(sampler.joint = "off")
+  ordinary <- .weights_fit()
+  expect_identical(sampler_of(ordinary, c(bias_side, allocation_sd)),
+                   c("RoBMA::ScreenedFinite", "BayesTools::GatedSlice", "BayesTools::GatedSlice",
+                     "RoBMA::CoarseCorrectedBlock"))
+  expect_identical(sampler_of(ordinary, "eta_component_3[1]"), "RoBMA::GatedCorrectedBlock")
+  record <- selection_sampler_info(fit = ordinary)
+  expect_identical(record[["samplers"]], 2 * objects(ordinary))
+  expect_true(record[["complete"]])
+  extended <- suppressWarnings(stats::update(ordinary, sample_extend = 50L))
+  expect_identical(sampler_of(extended, bias_side), sampler_of(ordinary, bias_side))
+  expect_identical(selection_sampler_info(fit = extended)[["samplers"]], 4 * objects(ordinary))
 })
 
 

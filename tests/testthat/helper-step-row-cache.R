@@ -74,15 +74,16 @@
 
 
 # A small RoBMA() meta-regression on the Assink data (singleton step-selection
-# rows, nine bias labels; `nested` the nested weight layout): its JAGS fit
-# object (model syntax, data, end state, sampler table).
-.rows_robma_fit <- function(nested) {
+# rows, nine bias labels; `nested` the nested weight layout, `joint` the
+# sampler.joint policy): its JAGS fit object (model syntax, data, end state,
+# sampler table).
+.rows_robma_fit <- function(nested, joint = "auto") {
 
   data("dat.assink2016", package = "metadat", envir = environment())
   dat <- dat.assink2016[dat.assink2016$study %in% c(1, 2, 4, 12, 13), ]
-  previous <- RoBMA::RoBMA.options()[c("sampler.nested.weights", "selection.sampler")]
+  previous <- RoBMA::RoBMA.options()[c("sampler.nested.weights", "selection.sampler", "sampler.joint")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
-  RoBMA::RoBMA.options(sampler.nested.weights = nested, selection.sampler = "slice.coarse")
+  RoBMA::RoBMA.options(sampler.nested.weights = nested, selection.sampler = "slice.coarse", sampler.joint = joint)
   fit <- suppressWarnings(RoBMA::RoBMA(
     yi = dat$yi, sei = sqrt(dat$vi), mods = ~ deltype, measure = "SMD", data = dat, chains = 1L, adapt = 100L,
     burnin = 100L, sample = 100L, seed = 1L, parallel = FALSE, silent = TRUE,
@@ -139,12 +140,14 @@
 
 # The frozen-state gaps of a compiled model: the screened indicator's surrogate
 # against its exact score of every level, and the live blocks' cache values
-# against the rows' graph densities at their probe points.
+# against the rows' graph densities at their probe points (NA without a
+# screened indicator or a live block).
 .rows_frozen_gaps <- function() {
 
   scores <- .weights_screened_scores()
   probe <- .rows_probe()
-  c(label = max(vapply(scores, function(s) .rows_relative_gap(s$surrogate, s$exact), numeric(1L))),
+  c(label = if (length(scores) > 0L) max(vapply(scores, function(s) .rows_relative_gap(s$surrogate, s$exact),
+                                                numeric(1L))) else NA_real_,
     weights = if (nrow(probe) > 0L) .rows_relative_gap(probe[, "cache"], probe[, "graph"]) else NA_real_)
 }
 
