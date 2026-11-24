@@ -37,7 +37,15 @@ const unsigned int cluster_factor_mode = 10;
 const unsigned int cluster_factor_orders = 13;
 const unsigned int cluster_factor_rule = 19;
 
-// A cluster or factor child is coarse-capable when its fixed controls allow a
+// Kernel mode and weights of the dense multivariate child.
+const unsigned int mv_mode = 9;
+const unsigned int mv_weights = 3;
+// Weights of the cluster and factor children.
+const unsigned int cluster_factor_weights = 4;
+
+// A dense child is coarse-capable unless its kernel mode is fixed at NORMAL
+// (whose anchor normalizer is the exact one). A cluster or factor child is
+// coarse-capable when its fixed controls allow a
 // coarse rule: a vector rule not fixed at a best-weight value, a kernel mode not
 // fixed at NORMAL, and, for a factor block, rule min(max_rules, rules) of its
 // schedule affordable at the uncompacted rank (a compacted block or a forest
@@ -45,12 +53,19 @@ const unsigned int cluster_factor_rule = 19;
 // indicator that is product in every state of a product-only model, so a
 // non-fixed rule counts as capable; in a state with a best-weight rule the
 // child's surrogate is its exact density. The decision reads fixed parents only,
-// so it is the same in every chain. Any other cluster or factor child stays an
+// so it is the same in every chain, and a child it rules out can never use a
+// surrogate that differs from its exact density. Any other child stays an
 // exact term.
 inline ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings const &settings)
 {
   Distribution const *distribution = child->distribution();
-  if (dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) return ChildKind::mv;
+  if (dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) {
+    std::vector<Node const *> const &parents = child->parents();
+    if (parents.size() < distribution->npar()) return ChildKind::other;
+    Node const *mode = parents[mv_mode];
+    if (mode->isFixed() && mode->value(0)[0] == SELKERNEL_NORMAL) return ChildKind::other;
+    return ChildKind::mv;
+  }
   const bool cluster = dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution) != nullptr;
   const bool factor = !cluster && dynamic_cast<DSELNORMFACTORSTEP const *>(distribution) != nullptr;
   if (!cluster && !factor) return ChildKind::other;
@@ -91,9 +106,15 @@ struct SelectedChild {
   // indicator). Everything else is a control.
   static bool dynamic_parent(ChildKind kind, unsigned int i)
   {
-    if (kind == ChildKind::mv) return i == 0 || i == 1 || i == 3 || i == 9;
-    return i == 0 || i == 1 || i == 2 || i == 4 || i == cluster_factor_mode ||
+    if (kind == ChildKind::mv) return i == 0 || i == 1 || i == mv_weights || i == mv_mode;
+    return i == 0 || i == 1 || i == 2 || i == cluster_factor_weights || i == cluster_factor_mode ||
       i == cluster_factor_rule;
+  }
+
+  // The parent that carries the selection weights.
+  static unsigned int weights_parent(ChildKind kind)
+  {
+    return kind == ChildKind::mv ? mv_weights : cluster_factor_weights;
   }
 
   SelectedChild(StochasticNode *child, ChildKind kind_of_child)

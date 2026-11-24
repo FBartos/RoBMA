@@ -16,6 +16,10 @@ ROBMA_OBJECTS = glmm-aghq.o \
 		  distributions/DSELNORMSAMPLINGCONDITIONED.o \
 		  samplers/CoarseCorrectedSlice.o \
 		  samplers/CoarseCorrectedBlock.o \
+		  samplers/CorrectedBlockKernel.o \
+		  samplers/GatedCorrectedBlock.o \
+		  samplers/ScreenedFinite.o \
+		  samplers/GammaGroup.o \
 		  samplers/IndependentBiasJoint.o \
 		  samplers/GaussianJoint.o \
 		  samplers/JointCluster.o \
@@ -35,8 +39,14 @@ RoBMA.o: $(DISTRIBUTION_OBJECTS:.o=.h) selnorm/selnorm-mv.h
 
 samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
 samplers/CorrectedSampler.o: samplers/CorrectedSampler.h selnorm/selnorm-mv.h
-samplers/CoarseCorrectedBlock.o: samplers/CoarseCorrectedBlock.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
-RoBMA.o: samplers/CoarseCorrectedSlice.h samplers/CoarseCorrectedBlock.h
+CORRECTED_SURROGATE_HEADERS = samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
+CORRECTED_BLOCK_HEADERS = samplers/CorrectedBlockKernel.h samplers/GammaGroup.h $(CORRECTED_SURROGATE_HEADERS)
+samplers/CoarseCorrectedBlock.o: samplers/CoarseCorrectedBlock.h $(CORRECTED_BLOCK_HEADERS)
+samplers/CorrectedBlockKernel.o: $(CORRECTED_BLOCK_HEADERS)
+samplers/GatedCorrectedBlock.o: samplers/GatedCorrectedBlock.h $(CORRECTED_BLOCK_HEADERS)
+samplers/ScreenedFinite.o: samplers/ScreenedFinite.h $(CORRECTED_SURROGATE_HEADERS)
+samplers/GammaGroup.o: samplers/GammaGroup.h
+RoBMA.o: samplers/CoarseCorrectedSlice.h samplers/CoarseCorrectedBlock.h samplers/GatedCorrectedBlock.h samplers/ScreenedFinite.h
 RoBMA.o samplers/IndependentBiasJoint.o: samplers/IndependentBiasJoint.h
 samplers/IndependentBiasJoint.o: samplers/IndependentBiasProposal.h selnorm/selnorm-tail.h
 samplers/IndependentBiasJoint.o samplers/JointCluster.o: distributions/selnorm-jags-bounds.h
@@ -45,8 +55,9 @@ samplers/GaussianJoint.o: samplers/GaussianJointKernel.h
 RoBMA.o samplers/JointCluster.o: samplers/JointCluster.h
 RoBMA.o samplers/IndependentBiasJoint.o samplers/GaussianJoint.o samplers/JointCluster.o: samplers/JointSamplerTag.h
 samplers/JointCluster.o: selnorm/selnorm.h
-r-selnorm.o: samplers/CorrectedSampler.h samplers/CoarseCorrectedBlock.h selnorm/selnorm-mv.h
-r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h
+r-selnorm.o: samplers/CorrectedSampler.h samplers/CoarseCorrectedBlock.h $(CORRECTED_BLOCK_HEADERS) samplers/ScreenedFinite.h selnorm/selnorm-mv.h
+r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h distributions/selnorm-node-memo.h
+distributions/DSELNORMCLUSTERSTEP.o distributions/DSELNORMFACTORSTEP.o: distributions/selnorm-node-memo.h
 
 glmm-aghq.o: glmm-binomial-loglik.h
 glmm-aghq.o init.o: glmm-aghq.h

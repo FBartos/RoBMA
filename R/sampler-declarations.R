@@ -176,7 +176,10 @@
     ))
   }
 
+  # The corrected scalar and gated block samplers and the screened indicator
+  # sampler: the 'slice' tier returns their parameters to the other samplers.
   if (grepl("Corrected slice", message, fixed = TRUE) ||
+      grepl("Corrected finite sampler", message, fixed = TRUE) ||
       grepl("Surrogate slice transition failed", message, fixed = TRUE)) {
     return(paste0(
       message, "

@@ -28,6 +28,8 @@
 #include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CorrectedSampler.h"
 #include "samplers/CoarseCorrectedBlock.h"
+#include "samplers/ScreenedFinite.h"
+#include "distributions/selnorm-node-memo.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/selnorm-jags-bounds.h"
@@ -607,20 +609,17 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   }
   const jags::RoBMA::CorrectedSamplerReport report =
     jags::RoBMA::corrected_sampler_report(LOGICAL(clear)[0] != 0);
-  const char *names[] = {"samplers", "fallback_few_proposals", "fallback_surrogate_exact",
-    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "sampling_judged",
-    "min_sampler_rate"};
+  const char *names[] = {"samplers", "fallback_low_acceptance", "sampling_proposed",
+    "sampling_accepted", "sampling_judged", "min_sampler_rate"};
   const double values[] = {static_cast<double>(report.samplers),
-    static_cast<double>(report.fallback_few_proposals),
-    static_cast<double>(report.fallback_surrogate_exact),
     static_cast<double>(report.fallback_low_acceptance),
     static_cast<double>(report.sampling_proposed),
     static_cast<double>(report.sampling_accepted),
     report.sampling_judged,
     report.has_min_rate ? report.min_sampler_rate : NA_REAL};
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 8));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 8));
-  for (int i = 0; i < 8; ++i) {
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 6));
+  for (int i = 0; i < 6; ++i) {
     SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }
@@ -669,6 +668,140 @@ extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
   for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(4);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the flags of the corrected samplers'
+// factories and of the node memo, and their process counters. `flags` is NULL
+// (keep) or a list with any of disable_new (no gated weight blocks, screened
+// indicators or gamma groups in models built from now on; disable_gated,
+// disable_finite and disable_sum leave out one of them), drop_sum_jacobian
+// (the gamma groups' mutant without sum log p), finite_proposal (0 corrected,
+// 1 uncorrected mutant, 2 Liu's Metropolized Gibbs), force_fallback (every sampler
+// switches to its exact kernel at the end of adaptation), freeze_finite (the
+// screened indicators keep their values) and memo_slots (0, 1 or 2
+// entries per selection node from now on). Returns the flags, the counters per
+// sampler kind (rows slice, block, gated, finite), the memo counters
+// (lookups and hits of the cluster and factor nodes) and, when `scores` is TRUE,
+// the scores of the
+// live screened samplers at their chains' current states (per sampler its
+// chain, the number of levels L, L surrogate and L exact scores); `clear`
+// resets the counters after reading them.
+extern "C" SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores)
+{
+  ROBMA_NATIVE_BEGIN(flags, clear, scores)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  jags::RoBMA::CorrectedTestFlags current = jags::RoBMA::corrected_test_flags();
+  int memo_slots = selnorm_node_memo_slots();
+  if (flags != R_NilValue) {
+    if (TYPEOF(flags) != VECSXP) Rf_error("'flags' must be NULL or a named list.");
+    SEXP flag_names = Rf_getAttrib(flags, R_NamesSymbol);
+    for (R_xlen_t i = 0; i < XLENGTH(flags); ++i) {
+      const std::string name = flag_names == R_NilValue ? "" : CHAR(STRING_ELT(flag_names, i));
+      SEXP value = VECTOR_ELT(flags, i);
+      if (XLENGTH(value) != 1 || (TYPEOF(value) != LGLSXP && TYPEOF(value) != REALSXP)) {
+        Rf_error("Each flag must be one logical or numeric value.");
+      }
+      const double number = TYPEOF(value) == LGLSXP ? LOGICAL(value)[0] : REAL(value)[0];
+      if (!std::isfinite(number)) Rf_error("Each flag must be finite.");
+      if (name == "disable_new") current.disable_new = number != 0;
+      else if (name == "disable_gated") current.disable_gated = number != 0;
+      else if (name == "disable_finite") current.disable_finite = number != 0;
+      else if (name == "disable_sum") current.disable_sum = number != 0;
+      else if (name == "drop_sum_jacobian") current.drop_sum_jacobian = number != 0;
+      else if (name == "finite_proposal") current.finite_proposal = static_cast<int>(number);
+      else if (name == "memo_slots") memo_slots = static_cast<int>(number);
+      else if (name == "force_fallback") current.force_fallback = number != 0;
+      else if (name == "freeze_finite") current.freeze_finite = number != 0;
+      else Rf_error("Unknown corrected sampler test flag '%s'.", name.c_str());
+    }
+    if (memo_slots < 0 || memo_slots > 2) Rf_error("'memo_slots' must be 0, 1 or 2.");
+    jags::RoBMA::corrected_test_set_flags(current);
+    selnorm_node_memo_set_slots(memo_slots);
+  }
+  const bool reset = LOGICAL(clear)[0] != 0;
+  const auto take = [reset](std::atomic<std::uint64_t> &counter) {
+    return static_cast<double>(reset ? counter.exchange(0, std::memory_order_relaxed) :
+                               counter.load(std::memory_order_relaxed));
+  };
+  const int kinds = jags::RoBMA::corrected_kind_count;
+  SEXP counters = PROTECT(Rf_allocMatrix(REALSXP, kinds, 8));
+  for (int k = 0; k < kinds; ++k) {
+    jags::RoBMA::CorrectedKindCounters &kind = jags::RoBMA::corrected_kind_counters(k);
+    double *column = REAL(counters) + k;
+    column[0 * kinds] = take(kind.samplers);
+    column[1 * kinds] = take(kind.updates);
+    column[2 * kinds] = take(kind.proposed);
+    column[3 * kinds] = take(kind.accepted);
+    column[4 * kinds] = take(kind.evidence_proposed);
+    column[5 * kinds] = take(kind.evidence_accepted);
+    column[6 * kinds] = take(kind.fallbacks);
+    column[7 * kinds] = take(kind.exact_scores);
+  }
+  SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP rows = PROTECT(Rf_allocVector(STRSXP, kinds));
+  const char *row_names[] = {"slice", "block", "gated", "finite"};
+  for (int k = 0; k < kinds; ++k) SET_STRING_ELT(rows, k, Rf_mkChar(row_names[k]));
+  SEXP columns = PROTECT(Rf_allocVector(STRSXP, 8));
+  const char *column_names[] = {"samplers", "updates", "proposed", "accepted", "evidence_proposed",
+                                "evidence_accepted", "fallbacks", "exact_scores"};
+  for (int i = 0; i < 8; ++i) SET_STRING_ELT(columns, i, Rf_mkChar(column_names[i]));
+  SET_VECTOR_ELT(dimnames, 0, rows);
+  SET_VECTOR_ELT(dimnames, 1, columns);
+  Rf_setAttrib(counters, R_DimNamesSymbol, dimnames);
+
+  SelNormMemoCounters &memo = selnorm_node_memo_counters();
+  SEXP memo_values = PROTECT(Rf_allocVector(REALSXP, 5));
+  REAL(memo_values)[0] = take(memo.lookups[0]);
+  REAL(memo_values)[1] = take(memo.hits[0]);
+  REAL(memo_values)[2] = take(memo.lookups[1]);
+  REAL(memo_values)[3] = take(memo.hits[1]);
+  REAL(memo_values)[4] = selnorm_node_memo_slots();
+  SEXP memo_names = PROTECT(Rf_allocVector(STRSXP, 5));
+  const char *memo_labels[] = {"cluster_lookups", "cluster_hits", "factor_lookups", "factor_hits", "slots"};
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(memo_names, i, Rf_mkChar(memo_labels[i]));
+  Rf_setAttrib(memo_values, R_NamesSymbol, memo_names);
+
+  // evaluating the live screened samplers sets their nodes and evaluates their
+  // children (memo and counters included), so it runs only on request
+  if (TYPEOF(scores) != LGLSXP || XLENGTH(scores) != 1 || LOGICAL(scores)[0] == NA_LOGICAL) {
+    Rf_error("'scores' must be one non-missing logical value.");
+  }
+  const std::vector<double> screened = LOGICAL(scores)[0] ? jags::RoBMA::screened_finite_test_scores() :
+    std::vector<double>();
+  SEXP score_values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(screened.size())));
+  for (std::size_t i = 0; i < screened.size(); ++i) REAL(score_values)[i] = screened[i];
+
+  SEXP flag_values = PROTECT(Rf_allocVector(VECSXP, 9));
+  SET_VECTOR_ELT(flag_values, 0, Rf_ScalarLogical(current.disable_new));
+  SET_VECTOR_ELT(flag_values, 1, Rf_ScalarLogical(current.drop_sum_jacobian));
+  SET_VECTOR_ELT(flag_values, 2, Rf_ScalarReal(current.finite_proposal));
+  SET_VECTOR_ELT(flag_values, 3, Rf_ScalarReal(selnorm_node_memo_slots()));
+  SET_VECTOR_ELT(flag_values, 4, Rf_ScalarLogical(current.force_fallback));
+  SET_VECTOR_ELT(flag_values, 5, Rf_ScalarLogical(current.freeze_finite));
+  SET_VECTOR_ELT(flag_values, 6, Rf_ScalarLogical(current.disable_gated));
+  SET_VECTOR_ELT(flag_values, 7, Rf_ScalarLogical(current.disable_finite));
+  SET_VECTOR_ELT(flag_values, 8, Rf_ScalarLogical(current.disable_sum));
+  SEXP flag_labels = PROTECT(Rf_allocVector(STRSXP, 9));
+  const char *flag_label_names[] = {"disable_new", "drop_sum_jacobian", "finite_proposal", "memo_slots",
+                                    "force_fallback", "freeze_finite", "disable_gated", "disable_finite",
+                                    "disable_sum"};
+  for (int i = 0; i < 9; ++i) SET_STRING_ELT(flag_labels, i, Rf_mkChar(flag_label_names[i]));
+  Rf_setAttrib(flag_values, R_NamesSymbol, flag_labels);
+
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+  SET_VECTOR_ELT(out, 0, flag_values);
+  SET_VECTOR_ELT(out, 1, counters);
+  SET_VECTOR_ELT(out, 2, memo_values);
+  SET_VECTOR_ELT(out, 3, score_values);
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
+  const char *names[] = {"flags", "kinds", "memo", "screened_scores"};
+  for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(11);
   return out;
   ROBMA_NATIVE_END
 }

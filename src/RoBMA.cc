@@ -17,6 +17,8 @@ static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
 #include "distributions/DSELNORMSAMPLINGCONDITIONED.h"
 #include "samplers/CoarseCorrectedSlice.h"
 #include "samplers/CoarseCorrectedBlock.h"
+#include "samplers/GatedCorrectedBlock.h"
+#include "samplers/ScreenedFinite.h"
 #include "samplers/IndependentBiasJoint.h"
 #include "samplers/GaussianJoint.h"
 #include "samplers/JointCluster.h"
@@ -55,6 +57,11 @@ namespace jags {
       // claim their blocks before BayesTools' factor slice factory.
       insert(coarse_corrected_slice_factory());
       insert(coarse_corrected_block_factory());
+      // Gated selection weights (before BayesTools::GatedSlice) and finite
+      // indicators with selection children (before base::Finite and the
+      // BayesTools finite readout); the joint factories below are asked first.
+      insert(screened_finite_factory());
+      insert(gated_corrected_block_factory());
       insert(new IndependentBiasJointTag(false));
       insert(new IndependentBiasJointTag(true));
       insert(&independent_bias_joint);

@@ -35,37 +35,14 @@ class CoarseCorrectedSlice : public Slicer, public CorrectedSamplerWindow {
   // coordinates may change between updates, so update() always invalidates it.
   mutable bool _surrogate_valid;
   mutable double _surrogate_value;
-  // JAGS gives a sampler no accessor for the model's adaptation, so the sampler
-  // keeps its own: true from construction until its first adaptOff().
-  bool _adapting;
   // The kernel chosen at the first adaptOff(): the exact slice kernel replaces
   // the corrected update for the rest of this object's life.
   bool _exact;
-  // Adaptive proposals and accepted corrections, and whether any surrogate
-  // evaluated while adapting used a normalizer that is not the exact one.
-  std::uint64_t _adaptive_proposed;
-  std::uint64_t _adaptive_accepted;
+  // Whether a surrogate evaluated during the current update used a normalizer
+  // that is not the exact one (the update is then evidence).
   mutable bool _surrogate_not_exact;
-  // Proposals and accepted corrections after adaptOff() in corrected mode since
-  // the last clearing read of the report (the window of one run).
-  std::uint64_t _window_proposed;
-  std::uint64_t _window_accepted;
-
-  // One completed proposal of the corrected update.
-  void countOutcome(bool accepted)
-  {
-    if (_adapting) {
-      ++_adaptive_proposed;
-      if (accepted) ++_adaptive_accepted;
-      return;
-    }
-    ++_window_proposed;
-    corrected_sampler_counters.report_sampling_proposed.fetch_add(1, std::memory_order_relaxed);
-    if (accepted) {
-      ++_window_accepted;
-      corrected_sampler_counters.report_sampling_accepted.fetch_add(1, std::memory_order_relaxed);
-    }
-  }
+  // The adaptation flag, the evidence tally and the reporting window.
+  CorrectedTally _tally;
 
   // The exact kernel's target: the full conditional, -Inf allowed (outside the
   // support), NaN and +Inf refused as in the corrected update.
@@ -82,8 +59,7 @@ public:
                       SelNormCoarseSettings const &settings, double min_acceptance)
     : Slicer(1.0, 10), _graph(graph), _chain(chain), _settings(settings),
       _min_acceptance(min_acceptance), _surrogate_valid(false), _surrogate_value(0.0),
-      _adapting(true), _exact(false), _adaptive_proposed(0), _adaptive_accepted(0),
-      _surrogate_not_exact(false), _window_proposed(0), _window_accepted(0)
+      _exact(false), _surrogate_not_exact(false), _tally(corrected_kind_slice)
   {
     for (StochasticNode *child : graph->stochasticChildren()) {
       const ChildKind kind = child_kind(child, settings);
@@ -92,7 +68,7 @@ public:
     }
     if (_selected.empty()) throw std::logic_error("Corrected slice has no selection child.");
     graph->checkFinite(chain);
-    register_corrected_sampler(this);
+    register_corrected_sampler(this, corrected_kind_slice);
   }
 
   // A sampler destroyed before the report is read still counts for the worst
@@ -103,13 +79,9 @@ public:
   }
 
   // Window counters of the report (read with the registry mutex held).
-  std::uint64_t windowProposed() const override { return _window_proposed; }
-  std::uint64_t windowAccepted() const override { return _window_accepted; }
-  void clearWindow() override
-  {
-    _window_proposed = 0;
-    _window_accepted = 0;
-  }
+  std::uint64_t windowProposed() const override { return _tally.window_proposed(); }
+  std::uint64_t windowAccepted() const override { return _tally.window_accepted(); }
+  void clearWindow() override { _tally.clear_window(); }
   // A scalar sampler's acceptance rate is judged as it is.
   double rateExponent() const override { return 1.0; }
 
@@ -150,37 +122,26 @@ public:
     return result;
   }
 
-  // The kernel is chosen once, at the first adaptOff(), from the adaptive
-  // draws: with the fallback enabled, the exact kernel when (a) fewer than 50
-  // proposals were made, (c) no surrogate differed from the exact density by
-  // construction, or (b) the acceptance rate is below min_acceptance; the first
-  // rule that holds is the recorded reason. Both kernels leave the exact target
-  // invariant, so the chain after adaptation is one homogeneous exact kernel.
+  // The kernel is chosen once, at the first adaptOff(), from the evidence
+  // proposals made while adapting (CorrectedTally::adapt_off): with the
+  // fallback enabled, the exact kernel when at least 50 were made and their
+  // acceptance rate is below min_acceptance. Both kernels leave the exact
+  // target invariant, so the chain after adaptation is one homogeneous exact
+  // kernel.
   void adaptOff() override
   {
     Slicer::adaptOff();
-    if (!_adapting) return;
-    _adapting = false;
-    if (!(_min_acceptance > 0.0)) return;
-    std::atomic<std::uint64_t> *reason = nullptr;
-    if (_adaptive_proposed < corrected_min_adaptive_proposals) {
-      reason = &corrected_sampler_counters.report_fallback_few_proposals;
-    } else if (!_surrogate_not_exact) {
-      reason = &corrected_sampler_counters.report_fallback_surrogate_exact;
-    } else if (static_cast<double>(_adaptive_accepted) /
-               static_cast<double>(_adaptive_proposed) < _min_acceptance) {
-      reason = &corrected_sampler_counters.report_fallback_low_acceptance;
-    }
-    if (reason != nullptr) {
+    if (_tally.adapt_off(_min_acceptance, 1.0)) {
       _exact = true;
       _surrogate_valid = false;
-      reason->fetch_add(1, std::memory_order_relaxed);
     }
   }
 
   void update(RNG *rng) override
   {
     _surrogate_valid = false;
+    _surrogate_not_exact = false;
+    corrected_kind_counters(corrected_kind_slice).updates.fetch_add(1, std::memory_order_relaxed);
     const double old_value = value();
     if (_exact) {
       // One ordinary slice update of the full conditional: no surrogate, no
@@ -213,15 +174,13 @@ public:
       if (!updateStep(rng)) {
         throwNodeError(_graph->node(), "Surrogate slice transition failed");
       }
-      corrected_sampler_counters.coarse_proposed.fetch_add(1, std::memory_order_relaxed);
       const double full_new = _graph->logFullConditional(_chain);
       if (std::isnan(full_new) || full_new == std::numeric_limits<double>::infinity()) {
         throwNodeError(_graph->node(), "Corrected slice proposed a non-finite full density");
       }
       if (full_new == -std::numeric_limits<double>::infinity()) {
         setValue(old_value);
-        corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
-        countOutcome(false);
+        _tally.count(false, _surrogate_not_exact);
         return;
       }
       const double surrogate_new = logDensity();
@@ -237,12 +196,10 @@ public:
       if (log_ratio < 0 &&
           std::log(static_cast<long double>(rng->uniform())) > log_ratio) {
         setValue(old_value);
-        corrected_sampler_counters.coarse_correction_rejected.fetch_add(1, std::memory_order_relaxed);
-        countOutcome(false);
+        _tally.count(false, _surrogate_not_exact);
       }
       else {
-        corrected_sampler_counters.coarse_accepted.fetch_add(1, std::memory_order_relaxed);
-        countOutcome(true);
+        _tally.count(true, _surrogate_not_exact);
       }
     }
     catch (...) {

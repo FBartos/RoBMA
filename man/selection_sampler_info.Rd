@@ -30,11 +30,20 @@ The corrected sampler is the default,
 \code{RoBMA.options(selection.sampler = "slice.coarse")}; set
 \code{selection.sampler = "slice"} before fitting to use the other samplers
 instead, or \code{"jags.default"} for only the samplers JAGS assigns.
-Parameters that \code{sampler.gates} declares to the gated sampler of the
-BayesTools JAGS module keep it. A block that \code{sampler.blocks} declares
+The selection-weight parameters of a branch of a publication-bias mixture
+that \code{sampler.gates} declares are updated together by the corrected
+gated block sampler when one of the branch's selection blocks takes part
+(below); other gated parameters (PET and PEESE slopes, and weights whose
+selection blocks do not take part) keep the gated sampler of the BayesTools
+JAGS module. A block that \code{sampler.blocks} declares
 (see \code{\link{RoBMA.options}}) is updated by the corrected block sampler
 when one of its selection blocks takes part (below), and by the factor slice
-sampler of the BayesTools JAGS module otherwise.
+sampler of the BayesTools JAGS module otherwise. A scalar indicator (the bias
+indicator, the heterogeneity inclusion indicator and effect and moderator
+indicators with fixed prior probabilities) with such a selection block among
+its children is updated by the screened indicator sampler, unless a joint
+sampler updates it or \code{sampler.probabilities} records its conditional
+probabilities.
 Every proposal is corrected against the full original likelihood and prior.
 Only the selection normalizer used to construct proposals is coarsened.
 A reversible slice transition for that surrogate is followed by a
@@ -87,27 +96,46 @@ surrogate over all parameters of a declared block, in forward or backward
 direction order chosen at random at each update, and accepts or rejects the
 whole sweep with the same correction. The random order makes the proposal
 reversible, so the corrected chain targets the exact posterior of the block;
-the directions and widths adapt as in the factor slice sampler.
-Discrete, vector-valued and unrelated updates, and updates whose selection
+the directions and widths adapt as in the factor slice sampler. Gamma
+parameters that enter the model only through their proportions (the
+Dirichlet weights of a heterogeneity allocation, the weights of a cumulative
+weight function) are updated through their proportions, and their sum is
+drawn from its gamma distribution at each update.
+
+Gated weights. While its branch is inactive, the weights of a branch are
+drawn from their prior, as in the gated sampler; while it is active, they
+are updated by the corrected block sweep, whose directions adapt only on
+those updates.
+
+Indicators. The screened indicator sampler scores every level of the
+indicator with the surrogates of its selection children, draws a level from
+these scores (the current level included), and corrects a change of level
+with one Metropolis step against the exact scores of both levels, so the
+chain targets the exact posterior and a draw of the current level costs no
+exact evaluation.
+Vector-valued and unrelated updates, and updates whose selection
 children are all without a coarse rule, retain ordinary JAGS samplers.
 Whatever the surrogate, the corrected chain targets the exact full
 conditional; a coarser rule changes the acceptance rate and the cost, not
 the posterior.
 
-Fallback. Each corrected sampler (one per parameter or block and chain) chooses its
-kernel once, at the end of adaptation, from its adaptation updates: with
+Fallback. Each corrected sampler (one per parameter, block or indicator and
+chain) chooses its kernel once, at the end of adaptation, from its evidence
+proposals during adaptation: proposals for which at least one selection
+block evaluated a surrogate that differs from its exact density (none does
+under the normal kernel of a model-averaged fit's normal branches, or where
+its rule is unavailable); for an indicator, changes of level whose
+surrogate differed at either level. With
 \code{selection.coarse_min_acceptance} above 0 (default \code{0.90}) it
 updates its parameter with the exact slice sampler (a block with the factor
-slice sweep of the exact posterior) for the rest of the fit
-when it made fewer than 50 proposals during adaptation, when no surrogate it
-evaluated during adaptation differed from the exact density (no block's
-surrogate differs under the normal kernel, and a cluster or factor block's
-does not where its rule is unavailable, as in a model average whose
-selection branches all use the best-weight rule), or when its acceptance
-rate during adaptation is below the threshold; the first of these that
-holds is the recorded reason. A block of d parameters is judged per
-direction: its acceptance rate to the power 1/d, here, for
-\code{min_sampler_rate} and for the warning below.
+slice sweep of the exact posterior, an indicator by enumerating its levels)
+for the rest of the fit when it made at least 50 evidence proposals during
+adaptation and their acceptance rate is below the threshold. With fewer it
+stays corrected and the warning below judges it after adaptation. A sampler
+whose selection blocks can never differ from their exact densities (decided
+from the fixed settings of the blocks) is not created. A block of d
+directions is judged per direction: its acceptance rate to the power 1/d,
+here, for \code{min_sampler_rate} and for the warning below.
 Both kernels leave the posterior unchanged and the choice is not revisited,
 so the chain after adaptation is a single exact kernel. A threshold of
 \code{0} disables the fallback and the warning. Every model build (a fit,
@@ -121,13 +149,14 @@ the settings the model was fitted with (\code{sampler} shows the value the
 fit was made with, so fits of earlier versions show \code{"coarse_corrected"}
 or \code{"default"}; \code{min_acceptance} is \code{0} for fits made before
 the threshold existed); \code{samplers}, the corrected sampler objects
-constructed, one per parameter or block and chain and counted again for
-every model build; \code{fallback_samplers}, those that switched to the exact slice
-sampler, split by reason into \code{fallback_few_proposals},
-\code{fallback_surrogate_exact} and \code{fallback_low_acceptance};
-\code{sampling_proposed} and \code{sampling_accepted}, the proposals made
-after adaptation by samplers that stayed corrected and the proposals whose
-correction accepted them (unchanged values included), counting burn-in
+constructed, one per parameter, block or indicator and chain and counted
+again for every model build; \code{fallback_samplers}, those that switched
+to the exact kernel, and \code{fallback_low_acceptance}, the same count
+under the one remaining reason (records of development versions also split
+out two retired reasons, which are dropped);
+\code{sampling_proposed} and \code{sampling_accepted}, the evidence proposals
+made after adaptation by samplers that stayed corrected and the proposals
+whose correction accepted them (unchanged values included), counting burn-in
 and all sampling iterations through the end of each chain or extension,
 including iterations between retained draws when thinning;
 \code{sampling_judged}, the sum over the samplers
@@ -150,7 +179,9 @@ The last element is \code{complete}, \code{FALSE} when part of the chain was dra
 without a record (an extension of a fit saved before the record existed, a
 process whose report failed, or draws added without any report), in which
 case the counts cover the recorded part only.
-Adaptation updates and updates of samplers that fell back are not counted.
+Adaptation updates, proposals that are not evidence (for example in the
+normal branches of a model average) and updates of samplers that fell back
+are not counted.
 
 Warning. A fit or an extension whose record has at least 1,000 counted
 proposals and whose judged \code{acceptance_rate}, or \code{min_sampler_rate}, is below
@@ -160,7 +191,9 @@ proposals and whose judged \code{acceptance_rate}, or \code{min_sampler_rate}, i
 The message is kept with the fit's warnings, replaced at every extension.
 
 Process counters. Without \code{fit}, the function reports the counters of
-all corrected samplers in this process, including adaptation; clear them
+all corrected samplers in this process (every proposal with a correction,
+evidence or not, and for an indicator every change of level), including
+adaptation; clear them
 between phases for a sampling-only comparison. They do not report separate
 parallel workers. Inspect them between sampling calls.
 
