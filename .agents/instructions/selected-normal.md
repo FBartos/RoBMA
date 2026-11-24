@@ -672,6 +672,26 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   joint-sampler record. Test hook `RoBMA_location_block_test` (mutants,
   frozen-state probe, factory decision); exactness fixtures in
   `test-00-location-block-native.R` and `test-00-location-block-exactness.R`.
+  Its latents are also the cluster effects `gamma[k]` of clustered `RoBMA()`
+  and `BMA()` fits, and "auto" gives it independent fits with a gated
+  moderator that no other joint sampler takes (without latents). The Newton
+  fits only build proposals: they evaluate each cluster or factor child at
+  rule 1 of its schedule (`SelNormCoarseSettings::rule`; back to the sampler's
+  rule at the first `adaptOff()` when the stage-2 acceptance of the tilted
+  flips and swaps was below 0.9 over at least 50 of them while adapting), and
+  a line whose selection children are all step-switch rows uses the rows'
+  closed-form normalizer derivatives (`StepRowNormalizer`) instead of central
+  differences; Metropolis-Hastings ratios and the exact correction keep the
+  sampler's rule, and the step-switch rows' densities are the distribution's
+  own evaluations with the parameters read once per update. An elliptical
+  slice refresh of all active coefficients (component E, latents sheared) is
+  exact but stays behind the test switch `RoBMA_location_block_test_config`:
+  measured against the per-group refreshes it lost effective samples of
+  individual coefficients on the 18-moderator tutorial model. The fit's
+  sampler record carries an evidence record per gate and chain (flips by
+  direction, screened proposals, log odds of the other state) and, for the
+  screened indicators, per indicator and chain (`sampler_declarations$robma$
+  evidence`), for consumers that tell decided from stuck indicators.
 - Fallback and record: each sampler object (node, block or indicator x chain,
   per model build) keeps its own adaptation flag (JAGS has no accessor) and
   counts its adaptive evidence proposals and their accepted corrections
