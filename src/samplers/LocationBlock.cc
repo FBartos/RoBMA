@@ -1,6 +1,7 @@
 #include "LocationBlock.h"
 #include "CoarseSurrogate.h"
 #include "CorrectedSampler.h"
+#include "../distributions/selnorm-jags-bounds.h"
 
 #include <BayesTools/factor_slice_kernel.h>
 
@@ -226,6 +227,157 @@ void draw_precision(Vec const &m, Vec const &Pchol, RNG *rng, double *out)
 double log1pexp(double x)
 {
   return x > 0 ? x + std::log1p(std::exp(-x)) : std::log1p(std::exp(x));
+}
+
+// Eigen-decomposition of a small symmetric n x n matrix by cyclic Jacobi
+// rotations: values, and vectors as the columns of a row-major matrix.
+void symmetric_eigen(Vec a, std::size_t n, Vec &values, Vec &vectors)
+{
+  vectors.assign(n * n, 0.0);
+  for (std::size_t i = 0; i < n; ++i) vectors[i * n + i] = 1.0;
+  for (unsigned sweep = 0; sweep < 100; ++sweep) {
+    double off = 0.0, diagonal = 0.0;
+    for (std::size_t p = 0; p < n; ++p) {
+      diagonal += a[p * n + p] * a[p * n + p];
+      for (std::size_t q = p + 1; q < n; ++q) off += a[p * n + q] * a[p * n + q];
+    }
+    if (!(off > 1e-30 * diagonal)) break;
+    for (std::size_t p = 0; p < n; ++p) {
+      for (std::size_t q = p + 1; q < n; ++q) {
+        const double apq = a[p * n + q];
+        if (apq == 0.0) continue;
+        const double theta = (a[q * n + q] - a[p * n + p]) / (2.0 * apq);
+        const double t = (theta >= 0 ? 1.0 : -1.0) / (std::fabs(theta) + std::sqrt(theta * theta + 1.0));
+        const double c = 1.0 / std::sqrt(t * t + 1.0), s = t * c;
+        for (std::size_t k = 0; k < n; ++k) {
+          const double akp = a[k * n + p], akq = a[k * n + q];
+          a[k * n + p] = c * akp - s * akq;
+          a[k * n + q] = s * akp + c * akq;
+        }
+        for (std::size_t k = 0; k < n; ++k) {
+          const double apk = a[p * n + k], aqk = a[q * n + k];
+          a[p * n + k] = c * apk - s * aqk;
+          a[q * n + k] = s * apk + c * aqk;
+        }
+        for (std::size_t k = 0; k < n; ++k) {
+          const double vkp = vectors[k * n + p], vkq = vectors[k * n + q];
+          vectors[k * n + p] = c * vkp - s * vkq;
+          vectors[k * n + q] = s * vkp + c * vkq;
+        }
+      }
+    }
+  }
+  values.resize(n);
+  for (std::size_t i = 0; i < n; ++i) values[i] = a[i * n + i];
+}
+
+// The precision of a tilted law (spec: Selection tilt): H = P - ell'' with the
+// eigenvalues of P^-1/2 H P^-1/2 floored at 0.25 (max(0.25 P, H) for a
+// scalar). Pchol is the lower Cholesky factor of P.
+bool floor_precision(Vec const &P, Vec const &Pchol, Vec const &hessian, std::size_t n, Vec &out)
+{
+  Vec H(n * n);
+  for (std::size_t i = 0; i < n * n; ++i) H[i] = P[i] - hessian[i];
+  if (n == 1) {
+    out.assign(1, std::max(0.25 * P[0], H[0]));
+    return std::isfinite(out[0]) && out[0] > 0;
+  }
+  // A = L^-1 H L^-T
+  Vec A(H);
+  for (std::size_t j = 0; j < n; ++j) {
+    Vec column(n);
+    for (std::size_t i = 0; i < n; ++i) column[i] = A[i * n + j];
+    solve_lower(Pchol, n, column.data());
+    for (std::size_t i = 0; i < n; ++i) A[i * n + j] = column[i];
+  }
+  for (std::size_t i = 0; i < n; ++i) {
+    Vec row(A.begin() + i * n, A.begin() + (i + 1) * n);
+    solve_lower(Pchol, n, row.data());
+    for (std::size_t j = 0; j < n; ++j) A[i * n + j] = row[j];
+  }
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < i; ++j) {
+      const double v = 0.5 * (A[i * n + j] + A[j * n + i]);
+      A[i * n + j] = v;
+      A[j * n + i] = v;
+    }
+  }
+  Vec values, vectors;
+  symmetric_eigen(A, n, values, vectors);
+  // out = L V diag(max(values, 0.25)) V' L'
+  Vec M(n * n, 0.0);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < n; ++j) {
+      long double v = 0;
+      for (std::size_t k = 0; k < n; ++k) {
+        if (!std::isfinite(values[k])) return false;
+        v += static_cast<long double>(vectors[i * n + k]) * std::max(values[k], 0.25) * vectors[j * n + k];
+      }
+      M[i * n + j] = static_cast<double>(v);
+    }
+  }
+  out.assign(n * n, 0.0);
+  Vec LM(n * n, 0.0);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < n; ++j) {
+      long double v = 0;
+      for (std::size_t k = 0; k <= i; ++k) v += static_cast<long double>(Pchol[i * n + k]) * M[k * n + j];
+      LM[i * n + j] = static_cast<double>(v);
+    }
+  }
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < n; ++j) {
+      long double v = 0;
+      for (std::size_t k = 0; k <= j; ++k) v += static_cast<long double>(LM[i * n + k]) * Pchol[j * n + k];
+      out[i * n + j] = static_cast<double>(v);
+    }
+  }
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < i; ++j) {
+      const double v = 0.5 * (out[i * n + j] + out[j * n + i]);
+      out[i * n + j] = v;
+      out[j * n + i] = v;
+    }
+  }
+  return true;
+}
+
+double normal_cdf(double z)
+{
+  if (z == std::numeric_limits<double>::infinity()) return 1.0;
+  if (z == -std::numeric_limits<double>::infinity()) return 0.0;
+  return 0.5 * std::erfc(-z * 0.70710678118654752440);
+}
+
+double normal_density(double z)
+{
+  if (!std::isfinite(z)) return 0.0;
+  return std::exp(-0.5 * z * z - 0.91893853320467274178);
+}
+
+// The row-marginal selected-normal normalizer of one row, A(mu) =
+// sum_b omega_b P(lower_b < sign y / se < upper_b), y ~ N(mu, sd^2), and the
+// first two derivatives of log A in mu (spec: the free screen).
+bool row_log_normalizer(double mu, double sd, double se, int sign, double const *omega,
+                        double const *lower, double const *upper, int bins,
+                        double *log_a, double *d1, double *d2)
+{
+  long double a = 0, a1 = 0, a2 = 0;
+  for (int b = 0; b < bins; ++b) {
+    const double zu = (upper[b] * se - sign * mu) / sd;
+    const double zl = (lower[b] * se - sign * mu) / sd;
+    const double probability = normal_cdf(zu) - normal_cdf(zl);
+    const double fu = normal_density(zu), fl = normal_density(zl);
+    a += static_cast<long double>(omega[b]) * probability;
+    a1 += static_cast<long double>(omega[b]) * (-sign * (fu - fl) / sd);
+    a2 += static_cast<long double>(omega[b]) *
+      (-((std::isfinite(zu) ? zu * fu : 0.0) - (std::isfinite(zl) ? zl * fl : 0.0)) / (sd * sd));
+  }
+  if (!(a > 0)) return false;
+  *log_a = std::log(static_cast<double>(a));
+  *d1 = static_cast<double>(a1 / a);
+  *d2 = static_cast<double>(a2 / a) - (*d1) * (*d1);
+  return std::isfinite(*log_a) && std::isfinite(*d1) && std::isfinite(*d2);
 }
 
 // ---- structure of the declared model
@@ -580,6 +732,11 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   bool _registered = false;
   std::uint64_t _adaptive_evidence = 0, _adaptive_accepted = 0;
   std::uint64_t _window_proposed = 0, _window_accepted = 0;
+  // the refresh kernel of each group in selection labels: the tilted
+  // independence proposal, or (acceptance below 0.4 while adapting) the slice
+  // update along the line, decided at the first adaptOff()
+  std::vector<std::uint64_t> _refresh_proposed, _refresh_accepted;
+  std::vector<char> _slice_refresh;
 
   // ---- per-update state
   Vec _entry, _final;
@@ -809,6 +966,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       _dirty[c] = 0;
     }
     _surrogate_mode = _selection && sh.corrected && !_exact;
+    _line.valid = false;
     _not_exact = false;
     _repr_delta = 0;
 
@@ -1339,39 +1497,6 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _repr_delta += target;
   }
 
-  // F_j in a selection label (stage 1): the conditional update of the gate
-  // given the current slab on the surrogate target, without shear.
-  void conditional_flip(unsigned j, RNG *rng)
-  {
-    GroupSpec const &g = s().groups[j];
-    const bool on = active(j);
-    const Component type = on ? flip_off : flip_on;
-    count(counters().proposed[type]);
-    count(counters().stage0[type]);
-    count(counters().stage1[type]);
-    Shift sh;
-    for (unsigned i = 0; i < g.d; ++i) {
-      sh.coords.push_back(g.coord0 + i);
-      sh.dcoef.push_back(on ? -_beta[g.coord0 + i] : _beta[g.coord0 + i]);
-    }
-    prepare_shift(sh, {});
-    const long double children = children_delta(sh, 1.0);
-    const long double delta = children + (on ? g.log_off - g.log_on : g.log_on - g.log_off);
-    if (!(delta > negative_infinity)) return;
-    // Gibbs: toggle with probability 1 / (1 + exp(-delta))
-    if (!(std::log(rng->uniform()) < -log1pexp(-static_cast<double>(delta)))) return;
-    count(counters().accepted[type]);
-    // apply: the physical coefficient toggles; the slab keeps its value
-    const Vec beta(_beta.begin() + g.coord0, _beta.begin() + g.coord0 + g.d);
-    apply_shift(sh, 1.0);
-    _g[j] = on ? 0 : 1;
-    for (unsigned i = 0; i < g.d; ++i) {
-      _beta[g.coord0 + i] = beta[i];
-      _b[g.coord0 + i] = on ? 0.0 : beta[i];
-    }
-    _repr_delta += delta;
-  }
-
   // R_j of an active group in a Gaussian label: an exact draw along the line.
   void gaussian_refresh(unsigned j, RNG *rng)
   {
@@ -1442,6 +1567,596 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       prepare_shift(sh, prior_coords);
       if (slice_shift(sh, slice_width * std::sqrt(L.Sigma[i * nm + i]), rng)) count(counters().accepted[refresh]);
     }
+  }
+
+  // ---- stage 2: the selection tilt (spec: Selection tilt)
+
+  // ell at a change db of the line's moving coordinates from the current
+  // state: the inner target's terms of the children the line moves minus their
+  // Gaussian part, i.e. -log A~ + const (zero for Gaussian children).
+  double line_ell(Line const &L, double const *db, Shift &sh)
+  {
+    line_shift(L, db, sh);
+    prepare_shift(sh, {});
+    const long double children = children_delta(sh, 1.0);
+    if (!(children > negative_infinity)) return negative_infinity;
+    long double gaussian = 0;
+    for (std::size_t q = 0; q < sh.children.size(); ++q) gaussian += sh.q1[q] - 0.5L * sh.q2[q];
+    return static_cast<double>(children - gaussian);
+  }
+
+  // The change of the line's moving coordinates that puts the free ones
+  // [first, first + x.size()) at the physical values x and the others at the
+  // physical values of `target`.
+  void subline_db(Line const &L, std::size_t first, Vec const &x, Vec const &target, Vec &db) const
+  {
+    db.resize(L.moving.size());
+    for (std::size_t m = 0; m < L.moving.size(); ++m) {
+      const double value = (m >= first && m < first + x.size()) ? x[m - first] : target[m];
+      db[m] = value - _b[L.moving[m]];
+    }
+  }
+
+  struct Fit {
+    bool ok = false;
+    Vec xhat, Pt, Ptchol;
+    double log_det_Pt = 0;
+    double ell_hat = 0;
+  };
+
+  // The damped Newton fit of f(x) = log N(x; m, P^-1) + ell(x) along the
+  // subline of the free coordinates (spec: two iterations from m, curvature
+  // floored at 0.25 P, at most five halvings, central differences with steps
+  // of a quarter of the law's SD; the full Hessian up to four coordinates and
+  // its diagonal beyond). A deterministic function of the line.
+  Fit newton(Line const &L, std::size_t first, Vec const &target, Vec const &m, Vec const &P,
+             Vec const &Pchol, double log_det_P)
+  {
+    const std::size_t d = m.size();
+    Fit fit;
+    Vec db, x(m), h(d);
+    Shift sh;
+    const Vec Sigma = inverse_from_cholesky(Pchol, d);
+    for (std::size_t i = 0; i < d; ++i) h[i] = 0.25 * std::sqrt(Sigma[i * d + i]);
+    auto ell_at = [&](Vec const &point) {
+      subline_db(L, first, point, target, db);
+      return line_ell(L, db.data(), sh);
+    };
+    auto f_at = [&](Vec const &point, double ell) {
+      return log_normal_precision(point.data(), m, Pchol, log_det_P) + ell;
+    };
+    auto derivatives = [&](Vec const &point, double e0, Vec &grad, Vec &hess) {
+      grad.assign(d, 0.0);
+      hess.assign(d * d, 0.0);
+      Vec y(point), plus(d), minus(d);
+      for (std::size_t i = 0; i < d; ++i) {
+        y[i] = point[i] + h[i];
+        plus[i] = ell_at(y);
+        y[i] = point[i] - h[i];
+        minus[i] = ell_at(y);
+        y[i] = point[i];
+        if (!std::isfinite(plus[i]) || !std::isfinite(minus[i])) return false;
+        grad[i] = (plus[i] - minus[i]) / (2.0 * h[i]);
+        hess[i * d + i] = (plus[i] - 2.0 * e0 + minus[i]) / (h[i] * h[i]);
+      }
+      if (d <= 4) {
+        for (std::size_t i = 0; i < d; ++i) {
+          for (std::size_t k = i + 1; k < d; ++k) {
+            double corners[4];
+            const double si[4] = {1, 1, -1, -1}, sk[4] = {1, -1, 1, -1};
+            for (int c = 0; c < 4; ++c) {
+              y[i] = point[i] + si[c] * h[i];
+              y[k] = point[k] + sk[c] * h[k];
+              corners[c] = ell_at(y);
+              if (!std::isfinite(corners[c])) return false;
+            }
+            y[i] = point[i];
+            y[k] = point[k];
+            const double mixed = (corners[0] - corners[1] - corners[2] + corners[3]) / (4.0 * h[i] * h[k]);
+            hess[i * d + k] = mixed;
+            hess[k * d + i] = mixed;
+          }
+        }
+      }
+      return true;
+    };
+    double e = ell_at(x);
+    if (!std::isfinite(e)) return fit;
+    for (int iteration = 0; iteration < 2; ++iteration) {
+      Vec grad, hess, Pt;
+      if (!derivatives(x, e, grad, hess) || !floor_precision(P, Pchol, hess, d, Pt)) return fit;
+      Vec step(d);
+      for (std::size_t i = 0; i < d; ++i) {
+        long double g = grad[i];
+        for (std::size_t k = 0; k < d; ++k) g -= static_cast<long double>(P[i * d + k]) * (x[k] - m[k]);
+        step[i] = static_cast<double>(g);
+      }
+      Vec chol(Pt);
+      if (!cholesky(chol, d)) return fit;
+      solve_lower(chol, d, step.data());
+      solve_lower_transpose(chol, d, step.data());
+      const double f0 = f_at(x, e);
+      bool moved = false;
+      double scale = 1.0;
+      for (int halving = 0; halving <= 5 && !moved; ++halving, scale *= 0.5) {
+        Vec next(x);
+        for (std::size_t i = 0; i < d; ++i) next[i] += scale * step[i];
+        const double en = ell_at(next);
+        if (std::isfinite(en) && f_at(next, en) >= f0) {
+          x = next;
+          e = en;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    Vec grad, hess;
+    if (!derivatives(x, e, grad, hess) || !floor_precision(P, Pchol, hess, d, fit.Pt)) return fit;
+    fit.Ptchol = fit.Pt;
+    if (!cholesky(fit.Ptchol, d)) return fit;
+    fit.log_det_Pt = log_det_cholesky(fit.Ptchol, d);
+    fit.xhat = x;
+    fit.ell_hat = e;
+    fit.ok = std::isfinite(fit.log_det_Pt) && all_finite(x.data(), d);
+    return fit;
+  }
+
+  // The log of the tilt factor of a Laplace evidence along a subline:
+  // log int N(x; m, P^-1) exp(ell(x) - ell(zero)) dx by the fit.
+  double laplace_tilt(Fit const &fit, Vec const &m, Vec const &Pchol, double log_det_P, double ell_zero) const
+  {
+    const double d = static_cast<double>(m.size());
+    return log_normal_precision(fit.xhat.data(), m, Pchol, log_det_P) + fit.ell_hat - ell_zero +
+      0.5 * d * log_two_pi - 0.5 * fit.log_det_Pt;
+  }
+
+  // The row-marginal parameters of row i of a selection child: marginal SD,
+  // selection SE, observed bin (0: exempt), sign, power, weights and bounds.
+  struct RowModel {
+    double sd, se, power;
+    int bin, sign, bins;
+    double const *omega;
+    Vec lower, upper;
+  };
+
+  bool row_model(ChildSpec const &c, unsigned i, RowModel &out)
+  {
+    auto const &par = c.node->parents();
+    auto bounds = [&](unsigned lo, unsigned hi, unsigned om) {
+      const unsigned long nb = c.lengths[lo];
+      const SelNormJagsBounds lower(par[lo]->value(_chain), static_cast<unsigned>(nb));
+      const SelNormJagsBounds upper(par[hi]->value(_chain), static_cast<unsigned>(nb));
+      out.lower.assign(lower.data(), lower.data() + nb);
+      out.upper.assign(upper.data(), upper.data() + nb);
+      out.omega = par[om]->value(_chain);
+      out.bins = static_cast<int>(nb);
+    };
+    switch (c.type) {
+    case ChildType::normal:
+      return false;
+    case ChildType::step_switch:
+      out.sd = par[1]->value(_chain)[0];
+      out.se = par[2]->value(_chain)[0];
+      out.power = par[3]->value(_chain)[0];
+      out.bin = static_cast<int>(par[7]->value(_chain)[0]);
+      out.sign = static_cast<int>(par[8]->value(_chain)[0]);
+      bounds(5, 6, 4);
+      return true;
+    case ChildType::cluster:
+    case ChildType::factor: {
+      const double rsd = par[1]->value(_chain)[i];
+      double const *loading = par[2]->value(_chain);
+      const unsigned r = c.type == ChildType::cluster ? 1 : static_cast<unsigned>(c.lengths[2] / c.n);
+      long double variance = static_cast<long double>(rsd) * rsd;
+      for (unsigned k = 0; k < r; ++k) variance += static_cast<long double>(loading[i + c.n * k]) * loading[i + c.n * k];
+      out.sd = std::sqrt(static_cast<double>(variance));
+      out.se = par[3]->value(_chain)[i];
+      out.power = 1.0;
+      out.bin = static_cast<int>(par[7]->value(_chain)[i]);
+      out.sign = static_cast<int>(par[8]->value(_chain)[0]);
+      bounds(5, 6, 4);
+      return true;
+    }
+    case ChildType::mv: {
+      double const *packed = par[1]->value(_chain);
+      std::size_t position = 0;
+      for (unsigned col = 0; col < i; ++col) position += c.n - col;
+      out.sd = std::sqrt(packed[position]);
+      out.se = par[2]->value(_chain)[i];
+      out.power = 1.0;
+      out.bin = static_cast<int>(par[6]->value(_chain)[i]);
+      out.sign = static_cast<int>(par[7]->value(_chain)[0]);
+      bounds(4, 5, 3);
+      return true;
+    }
+    }
+    return false;
+  }
+
+  // Unit shifts of each moving coordinate of a line (with the shear), prepared.
+  void line_basis(Line const &L, std::vector<Shift> &basis)
+  {
+    const std::size_t nm = L.moving.size();
+    basis.assign(nm, Shift());
+    for (std::size_t m = 0; m < nm; ++m) {
+      Vec unit(nm, 0.0);
+      unit[m] = 1.0;
+      line_shift(L, unit.data(), basis[m]);
+      prepare_shift(basis[m], {});
+    }
+  }
+
+  // ell0 of the row-marginal model, -sum_rows power log A_row, at a change db
+  // of the line's moving coordinates, with its gradient and Hessian in the
+  // free coordinates [first, first + d): closed form, no surrogate evaluation.
+  bool row_marginal(std::vector<Shift> const &basis, Vec const &db, std::size_t first, std::size_t d,
+                    double *value, Vec &grad, Vec &hess)
+  {
+    Shared const &S = s();
+    const std::size_t nm = basis.size();
+    std::map<unsigned, Vec> deltas;  // child -> rows x moving coordinates
+    for (std::size_t m = 0; m < nm; ++m) {
+      Shift const &b = basis[m];
+      for (std::size_t q = 0; q < b.children.size(); ++q) {
+        const unsigned c = b.children[q];
+        if (gaussian_child(c)) continue;
+        Vec &rows = deltas[c];
+        if (rows.empty()) rows.assign(S.children[c].n * nm, 0.0);
+        for (unsigned i = 0; i < S.children[c].n; ++i) rows[i * nm + m] = b.delta[b.offset[q] + i];
+      }
+    }
+    long double total = 0;
+    grad.assign(d, 0.0);
+    hess.assign(d * d, 0.0);
+    RowModel row;
+    for (auto const &entry : deltas) {
+      ChildSpec const &c = S.children[entry.first];
+      Vec const &rows = entry.second;
+      for (unsigned i = 0; i < c.n; ++i) {
+        if (!row_model(c, i, row) || row.bin == 0) continue;
+        long double mu = _mean[c.row0 + i];
+        for (std::size_t m = 0; m < nm; ++m) mu += static_cast<long double>(db[m]) * rows[i * nm + m];
+        double log_a, d1, d2;
+        if (!row_log_normalizer(static_cast<double>(mu), row.sd, row.se, row.sign, row.omega,
+                                row.lower.data(), row.upper.data(), row.bins, &log_a, &d1, &d2)) return false;
+        total -= static_cast<long double>(row.power) * log_a;
+        for (std::size_t k = 0; k < d; ++k) {
+          const double ak = rows[i * nm + first + k];
+          grad[k] -= row.power * d1 * ak;
+          for (std::size_t l = 0; l < d; ++l) hess[k * d + l] -= row.power * d2 * ak * rows[i * nm + first + l];
+        }
+      }
+    }
+    *value = static_cast<double>(total);
+    return std::isfinite(*value);
+  }
+
+  // The screen's tilt factor along a subline: the Laplace integral of
+  // N(x; m, P^-1) exp(ell0(x) - ell0(zero)) with ell0 expanded to second
+  // order at m (closed form).
+  double screen_tilt(std::vector<Shift> const &basis, Line const &L, std::size_t first, Vec const &target,
+                     Vec const &zero_target, Vec const &m, Vec const &P, Vec const &Pchol, double log_det_P)
+  {
+    const std::size_t d = m.size();
+    Vec db, grad, hess, g0, h0;
+    double at_m, at_zero;
+    subline_db(L, first, m, target, db);
+    if (!row_marginal(basis, db, first, d, &at_m, grad, hess)) return 0.0;
+    Vec zero(d, 0.0);
+    subline_db(L, first, zero, zero_target, db);
+    if (!row_marginal(basis, db, first, d, &at_zero, g0, h0)) return 0.0;
+    Vec Pf;
+    if (!floor_precision(P, Pchol, hess, d, Pf)) return 0.0;
+    Vec chol(Pf);
+    if (!cholesky(chol, d)) return 0.0;
+    Vec solved(grad);
+    solve_lower(chol, d, solved.data());
+    long double quadratic = 0;
+    for (double v : solved) quadratic += static_cast<long double>(v) * v;
+    const double out = at_m - at_zero + 0.5 * log_det_P - 0.5 * log_det_cholesky(chol, d) +
+      0.5 * static_cast<double>(quadratic);
+    return std::isfinite(out) ? out : 0.0;
+  }
+
+  static double clamp_screen(double log_odds)
+  {
+    const double limit = std::log(20.0);
+    return std::max(-limit, std::min(limit, log_odds));
+  }
+
+  // The line, Gaussian odds, Laplace fit and screen of one group, shared by
+  // F_j and R_j within one sweep (they are adjacent in either order and move
+  // along the same line).
+  struct GroupLine {
+    unsigned group = 0;
+    bool valid = false;
+    Line L;
+    double log_odds_gauss = 0;   // collapsed Gaussian log odds (prior odds included)
+    bool screened = false;
+    double log_screen = 0;       // clamped log C0
+    bool fitted = false;
+    Fit fit;
+    double log_odds = 0;         // Laplace log odds (prior odds included)
+  };
+  GroupLine _line;
+
+  bool group_line(unsigned j)
+  {
+    if (_line.valid && _line.group == j) return true;
+    _line = GroupLine();
+    _line.group = j;
+    if (!build_line({j}, _line.L)) return false;
+    GroupSpec const &g = s().groups[j];
+    Vec zero(g.d, 0.0);
+    _line.log_odds_gauss = (g.log_on - g.log_off) + log_slab(g, zero.data()) -
+      log_normal_precision(zero.data(), _line.L.m, _line.L.Pchol, _line.L.log_det_P);
+    _line.valid = true;
+    return true;
+  }
+
+  void group_screen()
+  {
+    if (_line.screened) return;
+    std::vector<Shift> basis;
+    line_basis(_line.L, basis);
+    Vec target(_line.L.m), zero(_line.L.m.size(), 0.0);
+    _line.log_screen = clamp_screen(_line.log_odds_gauss + screen_tilt(
+      basis, _line.L, 0, target, zero, _line.L.m, _line.L.P, _line.L.Pchol, _line.L.log_det_P));
+    _line.screened = true;
+  }
+
+  void group_fit()
+  {
+    if (_line.fitted) return;
+    Line const &L = _line.L;
+    Vec target(L.m);
+    _line.fit = newton(L, 0, target, L.m, L.P, L.Pchol, L.log_det_P);
+    // ell at the physical zero of the group (the off state)
+    Vec zero(L.m.size(), 0.0), db;
+    Shift sh;
+    subline_db(L, 0, zero, zero, db);
+    const double ell_zero = line_ell(L, db.data(), sh);
+    if (!_line.fit.ok || !std::isfinite(ell_zero)) {
+      // a deterministic fallback of the line: the Gaussian law, its ell at m
+      Fit fallback;
+      fallback.xhat = L.m;
+      fallback.Pt = L.P;
+      fallback.Ptchol = L.Pchol;
+      fallback.log_det_Pt = L.log_det_P;
+      subline_db(L, 0, L.m, L.m, db);
+      fallback.ell_hat = line_ell(L, db.data(), sh);
+      fallback.ok = std::isfinite(fallback.ell_hat) && std::isfinite(ell_zero);
+      _line.fit = fallback;
+    }
+    _line.log_odds = _line.fit.ok ?
+      _line.log_odds_gauss + laplace_tilt(_line.fit, L.m, L.Pchol, L.log_det_P, ell_zero) : negative_infinity;
+    _line.fitted = true;
+  }
+
+  // F_j in a selection label (stage 2): the tilted flip with the free screen
+  // (stage 0), the Laplace odds (stage 1) and the full ratio (stage 2).
+  void tilted_flip(unsigned j, RNG *rng)
+  {
+    Shared const &S = s();
+    GroupSpec const &g = S.groups[j];
+    if (!group_line(j)) return;
+    const bool on = active(j);
+    const Component type = on ? flip_off : flip_on;
+    count(counters().proposed[type]);
+    group_screen();
+    const double stage0 = on ? -_line.log_screen : _line.log_screen;
+    if (!metropolis(rng, stage0)) return;
+    count(counters().stage0[type]);
+    group_fit();
+    if (!_line.fit.ok) return;
+    const double log_odds = _line.log_odds;
+    const double stage1 = on ? -(log_odds - _line.log_screen) : (log_odds - _line.log_screen);
+    if (!metropolis(rng, stage1)) return;
+    count(counters().stage1[type]);
+    Fit const &fit = _line.fit;
+    Vec proposal(g.d), db(g.d);
+    double const *old_beta = &_beta[g.coord0];
+    long double proposal_terms;
+    if (on) {
+      draw_prior(g, rng, proposal.data());
+      for (unsigned i = 0; i < g.d; ++i) db[i] = -old_beta[i];
+      proposal_terms = log_normal_precision(old_beta, fit.xhat, fit.Ptchol, fit.log_det_Pt) -
+        log_slab(g, proposal.data());
+    } else {
+      draw_precision(fit.xhat, fit.Ptchol, rng, proposal.data());
+      for (unsigned i = 0; i < g.d; ++i) db[i] = proposal[i];
+      proposal_terms = (S.mutant == 2 ? 0.0 : log_slab(g, old_beta)) -
+        log_normal_precision(proposal.data(), fit.xhat, fit.Ptchol, fit.log_det_Pt);
+    }
+    if (!all_finite(proposal.data(), g.d)) return;
+    Shift sh;
+    line_shift(_line.L, db.data(), sh, (S.mutant == 1 && on) ? 1.5 : 1.0);
+    prepare_shift(sh, _line.L.partners);
+    const long double target = children_delta(sh, 1.0) + prior_delta(sh, 1.0) +
+      (on ? g.log_off - g.log_on : g.log_on - g.log_off) +
+      log_slab(g, proposal.data()) - log_slab(g, old_beta);
+    const double full = static_cast<double>(target + proposal_terms);
+    const double stage2 = full - (on ? -log_odds : log_odds);
+    if (!std::isfinite(full) || !metropolis(rng, stage2)) return;
+    count(counters().accepted[type]);
+    apply_shift(sh, 1.0);
+    _g[j] = on ? 0 : 1;
+    std::copy(proposal.begin(), proposal.end(), _beta.begin() + g.coord0);
+    for (unsigned i = 0; i < g.d; ++i) _b[g.coord0 + i] = on ? 0.0 : proposal[i];
+    _repr_delta += target;
+  }
+
+  // R_j of an active group in a selection label (stage 2): an independence
+  // proposal from the tilted law along the line.
+  void tilted_refresh(unsigned j, RNG *rng)
+  {
+    GroupSpec const &g = s().groups[j];
+    if (!group_line(j)) return;
+    count(counters().proposed[refresh]);
+    group_fit();
+    if (!_line.fit.ok) return;
+    Fit const &fit = _line.fit;
+    Vec proposal(g.d), db(g.d);
+    draw_precision(fit.xhat, fit.Ptchol, rng, proposal.data());
+    if (!all_finite(proposal.data(), g.d)) return;
+    double const *old_beta = &_beta[g.coord0];
+    for (unsigned i = 0; i < g.d; ++i) db[i] = proposal[i] - old_beta[i];
+    Shift sh;
+    line_shift(_line.L, db.data(), sh);
+    std::vector<unsigned> prior_coords(_line.L.partners);
+    prior_coords.push_back(g.coord0);
+    prepare_shift(sh, prior_coords);
+    const long double target = children_delta(sh, 1.0) + prior_delta(sh, 1.0);
+    const double full = static_cast<double>(target +
+      log_normal_precision(old_beta, fit.xhat, fit.Ptchol, fit.log_det_Pt) -
+      log_normal_precision(proposal.data(), fit.xhat, fit.Ptchol, fit.log_det_Pt));
+    const bool accepted = std::isfinite(full) && metropolis(rng, full);
+    if (_adapting) {
+      ++_refresh_proposed[j];
+      if (accepted) ++_refresh_accepted[j];
+    }
+    if (!accepted) return;
+    count(counters().accepted[refresh]);
+    apply_shift(sh, 1.0);
+    _repr_delta += target;
+  }
+
+  // S_jk in a selection label (stage 2): the swap with the group switched on
+  // drawn from its tilted law along the pair line with the other off; the
+  // pattern evidences by their own Laplace fits, screened like a flip.
+  void tilted_swap(unsigned first, unsigned second, RNG *rng)
+  {
+    Shared const &S = s();
+    if (active(first) == active(second)) return;
+    const unsigned j = active(first) ? first : second;   // on -> off
+    const unsigned k = active(first) ? second : first;   // off -> on
+    GroupSpec const &gj = S.groups[j];
+    GroupSpec const &gk = S.groups[k];
+    Line L;
+    if (!build_line({j, k}, L)) return;
+    count(counters().proposed[swap]);
+    const std::size_t dj = gj.d, dk = gk.d, nm = dj + dk;
+    // the conditional Gaussian laws of each group with the other at zero, and
+    // the Gaussian log ratio of the pattern evidences
+    Vec cj, Cj, ck, Ck, mj, Pj, mk, Pk;
+    double lcj, lck, lj, lk;
+    if (!swap_laws(L, dj, dk, mj, Pj, lj, mk, Pk, lk, cj, Cj, lcj, ck, Ck, lck)) return;
+    Vec zero_j(dj, 0.0), zero_k(dk, 0.0);
+    const double prior_odds = gj.log_off + gk.log_on - gj.log_on - gk.log_off;
+    const double gauss = prior_odds + log_slab(gk, zero_k.data()) + log_normal_precision(zero_j.data(), mj, Pj, lj) -
+      log_slab(gj, zero_j.data()) - log_normal_precision(zero_k.data(), mk, Pk, lk);
+    // targets on the pair line: A = (j free, k at zero), B = (j at zero, k free)
+    Vec target_a(nm, 0.0), target_b(nm, 0.0), zeros(nm, 0.0);
+    for (std::size_t i = 0; i < dj; ++i) target_a[i] = cj[i];
+    for (std::size_t i = 0; i < dk; ++i) target_b[dj + i] = ck[i];
+    Vec Cjp = precision_from_cholesky(Cj, dj), Ckp = precision_from_cholesky(Ck, dk);
+    std::vector<Shift> basis;
+    line_basis(L, basis);
+    const double screen = clamp_screen(gauss +
+      screen_tilt(basis, L, dj, target_b, zeros, ck, Ckp, Ck, lck) -
+      screen_tilt(basis, L, 0, target_a, zeros, cj, Cjp, Cj, lcj));
+    if (!metropolis(rng, screen)) return;
+    count(counters().stage0[swap]);
+    const Fit fa = newton(L, 0, target_a, cj, Cjp, Cj, lcj);
+    const Fit fb = newton(L, dj, target_b, ck, Ckp, Ck, lck);
+    Vec db;
+    Shift sh;
+    subline_db(L, 0, zero_j, zeros, db);
+    const double ell_zero = line_ell(L, db.data(), sh);
+    if (!fa.ok || !fb.ok || !std::isfinite(ell_zero)) return;
+    const double log_odds = gauss + laplace_tilt(fb, ck, Ck, lck, ell_zero) - laplace_tilt(fa, cj, Cj, lcj, ell_zero);
+    if (!metropolis(rng, log_odds - screen)) return;
+    count(counters().stage1[swap]);
+    Vec beta_k(dk), dormant_j(dj);
+    draw_precision(fb.xhat, fb.Ptchol, rng, beta_k.data());
+    draw_prior(gj, rng, dormant_j.data());
+    if (!all_finite(beta_k.data(), dk) || !all_finite(dormant_j.data(), dj)) return;
+    double const *old_j = &_beta[gj.coord0];
+    double const *old_k = &_beta[gk.coord0];
+    Vec change(nm);
+    for (std::size_t i = 0; i < dj; ++i) change[i] = -old_j[i];
+    for (std::size_t i = 0; i < dk; ++i) change[dj + i] = beta_k[i];
+    Shift move;
+    line_shift(L, change.data(), move);
+    prepare_shift(move, L.partners);
+    const long double target = children_delta(move, 1.0) + prior_delta(move, 1.0) + prior_odds +
+      log_slab(gj, dormant_j.data()) - log_slab(gj, old_j) + log_slab(gk, beta_k.data()) - log_slab(gk, old_k);
+    const long double proposals = log_normal_precision(old_j, fa.xhat, fa.Ptchol, fa.log_det_Pt) +
+      log_slab(gk, old_k) - log_normal_precision(beta_k.data(), fb.xhat, fb.Ptchol, fb.log_det_Pt) -
+      log_slab(gj, dormant_j.data());
+    const double full = static_cast<double>(target + proposals);
+    if (!std::isfinite(full) || !metropolis(rng, full - log_odds)) return;
+    count(counters().accepted[swap]);
+    apply_shift(move, 1.0);
+    _g[j] = 0;
+    _g[k] = 1;
+    std::copy(dormant_j.begin(), dormant_j.end(), _beta.begin() + gj.coord0);
+    std::copy(beta_k.begin(), beta_k.end(), _beta.begin() + gk.coord0);
+    for (std::size_t i = 0; i < dj; ++i) _b[gj.coord0 + i] = 0.0;
+    for (std::size_t i = 0; i < dk; ++i) _b[gk.coord0 + i] = beta_k[i];
+    _repr_delta += target;
+  }
+
+  // The precision matrix from its lower Cholesky factor.
+  static Vec precision_from_cholesky(Vec const &chol, std::size_t n)
+  {
+    Vec out(n * n, 0.0);
+    for (std::size_t i = 0; i < n; ++i) {
+      for (std::size_t j = 0; j < n; ++j) {
+        long double v = 0;
+        for (std::size_t k = 0; k <= std::min(i, j); ++k) v += static_cast<long double>(chol[i * n + k]) * chol[j * n + k];
+        out[i * n + j] = static_cast<double>(v);
+      }
+    }
+    return out;
+  }
+
+  // The marginal and the conditional (other group at zero) Gaussian laws of
+  // the two groups of a pair line, as means and precision Cholesky factors.
+  bool swap_laws(Line const &L, std::size_t dj, std::size_t dk, Vec &mj, Vec &Pj, double &lj, Vec &mk, Vec &Pk,
+                 double &lk, Vec &cj, Vec &Cj, double &lcj, Vec &ck, Vec &Ck, double &lck)
+  {
+    const std::size_t nm = dj + dk;
+    auto block = [&](std::size_t r0, std::size_t n0, std::size_t c0, std::size_t n1) {
+      Vec out(n0 * n1);
+      for (std::size_t i = 0; i < n0; ++i) for (std::size_t l = 0; l < n1; ++l) out[i * n1 + l] = L.Sigma[(r0 + i) * nm + c0 + l];
+      return out;
+    };
+    auto marginal = [&](std::size_t r0, std::size_t n0, Vec &m, Vec &Pchol, double &log_det) {
+      Vec Sg = block(r0, n0, r0, n0);
+      m.assign(L.m.begin() + r0, L.m.begin() + r0 + n0);
+      if (!cholesky(Sg, n0)) return false;
+      Pchol = inverse_from_cholesky(Sg, n0);
+      if (!cholesky(Pchol, n0)) return false;
+      log_det = log_det_cholesky(Pchol, n0);
+      return true;
+    };
+    auto conditional = [&](std::size_t r0, std::size_t n0, std::size_t c0, std::size_t n1,
+                           Vec &m, Vec &Pchol, double &log_det) {
+      Vec Soo = block(c0, n1, c0, n1);
+      if (!cholesky(Soo, n1)) return false;
+      const Vec Sinv = inverse_from_cholesky(Soo, n1);
+      const Vec Sro = block(r0, n0, c0, n1);
+      Vec Srr = block(r0, n0, r0, n0);
+      m.assign(n0, 0.0);
+      for (std::size_t i = 0; i < n0; ++i) {
+        long double mi = L.m[r0 + i];
+        for (std::size_t a = 0; a < n1; ++a) {
+          long double coef = 0;
+          for (std::size_t b = 0; b < n1; ++b) coef += static_cast<long double>(Sro[i * n1 + b]) * Sinv[b * n1 + a];
+          mi -= coef * L.m[c0 + a];
+          for (std::size_t l = 0; l < n0; ++l) Srr[i * n0 + l] -= static_cast<double>(coef * Sro[l * n1 + a]);
+        }
+        m[i] = static_cast<double>(mi);
+      }
+      if (!cholesky(Srr, n0)) return false;
+      Pchol = inverse_from_cholesky(Srr, n0);
+      if (!cholesky(Pchol, n0)) return false;
+      log_det = log_det_cholesky(Pchol, n0);
+      return true;
+    };
+    return marginal(0, dj, mj, Pj, lj) && marginal(dj, dk, mk, Pk, lk) &&
+      conditional(0, dj, dj, dk, cj, Cj, lcj) && conditional(dj, dk, 0, dj, ck, Ck, lck);
   }
 
   // Z_s in a Gaussian label: an exact draw from its conditional.
@@ -1679,27 +2394,32 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       if (S.groups[j].gate != nullptr) steps.push_back({kind_flip, j, 0});
       steps.push_back({kind_refresh, j, 0});
     }
-    if (!_selection) {
-      for (auto const &pair : swap_pairs()) steps.push_back({kind_swap, pair.first, pair.second});
-      if (!S.groups.empty()) steps.push_back({kind_joint, 0, 0});
-    }
+    for (auto const &pair : swap_pairs()) steps.push_back({kind_swap, pair.first, pair.second});
+    // the joint refresh is Gaussian only: the untilted joint law is rejected
+    // under selection
+    if (!_selection && !S.groups.empty()) steps.push_back({kind_joint, 0, 0});
     for (unsigned lat = 0; lat < S.latents.size(); ++lat) steps.push_back({kind_latent, lat, 0});
     // one coin per update: the whole list forward or reversed
     const bool backward = rng->uniform() < 0.5;
     for (std::size_t i = 0; i < steps.size(); ++i) {
       Step const &step = steps[backward ? steps.size() - 1 - i : i];
+      // The line of a group serves its F_j and R_j, adjacent in either order;
+      // any other component changes it.
+      if ((step.kind != kind_flip && step.kind != kind_refresh) || _line.group != step.a) _line.valid = false;
       switch (step.kind) {
       case kind_flip:
-        if (_selection) conditional_flip(step.a, rng);
+        if (_selection) tilted_flip(step.a, rng);
         else gaussian_flip(step.a, rng);
         break;
       case kind_refresh:
         if (!active(step.a)) dormant_refresh(step.a, rng);
-        else if (_selection) slice_refresh(step.a, rng);
-        else gaussian_refresh(step.a, rng);
+        else if (!_selection) gaussian_refresh(step.a, rng);
+        else if (_slice_refresh[step.a]) slice_refresh(step.a, rng);
+        else tilted_refresh(step.a, rng);
         break;
       case kind_swap:
-        gaussian_swap(step.a, step.b, rng);
+        if (_selection) tilted_swap(step.a, step.b, rng);
+        else gaussian_swap(step.a, step.b, rng);
         break;
       case kind_joint:
         gaussian_joint(rng);
@@ -1851,6 +2571,9 @@ public:
     _u.assign(S.latents.size() * S.p, 0.0);
     _P.assign(S.p * S.p, 0.0);
     _h.assign(S.p, 0.0);
+    _refresh_proposed.assign(G, 0);
+    _refresh_accepted.assign(G, 0);
+    _slice_refresh.assign(G, 0);
     for (ChildSpec const &child : S.children) {
       if (child.kind == ChildKind::other) _surrogates.emplace_back();
       else _surrogates.emplace_back(new SelectedChild(child.node, child.kind));
@@ -1900,6 +2623,11 @@ public:
   {
     if (!_adapting) return;
     _adapting = false;
+    // the refresh kernel of each group, from its adaptive independence proposals
+    for (std::size_t j = 0; j < _slice_refresh.size(); ++j) {
+      _slice_refresh[j] = _refresh_proposed[j] > 0 &&
+        static_cast<double>(_refresh_accepted[j]) < 0.4 * static_cast<double>(_refresh_proposed[j]);
+    }
     if (!_registered || !(s().min_acceptance > 0.0)) return;
     if (_adaptive_evidence >= corrected_min_adaptive_proposals &&
         static_cast<double>(_adaptive_accepted) / static_cast<double>(_adaptive_evidence) < s().min_acceptance) {
