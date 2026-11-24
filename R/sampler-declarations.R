@@ -51,7 +51,7 @@
   disabled_reason <- "The 'jags.default' sampler policy disables specialized samplers."
   policy       <- requested[["joint"]]
   expected     <- switch(policy, auto = requested[["joint_sampler"]], bias = "RoBMA::IndependentBiasJoint",
-                         gaussian = "RoBMA::GaussianJoint",
+                         gaussian = "RoBMA::GaussianJoint", location = "RoBMA::LocationBlock",
                          clustered = "RoBMA::JointCluster", clustered.scale = "RoBMA::JointCluster")
   if (!is.null(expected)) {
     claimed <- lapply(assignments, function(table) table[["Node"]][table[["Sampler"]] == expected])
@@ -74,12 +74,18 @@
         "RoBMA::GaussianJoint" = if (policy == "auto")
           "This update requires an unweighted independent Gaussian fit, one standardized numeric moderator and eligible normal mixtures." else
           "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
+        "RoBMA::LocationBlock" = paste(
+          "This update requires a multilevel or random-effect fit of a Gaussian outcome with a location term",
+          "whose prior mixes an exact zero with a normal slab, and no exact probability readout of its indicator."),
         "This update requires an eligible clustered fit with one factor moderator and supported prior laws."),
       native_declined = if (expected == "RoBMA::GaussianJoint")
         "The compiled graph or Gaussian proposal coverage did not qualify. See the fit's sampler assignments." else
         "The native sampler did not claim the declared nodes. See the fit's sampler assignments."
     )
     record[["joint"]] <- list(policy = policy, status = status, reason = reason, sampler = expected, nodes = owned)
+    if (expected == "RoBMA::LocationBlock") {
+      record[["joint"]][["counters"]] <- .location_block_record(attr(fit, "runtime_report_values", exact = TRUE))
+    }
   }
 
   if (requested[["nested_weights"]]) {

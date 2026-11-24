@@ -760,11 +760,11 @@
   fit_priors <- .create_fit_priors(data = data, priors = priors)
 
   # Selection fits count the corrected sampler's work per fit, in every process
-  # that runs chains; an extension passes the report explicitly, since fits
-  # saved before the record existed store no report callback.
+  # that runs chains, and so do fits that declare the location block sampler;
+  # an extension passes the report explicitly, since fits saved before the
+  # record existed store no report callback.
   selection_fit  <- .is_priors_weightfunction(priors)
   extension      <- extend && length(object[["fit"]]) > 0L
-  sampler_report <- if (selection_fit) .selection_sampler_report_callback() else NULL
 
   ### fit the model
   if (!extension) {
@@ -773,6 +773,9 @@
     fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
     model_syntax     <- .create_model_syntax(data = data, priors = priors)
     declarations     <- .fit_sampler_declarations(data = data, priors = priors, fit_priors = fit_priors)
+    sampler_report   <- .sampler_report_callback(
+      selection = selection_fit,
+      location  = identical(attr(declarations[["sampler_joint"]], "sampler", exact = TRUE), "RoBMA::LocationBlock"))
 
     fit <- BayesTools::JAGS_fit(
       model_syntax          = model_syntax,
@@ -812,6 +815,10 @@
 
   } else {
 
+    declared       <- attr(object[["fit"]], "sampler_declarations", exact = TRUE)
+    sampler_report <- .sampler_report_callback(
+      selection = selection_fit,
+      location  = identical(declared[["robma"]][["joint"]][["sampler"]], "RoBMA::LocationBlock"))
     fit <- BayesTools::JAGS_extend(
       fit                = object[["fit"]],
       autofit_control    = autofit_control,
