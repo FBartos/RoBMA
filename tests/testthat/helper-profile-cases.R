@@ -160,6 +160,10 @@ standard_required_tests <- function() {
 
   rbind(
     .hypothesis_plan_required_tests(),
+    .required_tests("test-00-location-block-native.R", c(
+      "Gaussian children: closed-form gate probabilities, exact stages, no selection evaluation",
+      "frozen-state identities of the line moves hold in selection and Gaussian labels"
+    )),
     .required_tests("test-00-carrier-integration.R", c(
       "public no-intercept moderator means use the fitted contrast basis",
       "whole marginal-means regions retain structural fixed-cell refusal",
@@ -404,7 +408,7 @@ certification_cases <- function() {
         "selection-kernel.*|selection-probability-numerics|",
         "selection-factor-routing|selection-estimate-cells|",
         "selection-coarse-blocks|selection-coarse-exactness|selection-coarse-fallback|",
-        "selection-corrected-block|selection-corrected-block-exactness|",
+        "selection-corrected-block|selection-corrected-block-exactness|location-block-exactness|",
         "jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
         "selection-node-memo|sampler-declarations-fits)|",
@@ -427,6 +431,8 @@ certification_cases <- function() {
           "cluster and factor blocks give their nodes the corrected sampler",
           "a corrected chain draws identically with the node memo on and off"
         )),
+        .required_tests("test-00-location-block-exactness.R",
+          "the location block chain targets the exact posterior and broken kernels do not"),
         .required_tests("test-00-sampler-declarations-fits.R", c(
           "declared nodes get the BayesTools samplers and the others keep theirs",
           "guarded priors keep the stock samplers",
