@@ -369,7 +369,7 @@
 .with_corrected_flags <- function(flags, code) {
 
   .corrected_test_hook(flags)
-  on.exit(.corrected_test_hook(list(disable_new = FALSE, drop_sum_jacobian = FALSE, finite_proposal = 0,
+  on.exit(.corrected_test_hook(list(disable_new = FALSE, drop_sum_jacobian = FALSE, finite_proposal = 2,
                                     force_fallback = FALSE, freeze_finite = FALSE, disable_gated = FALSE,
                                     disable_finite = FALSE, disable_sum = FALSE,
                                     memo_slots = 2)), add = TRUE)

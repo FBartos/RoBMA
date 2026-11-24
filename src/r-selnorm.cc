@@ -890,8 +890,9 @@ extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
 // (keep) or a list with any of disable_new (no gated weight blocks, screened
 // indicators or gamma groups in models built from now on; disable_gated,
 // disable_finite and disable_sum leave out one of them), drop_sum_jacobian
-// (the gamma groups' mutant without sum log p), finite_proposal (0 corrected,
-// 1 uncorrected mutant, 2 Liu's Metropolized Gibbs), force_fallback (every sampler
+// (the gamma groups' mutant without sum log p), finite_proposal (2 Liu's
+// Metropolized Gibbs, the default; 0 the plain surrogate draw; 1 uncorrected
+// mutant), force_fallback (every sampler
 // switches to its exact kernel at the end of adaptation), freeze_finite (the
 // screened indicators keep their values) and memo_slots (0, 1 or 2
 // entries per selection node from now on). Returns the flags, the counters per

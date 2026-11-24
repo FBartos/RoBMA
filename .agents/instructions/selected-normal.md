@@ -641,12 +641,17 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   first). One update scores every level of nonzero prior mass with
   `s_l = log prior(l) + sum` of each stochastic child's surrogate (the exact
   density of children without one, the label-dependent prior of shared nested
-  weights included), draws `k'` from `exp(s)` (the current level included), and
-  for `k' != k` evaluates the exact scores of `k` and then `k'` (so the last
-  exact evaluation is the proposed state) and accepts with
+  weights included), proposes by Liu's Metropolized Gibbs sampler on `exp(s)`
+  (a level other than `k` with probability `p_k' / (1 - p_k)`, accepted on the
+  surrogate with `min(1, (1 - p_k) / (1 - p_k'))`; the identity when no other
+  level has mass), a move reversible for the surrogate law, and for `k' != k`
+  evaluates the exact scores of `k` and then `k'` (so the last exact
+  evaluation is the proposed state) and accepts with
   `min(1, exp((e_k' - s_k') - (e_k - s_k)))`; a self-proposal costs no exact
-  evaluation. The optional Liu proposal (test hook `finite_proposal = 2`) is
-  reversible for the surrogate law and keeps the same correction. The exact
+  evaluation. The plain surrogate draw from `exp(s)` (current level included)
+  with the same correction stays behind the test hook (`finite_proposal = 0`).
+  Liu's proposal is the default: on the tutorial and Assink fits it raised the
+  bias label's switches by 37% to 2x for 2-10% more time. The exact
   kernel is base::Finite's enumeration, arithmetic and single uniform. The
   `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
   Batch scoring of the six selection labels was not built.

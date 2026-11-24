@@ -57,8 +57,9 @@ test_that("the three-branch ensemble is exact and its mutants are not", {
   expect_true(all(reference$estimate[c("I1", "I2", "I3")] > .02))
 
   draws <- 40000L
-  .weights_expect_exact(.weights_z(setup, reference, draws), "corrected")
-  .weights_expect_exact(.weights_z(setup, reference, draws, list(finite_proposal = 2)), "Liu proposal")
+  # the default screened proposal is Liu's; the plain surrogate draw stays exact
+  .weights_expect_exact(.weights_z(setup, reference, draws), "corrected, Liu proposal")
+  .weights_expect_exact(.weights_z(setup, reference, draws, list(finite_proposal = 0)), "plain surrogate draw")
   .weights_expect_detected(.weights_z(setup, reference, draws, list(finite_proposal = 1)), "uncorrected indicator")
   .weights_expect_detected(.weights_z(setup, reference, draws, list(drop_sum_jacobian = TRUE)), "no Jacobian")
 })

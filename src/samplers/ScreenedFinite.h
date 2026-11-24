@@ -9,20 +9,20 @@
 //   s_l = log prior(l) + sum over the stochastic children of the surrogate log
 //         density with the node at l (children without a surrogate contribute
 //         their exact density),
-// draws a level k' with probability proportional to exp(s_l), the current
-// level k included, and, when k' != k, accepts it with probability
+// proposes by Liu's Metropolized Gibbs sampler on these scores (a level k'
+// other than the current level k with probability p_k' / (1 - p_k), accepted
+// on the surrogate with min(1, (1 - p_k) / (1 - p_k')); the identity when no
+// other level has mass), a move reversible for the surrogate law, and, when
+// k' != k, accepts it with probability
 //   min(1, exp((e_k' - s_k') - (e_k - s_k))),
-// e the same score with the exact densities. This is an independence
-// Metropolis-Hastings step whose proposal is the surrogate full conditional,
-// exact whatever the surrogate as long as it is finite wherever the exact
-// score is (the surrogate falls back to the exact density where its rule is
-// unavailable). A self-proposal needs no exact evaluation. The optional
-// proposal of Liu's Metropolized Gibbs sampler on the surrogate scores (a
-// level other than the current one with probability p_k' / (1 - p_k), accepted
-// on the surrogate with min(1, (1 - p_k) / (1 - p_k')), then the same exact
-// correction) is reversible for the surrogate law, so the correction keeps it
-// exact. Every score uses the current values of all other nodes; nothing is
-// kept across updates. The exact kernel enumerates the levels with the exact
+// e the same score with the exact densities, which keeps the update exact
+// whatever the surrogate as long as it is finite wherever the exact score is
+// (the surrogate falls back to the exact density where its rule is
+// unavailable). A self-proposal needs no exact evaluation. The plain
+// surrogate full-conditional draw (k' with probability proportional to
+// exp(s_l), the current level included: an independence proposal with the
+// same correction) stays available through the test hook. Every score uses
+// the current values of all other nodes; nothing is kept across updates. The exact kernel enumerates the levels with the exact
 // scores, with the arithmetic and the one uniform draw of JAGS's base::Finite.
 // A sampler that owns an indicator jointly with other nodes can call the
 // kernel with a setter that writes the indicator and its descendants.
@@ -50,8 +50,9 @@ namespace RoBMA {
 
 class ScreenedFiniteKernel {
 public:
-  // proposal: 0 the surrogate full conditional, 1 the same without the exact
-  // correction (a test mutant that is not exact), 2 Liu's Metropolized Gibbs.
+  // proposal: 2 Liu's Metropolized Gibbs (the default), 0 the surrogate full
+  // conditional, 1 the same without the exact correction (a test mutant that
+  // is not exact).
   ScreenedFiniteKernel(StochasticNode *node, std::vector<StochasticNode *> const &children,
                        unsigned int chain, SelNormCoarseSettings const &settings, double lower,
                        unsigned int levels, int proposal);
