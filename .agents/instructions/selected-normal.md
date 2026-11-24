@@ -649,6 +649,29 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   kernel is base::Finite's enumeration, arithmetic and single uniform. The
   `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
   Batch scoring of the six selection labels was not built.
+- Location block sampler (`src/samplers/LocationBlock.cc`,
+  `RoBMA::LocationBlock`, declared by `R/sampler-joint-location.R` under
+  `sampler.joint` "auto" or "location"): one owner of the location gates, their
+  normal slabs and the standardized latents of the sampled random-effect term
+  of a `.mv` fit. Its factory verifies the declaration on the compiled graph
+  (gate charts by deparse, JAGS closed-class linearity of every node that
+  reaches a child, members only in the children's means, a probed design with
+  affine guards) and declines otherwise. Each update rebuilds the Gaussian
+  working model from the graph (block precisions from the children's own
+  parameters, the latent column probed), runs the component list forward or
+  fully reversed (collapsed flips and refreshes along sheared lines, swaps of
+  correlated gates, a joint refresh and exact latent draws in Gaussian labels;
+  Newton-Laplace tilted flips, refreshes and swaps with a row-marginal screen
+  and slice updates of the latents in selection labels, all on the corrected
+  sampler's surrogate) and accepts the sweep with one correction against the
+  graph's own exact densities of the changed members and children, in every
+  label, so the inner representation never changes the target. Fallback to the
+  exact likelihood at the first `adaptOff()` with at least 50 updates that are
+  evidence about the surrogate and an acceptance below the threshold; it
+  registers with the corrected-sampler report and its counters reach the
+  joint-sampler record. Test hook `RoBMA_location_block_test` (mutants,
+  frozen-state probe, factory decision); exactness fixtures in
+  `test-00-location-block-native.R` and `test-00-location-block-exactness.R`.
 - Fallback and record: each sampler object (node, block or indicator x chain,
   per model build) keeps its own adaptation flag (JAGS has no accessor) and
   counts its adaptive evidence proposals and their accepted corrections

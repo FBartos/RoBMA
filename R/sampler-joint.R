@@ -11,6 +11,13 @@
                                scale = policy == "clustered.scale")
     })
   }
+  if (policy %in% c("auto", "location") && .sampler_joint_location_data(data, policy)) {
+    probabilities <- RoBMA.get_option("sampler.probabilities")
+    return(structure(function(prior_list, formula_design, data) {
+      .sampler_joint_location(prior_list, formula_design, data, probabilities)
+    }, sampler = "RoBMA::LocationBlock"))
+  }
+  if (policy == "location") return(NULL)
   if (.data_outcome_type(data) != "norm" || .is_data_multilevel(data) ||
       .is_data_random(data) || .is_data_scale(data) || .is_data_weights(data)) {
     return(NULL)

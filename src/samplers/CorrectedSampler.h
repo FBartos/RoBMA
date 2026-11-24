@@ -77,7 +77,7 @@ const std::uint64_t corrected_min_evidence_proposals = 50;
 
 // The kinds of corrected samplers, for the test hook's counters.
 enum CorrectedKind { corrected_kind_slice = 0, corrected_kind_block = 1, corrected_kind_gated = 2,
-                     corrected_kind_finite = 3, corrected_kind_count = 4 };
+                     corrected_kind_finite = 3, corrected_kind_location = 4, corrected_kind_count = 5 };
 
 // Test hook counters per kind (process-wide, relaxed atomics, cleared by the
 // hook): sampler objects, updates (every call, including gate-off draws and

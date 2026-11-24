@@ -30,6 +30,7 @@
 #include "samplers/CoarseCorrectedBlock.h"
 #include "samplers/ScreenedFinite.h"
 #include "distributions/selnorm-node-memo.h"
+#include "samplers/LocationBlockReport.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
 #include "distributions/selnorm-jags-bounds.h"
@@ -629,6 +630,72 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   ROBMA_NATIVE_END
 }
 
+// The per-fit counters of the location block samplers of this process (a
+// named numeric vector), read and cleared when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_block_report(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  const std::vector<double> values = jags::RoBMA::location_block_report(LOGICAL(clear)[0] != 0);
+  std::vector<char const *> const &names = jags::RoBMA::location_block_report_names();
+  const R_xlen_t n = static_cast<R_xlen_t>(values.size());
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, n));
+  for (R_xlen_t i = 0; i < n; ++i) {
+    REAL(out)[i] = values[static_cast<std::size_t>(i)];
+    SET_STRING_ELT(labels, i, Rf_mkChar(names[static_cast<std::size_t>(i)]));
+  }
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the location block sampler's mutant and
+// probe (LocationBlockReport.h) for samplers built from now on; NULL keeps a
+// setting. Returns the previous mutant and probe, the outcome of the last
+// factory call that found a declaration, and the probe records since the last
+// call (cleared).
+extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
+{
+  ROBMA_NATIVE_BEGIN(mutant, probe)
+  if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 3)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 3.");
+  }
+  if (probe != R_NilValue && (TYPEOF(probe) != LGLSXP || XLENGTH(probe) != 1 ||
+      LOGICAL(probe)[0] == NA_LOGICAL)) {
+    Rf_error("The location block probe must be NULL or one non-missing logical value.");
+  }
+  int previous;
+  if (mutant == R_NilValue) {
+    previous = jags::RoBMA::location_block_test_mutant(0);
+    jags::RoBMA::location_block_test_mutant(previous);
+  } else {
+    previous = jags::RoBMA::location_block_test_mutant(INTEGER(mutant)[0]);
+  }
+  const bool previous_probe = probe == R_NilValue ? jags::RoBMA::location_block_test_probe(-1) :
+    jags::RoBMA::location_block_test_probe(LOGICAL(probe)[0] != 0 ? 1 : 0);
+  const std::string decision = jags::RoBMA::location_block_test_decision();
+  const std::vector<double> records = jags::RoBMA::location_block_test_take_probe();
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarInteger(previous));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(previous_probe));
+  SET_VECTOR_ELT(out, 2, Rf_mkString(decision.c_str()));
+  SEXP values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
+  for (std::size_t i = 0; i < records.size(); ++i) REAL(values)[i] = records[i];
+  SET_VECTOR_ELT(out, 3, values);
+  const char *names[] = {"mutant", "probe", "decision", "records"};
+  for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(3);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 // Test hook, not package interface: the corrected block sampler's fixed-order
 // mutant (for block samplers built from now on) and its evaluation trace. A
 // NULL argument keeps the setting. Returns the settings, the slice intervals
@@ -743,7 +810,7 @@ extern "C" SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores
   }
   SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
   SEXP rows = PROTECT(Rf_allocVector(STRSXP, kinds));
-  const char *row_names[] = {"slice", "block", "gated", "finite"};
+  const char *row_names[] = {"slice", "block", "gated", "finite", "location"};
   for (int k = 0; k < kinds; ++k) SET_STRING_ELT(rows, k, Rf_mkChar(row_names[k]));
   SEXP columns = PROTECT(Rf_allocVector(STRSXP, 8));
   const char *column_names[] = {"samplers", "updates", "proposed", "accepted", "evidence_proposed",
