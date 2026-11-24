@@ -1595,6 +1595,11 @@
   // changes nothing.
   void label_swap(RNG *rng, bool dry = false)
   {
+    struct SwapScope {
+      bool &flag;
+      explicit SwapScope(bool &f) : flag(f) { flag = true; }
+      ~SwapScope() { flag = false; }
+    } scope(_in_swap);
     BiasSpec const &B = bspec();
     int n_selection = 0, n_gaussian = 0;
     for (int l = 1; l <= B.levels; ++l) {
@@ -1879,6 +1884,8 @@
   // Decided once per sweep before any component runs, independently of the
   // state (sweep conditions; the schedule of L2).
   bool _swap_this_sweep = false;
+  // L2 is running: its fits and evaluations count as label_swap (LocationBlock::enter)
+  bool _in_swap = false;
 
   void bias_sweep_start(RNG *rng)
   {

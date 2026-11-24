@@ -969,6 +969,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // Enters a part of the update and returns the previous one.
   Category enter(Category part)
   {
+    // the bias label's swap L2 counts its Laplace fits as its own work
+    if (_in_swap) part = cat_swap;
     if (s().timing) {
       const auto now = std::chrono::steady_clock::now();
       counters().nanoseconds[_category].fetch_add(static_cast<std::uint64_t>(
