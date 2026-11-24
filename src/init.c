@@ -29,6 +29,7 @@ extern SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP clea
 extern SEXP RoBMA_selnorm_sampler_report(SEXP clear);
 extern SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace);
 extern SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores);
+extern SEXP RoBMA_step_row_cache_test(SEXP flags, SEXP clear, SEXP probe);
 extern SEXP RoBMA_location_block_report(SEXP clear);
 extern SEXP RoBMA_location_block_evidence(SEXP clear);
 extern SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe);
@@ -447,6 +448,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_sampler_report", (DL_FUNC) &RoBMA_selnorm_sampler_report, 1},
     {"RoBMA_corrected_block_test", (DL_FUNC) &RoBMA_corrected_block_test, 2},
     {"RoBMA_corrected_sampler_test", (DL_FUNC) &RoBMA_corrected_sampler_test, 3},
+    {"RoBMA_step_row_cache_test", (DL_FUNC) &RoBMA_step_row_cache_test, 3},
     {"RoBMA_location_block_report", (DL_FUNC) &RoBMA_location_block_report, 1},
     {"RoBMA_location_block_evidence", (DL_FUNC) &RoBMA_location_block_evidence, 1},
     {"RoBMA_location_block_test", (DL_FUNC) &RoBMA_location_block_test, 2},

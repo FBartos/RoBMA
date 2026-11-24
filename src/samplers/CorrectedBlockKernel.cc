@@ -98,14 +98,19 @@ CorrectedBlockKernel::CorrectedBlockKernel(GraphView const *graph, unsigned int 
   _axes = kernel::Axes(_du);
   for (StochasticNode *child : graph->stochasticChildren()) {
     const ChildKind kind = child_kind(child, settings);
-    if (kind == ChildKind::other) {
+    if (kind == ChildKind::other && options.row_cache && is_step_switch_row(child)) {
+      // a row of the row cache (-2)
+      _child_selected.push_back(-2);
+      _row_nodes.push_back(child);
+    } else if (kind == ChildKind::other) {
       _child_selected.push_back(-1);
     } else {
       _child_selected.push_back(static_cast<int>(_selected.size()));
       _selected.emplace_back(child, kind);
     }
   }
-  if (_selected.empty()) throw std::logic_error(options.label + " has no selection child.");
+  if (_selected.empty() && _row_nodes.empty()) throw std::logic_error(options.label + " has no selection child.");
+  _rows = StepRowCache(_row_nodes, chain);
   graph->checkFinite(chain);
   // The one limit of the sampler's scale that the bounds alone decide (as in
   // BayesTools' factor slice sampler): a two-sided member whose span
@@ -165,6 +170,31 @@ void CorrectedBlockKernel::append_widths(std::vector<double> &out) const
   for (unsigned int k = 0; k < _du; ++k) out.push_back(width(k));
 }
 
+void CorrectedBlockKernel::append_row_probe(std::vector<double> &out)
+{
+  if (_rows.empty()) return;
+  std::vector<double> entry(_d);
+  _graph->getValue(entry, _chain);
+  const std::vector<double> u = current_u();
+  _rows.refresh();
+  auto record = [&]() {
+    double graph = 0;
+    for (StochasticNode const *row : _row_nodes) graph += row->logDensity(_chain, PDF_LIKELIHOOD);
+    out.push_back(_chain);
+    out.push_back(_rows.value(nullptr));
+    out.push_back(graph);
+  };
+  record();
+  for (unsigned int k = 0; k < _du; ++k) {
+    for (double offset : {-0.7, 0.7}) {
+      std::vector<double> moved(u);
+      moved[k] += offset;
+      if (set_point(moved)) record();
+    }
+  }
+  _graph->setValue(entry, _chain);
+}
+
 void CorrectedBlockKernel::density_failure(Node const *node, char const *where, char const *cause) const
 {
   throwNodeError(node, _options.label + ": failure to calculate the log density of the block at " +
@@ -221,10 +251,17 @@ double CorrectedBlockKernel::log_surrogate(char const *where)
   std::vector<StochasticNode *> const &children = _graph->stochasticChildren();
   for (std::size_t i = 0; i < children.size(); ++i) {
     const int selected = _child_selected[i];
+    if (selected == -2) continue;
     const double term = selected < 0 ? children[i]->logDensity(_chain, PDF_LIKELIHOOD) :
       _selected[selected].logDensity(_chain, _settings, &_surrogate_not_exact);
     if (std::isnan(term)) density_failure(children[i], where, "the surrogate log density term of this node is NaN");
     out += term;
+  }
+  if (!_rows.empty()) {
+    StochasticNode const *failed = nullptr;
+    const double rows = _rows.value(&failed);
+    if (std::isnan(rows)) density_failure(failed, where, "the surrogate log density term of this node is NaN");
+    out += rows;
   }
   check_sum(out, where);
   trace(0, out);
@@ -425,6 +462,8 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
   const std::vector<double> u_start(u);
   const std::vector<double> totals_start(_totals);
   const double jacobian_old = log_jacobian(u);
+  // the row cache of this update, at the entry state
+  if (!_rows.empty()) _rows.refresh();
   // 1. both densities recomputed at block entry
   const double full_old = log_full("the current state") + jacobian_old;
   if (!std::isfinite(full_old)) {
@@ -466,8 +505,13 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
   const double full_new = representable ?
     log_full("a proposal") + log_jacobian(u) : negative_infinity;
   bool accepted;
+  // evidence of the row cache: the surrogate and exact changes differ beyond
+  // rounding (StepRowCache.h)
+  bool row_evidence = false;
   if (full_new == negative_infinity) {
     accepted = false;
+    // a finite surrogate where the exact density is zero
+    row_evidence = !_rows.empty() && representable;
   } else {
     // 5. the correction
     const long double log_ratio =
@@ -477,6 +521,7 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
       throwNodeError(_graph->nodes()[0], _options.label + " proposed an undefined acceptance ratio");
     }
     accepted = !(log_ratio < 0 && std::log(static_cast<long double>(rng->uniform())) > log_ratio);
+    row_evidence = !_rows.empty() && step_row_cache_mismatch(log_ratio, full_old, full_new);
   }
   if (!accepted) {
     // the block-entry snapshot, never through the inverse transform
@@ -498,7 +543,7 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
     if (_tally.adapting()) u = exact_sweep(rng);
   }
   const bool adapting = _tally.adapting();
-  _tally.count(accepted, _surrogate_not_exact);
+  _tally.count(accepted, _surrogate_not_exact || row_evidence);
   if (adapting) _axes.adapt(u_start, u);
 }
 
@@ -554,6 +599,18 @@ std::vector<double> corrected_block_test_widths()
   const std::lock_guard<std::mutex> lock(blocks.mutex);
   std::vector<double> out;
   for (CorrectedBlockKernel const *block : blocks.live) block->append_widths(out);
+  return out;
+}
+
+std::vector<double> corrected_block_test_row_probe()
+{
+  LiveBlocks &blocks = live_blocks();
+  const std::lock_guard<std::mutex> lock(blocks.mutex);
+  std::vector<double> out;
+  for (CorrectedBlockKernel const *block : blocks.live) {
+    // the live list holds const pointers; the probe restores the state it moves
+    const_cast<CorrectedBlockKernel *>(block)->append_row_probe(out);
+  }
   return out;
 }
 

@@ -36,20 +36,26 @@ const double maximum_levels = 10000;
 
 ScreenedFiniteKernel::ScreenedFiniteKernel(StochasticNode *node, std::vector<StochasticNode *> const &children,
                                            unsigned int chain, SelNormCoarseSettings const &settings,
-                                           double lower, unsigned int levels, int proposal)
+                                           double lower, unsigned int levels, int proposal, bool row_cache)
   : _node(node), _children(children), _chain(chain), _settings(settings), _lower(lower), _levels(levels),
     _proposal(proposal)
 {
+  std::vector<StochasticNode *> rows;
   for (StochasticNode *child : _children) {
     const ChildKind kind = child_kind(child, settings);
-    if (kind == ChildKind::other) {
+    if (kind == ChildKind::other && row_cache && is_step_switch_row(child)) {
+      // a row of the row cache (-2)
+      _child_selected.push_back(-2);
+      rows.push_back(child);
+    } else if (kind == ChildKind::other) {
       _child_selected.push_back(-1);
     } else {
       _child_selected.push_back(static_cast<int>(_selected.size()));
       _selected.emplace_back(child, kind);
     }
   }
-  if (_selected.empty()) throw std::logic_error("A screened finite node has no selection child.");
+  if (_selected.empty() && rows.empty()) throw std::logic_error("A screened finite node has no selection child.");
+  _rows = StepRowCache(rows, chain);
 }
 
 double ScreenedFiniteKernel::prior_term() const
@@ -64,9 +70,11 @@ double ScreenedFiniteKernel::surrogate_score(bool *not_exact) const
   double out = prior_term();
   for (std::size_t i = 0; i < _children.size(); ++i) {
     const int selected = _child_selected[i];
+    if (selected == -2) continue;
     out += selected < 0 ? _children[i]->logDensity(_chain, PDF_LIKELIHOOD) :
       _selected[selected].logDensity(_chain, _settings, not_exact);
   }
+  if (!_rows.empty()) out += _rows.value(nullptr);
   return out;
 }
 
@@ -87,6 +95,8 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
   if (current_index < 0 || current_index >= static_cast<long>(_levels)) {
     throwNodeError(_node, std::string(screened_label) + ": current value is outside the support");
   }
+  // the row cache of this update, at the entry level
+  if (!_rows.empty()) _rows.refresh();
   // 1. the surrogate scores of every level with prior mass
   std::vector<double> score(_levels, negative_infinity);
   std::vector<char> inexact(_levels, 0);
@@ -198,6 +208,12 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
       throwNodeError(_node, std::string(screened_label) + " proposed an undefined acceptance ratio");
     }
     accepted = !(log_ratio < 0 && std::log(static_cast<long double>(rng->uniform())) > log_ratio);
+    // evidence of the row cache: the surrogate and exact changes differ beyond
+    // rounding (StepRowCache.h)
+    if (!_rows.empty() && step_row_cache_mismatch(log_ratio, exact_current, exact_proposed)) outcome.evidence = true;
+  } else if (!_rows.empty()) {
+    // a finite surrogate where the exact density is zero
+    outcome.evidence = true;
   }
   if (!accepted) set_value(current_value);
   outcome.accepted = accepted;
@@ -236,6 +252,7 @@ void ScreenedFiniteKernel::scores(std::function<void(double)> const &set_value, 
 {
   surrogate->assign(_levels, negative_infinity);
   exact->assign(_levels, negative_infinity);
+  if (!_rows.empty()) _rows.refresh();
   for (unsigned int l = 0; l < _levels; ++l) {
     set_value(_lower + l);
     if (prior_term() == negative_infinity) continue;
@@ -326,9 +343,10 @@ class ScreenedFinite : public MutableSampleMethod, public CorrectedSamplerWindow
 
 public:
   ScreenedFinite(SingletonGraphView const *graph, unsigned int chain, SelNormCoarseSettings const &settings,
-                 double min_acceptance, double lower, unsigned int levels, int proposal, unsigned serial)
+                 double min_acceptance, double lower, unsigned int levels, int proposal, unsigned serial,
+                 bool row_cache = false)
     : _graph(graph), _chain(chain), _min_acceptance(min_acceptance),
-      _kernel(graph->node(), graph->stochasticChildren(), chain, settings, lower, levels, proposal),
+      _kernel(graph->node(), graph->stochasticChildren(), chain, settings, lower, levels, proposal, row_cache),
       _set_value([graph, chain](double value) { graph->setValue(&value, 1, chain); }),
       _exact(false), _tally(corrected_kind_finite), _serial(serial), _levels(levels), _lower_bound(lower)
   {

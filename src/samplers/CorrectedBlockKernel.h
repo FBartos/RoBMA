@@ -45,6 +45,7 @@
 #include "CoarseSurrogate.h"
 #include "CorrectedSampler.h"
 #include "GammaGroup.h"
+#include "StepRowCache.h"
 
 #include <BayesTools/factor_slice_kernel.h>
 
@@ -72,6 +73,9 @@ struct CorrectedBlockOptions {
   // direction (plain members in block order, then each group's m - 1
   // log-ratio coordinates); empty for widths 1
   std::vector<double> initial_widths;
+  // singleton step-selection children enter the surrogate through the row
+  // cache (StepRowCache.h), refreshed at the start of each corrected update
+  bool row_cache = false;
 };
 
 class CorrectedBlockKernel : public CorrectedSamplerWindow {
@@ -96,6 +100,11 @@ public:
 
   // Test hook: chain, the number of directions and the current widths.
   void append_widths(std::vector<double> &out) const;
+  // Test hook of the row cache (frozen states of weights moves): refreshed at
+  // the current state, then at that state and at points moved by -0.7 and
+  // +0.7 along each coordinate axis, per point (chain, cache value, sum of the
+  // rows' graph log densities); the current state is restored.
+  void append_row_probe(std::vector<double> &out);
 
   std::uint64_t windowProposed() const override { return _tally.window_proposed(); }
   std::uint64_t windowAccepted() const override { return _tally.window_accepted(); }
@@ -124,6 +133,9 @@ private:
   // whether a surrogate of the current update was not exact (evidence)
   bool _surrogate_not_exact;
   CorrectedTally _tally;
+  // the step-selection rows of the surrogate (options.row_cache)
+  std::vector<StochasticNode *> _row_nodes;
+  StepRowCache _rows;
 
   void density_failure(Node const *node, char const *where, char const *cause) const;
   void check_sum(double out, char const *where) const;
@@ -159,6 +171,9 @@ std::uint64_t corrected_block_test_take_exhausted();
 // The current widths of the live block samplers, in construction order: per
 // sampler its chain, the number of directions and their widths.
 std::vector<double> corrected_block_test_widths();
+// The row probes (append_row_probe) of the live block samplers with a row
+// cache, in construction order.
+std::vector<double> corrected_block_test_row_probe();
 
 }
 }

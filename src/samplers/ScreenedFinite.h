@@ -38,6 +38,7 @@
 // exact).
 
 #include "CoarseSurrogate.h"
+#include "StepRowCache.h"
 
 #include <sampler/SamplerFactory.h>
 
@@ -53,9 +54,11 @@ public:
   // proposal: 2 Liu's Metropolized Gibbs (the default), 0 the surrogate full
   // conditional, 1 the same without the exact correction (a test mutant that
   // is not exact).
+  // row_cache: singleton step-selection children enter the surrogate scores
+  // through the row cache (StepRowCache.h), refreshed once per update.
   ScreenedFiniteKernel(StochasticNode *node, std::vector<StochasticNode *> const &children,
                        unsigned int chain, SelNormCoarseSettings const &settings, double lower,
-                       unsigned int levels, int proposal);
+                       unsigned int levels, int proposal, bool row_cache = false);
 
   // The outcome of one corrected update: whether another level was proposed
   // (with an exact correction), accepted, and whether the surrogate at either
@@ -90,6 +93,7 @@ private:
   const int _proposal;
   std::vector<SelectedChild> _selected;
   std::vector<int> _child_selected;
+  StepRowCache _rows;
 
   double prior_term() const;
   double surrogate_score(bool *not_exact) const;

@@ -25,11 +25,12 @@ ROBMA_OBJECTS = glmm-aghq.o \
 		  samplers/JointCluster.o \
 		  samplers/LocationBlock.o \
 		  samplers/StepRowNormalizer.o \
+		  samplers/StepRowCache.o \
 		  samplers/CorrectedSampler.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
 		  selnorm/zplot-context.o \
-		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
+		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o r-step-row-cache.o init.o RoBMA.o testRoBMA.o
 
 ###############
 
@@ -42,11 +43,13 @@ RoBMA.o: $(DISTRIBUTION_OBJECTS:.o=.h) selnorm/selnorm-mv.h
 samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
 samplers/CorrectedSampler.o: samplers/CorrectedSampler.h selnorm/selnorm-mv.h
 CORRECTED_SURROGATE_HEADERS = samplers/CoarseSurrogate.h samplers/CorrectedSampler.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
-CORRECTED_BLOCK_HEADERS = samplers/CorrectedBlockKernel.h samplers/GammaGroup.h $(CORRECTED_SURROGATE_HEADERS)
+CORRECTED_BLOCK_HEADERS = samplers/CorrectedBlockKernel.h samplers/GammaGroup.h samplers/StepRowCache.h $(CORRECTED_SURROGATE_HEADERS)
 samplers/CoarseCorrectedBlock.o: samplers/CoarseCorrectedBlock.h $(CORRECTED_BLOCK_HEADERS)
 samplers/CorrectedBlockKernel.o: $(CORRECTED_BLOCK_HEADERS)
 samplers/GatedCorrectedBlock.o: samplers/GatedCorrectedBlock.h $(CORRECTED_BLOCK_HEADERS)
-samplers/ScreenedFinite.o: samplers/ScreenedFinite.h $(CORRECTED_SURROGATE_HEADERS)
+samplers/ScreenedFinite.o: samplers/ScreenedFinite.h samplers/StepRowCache.h $(CORRECTED_SURROGATE_HEADERS)
+samplers/StepRowCache.o: samplers/StepRowCache.h distributions/DSELNORMSTEPSWITCH.h distributions/selnorm-jags-bounds.h selnorm/selnorm.h selnorm/selnorm-tail.h selnorm/selnorm-tail-kernel.cc.inc
+r-step-row-cache.o: samplers/StepRowCache.h $(CORRECTED_BLOCK_HEADERS) r-native-boundary.h
 samplers/GammaGroup.o: samplers/GammaGroup.h
 RoBMA.o: samplers/CoarseCorrectedSlice.h samplers/CoarseCorrectedBlock.h samplers/GatedCorrectedBlock.h samplers/ScreenedFinite.h
 RoBMA.o samplers/IndependentBiasJoint.o: samplers/IndependentBiasJoint.h
