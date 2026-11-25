@@ -598,11 +598,10 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' \code{NULL}, which checks every eligible parameter.
 #' @param allow_not_assessable whether requested sampled parameters with
 #' undefined diagnostics may be ignored by the convergence checks. Defaults to
-#' \code{FALSE}. More samples do not make them assessable, so automatic
-#' fitting never extends a model for them, whatever this setting: it stops
-#' once every parameter that can be assessed meets the criteria. With
-#' \code{set_convergence_checks(allow_not_assessable = FALSE)}, the fitted
-#' model then reports the parameters whose diagnostics are not assessable.
+#' \code{FALSE}, with which the fitted model reports the parameters whose
+#' diagnostics are not assessable. More samples do not make them assessable,
+#' so automatic fitting never extends a model for them: it stops once every
+#' parameter that can be assessed meets the criteria.
 #' @param max_time list with the time and unit specifying the maximum
 #' autofitting process per model. Passed to \link[base]{difftime} function
 #' (possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
@@ -672,8 +671,9 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' determining how many additional samples to draw if convergence criteria are not met.
 #' Automatic fitting stops once every parameter whose diagnostics can be
 #' assessed meets its criteria, also when the diagnostics of other parameters
-#' are not assessable (see \code{allow_not_assessable}), or at \code{max_time}
-#' or \code{max_extend}.
+#' are not assessable, or at \code{max_time} or \code{max_extend};
+#' \code{set_convergence_checks(allow_not_assessable = )} decides whether the
+#' fitted model reports those parameters.
 #' The convergence checks determine the quality standards that fitted models must meet.
 #' Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{restarts}, \code{max_extend},
@@ -716,8 +716,8 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{sample_extend},
 #' \code{restarts}, \code{max_extend}, \code{check_indicators},
-#' \code{monitor}, \code{allow_not_assessable}, \code{burnin_max_Rhat},
-#' \code{burnin_extend}, and \code{burnin_max_extend}.
+#' \code{monitor}, \code{burnin_max_Rhat}, \code{burnin_extend}, and
+#' \code{burnin_max_extend}.
 #' \code{set_convergence_checks} returns a list with convergence thresholds
 #' \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
 #' \code{check_indicators}, \code{monitor}, and
@@ -732,25 +732,24 @@ for (option_name in names(.RoBMA_option_schema)) {
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = "auto", restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE, burnin_max_Rhat = 2, burnin_extend = 500, burnin_max_extend = 10){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = "auto", restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, burnin_max_Rhat = 2, burnin_extend = 500, burnin_max_extend = 10){
 
   # list() keeps an explicit NULL 'burnin_max_Rhat', which turns the readiness
   # check off; BayesTools gives an omitted element its default
   autofit_settings <- list(
-    max_Rhat      = max_Rhat,
-    min_ESS       = min_ESS,
-    max_error     = max_error,
-    max_SD_error  = max_SD_error,
-    max_time      = max_time,
-    sample_extend = sample_extend,
-    restarts      = restarts,
-    max_extend          = max_extend,
-    check_indicators     = check_indicators,
-    monitor              = monitor,
-    allow_not_assessable = allow_not_assessable,
-    burnin_max_Rhat      = burnin_max_Rhat,
-    burnin_extend        = burnin_extend,
-    burnin_max_extend    = burnin_max_extend
+    max_Rhat          = max_Rhat,
+    min_ESS           = min_ESS,
+    max_error         = max_error,
+    max_SD_error      = max_SD_error,
+    max_time          = max_time,
+    sample_extend     = sample_extend,
+    restarts          = restarts,
+    max_extend        = max_extend,
+    check_indicators  = check_indicators,
+    monitor           = monitor,
+    burnin_max_Rhat   = burnin_max_Rhat,
+    burnin_extend     = burnin_extend,
+    burnin_max_extend = burnin_max_extend
   )
   autofit_settings <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_settings, call = "Checking 'autofit_control':\n\t")
 
@@ -874,11 +873,6 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   } else {
     old_autofit_control[["monitor"]]
   }
-  allow_not_assessable <- if(!is.null(autofit_control[["allow_not_assessable"]])) {
-    autofit_control[["allow_not_assessable"]]
-  } else {
-    isTRUE(old_autofit_control[["allow_not_assessable"]])
-  }
 
   # The readiness settings, also an explicit NULL 'burnin_max_Rhat' (check
   # off); settings that neither control holds (fits stored before they
@@ -892,7 +886,9 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     }
   }
 
-  new_autofit_control <- do.call(set_autofit_control, c(list(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend, check_indicators = check_indicators, monitor = monitor, allow_not_assessable = allow_not_assessable), burnin_settings))
+  # the control is rebuilt from its current elements, so the
+  # 'allow_not_assessable' that fits of RoBMA 4.1.1 store is dropped
+  new_autofit_control <- do.call(set_autofit_control, c(list(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend, check_indicators = check_indicators, monitor = monitor), burnin_settings))
   new_autofit_control <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = new_autofit_control)
 
   return(new_autofit_control)
@@ -945,7 +941,23 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
 .check_and_list_convergence_checks <- function(convergence_checks){
 
-  convergence_checks <- BayesTools::JAGS_check_and_list_autofit_settings(convergence_checks, skip_sample_extend = TRUE, call = "Checking 'convergence_checks':\n\t")
+  call <- "Checking 'convergence_checks':\n\t"
+  # 'allow_not_assessable' is an argument of BayesTools::JAGS_check_convergence()
+  # but not an element of BayesTools' autofit settings, which check the others
+  allow_not_assessable <- FALSE
+  if(is.list(convergence_checks) && "allow_not_assessable" %in% names(convergence_checks)){
+    if(!is.null(convergence_checks[["allow_not_assessable"]])){
+      allow_not_assessable <- convergence_checks[["allow_not_assessable"]]
+    }
+    convergence_checks <- convergence_checks[names(convergence_checks) != "allow_not_assessable"]
+    # a list that held nothing else
+    if(length(convergence_checks) == 0L){
+      convergence_checks <- list(check_indicators = FALSE)
+    }
+  }
+  convergence_checks <- BayesTools::JAGS_check_and_list_autofit_settings(convergence_checks, skip_sample_extend = TRUE, call = call)
+  BayesTools::check_bool(allow_not_assessable, "allow_not_assessable", allow_NA = FALSE, call = call)
+  convergence_checks[["allow_not_assessable"]] <- allow_not_assessable
 
   return(convergence_checks)
 }

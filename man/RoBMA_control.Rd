@@ -17,7 +17,6 @@ set_autofit_control(
   max_extend = 10,
   check_indicators = FALSE,
   monitor = NULL,
-  allow_not_assessable = FALSE,
   burnin_max_Rhat = 2,
   burnin_extend = 500,
   burnin_max_extend = 10
@@ -93,11 +92,10 @@ convergence checks. A base name selects all indexed elements. Defaults to
 
 \item{allow_not_assessable}{whether requested sampled parameters with
 undefined diagnostics may be ignored by the convergence checks. Defaults to
-\code{FALSE}. More samples do not make them assessable, so automatic
-fitting never extends a model for them, whatever this setting: it stops
-once every parameter that can be assessed meets the criteria. With
-\code{set_convergence_checks(allow_not_assessable = FALSE)}, the fitted
-model then reports the parameters whose diagnostics are not assessable.}
+\code{FALSE}, with which the fitted model reports the parameters whose
+diagnostics are not assessable. More samples do not make them assessable,
+so automatic fitting never extends a model for them: it stops once every
+parameter that can be assessed meets the criteria.}
 
 \item{burnin_max_Rhat}{threshold of the readiness check between burn-in and
 sampling. Defaults to \code{2}; \code{NULL} turns the check off. The check
@@ -140,8 +138,8 @@ Defaults to \code{500}.}
 including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{sample_extend},
 \code{restarts}, \code{max_extend}, \code{check_indicators},
-\code{monitor}, \code{allow_not_assessable}, \code{burnin_max_Rhat},
-\code{burnin_extend}, and \code{burnin_max_extend}.
+\code{monitor}, \code{burnin_max_Rhat}, \code{burnin_extend}, and
+\code{burnin_max_extend}.
 \code{set_convergence_checks} returns a list with convergence thresholds
 \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
 \code{check_indicators}, \code{monitor}, and
@@ -160,8 +158,9 @@ The autofit control manages computational resources by setting maximum time limi
 determining how many additional samples to draw if convergence criteria are not met.
 Automatic fitting stops once every parameter whose diagnostics can be
 assessed meets its criteria, also when the diagnostics of other parameters
-are not assessable (see \code{allow_not_assessable}), or at \code{max_time}
-or \code{max_extend}.
+are not assessable, or at \code{max_time} or \code{max_extend};
+\code{set_convergence_checks(allow_not_assessable = )} decides whether the
+fitted model reports those parameters.
 The convergence checks determine the quality standards that fitted models must meet.
 Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{restarts}, \code{max_extend},
