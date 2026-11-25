@@ -52,6 +52,13 @@ constexpr char sampler_name[] = "RoBMA::LocationBlock";
 constexpr char untracked_mean_message[] =
   "Location block sampler [RoBMA_location_untracked_mean]: the mean of this likelihood node changed in a sweep "
   "that did not move it, so the design the sampler verified does not hold at this state";
+constexpr char tracked_mean_message[] =
+  "Location block sampler [RoBMA_location_untracked_mean]: the mean of this likelihood node at the sweep's final "
+  "state differs from the mean the sampler's verified design predicts, so the design does not hold at this state";
+// The tolerance of that comparison: of the row's conditional SD, and of the
+// size of its means (rounding).
+constexpr double tracked_mean_tolerance = 1e-6;
+constexpr double tracked_mean_rounding = 1e-12;
 constexpr double log_two_pi = 1.8378770664093454836;
 const double negative_infinity = -std::numeric_limits<double>::infinity();
 
@@ -667,13 +674,20 @@ bool unobserved(StochasticNode const *node)
 
 // The check of a probed design column (spec: Eligibility, the factory's
 // probes): the children's means mu0 at the baseline and mu1, mu2 with one
-// coordinate perturbed by h and 2h. The column's scale is its largest response
-// per unit. The perturbation is representable when the rounding of every
-// baseline and perturbed mean is below 1e-10 of the scale times h (a column
-// lost to the rounding of a large baseline would pass as zero), and the
-// response is linear when the two responses agree to 1e-9 of the scale.
-// Returns column_verified, column_unrepresentable or column_nonlinear (also
-// for a mean that is not finite); *scale receives the scale.
+// coordinate perturbed by h and 2h. Each row is verified against its own
+// response per unit (the column's scale is the largest): the perturbation is
+// representable when the rounding of the row's baseline and perturbed means
+// is below 1e-10 of its response times h, and the response is linear when the
+// row's two responses agree to 1e-9 of it. Checked against the column's
+// largest response, one row's entry could be lost to the rounding of its
+// baseline while another row passed. A row whose means do not change (a zero
+// entry) has no response of its own: its rounding is bounded by 1e-10 of the
+// scale times h (a column lost entirely to the rounding of a large baseline
+// would pass as zero), and an entry below that bound is the run-time
+// comparison's (correct(): a mean the sweep did not move must not change, and
+// a mean it moved must be the one the design predicts). Returns
+// column_verified, column_unrepresentable or column_nonlinear (also for a mean
+// that is not finite); *scale receives the scale.
 enum ColumnCheck { column_verified, column_unrepresentable, column_nonlinear };
 
 ColumnCheck column_check(Vec const &mu0, Vec const &mu1, Vec const &mu2, double h, double *scale)
@@ -687,11 +701,13 @@ ColumnCheck column_check(Vec const &mu0, Vec const &mu1, Vec const &mu2, double 
   *scale = s;
   if (!std::isfinite(s)) return column_nonlinear;
   for (std::size_t r = 0; r < mu0.size(); ++r) {
+    const double response = std::max(std::fabs(mu1[r] - mu0[r]) / h, std::fabs(mu2[r] - mu0[r]) / (2.0 * h));
     const double size = std::max(std::fabs(mu0[r]), std::max(std::fabs(mu1[r]), std::fabs(mu2[r])));
-    if (!(4.0 * eps * size <= 1e-10 * s * h)) return column_unrepresentable;
+    if (!(4.0 * eps * size <= 1e-10 * (response > 0.0 ? response : s) * h)) return column_unrepresentable;
   }
   for (std::size_t r = 0; r < mu0.size(); ++r) {
-    if (!(std::fabs((mu2[r] - mu0[r]) - 2.0 * (mu1[r] - mu0[r])) <= 2e-9 * s * h)) return column_nonlinear;
+    const double response = std::max(std::fabs(mu1[r] - mu0[r]) / h, std::fabs(mu2[r] - mu0[r]) / (2.0 * h));
+    if (!(std::fabs((mu2[r] - mu0[r]) - 2.0 * (mu1[r] - mu0[r])) <= 2e-9 * response * h)) return column_nonlinear;
   }
   return column_verified;
 }
@@ -3605,15 +3621,31 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       for (unsigned c = 0; c < S.children.size(); ++c) if (_step_children[c]) refresh_step(c);
     }
     // A likelihood mean that the graph changed although no component of the
-    // sweep moved it: the verified design does not hold at this state. An
-    // error naming the node (update() restores the entry), never a silent
-    // rejection.
+    // sweep moved it, or that differs from the mean the block tracked for the
+    // final state where the sweep moved it: the verified design does not hold
+    // at this state. An error naming the node (update() restores the entry),
+    // never a silent rejection. A tracked mean is compared with a tolerance of
+    // 1e-6 of the row's conditional SD (the precision matrix's diagonal) plus
+    // 1e-12 of the means' size (the rounding of the block's accumulated
+    // changes and of the graph's expression), so that a design entry the probe
+    // missed is not hidden by another coefficient that moves the same child.
     for (unsigned c = 0; c < S.children.size(); ++c) {
-      if (_dirty[c]) continue;
       ChildSpec const &child = S.children[c];
       double const *mean = child.node->parents()[0]->value(_chain);
       for (unsigned i = 0; i < child.n; ++i) {
-        if (mean[i] != _mean_entry[child.row0 + i]) throwNodeError(child.node, untracked_mean_message);
+        const unsigned row = child.row0 + i;
+        if (!_dirty[c]) {
+          if (mean[i] != _mean_entry[row]) throwNodeError(child.node, untracked_mean_message);
+          continue;
+        }
+        const double sd = 1.0 / std::sqrt(_W[child.woff + i * child.n + i]);
+        // the size of the means and of the design's terms at the final state
+        double size = std::max(std::fabs(_mean_entry[row]), std::max(std::fabs(mean[i]), std::fabs(_mean[row])));
+        for (unsigned k = 0; k < S.p; ++k) size += std::fabs(S.X[static_cast<std::size_t>(row) * S.p + k] * _b[k]);
+        if (child.latent >= 0) size += std::fabs(_d[row] * _z[static_cast<unsigned>(child.latent)]);
+        if (!(std::fabs(mean[i] - _mean[row]) <= tracked_mean_tolerance * sd + tracked_mean_rounding * size)) {
+          throwNodeError(child.node, tracked_mean_message);
+        }
       }
     }
     for (unsigned m : changed_members) final_term(members[m], members[m]->logDensity(_chain, PDF_PRIOR));
@@ -4190,6 +4222,29 @@ public:
       const unsigned k = shared->p - 1;
       for (unsigned r = 0; r < shared->rows; ++r) shared->X[r * shared->p + k] = 0.0;
       shared->coord_children[k].clear();
+    }
+    // mutant 16: the entry of the first coordinate dropped at the last row that
+    // another coordinate also moves (a design entry the probe missed), the
+    // children lists as the probe would have left them: the graph moves a
+    // mean the block tracks to another value (the tracked-mean error)
+    if (shared->mutant == 16) {
+      Shared &S = *shared;
+      for (unsigned r = S.rows; r-- > 0;) {
+        bool other = false;
+        for (unsigned k = 1; k < S.p; ++k) other = other || S.X[r * S.p + k] != 0.0;
+        if (S.X[r * S.p] == 0.0 || !other) continue;
+        S.X[r * S.p] = 0.0;
+        S.coord_children[0].clear();
+        for (unsigned c = 0; c < S.children.size(); ++c) {
+          for (unsigned i = 0; i < S.children[c].n; ++i) {
+            if (S.X[(S.children[c].row0 + i) * S.p] != 0.0) {
+              S.coord_children[0].push_back(c);
+              break;
+            }
+          }
+        }
+        break;
+      }
     }
     shared->probe = test_probe.load(std::memory_order_relaxed);
     shared->fit_rule = test_fit_rule.load(std::memory_order_relaxed);

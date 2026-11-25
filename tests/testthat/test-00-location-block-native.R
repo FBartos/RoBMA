@@ -162,6 +162,84 @@ test_that("the factory verifies each design column against its baseline, and an 
 })
 
 
+test_that("the design is verified row by row, and a tracked mean that misses an entry is an error", {
+
+  skip_if_not_installed("rjags")
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  # m2 = offset + c v + e b (e = 2^-40, offset ~ N(0, 1e-48), v ungated, b
+  # gated): from a starting offset of 32768 the probe's unit responses of row 2
+  # to b round to zero, while another coefficient (v) moves the same child.
+  e <- 2^-40
+  syntax <- function(coefficient) paste(c(
+    "model {", "  g ~ dcat(p[1:2])", "  slab ~ dnorm(0, 1)", "  b <- 0 * (g == 1) + slab * (g == 2)",
+    "  v ~ dnorm(0, 16384)", "  offset ~ dnorm(0, 1e48)", "  m1 <- b", paste0("  m2 <- offset + ", coefficient,
+    " * v + eps * b"), "  m3 <- v", "  y1 ~ dnorm(m1, 1)", "  y2 ~ dnorm(m2, P)", "  y3 ~ dnorm(m3, 1)",
+    "  tag1 <- robma_location_group(g, slab, 2, b, 1)", "  tag2 <- robma_location_group(v, v, 0, v, 2)",
+    "  tags <- robma_location_setup(g, 2, 0)", "}"), collapse = "\n")
+  data <- list(p = c(.5, .5), eps = e, P = 1 / (.2 * e)^2, y1 = .8, y2 = e, y3 = 0)
+  compile <- function(coefficient, offset) {
+    connection <- textConnection(syntax(coefficient))
+    on.exit(close(connection))
+    model <- rjags::jags.model(connection, data = data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
+      inits = list(g = 2L, slab = 0, v = 0, offset = offset, .RNG.name = "base::Mersenne-Twister",
+                   .RNG.seed = 4127L))
+    list(model = model, decision = .location_hook()$decision)
+  }
+
+  # (1) c = 128 e: row 2's response to v (2^-33) is lost to the rounding of
+  # 32768 too, against its own response although not against the column's
+  # largest (row 3's): declined from 32768 (the old check claimed it, and its
+  # corrections reached 141), claimed from zero; the gate's probability and
+  # the active slab's mean agree with the closed form (w = 128 v and the
+  # offset integrated out: y2 / e ~ N(b, 0.04 + v2))
+  v2 <- 16384 / 16385 + 1e-48 / e^2
+  marginal <- stats::dnorm(.8, sd = sqrt(c(1, 2))) * stats::dnorm(1, mean = c(0, .4), sd = sqrt(c(0, .5) + v2))
+  p_on <- marginal[[2L]] / sum(marginal)
+  mean_on <- (.8 + 1 / v2) / (2 + 1 / v2)
+  data$epsv <- 128 * e
+  for (offset in c(2^15, 0)) {
+    compiled <- compile("epsv", offset)
+    expected <- if (offset == 0) "claimed without latents" else
+      "design probe: a coordinate's perturbation is not representable against the baseline means"
+    expect_identical(compiled$decision, expected, info = offset)
+    expect_identical("RoBMA::LocationBlock" %in% names(rjags::list.samplers(compiled$model)), offset == 0)
+    rjags::adapt(compiled$model, 100L, end.adaptation = TRUE)
+    draws <- as.matrix(rjags::coda.samples(compiled$model, c("g", "b"), n.iter = 20000L, progress.bar = "none")[[1L]])
+    on <- (draws[, "g"] == 2) * 1
+    comparison <- .location_compare(cbind(on = on, b = draws[, "b"]), c(on = p_on, b = p_on * mean_on))
+    expect_true(attr(comparison, "passes"), info = paste(offset, round(comparison$z, 2), collapse = " "))
+  }
+
+  # (2) the error path (mutant 16): row 2's entry for b dropped after the
+  # probe, as a probe that lost it would leave it (from offset zero). v moves
+  # row 2 in every sweep, so the old check, which skipped every child another
+  # coefficient moved, saw nothing; the comparison of the tracked means raises
+  # the classed error naming y2, and the update's entry state stays in place.
+  .location_hook(mutant = 16L)
+  on.exit(.location_hook(mutant = 0L), add = TRUE)
+  compiled <- compile("epsv", 0)
+  .location_hook(mutant = 0L)
+  expect_identical(compiled$decision, "claimed without latents")
+  jags <- compiled$model
+  rjags::adapt(jags, 0L, end.adaptation = TRUE)
+  error <- NULL
+  for (iteration in 1:100) {
+    jags$sync()
+    entry <- jags$state()[[1L]]
+    error <- tryCatch({
+      stats::update(jags, n.iter = 1L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+    if (!is.null(error)) break
+  }
+  expect_match(error, "Error in node y2\nLocation block sampler [RoBMA_location_untracked_mean]: the mean of this ",
+               fixed = TRUE)
+  expect_match(error, "differs from the mean the sampler's verified design predicts", fixed = TRUE)
+  jags$sync()
+  expect_identical(jags$state()[[1L]][c("g", "slab", "v")], entry[c("g", "slab", "v")])
+})
+
+
 test_that("each sweep runs the fit's fixed slot list, exactly reversed in a reversed sweep", {
 
   skip_if_not_installed("rjags")

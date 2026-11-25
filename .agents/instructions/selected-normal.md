@@ -721,7 +721,21 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   of a `.mv` fit. Its factory verifies the declaration on the compiled graph
   (gate charts by deparse, JAGS closed-class linearity of every node that
   reaches a child, members only in the children's means, a probed design with
-  affine guards) and declines otherwise. Each update rebuilds the Gaussian
+  affine guards) and declines otherwise. The probe verifies each row of a
+  design column against its own response (`column_check`: rounding of the
+  row's baseline and perturbed means below 1e-10 of its response, linearity to
+  1e-9 of it; a zero entry's rounding below 1e-10 of the column's largest
+  response), so one row's entry is never measured against another row's
+  larger response (an offset of 32768 lost a row's entries while the column
+  passed, corrections reached 141); and at run time the exact correction
+  compares, after its write of the final state, every likelihood mean with
+  the block's: a mean the sweep did not move must be unchanged, a mean it
+  moved must equal the one the block tracked to within 1e-6 of the row's
+  conditional SD plus 1e-12 of the size of the means and design terms, so that
+  an entry the probe missed is never hidden by another coefficient that moves
+  the same child; either is the error `RoBMA_location_untracked_mean` naming
+  the child (the entry state restored; mutants 12 and 16 of the test hook).
+  Each update rebuilds the Gaussian
   working model from the graph (block precisions from the children's own
   parameters, the latent column probed), runs the component list forward or
   fully reversed (collapsed flips and refreshes along sheared lines, swaps of
