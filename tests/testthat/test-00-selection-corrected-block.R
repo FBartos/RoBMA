@@ -240,19 +240,25 @@ test_that("a rejection restores the block-entry values and an exhausted interval
   # exhaustion: a constant term of -5e17 makes every point of every slice equal
   # to its level in floating point, so every interval is exhausted and each
   # direction must restore its entry values; g's transform log(g) does not return
-  # g exactly through exp(), so a restore through the inverse transform would move it
+  # g exactly through exp(), so a restore through the inverse transform would move it.
+  # The updates adapt: after adaptation the precision guard refuses a term this
+  # large (no slice can resolve the target there).
   candidates <- seq(.501, 3, by = .001)
   g0 <- candidates[which(exp(log(candidates)) != candidates)[1L]]
   hand <- .block_pair_model(markers = c("dbt_block(mu, 1)", "dbt_block(nu, 1)", "dbt_block(g, 1)"),
                             extra = "  g ~ dgamma(2, 1)\n  big ~ dnorm(0 * mu + 0 * nu + 0 * g, 1)",
                             data = list(big = 1e9), inits = list(g = g0))
   expect_identical(.block_assigned(hand, c("mu", "nu", "g")), rep(.block_sampler, 3L))
-  chain <- .block_chain(hand, c("mu", "nu", "g"), 20L, adapt = 0L, burnin = 0L)
-  expect_identical(chain$exhausted, 60)
-  expect_identical(unname(chain$draws[, "g"]), rep(g0, 20L))
-  expect_identical(unname(chain$draws[, "mu"]), rep(-.25, 20L))
-  expect_identical(unname(chain$draws[, "nu"]), rep(.1, 20L))
-  expect_identical(chain$counters[["proposed"]], 20)
+  RoBMA::selection_sampler_info(clear = TRUE)
+  .block_test_hook()
+  for (iteration in 1:20) {
+    stats::update(hand$model, n.iter = 1L, progress.bar = "none")
+    hand$model$sync()
+    state <- hand$model$state(internal = TRUE)[[1L]]
+    expect_identical(unname(c(state[["g"]], state[["mu"]], state[["nu"]])), c(g0, -.25, .1), info = iteration)
+  }
+  expect_identical(.block_test_hook()$exhausted, 60)
+  expect_identical(RoBMA::selection_sampler_info()[["proposed"]], 20)
 })
 
 
@@ -369,6 +375,70 @@ test_that("errors of the block sampler say 'Corrected slice' and their hint reco
     measure = "SMD", chains = chains, adapt = 100L, burnin = 100L, sample = 100L, seed = 1L, parallel = parallel,
     silent = TRUE, convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)))
 }
+
+
+test_that("the block, gated and scalar samplers stop when the likelihood of the state cannot be resolved", {
+
+  skip_if_not_installed("rjags")
+  # a child whose log density is about -5e25 at every state the members can
+  # reach (an estimate 1e13 standard deviations from its mean): after
+  # adaptation the precision guard of the entry density raises the classed
+  # error naming that child, in the corrected and in the exact kernel; while
+  # adapting nothing is raised
+  extreme <- "  extreme_mean <- mu * 1e-30\n  extreme ~ dnorm(extreme_mean, 1e10)"
+  cases <- list(block = list(markers = c("dbt_block(mu, 1)", "dbt_block(nu, 1)"), sampler = .block_sampler,
+                             label = "Corrected slice (block) [RoBMA_likelihood_not_representable]"),
+                slice = list(markers = character(), sampler = "RoBMA::CoarseCorrectedSlice",
+                             label = "Corrected slice [RoBMA_likelihood_not_representable]"))
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    for (fallback in c(FALSE, TRUE)) {
+      label <- paste(name, if (fallback) "exact kernel" else "corrected kernel")
+      message <- .with_corrected_flags(list(force_fallback = fallback), {
+        hand <- .block_pair_model(markers = case$markers, extra = extreme, data = list(extreme = 1e8))
+        expect_identical(.block_assigned(hand, "mu"), case$sampler, info = label)
+        .block_run_message(hand$model, 50L, end_adaptation = TRUE)
+      })
+      expect_true(startsWith(message, paste0("Error in node extreme\n", case$label, ": the log density of this ",
+                                             "likelihood node is -5e+25")), info = label)
+      expect_true(grepl("tens of thousands of standard deviations", .sampler_error_hint(message), fixed = TRUE),
+                  info = label)
+      expect_false(grepl("RoBMA.options", .sampler_error_hint(message), fixed = TRUE), info = label)
+    }
+    adapting <- .block_pair_model(markers = case$markers, extra = extreme, data = list(extreme = 1e8))
+    expect_identical(.block_run_message(adapting$model, 200L, end_adaptation = FALSE), "", info = name)
+  }
+
+  # the gated weights block (open gate): the same child of the weight r
+  syntax <- paste0("model {\n  r ~ dbeta(2, 2)\n  gate ~ dbt_gate(r, 1)\n  w[1] <- 1\n  w[2] <- r\n",
+                   "  extreme_mean <- r * 1e-30\n",
+                   "  y ~ dselnorm_step_switch(0, 1, 1, 1, w[1:2], lo[1:2], hi[1:2], 1, 1, 1, 1)\n",
+                   "  extreme ~ dnorm(extreme_mean, 1e10)\n}")
+  data <- list(gate = 0, y = .25, extreme = 1e8, lo = c(0, -1e300), hi = c(1e300, 0))
+  gated <- function() .block_hand_model(syntax, data, inits = list(r = .4))
+  hand <- gated()
+  expect_identical(unname(hand$samplers["r"]), "RoBMA::GatedCorrectedBlock")
+  message <- .block_run_message(hand$model, 50L, end_adaptation = TRUE)
+  expect_true(startsWith(message, paste0("Error in node extreme\nCorrected slice (gated block) ",
+                                         "[RoBMA_likelihood_not_representable]")))
+  expect_identical(.block_run_message(gated()$model, 200L, end_adaptation = FALSE), "")
+
+  # the limit: the sum of the absolute likelihood terms just below and just
+  # above 1e9 (the extreme child's term is -0.5 log(2 pi) - x^2 / 2 at a mean
+  # of about 1e-30; the cluster child's term is of order one)
+  boundary <- function(term) {
+    x <- sqrt(2 * (term - 0.5 * log(2 * pi)))
+    .block_pair_model(markers = character(), extra = "  extreme_mean <- mu * 1e-30\n  extreme ~ dnorm(extreme_mean, 1)",
+                      data = list(extreme = x))
+  }
+  invisible(.corrected_test_hook(clear = TRUE))
+  expect_identical(.block_run_message(boundary(1e9 - 1e3)$model, 50L, end_adaptation = TRUE), "")
+  below <- .corrected_test_hook(clear = TRUE)$likelihood_magnitude[["slice"]]
+  expect_gt(below, 1e9 - 1e3)
+  expect_lt(below, 1e9)
+  message <- .block_run_message(boundary(1e9 + 1e3)$model, 50L, end_adaptation = TRUE)
+  expect_true(startsWith(message, "Error in node extreme\nCorrected slice [RoBMA_likelihood_not_representable]"))
+})
 
 
 test_that("a selection model with a full sampling covariance samples its declared block with the block sampler", {

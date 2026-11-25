@@ -213,6 +213,20 @@ proposals and whose judged \code{acceptance_rate}, or \code{min_sampler_rate}, i
 \code{RoBMA_selection_sampler_warning}: sampling is exact but inefficient.
 The message is kept with the fit's warnings, replaced at every extension.
 
+Errors. An error of a corrected sampler, of the location block sampler or
+of its heterogeneity scale move names the node and ends with a hint, in most
+cases the option that returns the parameters to the ordinary samplers and a
+request to report the model. One error concerns the data instead: where a
+sampler evaluates the exact density of the state its chain is in and, after
+adaptation, the absolute log densities of the likelihood terms of that
+evaluation sum to more than \eqn{10^9}, it stops with a message containing
+\code{[RoBMA_likelihood_not_representable]}. An estimate then lies tens of
+thousands of standard deviations from every value the model can give it,
+and double precision cannot resolve the differences that the acceptance
+ratios need. The ordinary samplers return draws for such data without a
+warning; check the estimates and their standard errors, their units and the
+model. While adapting, a chain that starts far from the data raises nothing.
+
 Process counters. Without \code{fit}, the function reports the counters of
 all corrected samplers in this process (every proposal with a correction,
 evidence or not, and for an indicator every change of level), including

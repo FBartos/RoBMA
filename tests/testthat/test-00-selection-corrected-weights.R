@@ -321,6 +321,75 @@ test_that("the screened evidence records the move probability of the kernel that
 .weights_fit_samplers <- function(fit) unique(fit[["fit"]][["samplers"]][["Sampler"]])
 
 
+test_that("the screened indicator stops when the likelihood of the state cannot be resolved", {
+
+  skip_if_not_installed("rjags")
+  # both labels score about -5e25 (an estimate 1e13 standard deviations from
+  # the mean of either kernel) under prior odds 3:1: after adaptation the exact
+  # score of the current level raises the classed error naming the child, in
+  # the corrected update and in the exact enumeration after a fallback; while
+  # adapting nothing is raised
+  syntax <- paste0("model {\n  b ~ dcat(prior[1:2])\n  mode <- modes[b]\n",
+                   "  y ~ dselnorm_step_switch(0, 1e-5, 1e-5, 1, w[1:2], lo[1:2], hi[1:2], 1, 1, mode, 1)\n}")
+  data <- list(prior = c(.75, .25), modes = c(0, 1), w = c(1, 1), y = 1e8, lo = c(0, -1e300), hi = c(1e300, 0))
+  for (fallback in c(FALSE, TRUE)) {
+    message <- .with_corrected_flags(list(force_fallback = fallback), {
+      hand <- .block_hand_model(syntax, data, inits = list(b = 1L))
+      expect_identical(unname(hand$samplers["b"]), "RoBMA::ScreenedFinite")
+      .block_run_message(hand$model, 50L, end_adaptation = TRUE)
+    })
+    expect_true(startsWith(message, paste0("Error in node y\nCorrected finite sampler ",
+                                           "[RoBMA_likelihood_not_representable]: the log density of this ",
+                                           "likelihood node is -5e+25")), info = paste("fallback", fallback))
+  }
+  hand <- .block_hand_model(syntax, data, inits = list(b = 1L))
+  expect_identical(.block_run_message(hand$model, 200L, end_adaptation = FALSE), "")
+})
+
+
+test_that("fits whose bias samplers cannot resolve an admitted extreme estimate stop with the data hint", {
+
+  skip_if_not_installed("rjags")
+  # an estimate of 1000 with SE 1e-6 (admitted by the input checks) and the
+  # effect and heterogeneity fixed at zero: its log density, about -5e17,
+  # erases every difference between the bias labels and weights. Each of the
+  # screened indicator and the gated weight block that evaluates the state
+  # stops with the classed error, also when the row is exempt from selection
+  # (its density then is a constant the indicator's children still carry).
+  fixed <- function(location) BayesTools::prior("point", list(location = location))
+  fit <- function(exempt_row, flags = list()) {
+    arguments <- list(
+      yi = quote(yi), sei = quote(sei), measure = "SMD",
+      data = data.frame(yi = c(0.31, 0.12, 0.45, -0.05, 0.22, 0.60, 0.15, 0.40, 0.05, 0.28, 1000),
+                        sei = c(0.15, 0.20, 0.25, 0.10, 0.18, 0.30, 0.12, 0.22, 0.16, 0.20, 1e-6),
+                        exempt = c(rep(FALSE, 10L), TRUE)),
+      effect_direction = "positive", prior_effect = fixed(0), prior_effect_null = FALSE,
+      prior_heterogeneity = fixed(0), prior_heterogeneity_null = FALSE,
+      prior_bias = list(BayesTools::prior_weightfunction("one-sided", 0.025, BayesTools::wf_cumulative(c(1, 1))),
+                        BayesTools::prior_none()),
+      prior_bias_null = FALSE, seed = 11, sample = 200, burnin = 50, adapt = 100, chains = 1, autofit = FALSE,
+      silent = TRUE, only_priors = TRUE,
+      convergence_checks = RoBMA::set_convergence_checks(min_ESS = NULL, max_Rhat = NULL, allow_not_assessable = TRUE))
+    if (exempt_row) arguments[["bias_exempt"]] <- quote(exempt)
+    object <- do.call(RoBMA::RoBMA, arguments)
+    invisible(gc())
+    .with_corrected_flags(flags, .fit(object))
+  }
+  for (exempt in c(FALSE, TRUE)) {
+    backend <- fit(exempt)
+    expect_length(backend$errors, 1L)
+    expect_true(grepl("[RoBMA_likelihood_not_representable]", backend$errors, fixed = TRUE), info = exempt)
+    expect_true(grepl("tens of thousands of standard deviations", backend$errors, fixed = TRUE), info = exempt)
+  }
+  # each sampler alone (the other's factory switched off: the weights on
+  # BayesTools' gated slice sampler, the indicator on base::Finite)
+  screened <- fit(FALSE, list(disable_gated = TRUE))
+  expect_true(grepl("Corrected finite sampler [RoBMA_likelihood_not_representable]", screened$errors, fixed = TRUE))
+  gated <- fit(FALSE, list(disable_finite = TRUE))
+  expect_true(grepl("Corrected slice (gated block) [RoBMA_likelihood_not_representable]", gated$errors, fixed = TRUE))
+})
+
+
 test_that("model-averaged fits claim their weights and indicators, also in parallel and through update()", {
 
   skip_on_cran()

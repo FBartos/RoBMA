@@ -128,6 +128,21 @@
 }
 
 
+# Runs a compiled model: `adapt` adaptive updates, the end of adaptation when
+# `end_adaptation` (otherwise the whole run adapts: rjags' update() alone does
+# not end it) and `iterations` further updates; returns the error message, ""
+# without one.
+.block_run_message <- function(model, iterations, end_adaptation, adapt = 20L) {
+
+  tryCatch({
+    rjags::adapt(model, adapt, end.adaptation = FALSE)
+    if (end_adaptation) rjags::adapt(model, 0L, end.adaptation = TRUE)
+    stats::update(model, n.iter = iterations, progress.bar = "none")
+    ""
+  }, error = function(error) conditionMessage(error))
+}
+
+
 # ---------------------------------------------------------------------------- #
 # The power fixture: members a, b, s (bounded, the parent of b) and r ~ Beta(rb,
 # rb) (two-sided, mass at both bounds; independent of the rest), K crude cluster

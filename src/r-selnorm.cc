@@ -904,8 +904,10 @@ extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
 // (lookups and hits of the cluster and factor nodes) and, when `scores` is TRUE,
 // the scores of the
 // live screened samplers at their chains' current states (per sampler its
-// chain, the number of levels L, L surrogate and L exact scores); `clear`
-// resets the counters after reading them.
+// chain, the number of levels L, L surrogate and L exact scores), and the
+// largest sum of absolute likelihood terms that each site of the precision
+// guard evaluated after adaptation (likelihood_magnitude); `clear` resets the
+// counters and those maxima after reading them.
 extern "C" SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores)
 {
   ROBMA_NATIVE_BEGIN(flags, clear, scores)
@@ -1010,16 +1012,27 @@ extern "C" SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores
   for (int i = 0; i < 9; ++i) SET_STRING_ELT(flag_labels, i, Rf_mkChar(flag_label_names[i]));
   Rf_setAttrib(flag_values, R_NamesSymbol, flag_labels);
 
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+  // the largest sum of absolute likelihood terms after adaptation per site of
+  // the precision guard (CorrectedSampler.h)
+  const std::vector<double> maxima = jags::RoBMA::likelihood_magnitude_maxima(reset);
+  SEXP magnitude_values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(maxima.size())));
+  for (std::size_t i = 0; i < maxima.size(); ++i) REAL(magnitude_values)[i] = maxima[i];
+  SEXP magnitude_names = PROTECT(Rf_allocVector(STRSXP, static_cast<R_xlen_t>(maxima.size())));
+  const char *site_names[] = {"slice", "block", "gated", "finite", "location", "scale"};
+  for (std::size_t i = 0; i < maxima.size(); ++i) SET_STRING_ELT(magnitude_names, i, Rf_mkChar(site_names[i]));
+  Rf_setAttrib(magnitude_values, R_NamesSymbol, magnitude_names);
+
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
   SET_VECTOR_ELT(out, 0, flag_values);
   SET_VECTOR_ELT(out, 1, counters);
   SET_VECTOR_ELT(out, 2, memo_values);
   SET_VECTOR_ELT(out, 3, score_values);
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
-  const char *names[] = {"flags", "kinds", "memo", "screened_scores"};
-  for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  SET_VECTOR_ELT(out, 4, magnitude_values);
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
+  const char *names[] = {"flags", "kinds", "memo", "screened_scores", "likelihood_magnitude"};
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   Rf_setAttrib(out, R_NamesSymbol, labels);
-  UNPROTECT(11);
+  UNPROTECT(13);
   return out;
   ROBMA_NATIVE_END
 }

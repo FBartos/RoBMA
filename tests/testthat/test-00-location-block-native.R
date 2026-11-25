@@ -48,40 +48,47 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
 })
 
 
-test_that("the exact correction pairs each node's terms, so a large shared term keeps the others' differences", {
+test_that("the location block stops when the likelihood of the state cannot be resolved", {
 
   skip_if_not_installed("rjags")
   # Three independent estimates, a gated N(0, 1) moderator and no
-  # heterogeneity. The third row's log density (about -5e25) is shared by both
-  # endpoints of every sweep, while the moderator moves its mean by 1e-30 per
-  # unit: a correction that subtracts the endpoints' totals loses the first two
-  # rows' differences (it gave a conditional mean of -0.11 against 0.53).
+  # heterogeneity. The third estimate (1e8, SE 1e-5) is about 1e13 standard
+  # deviations from every mean the moderator can give it (its column is 1e-30
+  # or 3e-18): its log density, about -5e25, erases every difference of the
+  # other rows (a correction from endpoint totals gave a conditional mean of
+  # -0.11 against 0.53, paired terms 0.0027 against 1.53 at 3e-18). After
+  # adaptation the exact correction's precision guard raises the classed error
+  # naming that row, with the data hint.
   options <- RoBMA.options()["sampler.joint"]
   on.exit(do.call(RoBMA.options, options), add = TRUE)
   RoBMA.options(sampler.joint = "location")
-  data <- data.frame(y = c(.8, .8, 1e8), se = c(1, 1, 1e-5), x = c(1, 1, 1e-30))
-  fit <- .location_one_chain(BMA(
-    yi = y, sei = se, mods = ~ 0 + x, data = data, measure = "GEN", prior_mods = prior("normal", list(0, 1)),
-    prior_heterogeneity = prior("point", list(0)), prior_heterogeneity_null = FALSE, prior_unit_information_sd = 1,
-    standardize_continuous_predictors = FALSE, adapt = 100L, burnin = 100L, sample = 4000L, chains = 1L,
-    seed = 516L, autofit = FALSE, silent = TRUE))
-  request <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
-  expect_identical(request[["status"]], "active")
-  # the conditional law given the gate on is N(score / precision, 1 / precision)
-  precision <- 1 + sum(data$x^2 / data$se^2)
-  score     <- sum(data$x * data$y / data$se^2)
-  p_on      <- stats::plogis(-log(precision) / 2 + score^2 / (2 * precision))
-  mean_on   <- score / precision
-  draws <- as.matrix(fit[["fit"]][["mcmc"]])
-  on    <- draws[, "mu_x_indicator"] == 2
-  comparison <- .location_compare(
-    cbind(on = on * 1, b = draws[, "mu_x"], b2 = draws[, "mu_x"]^2),
-    c(on = p_on, b = p_on * mean_on, b2 = p_on * (1 / precision + mean_on^2)))
-  expect_true(attr(comparison, "passes"), info = paste(round(comparison$z, 2), collapse = " "))
-  expect_lt(abs(mean(draws[on, "mu_x"]) - mean_on), 0.1)
-  # every correction of the Gaussian label is one up to rounding
-  expect_equal(request[["counters"]][["corrections_accepted"]], request[["counters"]][["sweeps"]])
-  expect_lt(request[["counters"]][["max_correction_gaussian"]], 1e-9)
+  for (x3 in c(1e-30, 3e-18)) {
+    data <- data.frame(y = c(.8, .8, 1e8), se = c(1, 1, 1e-5), x = c(1, 1, x3))
+    message <- tryCatch({
+      .location_one_chain(BMA(
+        yi = y, sei = se, mods = ~ 0 + x, data = data, measure = "GEN", prior_mods = prior("normal", list(0, 1)),
+        prior_heterogeneity = prior("point", list(0)), prior_heterogeneity_null = FALSE,
+        prior_unit_information_sd = 1, standardize_continuous_predictors = FALSE, adapt = 100L, burnin = 100L,
+        sample = 500L, chains = 1L, seed = 516L, autofit = FALSE, silent = TRUE))
+      ""
+    }, error = conditionMessage)
+    expect_true(startsWith(message, paste0("Error in node yi[3]
+Location block sampler ",
+                                           "[RoBMA_likelihood_not_representable]: the log density of this ",
+                                           "likelihood node is -5e+25")), info = x3)
+    expect_true(grepl("tens of thousands of standard deviations", message, fixed = TRUE), info = x3)
+  }
+
+  # the hand-written Gaussian fixture with its first estimate made extreme:
+  # the error after adaptation, nothing while the whole run adapts
+  setup <- .location_gaussian_setup()
+  setup$y[1L] <- 1e8
+  setup$variance[1L] <- 1e-10
+  model <- .location_gaussian_model(setup)
+  message <- .block_run_message(.location_compile(model), 50L, end_adaptation = TRUE)
+  expect_true(startsWith(message, "Error in node y[1]
+Location block sampler [RoBMA_likelihood_not_representable]"))
+  expect_identical(.block_run_message(.location_compile(model), 200L, end_adaptation = FALSE), "")
 })
 
 

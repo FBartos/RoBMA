@@ -1,8 +1,13 @@
 #include "CorrectedSampler.h"
 
+#include <module/ModuleError.h>
+
 #include <cmath>
+#include <cstdio>
+#include <limits>
 #include <mutex>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace jags {
@@ -91,6 +96,64 @@ CorrectedKindCounters *kind_counters()
   return counters;
 }
 
+}
+
+namespace {
+
+// The largest sum of absolute likelihood terms per guard site after
+// adaptation (relaxed atomics; never destroyed, like the counters).
+std::atomic<double> *likelihood_maxima()
+{
+  static std::atomic<double> *maxima = new std::atomic<double>[likelihood_site_count]();
+  return maxima;
+}
+
+std::string format_number(double x)
+{
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%.6g", x);
+  return buffer;
+}
+
+}
+
+void LikelihoodMagnitude::add(Node const *child, double term)
+{
+  const double size = std::fabs(term);
+  if (!(size <= std::numeric_limits<double>::max())) return;
+  sum += size;
+  if (node == nullptr || size > largest) {
+    largest = size;
+    value = term;
+    node = child;
+  }
+}
+
+void check_likelihood_magnitude(LikelihoodMagnitude const &magnitude, bool adapting, int site,
+                                std::string const &sampler)
+{
+  if (adapting) return;
+  std::atomic<double> &maximum = likelihood_maxima()[site];
+  double current = maximum.load(std::memory_order_relaxed);
+  while (magnitude.sum > current &&
+         !maximum.compare_exchange_weak(current, magnitude.sum, std::memory_order_relaxed)) {}
+  if (!(magnitude.sum > likelihood_representable_limit) || magnitude.node == nullptr) return;
+  throwNodeError(magnitude.node, sampler + " [RoBMA_likelihood_not_representable]: the log density of this "
+                 "likelihood node is " + format_number(magnitude.value) + " at the chain's current state, and the "
+                 "absolute log densities of the likelihood terms evaluated with it sum to " +
+                 format_number(magnitude.sum) + ", above " + format_number(likelihood_representable_limit) +
+                 ", where double precision cannot resolve the differences the sampler needs; check the data, "
+                 "their units and the model");
+}
+
+std::vector<double> likelihood_magnitude_maxima(bool clear)
+{
+  std::vector<double> out(likelihood_site_count);
+  for (int i = 0; i < likelihood_site_count; ++i) {
+    out[static_cast<std::size_t>(i)] = clear ? likelihood_maxima()[i].exchange(0.0, std::memory_order_relaxed) :
+      likelihood_maxima()[i].load(std::memory_order_relaxed);
+  }
+  return out;
 }
 
 CorrectedKindCounters &corrected_kind_counters(int kind)

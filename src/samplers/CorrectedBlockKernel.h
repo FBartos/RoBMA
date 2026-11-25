@@ -144,7 +144,8 @@ private:
   void adapt_axes(std::vector<double> const &u_start, std::vector<double> const &u);
   void check_sum(double out, char const *where) const;
   double member_terms(char const *where) const;
-  double log_full(char const *where) const;
+  double log_full(char const *where, LikelihoodMagnitude *magnitude = nullptr) const;
+  double log_full_current() const;
   double log_surrogate(char const *where);
   void trace(int kind, double value) const;
   double width(unsigned int k) const;

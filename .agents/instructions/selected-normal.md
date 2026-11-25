@@ -979,6 +979,37 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `allocation_block_withheld` and warned on fallbacks of ensembles without
   their allocation block; the accessor drops that element and a refresh of the
   warnings drops that stored message (`.selection_sampler_fallback_pattern`).
+- Precision guard (`CorrectedSampler.{h,cc}`, one constant
+  `likelihood_representable_limit = 1e9`): data that the input checks admit
+  can hold an estimate that no state of the model fits within tens of
+  thousands of standard deviations (`yi = 1000`, `sei = 1e-6` with the effect
+  fixed at zero); its log density (1e10 to 1e26) leaves double precision unable
+  to resolve the differences the samplers need, and the reviewed fixtures drew
+  the prior from these and from the stock JAGS and BayesTools samplers alike.
+  Wherever one of this package's samplers evaluates the exact log density of
+  the state its chain is in (the location block's exact correction over the
+  entry's changed children, the block kernels' entry density in both kernels,
+  the scalar corrected slice's entry density and the exact slicer's first
+  evaluation, the screened indicator's exact score of the current level and
+  its enumeration's) it sums the absolute values of the
+  likelihood terms of that evaluation (`M`, the children's log densities,
+  priors excluded); after adaptation `M > 1e9` raises
+  `[RoBMA_likelihood_not_representable]` naming the node with the largest term
+  and its value, and `.sampler_error_hint()` replaces the sampler hint with one
+  about the data (the ordinary samplers return draws for such data without a
+  warning, so no sampler option is a remedy). While adapting nothing is raised
+  (a chain may start far from the data), and a proposed state is never checked
+  (a huge term rejects it as before). Up to the limit, sums of the terms are
+  differenced with an error below 1e-6, so the bias-side samplers keep their
+  totals. The guard sees only the state the chain is in: a fixture whose
+  latents absorb the extreme row (L2's frozen-state fixture with `y = 1000`,
+  `se = 1e-6`: `M` = 1.3e7) passes it while L2's base-point evidences, far
+  from that state, still lose L2's reciprocity (relative residual 1.17).
+  The test hook `RoBMA_corrected_sampler_test` reports the largest `M` per site
+  after adaptation (`likelihood_magnitude`); tests in
+  `test-00-selection-corrected-block.R` (block, gated, scalar, both kernels,
+  the limit's boundary pair), `test-00-selection-corrected-weights.R`
+  and `test-00-location-block-native.R`.
 - BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
   `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
   marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`

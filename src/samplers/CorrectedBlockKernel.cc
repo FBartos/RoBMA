@@ -228,16 +228,27 @@ double CorrectedBlockKernel::member_terms(char const *where) const
 // members' terms and the likelihood terms of every stochastic child of the
 // block, in the order of BayesTools' factor slice sampler. A NaN term, a NaN
 // sum or a +Inf sum is a node error.
-double CorrectedBlockKernel::log_full(char const *where) const
+double CorrectedBlockKernel::log_full(char const *where, LikelihoodMagnitude *magnitude) const
 {
   double out = member_terms(where);
   for (StochasticNode const *child : _graph->stochasticChildren()) {
     const double term = child->logDensity(_chain, PDF_LIKELIHOOD);
     if (std::isnan(term)) density_failure(child, where, "the log density term of this node is NaN");
+    if (magnitude != nullptr) magnitude->add(child, term);
     out += term;
   }
   check_sum(out, where);
   trace(1, out);
+  return out;
+}
+
+// The full density of the chain's current state with the precision guard of
+// its likelihood terms (CorrectedSampler.h; after adaptation only).
+double CorrectedBlockKernel::log_full_current() const
+{
+  LikelihoodMagnitude magnitude;
+  const double out = log_full("the current state", &magnitude);
+  check_likelihood_magnitude(magnitude, _tally.adapting(), _options.kind, _options.label);
   return out;
 }
 
@@ -447,7 +458,7 @@ std::vector<double> CorrectedBlockKernel::exact_sweep(RNG *rng)
   std::vector<double> x_start(_d);
   for (unsigned int k = 0; k < _du; ++k) {
     _graph->getValue(x_start, _chain);
-    const double lp0 = log_full("the current state") + log_jacobian(u);
+    const double lp0 = log_full_current() + log_jacobian(u);
     if (!std::isfinite(lp0)) {
       throwNodeError(_graph->nodes()[0], _options.label +
         " (exact kernel): current value of the block has no finite density");
@@ -491,7 +502,7 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
   // their weights, so the rows keep this state through the sweep)
   if (!_rows.empty()) _rows.refresh();
   // 1. both densities recomputed at block entry
-  const double full_old = log_full("the current state") + jacobian_old;
+  const double full_old = log_full_current() + jacobian_old;
   if (!std::isfinite(full_old)) {
     throwNodeError(_graph->nodes()[0], _options.label + " requires a finite current full density");
   }

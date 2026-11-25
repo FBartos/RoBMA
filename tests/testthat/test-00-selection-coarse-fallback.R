@@ -402,6 +402,19 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
   }
   expect_identical(.sampler_error_hint("Error in node mu\nSlicer stuck"), "Error in node mu\nSlicer stuck")
 
+  # the precision guard of every sampler: a hint about the data, no sampler option
+  for (sampler in c("Corrected slice", "Corrected slice (block)", "Corrected slice (gated block)",
+                    "Corrected finite sampler", "Location block sampler", "Location scale move")) {
+    message <- paste0("Error in node y[3]\n", sampler, " [RoBMA_likelihood_not_representable]: the log density ",
+                      "of this likelihood node is -5e+25 at the chain's current state")
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe likelihood of the sampled state cannot be resolved in double precision: an estimate lies ",
+      "tens of thousands of standard deviations from every value the model can give it. The ordinary samplers ",
+      "would return draws for such data without a warning. Check the estimates and their standard errors, their ",
+      "units and the model."
+    ), info = sampler)
+  }
+
   # a member whose two bounds are too wide apart for the block samplers' scale:
   # BayesTools' sampler would stop it under "slice" too, so the hint undeclares
   # the blocks

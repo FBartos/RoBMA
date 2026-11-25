@@ -3568,13 +3568,17 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       before.push_back(v);
     };
     for (unsigned m : changed_members) entry_term(members[m], members[m]->logDensity(_chain, PDF_PRIOR));
+    // the precision guard over the entry's likelihood terms (CorrectedSampler.h)
+    LikelihoodMagnitude magnitude;
     for (unsigned c : kids) {
       const double v = graph_density(c);
       count(counters().correction_evaluations);
       count(counters().evaluations[cat_correction]);
       entry_term(S.children[c].node, v);
+      magnitude.add(S.children[c].node, v);
       if (_entry_valued[c]) old_endpoint += static_cast<long double>(_value_entry[c]) - v;
     }
+    check_likelihood_magnitude(magnitude, _adapting, corrected_kind_location, "Location block sampler");
     if (label_changed) entry_term(bspec().nested, nested_term());
     _view->setValue(_final, _chain);
     // mutant 14: one error after this write, in the first sweep after adaptation

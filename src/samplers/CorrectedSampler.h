@@ -9,9 +9,12 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
+#include <vector>
 #include "../selnorm/selnorm-mv.h"
 
 namespace jags {
+class Node;
 namespace RoBMA {
 
 // min_acceptance > 0 enables the fallback to the exact kernel that each sampler
@@ -171,6 +174,45 @@ public:
 // destroyed before the report is read still counts for the worst rate of its run.
 void register_corrected_sampler(CorrectedSamplerWindow *sampler, int kind);
 void unregister_corrected_sampler(CorrectedSamplerWindow *sampler);
+
+// The precision guard of RoBMA's samplers. Where a sampler evaluates the exact
+// log density of the state its chain is in (the location block's exact
+// correction, the block kernels' and the scalar corrected slice's entry
+// density, the screened indicator's exact score of the current level and its
+// enumeration, the scale move's invariance check), it sums the absolute values
+// of the likelihood terms of that evaluation (the children's log densities,
+// priors excluded). Above the limit, double precision cannot resolve the
+// differences the sampler's acceptance ratios need (an estimate lies tens of
+// thousands of standard deviations from every value the model can give it):
+// after adaptation that is the classed error RoBMA_likelihood_not_representable
+// naming the node with the largest term. While adapting nothing is raised (a
+// chain may start far from the data), and a proposed state is never checked
+// (it is rejected or accepted as before). Up to the limit, sums of the terms
+// are differenced with an error below 1e-6.
+constexpr double likelihood_representable_limit = 1e9;
+
+// The sites of the guard, for the record of the largest sum seen after
+// adaptation (the corrected kinds, then the scale move).
+enum LikelihoodSite { likelihood_site_scale = corrected_kind_count, likelihood_site_count };
+
+// The likelihood terms of one evaluation: the sum of their absolute values and
+// the node with the largest one (non-finite terms are the evaluation's own
+// errors and do not count).
+struct LikelihoodMagnitude {
+  double sum = 0.0;
+  double largest = 0.0;
+  double value = 0.0;
+  Node const *node = nullptr;
+  void add(Node const *child, double term);
+};
+
+// After adaptation (adapting false): records the sum as the site's largest and
+// raises the classed error, its message starting with `sampler`, when it
+// exceeds the limit. While adapting it does nothing.
+void check_likelihood_magnitude(LikelihoodMagnitude const &magnitude, bool adapting, int site,
+                                std::string const &sampler);
+// The largest sum per site after adaptation since the last clearing read.
+std::vector<double> likelihood_magnitude_maxima(bool clear);
 
 // Counters cover all chains/samplers in this process; reset only between updates.
 CorrectedSamplerStats corrected_sampler_stats(bool reset = false);

@@ -49,6 +49,7 @@
 // exact).
 
 #include "CoarseSurrogate.h"
+#include "CorrectedSampler.h"
 #include "StepRowCache.h"
 
 #include <sampler/SamplerFactory.h>
@@ -93,8 +94,10 @@ public:
   // restores the node). enumerate() returns the exact full-conditional
   // probability of leaving the current level (its probability of changing it).
   // Outcome::leave and that probability are the evidence record's statistic.
-  Outcome update(RNG *rng, std::function<void(double)> const &set_value);
-  double enumerate(RNG *rng, std::function<void(double)> const &set_value);
+  // After adaptation (adapting false) the exact score of the current level
+  // carries the precision guard (CorrectedSampler.h).
+  Outcome update(RNG *rng, std::function<void(double)> const &set_value, bool adapting);
+  double enumerate(RNG *rng, std::function<void(double)> const &set_value, bool adapting);
 
   // Test hook and frozen-state checks: the surrogate and exact scores of every
   // level at the current values of the other nodes (prior-free levels -Inf),
@@ -116,7 +119,7 @@ private:
 
   double prior_term() const;
   double surrogate_score(bool *not_exact);
-  double exact_score() const;
+  double exact_score(LikelihoodMagnitude *magnitude = nullptr) const;
 };
 
 class ScreenedFiniteFactory : public SamplerFactory {

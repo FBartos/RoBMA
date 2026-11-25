@@ -41,17 +41,43 @@ class CoarseCorrectedSlice : public Slicer, public CorrectedSamplerWindow {
   // Whether a surrogate evaluated during the current update used a normalizer
   // that is not the exact one (the update is then evidence).
   mutable bool _surrogate_not_exact;
+  // Whether the next exact evaluation is the update's first (the current state).
+  mutable bool _guard_next = false;
   // The adaptation flag, the evidence tally and the reporting window.
   CorrectedTally _tally;
 
   // The exact kernel's target: the full conditional, -Inf allowed (outside the
-  // support), NaN and +Inf refused as in the corrected update.
+  // support), NaN and +Inf refused as in the corrected update. The first
+  // evaluation of an update (the slicer's, at the current value) carries the
+  // precision guard.
   double exactLogDensity() const
   {
-    const double full = _graph->logFullConditional(_chain);
+    const double full = _guard_next ? currentFullConditional() : _graph->logFullConditional(_chain);
     if (std::isnan(full) || full == std::numeric_limits<double>::infinity()) {
       throwNodeError(_graph->node(), "Corrected slice encountered a non-finite full density");
     }
+    return full;
+  }
+
+  // The full conditional of the chain's current state, as GraphView's
+  // logFullConditional sums it (the prior, then the children in order), with
+  // the precision guard of its likelihood terms (CorrectedSampler.h; after
+  // adaptation only). A NaN sum is left to JAGS's own diagnosis.
+  double currentFullConditional() const
+  {
+    _guard_next = false;
+    LikelihoodMagnitude magnitude;
+    double likelihood = 0.0;
+    for (StochasticNode const *child : _graph->stochasticChildren()) {
+      const double term = child->logDensity(_chain, PDF_LIKELIHOOD);
+      magnitude.add(child, term);
+      likelihood += term;
+    }
+    double prior = 0.0;
+    prior += _graph->node()->logDensity(_chain, PDF_PRIOR);
+    const double full = prior + likelihood;
+    if (std::isnan(full)) return _graph->logFullConditional(_chain);
+    check_likelihood_magnitude(magnitude, _tally.adapting(), corrected_kind_slice, "Corrected slice");
     return full;
   }
 public:
@@ -147,13 +173,17 @@ public:
       // One ordinary slice update of the full conditional: no surrogate, no
       // correction, no counting.
       try {
-        if (!updateStep(rng)) {
+        _guard_next = true;
+        const bool stepped = updateStep(rng);
+        _guard_next = false;
+        if (!stepped) {
           throwNodeError(_graph->node(), state() == SLICER_POSINF ?
             "Corrected slice (exact kernel) is at a value with infinite density" :
             "Corrected slice (exact kernel) has a current value inconsistent with the data");
         }
       }
       catch (...) {
+        _guard_next = false;
         setValue(old_value);
         throw;
       }
@@ -161,7 +191,7 @@ public:
     }
     try {
       // Never reuse a full conditional from an earlier coordinate update.
-      const double full_old = _graph->logFullConditional(_chain);
+      const double full_old = currentFullConditional();
       if (!std::isfinite(full_old)) {
         throwNodeError(_graph->node(), "Corrected slice requires a finite current full density");
       }

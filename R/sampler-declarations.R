@@ -426,8 +426,21 @@
 # A fitting error raised by a BayesTools sampler or by RoBMA's corrected
 # selection sampler keeps its message and gains a hint: the option that returns
 # the parameters to the stock JAGS samplers, and a request to report the model
-# (the density could not be computed, or a declaration is wrong).
+# (the density could not be computed, or a declaration is wrong); or, for a
+# likelihood that double precision cannot resolve, a check of the data.
 .sampler_error_hint <- function(message) {
+
+  # The precision guard of RoBMA's samplers: the data, not the sampler. The
+  # ordinary samplers return draws for such data without a warning, so the
+  # hint names no sampler option.
+  if (grepl("[RoBMA_likelihood_not_representable]", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe likelihood of the sampled state cannot be resolved in double precision: an estimate lies tens ",
+      "of thousands of standard deviations from every value the model can give it. The ordinary samplers would ",
+      "return draws for such data without a warning. Check the estimates and their standard errors, their units ",
+      "and the model."
+    ))
+  }
 
   # Errors of either block sampler (RoBMA's corrected block sampler and
   # BayesTools' factor slice sampler, which takes the same block under "slice"

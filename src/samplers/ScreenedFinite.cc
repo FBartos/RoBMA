@@ -112,16 +112,21 @@ double ScreenedFiniteKernel::surrogate_score(bool *not_exact)
   return out;
 }
 
-double ScreenedFiniteKernel::exact_score() const
+double ScreenedFiniteKernel::exact_score(LikelihoodMagnitude *magnitude) const
 {
   corrected_kind_counters(corrected_kind_finite).exact_scores.fetch_add(1, std::memory_order_relaxed);
   double out = prior_term();
-  for (StochasticNode const *child : _children) out += child->logDensity(_chain, PDF_LIKELIHOOD);
+  for (StochasticNode const *child : _children) {
+    const double term = child->logDensity(_chain, PDF_LIKELIHOOD);
+    if (magnitude != nullptr) magnitude->add(child, term);
+    out += term;
+  }
   return out;
 }
 
 ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
-                                                           std::function<void(double)> const &set_value)
+                                                           std::function<void(double)> const &set_value,
+                                                           bool adapting)
 {
   Outcome outcome;
   // the default kernel: a coin that does not depend on the state chooses the
@@ -222,10 +227,12 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
   // 4. the exact correction (the current level first, so that the last exact
   // evaluation is the proposed state)
   set_value(current_value);
-  const double exact_current = exact_score();
+  LikelihoodMagnitude magnitude;
+  const double exact_current = exact_score(&magnitude);
   if (!std::isfinite(exact_current)) {
     throwNodeError(_node, std::string(screened_label) + " requires a finite current full density");
   }
+  check_likelihood_magnitude(magnitude, adapting, corrected_kind_finite, screened_label);
   set_value(proposed_value);
   const double exact_proposed = exact_score();
   if (std::isnan(exact_proposed) || exact_proposed == std::numeric_limits<double>::infinity()) {
@@ -256,14 +263,19 @@ ScreenedFiniteKernel::Outcome ScreenedFiniteKernel::update(RNG *rng,
 
 // The exact enumeration of JAGS 5's base::Finite: every level's full
 // conditional, the same arithmetic order and one uniform draw.
-double ScreenedFiniteKernel::enumerate(RNG *rng, std::function<void(double)> const &set_value)
+double ScreenedFiniteKernel::enumerate(RNG *rng, std::function<void(double)> const &set_value, bool adapting)
 {
   const long current = static_cast<long>(_node->value(_chain)[0] - _lower);
   std::vector<double> likelihood(_levels);
   double maximum = negative_infinity;
   for (unsigned int i = 0; i < _levels; ++i) {
     set_value(_lower + i);
-    likelihood[i] = exact_score();
+    // the current level's terms carry the precision guard
+    LikelihoodMagnitude magnitude;
+    likelihood[i] = exact_score(static_cast<long>(i) == current ? &magnitude : nullptr);
+    if (static_cast<long>(i) == current) {
+      check_likelihood_magnitude(magnitude, adapting, corrected_kind_finite, screened_label);
+    }
     if (likelihood[i] > maximum) maximum = likelihood[i];
   }
   double total = 0;
@@ -418,11 +430,11 @@ public:
     const double entry = _graph->node()->value(_chain)[0];
     try {
       if (_exact) {
-        const double leave = _kernel.enumerate(rng, _set_value);
+        const double leave = _kernel.enumerate(rng, _set_value, _adapting);
         if (!_adapting) record(leave, _graph->node()->value(_chain)[0] != entry);
         return;
       }
-      const ScreenedFiniteKernel::Outcome outcome = _kernel.update(rng, _set_value);
+      const ScreenedFiniteKernel::Outcome outcome = _kernel.update(rng, _set_value, _adapting);
       if (outcome.proposed) _tally.count(outcome.accepted, outcome.evidence);
       if (!_adapting) record(outcome.leave, _graph->node()->value(_chain)[0] != entry);
     }
