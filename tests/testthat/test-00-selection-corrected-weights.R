@@ -202,6 +202,30 @@ test_that("the screened indicator's default kernel is aperiodic between two tied
 })
 
 
+test_that("the screened indicator's exact kernel after a fallback draws as base::Finite", {
+
+  skip_if_not_installed("rjags")
+  # the step-row weights fixture with the weights on BayesTools' gated slice
+  # sampler in both arms: after a forced fallback the screened indicator
+  # enumerates its levels with base::Finite's arithmetic and single uniform,
+  # so the chains agree draw for draw
+  setup <- .rows_weights_setup(1:3, x = rbind(c(2.4, 1.3, .6, -.3), c(2.1, 1.7, .9, -.8), c(2.9, 1.1, .2, -.5),
+                                              c(2.2, 1.5, .4, -.2)))
+  arm <- function(flags) {
+    invisible(gc())
+    .with_corrected_flags(flags, .block_chain(.rows_weights_model(setup), c("b", "r", "eta"), 3000L,
+                                              adapt = 0L, burnin = 0L))
+  }
+  screened <- arm(list(disable_gated = TRUE, force_fallback = TRUE))
+  stock    <- arm(list(disable_gated = TRUE, disable_finite = TRUE))
+  expect_identical(unname(screened$samplers[c("b", "r")]), c("RoBMA::ScreenedFinite", "BayesTools::GatedSlice"))
+  expect_identical(unname(stock$samplers[c("b", "r")]), c("base::Finite", "BayesTools::GatedSlice"))
+  expect_identical(screened$report[["fallback_low_acceptance"]], 1)
+  expect_gt(sum(diff(screened$draws[, "b"]) != 0), 100)
+  expect_identical(screened$draws, stock$draws)
+})
+
+
 test_that("an error of a closed gate's update leaves the graph as it found it", {
 
   skip_if_not_installed("rjags")

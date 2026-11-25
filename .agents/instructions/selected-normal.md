@@ -664,7 +664,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   Liu, `0` plain; `3` the default mixture). Liu's step raised the bias label's
   switches on the tutorial and Assink fits by 37% to 2x for 2-10% more time
   than the plain draw. The exact
-  kernel is base::Finite's enumeration, arithmetic and single uniform. The
+  kernel is base::Finite's enumeration, arithmetic and single uniform (tested
+  draw for draw against base::Finite, and against quadrature with the gated
+  block's exact kernel after a forced fallback). The
   `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
   Batch scoring of the six selection labels was not built.
 - Row cache of step-switch rows (`src/samplers/StepRowCache.{h,cc}`): the

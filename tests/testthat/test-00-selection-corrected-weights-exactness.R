@@ -151,6 +151,27 @@ test_that("the three-branch ensemble of step-selection rows is exact with a pert
 })
 
 
+test_that("the exact kernels after a fallback are exact and their no-Jacobian mutant is not", {
+
+  skip_if_not_certification("The forced-fallback step-row ensemble (about 10 s) runs in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # every corrected sampler switches to its exact kernel at the end of
+  # adaptation: the gated block draws the gamma-group total from its law and
+  # sweeps the full conditional in a fixed order, the screened indicator
+  # enumerates its levels
+  setup <- .rows_weights_setup(1:3, x = .rows_mild_x)
+  reference <- .weights_reference(setup, children_log = .rows_children_log)
+  draws <- 40000L
+  fallback <- .rows_weights_z(setup, reference, draws, list(force_fallback = TRUE))
+  kinds <- attr(fallback, "kinds")
+  expect_identical(unname(kinds[c("gated", "finite"), "fallbacks"]), c(2, 1))
+  .weights_expect_exact(fallback, "forced fallback")
+  .weights_expect_detected(.rows_weights_z(setup, reference, draws, list(force_fallback = TRUE,
+                                                                         drop_sum_jacobian = TRUE)),
+                           "forced fallback, no Jacobian")
+})
+
+
 test_that("the nested weight layout with a PET label is exact with a perturbed cache and its mutant is not", {
 
   skip_if_not_certification("The nested PET fixture (about 10 s) runs in the numerical-kernels case.")
@@ -172,6 +193,13 @@ test_that("the nested weight layout with a PET label is exact with a perturbed c
   expect_lt(kinds["finite", "accepted"] / kinds["finite", "proposed"], .9)
   .weights_expect_detected(.rows_nested_z(setup, reference, draws, list(finite_proposal = 1), perturbed),
                            "uncorrected indicator")
+  # the distribution of the nested layout under the gated block and the
+  # screened indicator with the cache itself, whose corrections accept all
+  exact_cache <- .rows_nested_z(setup, reference, draws)
+  .weights_expect_exact(exact_cache, "corrected, cache")
+  kinds <- attr(exact_cache, "kinds")
+  expect_identical(kinds["finite", "accepted"], kinds["finite", "proposed"])
+  expect_identical(kinds["finite", "evidence_proposed"], 0)
 })
 
 
