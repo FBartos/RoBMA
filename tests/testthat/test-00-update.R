@@ -161,6 +161,42 @@ test_that("update.brma extends by 'auto' or a number, and not at all without sam
   expect_length(calls, 3L)
 })
 
+test_that("update.brma drops the allow_not_assessable of a stored autofit control", {
+
+  # RoBMA 4.1.1 stored 'allow_not_assessable' in the autofit control; the
+  # element was removed and an update drops it without a warning
+  object <- mock_update_object()
+  object[["autofit_control"]][["allow_not_assessable"]] <- TRUE
+  object[["convergence_checks"]][["allow_not_assessable"]] <- TRUE
+
+  forwarded <- list()
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, adapt = NULL) {
+      forwarded[[length(forwarded) + 1L]] <<- object[["autofit_control"]]
+      return(object[["fit"]])
+    },
+    .object_summary = function(object) data.frame(Mean = 2, row.names = "mu"),
+    .object_coefficients = function(object) c(mu = 2),
+    .package = "RoBMA"
+  )
+
+  expect_silent(extended <- update(object, sample_extend = "auto"))
+  expect_silent(controlled <- update(object, autofit_control = list(max_extend = 3)))
+
+  # the control of the extension (validated by BayesTools before .fit()
+  # forwards it to BayesTools::JAGS_extend()) and the stored ones lack it
+  expect_length(forwarded, 1L)
+  expect_false("allow_not_assessable" %in% names(forwarded[[1L]]))
+  expect_identical(forwarded[[1L]][["max_extend"]], 1)
+  for (updated in list(extended, controlled)) {
+    expect_false("allow_not_assessable" %in% names(updated[["autofit_control"]]))
+    # the convergence checks keep theirs
+    expect_true(updated[["convergence_checks"]][["allow_not_assessable"]])
+  }
+  expect_identical(extended[["autofit_control"]][["sample_extend"]], "auto")
+  expect_identical(controlled[["autofit_control"]][["max_extend"]], 3)
+})
+
 test_that("update.brma can drop stored caches after extension", {
 
   object <- mock_update_object()

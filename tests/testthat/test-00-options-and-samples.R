@@ -196,10 +196,52 @@ test_that("convergence checks expose BayesTools routing controls", {
   )[["check_indicators"]])
   expect_identical(routed[["monitor"]], c("mu", "tau"))
   expect_true(routed[["allow_not_assessable"]])
+  expect_identical(names(checks), c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error",
+    "check_indicators", "monitor", "allow_not_assessable"
+  ))
+  expect_error(
+    set_convergence_checks(allow_not_assessable = NA),
+    "Checking 'convergence_checks':\n\tThe 'allow_not_assessable' argument cannot contain NA/NaN values.",
+    fixed = TRUE
+  )
+  # the setting alone is a valid convergence-check list
+  only_allow <- RoBMA:::.check_and_list_convergence_checks(list(allow_not_assessable = TRUE))
+  expect_true(only_allow[["allow_not_assessable"]])
+  expect_false(only_allow[["check_indicators"]])
+  expect_false(RoBMA:::.check_and_list_convergence_checks(list(max_Rhat = 1.05))[["allow_not_assessable"]])
   expect_false("remove_failed" %in% names(checks))
   expect_false("balance_probability" %in% names(checks))
   expect_error(set_convergence_checks(remove_failed = TRUE), "unused argument")
   expect_error(set_convergence_checks(balance_probability = FALSE), "unused argument")
+})
+
+test_that("the automatic-fitting control has no allow_not_assessable", {
+
+  # removed after 4.1.1: automatic fitting never extends a model for
+  # parameters that cannot be assessed; set_convergence_checks() keeps it
+  expect_identical(names(set_autofit_control()), c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error", "max_time",
+    "sample_extend", "restarts", "max_extend", "check_indicators", "monitor"
+  ))
+  expect_false("allow_not_assessable" %in% names(formals(set_autofit_control)))
+  expect_error(set_autofit_control(allow_not_assessable = TRUE), "unused argument")
+  expect_error(
+    RoBMA(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD", only_priors = TRUE, silent = TRUE,
+          autofit_control = list(sample_extend = "auto", allow_not_assessable = TRUE)),
+    "The 'allow_not_assessable' objects are not recognized by the 'autofit_control' argument.",
+    fixed = TRUE
+  )
+
+  # a control stored by RoBMA 4.1.1 is rebuilt without it, whatever its value
+  for (allow in c(FALSE, TRUE)) {
+    stored <- c(set_autofit_control(sample_extend = 1000), list(allow_not_assessable = allow))
+    expect_identical(.update_autofit_control(stored, NULL), set_autofit_control(sample_extend = 1000))
+    expect_identical(
+      .update_autofit_control(stored, list(max_extend = 3)),
+      set_autofit_control(sample_extend = 1000, max_extend = 3)
+    )
+  }
 })
 
 test_that("targeted convergence controls retain product-space indicator checks", {
