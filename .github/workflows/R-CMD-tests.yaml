@@ -75,9 +75,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-r-${{ matrix.config.r }}-robma-standard-
 
+      - name: TEMPORARY listing of the restored fit cache
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ci-diagnostic | Out-Null
+          if (Test-Path tests/testthat/test_files/standard) {
+            Get-ChildItem tests/testthat/test_files/standard -Recurse -File | Sort-Object FullName | ForEach-Object {
+              "{0}`t{1}`t{2}`t{3}" -f $_.Name, $_.Length, $_.LastWriteTimeUtc.ToString('s'), (Get-FileHash $_.FullName -Algorithm MD5).Hash
+            } | Out-File ci-diagnostic/cache-after-restore.txt -Encoding utf8
+          } else { "no directory" | Out-File ci-diagnostic/cache-after-restore.txt -Encoding utf8 }
+
       - name: Refresh missing or stale fitted models
         run: |
           Rscript tools/test-profile.R refresh-standard
+
+      - name: TEMPORARY listing of the refreshed fit cache
+        shell: pwsh
+        run: |
+          Get-ChildItem tests/testthat/test_files/standard -Recurse -File | Sort-Object FullName | ForEach-Object {
+            "{0}`t{1}`t{2}`t{3}" -f $_.Name, $_.Length, $_.LastWriteTimeUtc.ToString('s'), (Get-FileHash $_.FullName -Algorithm MD5).Hash
+          } | Out-File ci-diagnostic/cache-after-refresh.txt -Encoding utf8
 
       - name: Run Unit Tests
         env:
