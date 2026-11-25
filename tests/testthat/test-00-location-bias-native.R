@@ -447,3 +447,27 @@ test_that("the bias swap's and the label update's identities hold with the coin 
     expect_gt(chain$counters[["bias_label_accepted"]], 0, label = label)
   }
 })
+
+
+test_that("a forced rejection after a label change restores every member and descendant", {
+
+  skip_if_not_installed("rjags")
+  # Mutant 15 makes the exact correction reject every sweep that changed the
+  # bias label. With the probe, each such sweep reads the graph's endpoints
+  # independently of the block's buffers, at the entry and after the
+  # restoring write: the members (gates, slabs, latents, the indicator and
+  # the slope sources), every parent value of every stochastic child of the
+  # view (means, weights, kernel modes, the nested node's parameters) and the
+  # densities (JAGS's own); every difference is zero.
+  for (variant in list(list(), list(nested = TRUE))) {
+    chain <- .location_hand_chain(.bias_model(do.call(.bias_setup, variant)), "bias_indicator", draws = 400L,
+                                  burnin = 100L, adapt = 100L, mutant = 15L, probe = TRUE)
+    label <- paste(c("variant", names(variant)), collapse = " ")
+    records <- chain$probe[chain$probe$type == "restoration", ]
+    expect_gt(nrow(records), 20L, label = label)
+    expect_true(all(records$stage1 == 0 & records$full == 0 & records$selection_part == 0 &
+                      records$log_odds == 0), label = label)
+    expect_length(unique(chain$draws[, "bias_indicator"]), 1L)
+    expect_lt(chain$counters[["corrections_accepted"]], chain$counters[["sweeps"]], label = label)
+  }
+})

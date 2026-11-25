@@ -54,7 +54,10 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // after the factory's probe, an untracked mean change; 13 the slice refresh's
 // coordinates in the forward order in reversed sweeps; 14 one error thrown
 // after the exact correction's write of the final state, in the first sweep
-// after adaptation that changes the state). Returns the previous value.
+// after adaptation that changes the state; 15 every sweep that changed the
+// bias label rejected by the exact correction, and with the probe a record
+// of the restored graph against the entry's, type 11). Returns the previous
+// value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.

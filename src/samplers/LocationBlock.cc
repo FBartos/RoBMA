@@ -3434,6 +3434,56 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     flush_bias_evidence();
   }
 
+  // Test hook (mutant 15 with the probe): the graph's endpoints, read
+  // independently of the block's buffers: the members' values, every parent
+  // value of every stochastic child of the view (the likelihood children, the
+  // gate markers and the nested node: means, weights, kernel modes, rules and
+  // the nested node's parameters), and their densities (JAGS's own
+  // logDensity, PDF_LIKELIHOOD) with the members' prior densities.
+  struct Endpoints {
+    Vec members, parents, densities;
+  };
+  Endpoints _restoration_entry;
+
+  void entry_endpoints(Endpoints &out) const
+  {
+    out.members.assign(s().length, 0.0);
+    _view->getValue(out.members, _chain);
+    out.parents.clear();
+    out.densities.clear();
+    for (StochasticNode const *child : _view->stochasticChildren()) {
+      for (Node const *parent : child->parents()) {
+        double const *value = parent->value(_chain);
+        out.parents.insert(out.parents.end(), value, value + parent->length());
+      }
+      out.densities.push_back(child->logDensity(_chain, PDF_LIKELIHOOD));
+    }
+    for (StochasticNode const *member : _view->nodes()) out.densities.push_back(member->logDensity(_chain, PDF_PRIOR));
+  }
+
+  // After the forced rejection and the restoring write: the endpoints read
+  // again against those of the entry (probe record type 11: 1, the largest
+  // differences of the members, the parent values and the densities, and
+  // whether the counts agree). All must be zero.
+  void restoration_probe()
+  {
+    Endpoints now;
+    entry_endpoints(now);
+    auto difference = [](Vec const &a, Vec const &b) {
+      if (a.size() != b.size()) return std::numeric_limits<double>::infinity();
+      double out = 0.0;
+      for (std::size_t i = 0; i < a.size(); ++i) {
+        if (!(a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i])))) out = std::max(out, std::fabs(a[i] - b[i]));
+        if (std::isnan(out)) out = std::numeric_limits<double>::infinity();
+      }
+      return out;
+    };
+    Endpoints const &entry = _restoration_entry;
+    probe_raw(11, 1.0, difference(now.members, entry.members), difference(now.parents, entry.parents),
+              difference(now.densities, entry.densities),
+              now.parents.size() == entry.parents.size() && now.densities.size() == entry.densities.size() ? 0.0 : 1.0);
+  }
+
   // The graph's own log density of a child (PDF_LIKELIHOOD) at the graph's
   // current mean: a step-switch row through the distribution's evaluations
   // with its parameters read once per update (the same function and inputs as
@@ -3495,6 +3545,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // the graph holds the entry state once the bias label's nodes are written
     // back (the block wrote them to evaluate other labels, never the means)
     if (bias()) set_graph_label(_label_entry);
+    // mutant 15 with the probe (test hook): the entry's graph endpoints, read
+    // independently of the block's buffers (restoration_probe)
+    if (S.mutant == 15 && S.probe && label_changed) entry_endpoints(_restoration_entry);
     // The exact log ratio pairs each node's density at the final state with
     // its own entry value and sums the differences: totals of the two
     // endpoints would let one large term shared by both erase the others'
@@ -3574,6 +3627,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     bool accepted;
     if (zero_density) {
       accepted = false;
+    } else if (S.mutant == 15 && label_changed) {
+      // mutant 15: every sweep that changed the bias label is rejected
+      accepted = false;
     } else if (S.mutant == 3) {
       accepted = true;
     } else {
@@ -3591,6 +3647,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       if (selection_endpoint()) count(counters().corrections_selection_accepted);
     } else {
       _view->setValue(_entry, _chain);
+      if (S.mutant == 15 && S.probe && label_changed) restoration_probe();
     }
     evidence_endpoint(accepted);
     bias_after_correction(accepted);

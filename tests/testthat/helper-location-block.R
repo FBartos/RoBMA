@@ -34,7 +34,7 @@
   }
   m <- matrix(records, ncol = 6L, byrow = TRUE)
   data.frame(type = c("flip_on", "flip_off", "refresh", "study", "swap", "joint", "ellipse",
-                      "family", "slope", "label_swap", "label")[m[, 1L] + 1L],
+                      "family", "slope", "label_swap", "label", "restoration")[m[, 1L] + 1L],
              selection = m[, 2L] == 1, kind = m[, 2L], stage1 = m[, 3L], full = m[, 4L], selection_part = m[, 5L],
              log_odds = m[, 6L])
 }
