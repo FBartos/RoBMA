@@ -367,11 +367,12 @@
     return out;
   }
 
-  // ---- L0: the screened label update. Liu's Metropolized Gibbs step on the
-  // label's surrogate full conditional at the current working state (every
-  // label with prior mass: the surrogate terms of the coarse-capable children,
-  // the exact terms of the others, the nested node's term), reversible for
-  // the inner target; the sweep's exact correction covers it.
+  // ---- L0: the screened label update. Liu's Metropolized Gibbs step, or with
+  // probability 1/4 the plain Gibbs draw, on the label's surrogate full
+  // conditional at the current working state (every label with prior mass:
+  // the surrogate terms of the coarse-capable children, the exact terms of
+  // the others, the nested node's term), reversible for the inner target; the
+  // sweep's exact correction covers it.
   void label_update(RNG *rng)
   {
     BiasSpec const &B = bspec();
@@ -406,18 +407,33 @@
     label_record(k, mass);
     if (!(others > 0)) return;
     bias_tally(bias_label, 0);
-    long double draw = static_cast<long double>(rng->uniform()) * others;
+    // A state-independent coin (probability 1/4): the plain Gibbs draw over
+    // the label scores, the current label included; otherwise Liu's step,
+    // which between two labels of equal mass alternates deterministically.
+    // Both are reversible for the inner target, and so is their mixture.
     int proposed = 0;
-    for (int l = 1; l <= B.levels; ++l) {
-      if (l == k || mass[static_cast<std::size_t>(l - 1)] == 0.0L) continue;
-      proposed = l;
-      if (draw < mass[static_cast<std::size_t>(l - 1)]) break;
-      draw -= mass[static_cast<std::size_t>(l - 1)];
+    if (alternative(rng)) {
+      long double draw = static_cast<long double>(rng->uniform()) * (mass[static_cast<std::size_t>(k - 1)] + others);
+      for (int l = 1; l <= B.levels; ++l) {
+        if (mass[static_cast<std::size_t>(l - 1)] == 0.0L) continue;
+        proposed = l;
+        if (draw < mass[static_cast<std::size_t>(l - 1)]) break;
+        draw -= mass[static_cast<std::size_t>(l - 1)];
+      }
+      if (proposed == 0 || proposed == k) return;
+    } else {
+      long double draw = static_cast<long double>(rng->uniform()) * others;
+      for (int l = 1; l <= B.levels; ++l) {
+        if (l == k || mass[static_cast<std::size_t>(l - 1)] == 0.0L) continue;
+        proposed = l;
+        if (draw < mass[static_cast<std::size_t>(l - 1)]) break;
+        draw -= mass[static_cast<std::size_t>(l - 1)];
+      }
+      if (proposed == 0) return;
+      const long double others_at = other_mass(mass, proposed);
+      const long double ratio = others / others_at;
+      if (!(ratio >= 1.0L || static_cast<long double>(rng->uniform()) < ratio)) return;
     }
-    if (proposed == 0) return;
-    const long double others_at = other_mass(mass, proposed);
-    const long double ratio = others / others_at;
-    if (!(ratio >= 1.0L || static_cast<long double>(rng->uniform()) < ratio)) return;
     bias_tally(bias_label, 2);
     if (!_adapting && B.gaussian(proposed) != B.gaussian(k)) {
       _bias_evidence.label_crossings[B.gaussian(k) ? 1 : 0] += 1;
@@ -1675,7 +1691,7 @@
     if (!std::isfinite(stage1)) return;
     if (!dry) {
       swap_record_attempt(from_selection, stage1);
-      if (!metropolis(rng, stage1)) {
+      if (!first_stage(rng, stage1)) {
         swap_trace(from, target, false, stage1, 0.0, false);
         return;
       }
@@ -1832,9 +1848,10 @@
 
   // An L0 update from label k (its family's direction), from the label
   // masses exp(score - max) it computed: the probability of moving to a label
-  // of the other family (Liu's Metropolized Gibbs: p_j / max(1 - p_k, 1 - p_j),
-  // with 1 - p_k and 1 - p_j summed over the other labels, other_mass, as the
-  // update sums them) and
+  // of the other family of the update's mixture (with probability 3/4 Liu's
+  // Metropolized Gibbs, p_j / max(1 - p_k, 1 - p_j) with 1 - p_k and 1 - p_j
+  // summed over the other labels as the update sums them, other_mass; with
+  // probability 1/4 the Gibbs draw, p_j) and
   // log P(other family) - log P(own family) of the surrogate full
   // conditional, from the scores (log-sum-exp).
   void label_record(int k, std::vector<long double> const &mass)
@@ -1844,6 +1861,9 @@
     const bool gaussian = B.gaussian(k);
     const int d = gaussian ? 1 : 0;
     const long double others = other_mass(mass, k);
+    const long double all = others + mass[static_cast<std::size_t>(k - 1)];
+    // the update's mixture: the Gibbs draw with the coin's probability
+    const long double gibbs = s().coin == 1 ? 1.0L : s().coin == 2 ? 0.0L : 0.25L;
     long double cross = 0;
     double own_max = negative_infinity, other_max = negative_infinity;
     for (int l = 1; l <= B.levels; ++l) {
@@ -1854,7 +1874,7 @@
       }
       other_max = std::max(other_max, v);
       const long double m = mass[static_cast<std::size_t>(l - 1)];
-      if (m > 0) cross += m / std::max(others, other_mass(mass, l));
+      if (m > 0) cross += (1.0L - gibbs) * m / std::max(others, other_mass(mass, l)) + gibbs * m / all;
     }
     auto log_sum_exp = [&](bool family_gaussian, double top) {
       if (!(top > negative_infinity)) return negative_infinity;

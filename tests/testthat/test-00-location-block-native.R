@@ -603,3 +603,56 @@ test_that("the automatic policy gives independent fits with a gated moderator th
     adapt = 100L, burnin = 50L, sample = 100L, chains = 1L, seed = 6L, autofit = FALSE, silent = TRUE))
   expect_identical(owner(unmoderated), "RoBMA::IndependentBiasJoint")
 })
+
+
+test_that("a gate whose collapsed odds are one does not alternate deterministically", {
+
+  skip_if_not_installed("rjags")
+  # No data on the gated coefficient and even prior odds: each flip's first
+  # stage has ratio one. A Metropolis step then flips every sweep, so a chain
+  # thinned by two keeps one state; Barker's acceptance after a coin with
+  # probability 1/4 per attempt breaks the period. Under thin = 2 the gate-on
+  # frequency of 4,000 draws is within 0.06 (about four of its standard
+  # errors, lag-two autocorrelation 0.56) of 0.5 from either start.
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  model <- list(syntax = paste(c(
+    "model {", "  b0 ~ dnorm(0, 1)", "  g ~ dcat(p[])", "  slab ~ dnorm(0, 1)",
+    "  beta <- zero * (g == 1) + slab * (g == 2)",
+    "  for (i in 1:3) { mu[i] <- b0 + beta * x[i]", "    y[i] ~ dnorm(mu[i], 1) }",
+    "  t0 <- robma_location_group(b0, b0, 0, b0, 1)", "  t1 <- robma_location_group(g, slab, 2, beta, 2)",
+    "  t2 <- robma_location_setup(b0, 2, 0)", "}"), collapse = "\n"),
+    data = list(p = c(.5, .5), zero = 0, x = c(0, 0, 0), y = c(.2, .5, -.1)))
+  frequency <- function(gate, coin) {
+    config <- c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = -1L, coin = coin)
+    jags <- .location_compile(model, inits = list(g = gate, slab = 0.1, b0 = 0, .RNG.name = "base::Mersenne-Twister",
+                                                  .RNG.seed = 91L), config = config)
+    rjags::adapt(jags, 100L, end.adaptation = TRUE)
+    draws <- as.matrix(rjags::coda.samples(jags, "g", n.iter = 8000L, thin = 2L, progress.bar = "none")[[1L]])
+    mean(draws[, "g"] == 2)
+  }
+  for (gate in 1:2) {
+    expect_lt(abs(frequency(gate, 0L) - 0.5), 0.06, label = paste("start", gate))
+    # without the coin the thinned chain keeps its first state
+    expect_true(frequency(gate, 2L) %in% c(0, 1), label = paste("start", gate, "without the coin"))
+  }
+})
+
+
+test_that("the frozen-state identities hold with the coin forced each way", {
+
+  skip_if_not_installed("rjags")
+  # Barker's first stage (coin 1) and the Metropolis one (coin 2) leave every
+  # dry-run identity of the Gaussian moves intact; the forced coin changes
+  # which flips are accepted
+  setup <- .location_gaussian_setup()
+  model <- .location_gaussian_model(setup)
+  accepted <- numeric()
+  for (coin in 1:2) {
+    config <- c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = -1L, coin = coin)
+    chain <- .location_hand_chain(model, c("g", "b", "b0"), draws = 2000L, probe = TRUE, config = config)
+    expect_lt(max(abs(chain$probe$full - chain$probe$stage1)), 1e-10, label = paste("coin", coin))
+    expect_lt(chain$counters[["max_correction_gaussian"]], 1e-10, label = paste("coin", coin))
+    accepted[coin] <- chain$counters[["flip_on_accepted"]] + chain$counters[["flip_off_accepted"]]
+  }
+  expect_lt(accepted[[1L]], accepted[[2L]])
+})

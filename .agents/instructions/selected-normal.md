@@ -763,7 +763,18 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   label changed, and a sweep counts as evidence about the surrogate only when
   an endpoint is a selection label. Components, first in the forward sweep and
   mirrored in the reversed one: D draws dormant slopes from their priors; L0
-  is Liu's Metropolized Gibbs step on the label's surrogate full conditional;
+  is Liu's Metropolized Gibbs step on the label's surrogate full conditional,
+  or after a state-independent coin with probability 1/4 the plain Gibbs draw
+  over the label scores (the current label included), with the other labels'
+  masses summed directly at both endpoints. No move of the block is a
+  periodic two-state move: a Metropolis step between two states with ratio
+  exactly one alternates deterministically, so an evenly thinned chain could
+  keep one state. The first stage of every two-state accept/reject (gate
+  flips, the location swaps, L2) therefore uses Barker's acceptance
+  `r / (1 + r)` instead of `min(1, r)` after a coin with probability 1/4 per
+  attempt; the later stages are unchanged, since the ratio of the two
+  directions' first-stage acceptances is `r` under both (test switch `coin`
+  of `RoBMA_location_block_test_config` forces either way);
   L1 (Gaussian labels) proposes label, intercept gate and slab, both slopes
   and the latents from the collapsed Gaussian cells (an independence
   Metropolis-Hastings step computed from the inner target and both proposal

@@ -421,3 +421,29 @@ test_that("the label update sums the other labels' masses directly at both endpo
   expect_identical(unname(zero[["leave_gaussian_label_crossings"]]), 0)
   expect_gt(zero[["label_proposed"]], 0)
 })
+
+
+test_that("the bias swap's and the label update's identities hold with the coin forced each way", {
+
+  skip_if_not_installed("rjags")
+  # coin 1: Barker's first stage of L2 and the Gibbs draw of L0 in every
+  # attempt; coin 2: never. The reverse ratios and flows keep their bounds
+  # (the test above), and L0's buffered scores agree with the graph's.
+  for (coin in 1:2) {
+    config <- c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = -1L, coin = coin)
+    chain <- .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 1200L, burnin = 100L,
+                                  adapt = 100L, probe = TRUE, config = config)
+    probe <- chain$probe
+    swap <- probe[probe$type == "label_swap", ]
+    reciprocal <- swap[swap$kind == 0, ]
+    rebuilt <- swap[swap$kind == 1, ]
+    scores <- probe[probe$type == "label", ]
+    label <- paste("coin", coin)
+    expect_gt(nrow(reciprocal), 500L, label = label)
+    expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-10, label = label)
+    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1.65e-11, label = label)
+    expect_lt(max(abs(rebuilt$log_odds)), 2.3e-10, label = label)
+    expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
+    expect_gt(chain$counters[["bias_label_accepted"]], 0, label = label)
+  }
+})

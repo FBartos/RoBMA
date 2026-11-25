@@ -96,9 +96,13 @@ std::vector<double> location_block_test_take_probe();
 // swap: the schedule of the bias label's cross-family swap L2 (0 the
 // default, k >= 1 attempted with probability 1 / k per sweep); trace (bits):
 // 1 records every L2 attempt (location_block_test_take_trace), 2 every
-// sweep's sequence (location_block_test_take_sequence).
-// Returns the previous five settings.
-std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap = -1, int trace = -1);
+// sweep's sequence (location_block_test_take_sequence); coin: the
+// state-independent coin of the two-state accept/rejects (Barker's first
+// stage) and of L0 (the Gibbs draw), 0 the default (probability 1/4 per
+// attempt), 1 always the alternative, 2 never.
+// Returns the previous six settings.
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap = -1, int trace = -1,
+                                            int coin = -1);
 // The per-attempt record of L2 since the last call (trace switch): per
 // attempt chain, source label, target label, stage 1 passed, stage-1 log
 // ratio, gate drawn, stage-2 log ratio, accepted, the first latent column

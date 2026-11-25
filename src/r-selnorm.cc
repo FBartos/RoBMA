@@ -811,18 +811,19 @@ extern "C" SEXP RoBMA_step_row_derivative_probe(SEXP y, SEXP mean, SEXP row, SEX
 
 // Test hook, not package interface: the location block sampler's switches
 // (LocationBlockReport.h, location_block_test_config) for samplers built from
-// now on, as an integer vector c(refresh, fit_rule, timing) or c(refresh,
-// fit_rule, timing, swap, trace) whose negative elements keep a setting, or
-// NULL. Returns the previous five settings.
+// now on, as an integer vector c(refresh, fit_rule, timing), c(refresh,
+// fit_rule, timing, swap, trace) or c(refresh, fit_rule, timing, swap, trace,
+// coin) whose negative elements keep a setting, or NULL. Returns the previous
+// six settings.
 extern "C" SEXP RoBMA_location_block_test_config(SEXP config)
 {
   ROBMA_NATIVE_BEGIN(config)
-  std::vector<int> wanted = {-1, -1, -1, -1, -1};
+  std::vector<int> wanted = {-1, -1, -1, -1, -1, -1};
   if (config != R_NilValue) {
-    if (TYPEOF(config) != INTSXP || (XLENGTH(config) != 3 && XLENGTH(config) != 5)) {
-      Rf_error("The location block configuration must be NULL or three or five integers.");
+    if (TYPEOF(config) != INTSXP || (XLENGTH(config) != 3 && XLENGTH(config) != 5 && XLENGTH(config) != 6)) {
+      Rf_error("The location block configuration must be NULL or three, five or six integers.");
     }
-    const int upper[5] = {5, 2, 1, 64, 3};
+    const int upper[6] = {5, 2, 1, 64, 3, 2};
     for (int i = 0; i < static_cast<int>(XLENGTH(config)); ++i) {
       const int value = INTEGER(config)[i];
       if (value == NA_INTEGER || value > upper[i]) Rf_error("The location block configuration is out of range.");
@@ -830,11 +831,11 @@ extern "C" SEXP RoBMA_location_block_test_config(SEXP config)
     }
   }
   const std::vector<int> previous =
-    jags::RoBMA::location_block_test_config(wanted[0], wanted[1], wanted[2], wanted[3], wanted[4]);
-  SEXP out = PROTECT(Rf_allocVector(INTSXP, 5));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
-  const char *names[] = {"refresh", "fit_rule", "timing", "swap", "trace"};
-  for (int i = 0; i < 5; ++i) {
+    jags::RoBMA::location_block_test_config(wanted[0], wanted[1], wanted[2], wanted[3], wanted[4], wanted[5]);
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 6));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 6));
+  const char *names[] = {"refresh", "fit_rule", "timing", "swap", "trace", "coin"};
+  for (int i = 0; i < 6; ++i) {
     INTEGER(out)[i] = previous[static_cast<std::size_t>(i)];
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }

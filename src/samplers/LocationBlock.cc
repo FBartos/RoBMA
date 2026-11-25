@@ -176,6 +176,9 @@ std::atomic<bool> test_timing(false);
 // the schedule of L2 (0 the default, k: probability 1 / k) and its per-attempt trace
 std::atomic<int> test_swap(0);
 std::atomic<int> test_trace(0);
+// the coin of the two-state accept/rejects and of L0 (0 the default, a state-independent
+// coin per attempt with probability 1/4; 1 always the alternative: Barker, Gibbs; 2 never)
+std::atomic<int> test_coin(0);
 // The probability of attempting the bias label's cross-family swap L2 in a sweep
 // (wp3-spec.md, schedule): one unless L2 costs more than 5% of the sampling
 // sweep on the Assink full-V moderator fit or the 18-moderator tutorial fit,
@@ -574,6 +577,7 @@ struct Shared {
   bool timing = false;                     // test hook: wall time of the update's parts
   double swap_probability = 1.0;            // the schedule of L2
   int trace = 0;                           // test hook: 1 per-attempt record of L2, 2 sweep sequences (bits)
+  int coin = 0;                            // test hook: the coin of the two-state moves and L0 (test_coin)
   std::shared_ptr<BiasSpec> bias;          // the bias indicator and slope sources, or null
 };
 
@@ -1875,6 +1879,30 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return log_ratio >= 0 || std::log(rng->uniform()) < log_ratio;
   }
 
+  // A state-independent coin per attempt: true with probability 1/4 (the
+  // test switch coin forces it each way without a draw).
+  bool alternative(RNG *rng)
+  {
+    if (s().coin == 1) return true;
+    if (s().coin == 2) return false;
+    return rng->uniform() < 0.25;
+  }
+
+  // The first stage of a two-state accept/reject (gate flips, swaps, the bias
+  // swap L2): Barker's acceptance r / (1 + r) after the coin, otherwise
+  // min(1, r). The ratio of the two directions' acceptances is r under both,
+  // so the later stages are unchanged; the mixture cannot alternate
+  // deterministically between two states (a Metropolis step at ratio one
+  // would, and an evenly thinned chain would keep one of them).
+  bool first_stage(RNG *rng, double log_ratio)
+  {
+    if (std::isnan(log_ratio)) return false;
+    if (!alternative(rng)) return metropolis(rng, log_ratio);
+    const double barker = log_ratio >= 0 ? 1.0 / (1.0 + std::exp(-log_ratio)) :
+      std::exp(log_ratio) / (1.0 + std::exp(log_ratio));
+    return rng->uniform() < barker;
+  }
+
   // ---- component kernels
 
   // Dormant slab of an off group: an exact draw from its prior.
@@ -1909,7 +1937,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       // in a Gaussian label every proposal reaches stage 1 (no screen)
       evidence_proposed(j, on);
       evidence_odds(j, stage1);
-      if (!metropolis(rng, stage1)) return;
+      if (!first_stage(rng, stage1)) return;
       count(counters().stage1[type]);
     }
     Vec proposal(g.d), db(g.d);
@@ -2647,7 +2675,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     evidence_proposed(j, on);
     group_screen();
     const double stage0 = on ? -_line.log_screen : _line.log_screen;
-    if (!metropolis(rng, stage0)) {
+    if (!first_stage(rng, stage0)) {
       evidence_screened(j);
       return;
     }
@@ -2764,7 +2792,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const double screen = clamp_screen(gauss +
       screen_tilt(basis, L, dj, target_b, zeros, ck, Ckp, Ck, lck) -
       screen_tilt(basis, L, 0, target_a, zeros, cj, Cjp, Cj, lcj));
-    if (!metropolis(rng, screen)) return;
+    if (!first_stage(rng, screen)) return;
     count(counters().stage0[swap]);
     const Category previous = enter(cat_fit);
     Tilt tilt;
@@ -3205,7 +3233,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       log_slab(gk, zero_k.data()) + log_normal_precision(zero_j.data(), mj, Pj, lj) -
       log_slab(gj, zero_j.data()) - log_normal_precision(zero_k.data(), mk, Pk, lk);
     if (!dry) {
-      if (!metropolis(rng, stage1)) return;
+      if (!first_stage(rng, stage1)) return;
       count(counters().stage1[swap]);
     }
     Vec beta_k(dk), dormant_j(dj);
@@ -4111,6 +4139,7 @@ public:
       shared->swap_probability = swap > 0 ? 1.0 / swap : default_swap_probability;
     }
     shared->trace = test_trace.load(std::memory_order_relaxed);
+    shared->coin = test_coin.load(std::memory_order_relaxed);
     for (ChildSpec &child : shared->children) {
       child.kind = child_kind(child.node, config.settings);
       if (child.kind != ChildKind::other) shared->any_surrogate = true;
@@ -4324,18 +4353,20 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
   return out;
 }
 
-std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap, int trace)
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap, int trace, int coin)
 {
   std::vector<int> previous = {test_refresh.load(std::memory_order_relaxed),
                                test_fit_rule.load(std::memory_order_relaxed),
                                test_timing.load(std::memory_order_relaxed) ? 1 : 0,
                                test_swap.load(std::memory_order_relaxed),
-                               test_trace.load(std::memory_order_relaxed)};
+                               test_trace.load(std::memory_order_relaxed),
+                               test_coin.load(std::memory_order_relaxed)};
   if (refresh >= 0) test_refresh.store(refresh, std::memory_order_relaxed);
   if (fit_rule >= 0) test_fit_rule.store(fit_rule, std::memory_order_relaxed);
   if (timing >= 0) test_timing.store(timing != 0, std::memory_order_relaxed);
   if (swap >= 0) test_swap.store(swap, std::memory_order_relaxed);
   if (trace >= 0) test_trace.store(trace, std::memory_order_relaxed);
+  if (coin >= 0) test_coin.store(coin, std::memory_order_relaxed);
   return previous;
 }
 
