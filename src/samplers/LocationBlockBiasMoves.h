@@ -1129,7 +1129,9 @@
     _b = x.b; _beta = x.beta; _z = x.z; _mean = x.mean; _r = x.r; _wr = x.wr; _h = x.h;
     _value = x.value; _fit_value = x.fit_value; _g = x.g; _value_ok = x.value_ok; _fit_ok = x.fit_ok;
     _selected = x.selected; _dirty = x.dirty; _selection = x.selection; _label = x.label;
-    _not_exact = x.not_exact;
+    // mutant 28 (test hook): the flag left as the evaluations set it, as
+    // before the snapshot held it
+    if (s().mutant != 28) _not_exact = x.not_exact;
     set_graph_label(_label);
     _line.valid = false;
   }
@@ -2050,9 +2052,23 @@
         ratio = static_cast<double>(delta + static_cast<long double>(back.forward - own.forward));
         // mutant 9: the nested node's density left out of the acceptance ratio
         // while the inner target's change recorded below keeps it (left out of
-        // both, the sweep's exact correction would restore it)
+        // both, the sweep's exact correction would restore it); mutant 26:
+        // both proposal densities from the forward end's base point
         if (s().mutant == 9) ratio -= _swap_nested;
-        accepted = std::isfinite(ratio) && metropolis(rng, ratio - stage1);
+        if (s().mutant == 26) ratio = static_cast<double>(delta + static_cast<long double>(own.reverse - own.forward));
+        const double stage2 = ratio - stage1;
+        accepted = std::isfinite(ratio) && metropolis(rng, stage2);
+        // mutants 27, 28 (test hooks): every proposal rejected at stage 2
+        if (s().mutant == 27 || s().mutant == 28) accepted = false;
+        // test hook (probe), kind 10: stage 2's input as the acceptance takes
+        // it, stage 1, and from the attempt's quantities the exact ratio
+        // delta + log q'(x | x') - log q(x' | x) and the forward end's own
+        // ratio delta + log q(x | x') - log q(x' | x)
+        if (s().probe) {
+          probe_raw(probe_swap, 10.0, stage2, stage1,
+                    static_cast<double>(delta + static_cast<long double>(back.forward - own.forward)),
+                    static_cast<double>(delta + static_cast<long double>(own.reverse - own.forward)));
+        }
         if (accepted) {
           rebuild_h();
           _repr_delta += delta;

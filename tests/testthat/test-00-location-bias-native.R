@@ -436,6 +436,97 @@ test_that("the cross-family swap makes no proposal while its base point is not r
 })
 
 
+test_that("the swap's live stage 2 takes the exact ratio of its two evaluated ends", {
+
+  skip_if_not_installed("rjags")
+  # Stage 2 of a live L2 attempt takes each proposal density from the base
+  # point of the end that draws it: r = delta + log q'(x | x') - log q(x' | x),
+  # q' at the rebuilt proposal end. With the probe, every live attempt that
+  # the rule admits records the acceptance's input (r - stage 1), stage 1,
+  # and from the attempt's quantities the exact ratio and the forward end's
+  # own ratio delta + log q(x | x') - log q(x' | x) (kind 10). With a row at
+  # 20 / 1e-4 the two ends' proposal densities differ by rounding that the
+  # Laplace fits amplify, so the own-end ratio differs from the exact one on
+  # admitted pairs; the input must be the exact ratio minus stage 1. Mutant
+  # 26 takes the own-end ratio (both proposal densities from the forward
+  # end's base point) and fails that.
+  setup <- .bias_setup()
+  setup$y[1]  <- 20
+  setup$se[1] <- 1e-4
+  setup$residual_sd <- setup$se * sqrt(1 - .85)
+  setup$loading     <- setup$se * sqrt(.85)
+  stage2 <- function(mutant) {
+    chain <- .location_hand_chain(.bias_model(setup), "bias_indicator", draws = 300L, burnin = 100L, adapt = 100L,
+                                  probe = TRUE, mutant = mutant,
+                                  config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = -1L,
+                                             coin = -1L))
+    live <- chain$probe[chain$probe$type == "label_swap" & chain$probe$kind == 10, ]
+    live$scale <- pmax(1, abs(live$selection_part), abs(live$full))
+    live
+  }
+  # columns: stage1 the acceptance's input, full stage 1, selection_part the
+  # exact ratio, log_odds the own-end ratio
+  live <- stage2(0L)
+  expect_gt(nrow(live), 100L)
+  expect_true(all(is.finite(live$stage1)))
+  expect_lte(max(abs(live$stage1 - (live$selection_part - live$full)) / live$scale), 4 * .Machine$double.eps)
+  expect_gt(sum(abs(live$log_odds - live$selection_part) / live$scale > 4e3 * .Machine$double.eps), 10L)
+  own <- stage2(26L)
+  expect_gt(max(abs(own$stage1 - (own$selection_part - own$full)) / own$scale), 4e3 * .Machine$double.eps)
+})
+
+
+test_that("a discarded swap leaves the sweep's evidence flag as it was", {
+
+  skip_if_not_installed("rjags")
+  # The evidence flag about the surrogate (_not_exact) marks a sweep that
+  # evaluated a surrogate that is not exact; L2's snapshot restores it, so
+  # the swap's evaluations at its base point, at its rebuilt end and at a
+  # proposal it discards do not mark the sweep. Mutant 27 runs only the
+  # dormant draws D and L2 in every sweep and rejects every proposal of L2 at
+  # stage 2. The chain starts and stays at the selection label, whose step
+  # kernel the fixture's surrogate evaluates with a coarse normalizer, which
+  # is not exact: every sweep has a selection endpoint and starts with the
+  # flag false; D redraws the dormant PET and PEESE slopes from their priors
+  # without evaluating a child, so the state changes and the exact
+  # correction runs (an unchanged state is accepted before any evidence is
+  # counted); L2 evaluates such surrogates at its base point (the selection
+  # label's Laplace evidence), at the current state before the move and, for
+  # attempts that pass stage 1, at the proposal's rebuilt end, then discards
+  # the proposal. No sweep is evidence. Mutant 28 is mutant 27 with the
+  # snapshot leaving the flag as the evaluations set it, as the build before
+  # the snapshot held it did: every sweep is evidence.
+  run <- function(mutant) {
+    RoBMA:::.location_block_report_read()
+    jags <- .location_compile(.bias_model(.bias_setup()), mutant = mutant,
+                              inits = list(bias_indicator = 2L, .RNG.name = "base::Mersenne-Twister",
+                                           .RNG.seed = 4127L),
+                              config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = -1L,
+                                         coin = -1L))
+    rjags::adapt(jags, 50L, end.adaptation = TRUE)
+    RoBMA:::.location_block_report_read()
+    draws <- rjags::coda.samples(jags, "bias_indicator", n.iter = 100L, progress.bar = "none")
+    list(draws = as.matrix(draws[[1L]]), counters = RoBMA:::.location_block_report_read())
+  }
+  kept <- run(27L)
+  counters <- kept$counters
+  expect_true(all(kept$draws[, "bias_indicator"] == 2))
+  expect_identical(counters[["sweeps"]], 100)
+  expect_identical(counters[["sweeps_selection"]], counters[["sweeps"]])
+  expect_identical(counters[["bias_label_proposed"]], 0)
+  expect_identical(counters[["bias_dormant_accepted"]], 2 * counters[["sweeps"]])
+  expect_identical(counters[["corrections_accepted"]], counters[["sweeps"]])
+  expect_identical(counters[["bias_label_swap_proposed"]], counters[["sweeps"]])
+  expect_gt(counters[["bias_label_swap_stage1"]], 10)
+  expect_identical(counters[["bias_label_swap_accepted"]], 0)
+  expect_gt(counters[["surrogate_evaluations"]], 0)
+  expect_identical(counters[["sweeps_evidence"]], 0)
+  marked <- run(28L)$counters
+  expect_identical(marked[["sweeps_selection"]], marked[["sweeps"]])
+  expect_identical(marked[["sweeps_evidence"]], marked[["sweeps"]])
+})
+
+
 test_that("the swap's gate probabilities come from one centered pair of evidences", {
 
   # The gate of L2's target cell: log P(on) = -log(1 + e^-d) and log P(off) =

@@ -70,7 +70,11 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // the row's tolerance above it, within it and beyond it; with an owned bias
 // label, of its swap L2: 24 the working means' criterion Q left out of the
 // skip rule, 25 an entered selection label's base point taken as not
-// representable after the target label's draw). Returns the previous value.
+// representable after the target label's draw, 26 stage 2 with both proposal
+// densities from the forward end's base point, 27 the dormant draws and L2
+// alone in every sweep (no other component), every proposal of L2 rejected
+// at stage 2, 28 mutant 27 with the working state's snapshot leaving the
+// evidence flag as the swap's evaluations set it). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -109,7 +113,9 @@ std::string location_block_test_decision();
 // proposal densities) from the end rebuilt from the carried means, the
 // difference of the reverse proposal density, and Q of the carried and the
 // fresh rebuild; kind 8, a dry run skipped at its base point: M_0, Q, 1 when
-// after the target label's draw), type 10 L0 (the
+// after the target label's draw; kind 10, each live attempt that reaches
+// stage 2: stage 2's input as the acceptance takes it, stage 1, the exact
+// ratio and the forward end's own ratio), type 10 L0 (the
 // largest difference of a label's buffered exact score from the graph's and
 // the scale) and type 12 L0's record at each update (kind 1: the kernel, 1
 // the Gibbs draw, the probability of moving to the other family that the

@@ -3536,6 +3536,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _sequence.clear();
     for (std::size_t i = 0; i < steps.size(); ++i) {
       Step const &step = steps[_backward ? steps.size() - 1 - i : i];
+      // mutants 27, 28 (test hooks): the dormant draws D and the swap L2 alone
+      if ((S.mutant == 27 || S.mutant == 28) &&
+          !(step.kind == kind_bias && (step.a == static_cast<unsigned>(bias_swap) ||
+                                       step.a == static_cast<unsigned>(bias_dormant)))) continue;
       sequence_step(step.kind, step.a, step.b);
       // The line of a group serves its F_j and R_j, adjacent in either order;
       // any other component changes it.
