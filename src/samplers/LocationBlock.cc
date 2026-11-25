@@ -60,6 +60,11 @@ constexpr double partner_correlation = 0.3;
 constexpr double swap_correlation = 0.5;
 // Slice widths in proposal standard deviations.
 constexpr double slice_width = 2.5;
+// The damped Newton fits take a step unless it lowers the objective by more
+// than this tolerance relative to its scale (1 + |f|): a step whose change is
+// at the rounding level is always taken, so that the fits at the two ends of
+// a move, whose inputs differ by rounding, take the same steps.
+constexpr double fit_tolerance = 1e-10;
 // The refresh kernels of the active coefficients in selection labels (A3; see
 // LocationBlock::refresh_variant): chosen by measurement.
 constexpr int default_refresh = 1;
@@ -2244,13 +2249,14 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       solve_lower(chol, d, step.data());
       solve_lower_transpose(chol, d, step.data());
       const double f0 = f_at(x, e);
+      const double lowest = f0 - fit_tolerance * (1.0 + std::fabs(f0));
       bool moved = false;
       double scale = 1.0;
       for (int halving = 0; halving <= 5 && !moved; ++halving, scale *= 0.5) {
         Vec next(x), g_next, h_next;
         for (std::size_t i = 0; i < d; ++i) next[i] += scale * step[i];
         double en;
-        if (tilt_at(tilt, L, first, next, target, en, &g_next, &h_next) && f_at(next, en) >= f0) {
+        if (tilt_at(tilt, L, first, next, target, en, &g_next, &h_next) && f_at(next, en) >= lowest) {
           x = next;
           e = en;
           grad = g_next;
@@ -2344,13 +2350,14 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       solve_lower(chol, d, step.data());
       solve_lower_transpose(chol, d, step.data());
       const double f0 = f_at(x, e);
+      const double lowest = f0 - fit_tolerance * (1.0 + std::fabs(f0));
       bool moved = false;
       double scale = 1.0;
       for (int halving = 0; halving <= 5 && !moved; ++halving, scale *= 0.5) {
         Vec next(x);
         for (std::size_t i = 0; i < d; ++i) next[i] += scale * step[i];
         const double en = ell_at(next);
-        if (std::isfinite(en) && f_at(next, en) >= f0) {
+        if (std::isfinite(en) && f_at(next, en) >= lowest) {
           x = next;
           e = en;
           moved = true;

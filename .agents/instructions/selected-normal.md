@@ -780,10 +780,19 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   Laplace odds along the line), stage 1 on the evidences and the label
   Hastings factor, stage 2 on the inner target with the complete proposal
   densities. The full ratio of the reverse move equals the inverse of the
-  forward ratio up to the rounding of the refitted Laplace laws (at most
-  8.1e-8 relative over 13 chain seeds of each fixture variant: the base
-  point rebuilt from either end agrees to rounding, but the damped Newton
-  fit can take a different last step). L2 runs with probability 1/4 per sweep (`default_swap_probability`;
+  forward ratio up to the rounding of the refitted Laplace laws: the base
+  point rebuilt from either end agrees to rounding, and the damped Newton
+  fits reject a step only when it lowers their objective by more than
+  `1e-10 (1 + |f|)` (`fit_tolerance`), so a step whose change is at the
+  rounding level is taken at both ends and the two ends' fits take the same
+  steps (accepting on `f(next) >= f0` let rounding decide the last step and
+  left residuals up to 8.1e-8). Measured: at most 1.6e-12 relative over 30
+  chain seeds of each fixture variant (126,000 records), the two
+  directions' probability flows at most 2.2e-11; the tests bound ten times
+  that. The tilted fits of the location components (flips, refreshes and
+  swaps, whose reverse fit is evaluated at inputs that differ from the
+  forward ones by rounding) take their steps by the same rule, so they too
+  agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
   with its Laplace fits it took 15.7% of the sampling sweep on the Assink
   full-V moderator fit and 10.6% on the 18-moderator tutorial fit at one, 8.5%
   and 5.6% at 1/2, above the 5% of the rule, and 4.4% and 2.9% at 1/4), decided

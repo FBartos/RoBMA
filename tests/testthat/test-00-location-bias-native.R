@@ -172,23 +172,25 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_gt(nrow(reciprocal), 500L, label = label)
     # stage 1 of the reverse move is the inverse; so is the full ratio up to
     # the rounding of the Laplace laws refitted at the other end: the base
-    # point's functions rebuilt from either end agree to rounding (below), but
-    # the damped Newton fit can take a different last step (up to 6e-8 of the
-    # law's SD). Measured maximum 8.1e-8 relative over 13 chain seeds of each
-    # variant; from the forward move's base quantities the reverse is the
-    # inverse to rounding
+    # point's functions rebuilt from either end agree to rounding (below), and
+    # the damped Newton fits take every step whose change of the objective is
+    # at the rounding level, so both ends take the same steps. Measured maximum
+    # 1.6e-12 relative over 30 chain seeds of each variant (126,000 records);
+    # the bound is ten times that. From the forward move's base quantities the
+    # reverse is the inverse to rounding
     expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-10, label = label)
-    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-7, label = label)
+    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1.65e-11, label = label)
     expect_lt(max(abs(shared$stage1) / pmax(1, abs(reciprocal$stage1))), 1e-12, label = label)
     expect_lt(max(abs(shared$full) / pmax(1, abs(reciprocal$selection_part))), 1e-12, label = label)
     expect_lt(max(base_point$stage1, base_point$full), 1e-12, label = label)
     # E_0, the shears, the evidences and the label proposals agree; the
     # accepted flows of the two directions are equal up to the same rounding
-    # of the refitted laws (measured maximum 2.9e-8)
+    # of the refitted laws (measured maximum 2.2e-11 over the same seeds; the
+    # bound is ten times that)
     expect_lt(max(rebuilt$stage1), 1e-12, label = label)
     expect_lt(max(rebuilt$full), 1e-9, label = label)
     expect_lt(max(rebuilt$selection_part), 1e-12, label = label)
-    expect_lt(max(abs(rebuilt$log_odds)), 1e-7, label = label)
+    expect_lt(max(abs(rebuilt$log_odds)), 2.3e-10, label = label)
     expect_lt(max(plane$stage1 / plane$full), 1e-10, label = label)
     expect_gt(nrow(scores), 500L, label = label)
     expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
