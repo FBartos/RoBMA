@@ -22,10 +22,11 @@ skip_refit_if_cached("BMA.mv")
 }
 
 
-test_that("BMA.mv fits a product space over fixed and random components", {
+# The gated random-components model of the cached BMA.mv fits; `sample` is the
+# number of stored draws per chain.
+.bma_mv_random_components_fit <- function(input, sample) {
 
-  input <- .bma_mv_fit_data()
-  fit <- BMA.mv(
+  return(BMA.mv(
     yi = yi, V = input[["V"]], mods = ~ x,
     random = list(study = ~ 1 | study, observation = ~ 1 | obs),
     data = input[["data"]], measure = "GEN",
@@ -43,18 +44,20 @@ test_that("BMA.mv fits a product space over fixed and random components", {
       "spike", parameters = list(location = 0), prior_weights = 5
     ),
     prior_unit_information_sd = 1,
-    # The IWMDE ordinates of the study SD (test-02-random-parameters.R) are
-    # estimated on the census of draws with that component active (about 35%).
-    # Their normalization-mass error is Monte Carlo error that shrinks only
-    # with more such draws: with 300 draws per chain it exceeds the 10%
-    # rejection threshold for 8 of 20 seeds; with 10000 it stays below 4%.
-    chains = 2, sample = 10000, burnin = 150, adapt = 500,
+    chains = 2, sample = sample, burnin = 150, adapt = 500,
     seed = 193, silent = TRUE,
     convergence_checks = set_convergence_checks(
       max_Rhat = NULL,
       min_ESS  = NULL
     )
-  )
+  ))
+}
+
+
+test_that("BMA.mv fits a product space over fixed and random components", {
+
+  input <- .bma_mv_fit_data()
+  fit <- .bma_mv_random_components_fit(input, sample = 300)
   fit <- suppressWarnings(add_loo(fit))
   save_fit(
     "BMA.mv_random_components",
@@ -72,6 +75,21 @@ test_that("BMA.mv fits a product space over fixed and random components", {
   )
   expect_length(summary(fit)[["inclusion_random"]][["post_prob"]], 2L)
   expect_s3_class(fit[["loo"]][["estimate"]], "loo")
+})
+
+test_that("BMA.mv keeps a long fit of the random-components model for IWMDE", {
+
+  # The IWMDE ordinates of the study SD (test-02-random-parameters.R) are
+  # estimated on the census of draws with that component active (about 35%).
+  # Their normalization-mass error is Monte Carlo error that shrinks only
+  # with more such draws: with 300 draws per chain it exceeds the 10%
+  # rejection threshold for 8 of 20 seeds; with 10000 it stays below 4%.
+  input <- .bma_mv_fit_data()
+  fit <- .bma_mv_random_components_fit(input, sample = 10000)
+  save_fit("BMA.mv_random_components_iwmde", fit)
+
+  expect_s3_class(fit, "BMA.mv")
+  expect_equal(nrow(.get_posterior_samples(fit[["fit"]])), 20000L)
 })
 
 test_that("BMA.mv fits can be extended without rebuilding the product space", {

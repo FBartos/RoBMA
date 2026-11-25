@@ -991,6 +991,7 @@ test_that("fit catalog is internally consistent", {
               info = "all catalog source files must exist")
   no_loo_fits <- c(
     "brma.mv_block_mvn_random_mods_scale",
+    "BMA.mv_random_components_iwmde",
     "nielweise2008_glmm_effect_null",
     "dat.lehmann2018-3PSM_effect_null",
     "hypothesis_plan_treatment",
@@ -1160,6 +1161,7 @@ test_that("fit catalog is internally consistent", {
       "dat.lehmann2018_RoBMA_mods2",
       "dat.lehmann2018_RoBMA_3lvl_mods_scale",
       "BMA.mv_random_components",
+      "BMA.mv_random_components_iwmde",
       "RoBMA.mv_marg_product_space",
       "bselmodel.mv_marg_random",
       "bPET.mv_random",

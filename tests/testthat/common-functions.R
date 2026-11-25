@@ -497,6 +497,26 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, bma_mv_catalog)
 
+  # the same model with 10000 draws per chain, for the IWMDE comparison of
+  # random-effect SDs and variances (test-02-random-parameters.R)
+  bma_mv_iwmde_catalog <- data.frame(
+    name          = "BMA.mv_random_components_iwmde",
+    class         = "BMA.mv",
+    family        = "norm",
+    source_file   = "test-01-BMA.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = FALSE,
+    has_marglik   = FALSE,
+    features      = I(list(c(
+      "BMA.mv", "normal", "known_v", "random", "mods",
+      "product_space", "random_inclusion", "iwmde"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, bma_mv_iwmde_catalog)
+
   robma_mv_catalog <- data.frame(
     name          = "RoBMA.mv_marg_product_space",
     class         = "RoBMA.mv",
@@ -685,6 +705,7 @@ fit_catalog <- function() {
     "dat.lehmann2018_RoBMA_mods2",
     "dat.lehmann2018_RoBMA_3lvl_mods_scale",
     "BMA.mv_random_components",
+    "BMA.mv_random_components_iwmde",
     "RoBMA.mv_marg_product_space",
     "bselmodel.mv_marg_random",
     "bPET.mv_random",
