@@ -626,10 +626,15 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @param max_extend number of times after which the automatic fitting function is stopped.
 #' Defaults to \code{10}.
 #' @param burnin_max_Rhat threshold of the readiness check between burn-in and
-#' sampling, which runs in every fit, also with \code{autofit = FALSE}.
-#' Defaults to \code{1.5}; \code{NULL} turns the check off. The last
-#' \code{burnin_extend} iterations of burn-in run with the monitors on and
-#' their draws are checked and then dropped: the chains are ready when the
+#' sampling. Defaults to \code{1.5}; \code{NULL} turns the check off. The check
+#' runs, also with \code{autofit = FALSE}, in the initial fit of a model (not
+#' when \code{update()} extends the chains, nor in the automatic extensions
+#' after sampling)
+#' when there are at least two chains, the block of the last
+#' \code{min(burnin_extend, burnin)} iterations of burn-in has at least 100
+#' iterations, and JAGS assigns the model a sampler. The iterations of the
+#' block run with the monitors on and their draws are checked and then
+#' dropped: the chains are ready when the
 #' split-chain R-hat point estimate (each chain's block split into halves) is at
 #' most \code{burnin_max_Rhat} for every parameter of the convergence check
 #' (\code{monitor}, \code{check_indicators}). With \code{autofit}, burn-in of
@@ -637,10 +642,9 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' iterations until they are, \code{burnin_max_extend} blocks were added, or
 #' \code{max_time} is exceeded; without it, burn-in is kept. Chains that are
 #' still not ready start sampling, and a warning is issued once that sampling
-#' has finished (an attempt that is restarted warns nothing). The check is
-#' skipped in a
-#' model to which JAGS assigns no sampler, whose chains cannot disagree; its
-#' burn-in then runs as with the check off. A fit whose chains are ready
+#' has finished (an attempt that is restarted warns nothing). In a model to
+#' which JAGS assigns no sampler, whose chains cannot disagree, burn-in runs as
+#' with the check off. A fit whose chains are ready
 #' at once has the draws it would have with the check off, unless a monitored
 #' node has no observed descendants (see \code{autofit_control} in
 #' \code{\link[BayesTools]{JAGS_fit}}).

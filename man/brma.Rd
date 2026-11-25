@@ -201,9 +201,11 @@ field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
 \item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.
-The chains are checked for agreement over the last iterations of burn-in
+With at least two chains, the chains are checked for agreement over the
+last \code{min(burnin_extend, burnin)} iterations of burn-in (at least 100)
 before sampling starts, and with \code{autofit} burn-in is extended until they
-agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}}). The fitted JAGS
+agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}} for when the check
+runs). The fitted JAGS
 object (\code{object$fit$burnin}) reports the burn-in that was run; the fitting
 settings (\code{object$fit_control$burnin}) keep the requested value.}
 
