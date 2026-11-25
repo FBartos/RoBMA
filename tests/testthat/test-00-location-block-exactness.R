@@ -261,13 +261,16 @@ test_that("the scale move keeps the exact posterior of the heterogeneity and bro
   # the move runs while the heterogeneity is included and is the identity otherwise
   expect_gt(exact$report$counters[["moves"]], 0.5 * 200000)
   expect_gt(exact$report$counters[["identity"]], 0)
-  # the exponent c^(1 - K), the factor a'^-(2L - 1) omitted, one latent left
-  # out of the transformation, the gamma total not preserved
-  for (mutant in 1:4) {
+  # the exponent c^(1 - K), the factor a'^-(2L - 1) omitted, the gamma total
+  # not preserved
+  for (mutant in c(1L, 2L, 4L)) {
     broken <- gaussian(mutant)
     expect_false(attr(broken$comparison, "passes"),
                  info = paste("mutant", mutant, ":", paste(round(broken$comparison$z, 2), collapse = " ")))
   }
+  # one latent left out of the transformation changes the children: the
+  # move's check undoes it with the classed error
+  expect_error(gaussian(3L), "RoBMA_location_scale_invariance", fixed = TRUE)
 
   options <- RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules", "selection.coarse_min_acceptance")]
   on.exit(do.call(RoBMA.options, options), add = TRUE)

@@ -10,6 +10,7 @@
 #include <graph/DeterministicNode.h>
 #include <graph/LogicalNode.h>
 #include <graph/StochasticNode.h>
+#include <module/ModuleError.h>
 #include <model/Model.h>
 #include <rng/RNG.h>
 #include <sampler/GraphView.h>
@@ -44,10 +45,16 @@ const double negative_infinity = -std::numeric_limits<double>::infinity();
 // ---- counters, switches, decisions
 
 struct Counters {
-  std::atomic<std::uint64_t> owners{0}, declined{0}, moves{0}, identity{0}, skipped{0}, exhausted{0},
+  std::atomic<std::uint64_t> owners{0}, declined{0}, moves{0}, identity{0}, outside{0}, skipped{0}, exhausted{0},
     evaluations{0};
-  std::atomic<double> jump2{0.0}, seconds_embedded{0.0}, seconds_move{0.0};
+  std::atomic<double> jump2{0.0}, seconds_embedded{0.0}, seconds_move{0.0}, seconds_check{0.0};
 };
+
+// The error of a move that changed a child's parent value (ScaleOwner::commit);
+// its bracketed identifier is the condition's stable class name.
+constexpr char invariance_message[] =
+  "Location scale move [RoBMA_location_scale_invariance]: a parent value of this likelihood node changed under the "
+  "heterogeneity scale move, which must leave every child unchanged; the move was undone";
 
 Counters &counters()
 {
@@ -106,9 +113,11 @@ struct Spec {
   unsigned L = 1, s = 0, K = 0;             // s is 0-based
   std::vector<StochasticNode *> latents;
   double a_lower = 0, a_upper = 0, share_lower = 0, share_upper = 1;
+  std::vector<double> weight_lower, weight_upper;   // gamma: the sources' supports
   std::unique_ptr<GraphView> view;          // the sources and latents: the move's writes
   std::vector<unsigned> offset;             // view offsets of the coordinates (latents, a, weights)
   std::vector<StochasticNode *> children;   // stochastic children of the view, markers excluded
+  std::vector<std::vector<Node const *>> watched;  // per child: its parents that a write of the view can change
   int mutant = 0;
   bool timing = false;
   std::string layout;
@@ -124,12 +133,23 @@ struct Spec {
 };
 
 // The move's inputs at one chain: the coordinates in the order latents, a,
-// weight sources, with a, w_s, the gamma total T and sum(Z^2).
+// weight sources, with a, w_s, the gamma total T, the other components' part
+// (gamma: the sum of the other sources, share: 1 - w_s; summed or exact, never
+// a difference that cancels) and sum(Z^2).
 struct Point {
   Vec x;
-  double a = 0, ws = 1, total = 0;
+  double a = 0, ws = 1, total = 0, rest = 0;
   long double z2 = 0;
 };
+
+// The bound of the set on which the move acts (in_domain): every allocation
+// weight, or the share, in [2^-20, 1 - 2^-20]. Within it the variance
+// components the graph rebuilds from the rounded weights keep a relative
+// accuracy of about 2^-33.
+constexpr double weight_floor = 1.0 / 1048576.0;
+// The relative change of a child's parent value that the per-move check of
+// the likelihood's invariance admits (rounding of the rebuilt charts).
+constexpr double runtime_tolerance = 1e-6;
 
 // The prior log density (PDF_PRIOR) of a scalar source at x, as the node's own
 // logDensity computes it from its fixed parameters and bounds.
@@ -150,50 +170,84 @@ void complete_point(Spec const &S, Point &p)
   p.a = p.x[S.K];
   p.ws = 1.0;
   p.total = 0.0;
+  p.rest = 0.0;
   if (S.form == Form::gamma) {
-    long double total = 0;
-    for (unsigned j = 0; j < S.L; ++j) total += p.x[S.K + 1 + j];
+    long double total = 0, rest = 0;
+    for (unsigned j = 0; j < S.L; ++j) {
+      total += p.x[S.K + 1 + j];
+      if (j != S.s) rest += p.x[S.K + 1 + j];
+    }
     p.total = static_cast<double>(total);
+    p.rest = static_cast<double>(rest);
     p.ws = p.x[S.K + 1 + S.s] / p.total;
   } else if (S.form == Form::share) {
     p.ws = p.x[S.K + 1];
+    p.rest = 1.0 - p.ws;  // exact for a share in the set below (w_s >= 1/2) and accurate otherwise
   }
 }
 
-// T_c, c = exp(u), of the point (spec: The move); false when a transformed
-// value is not strictly inside its node's support or not representable.
+// The set on which the move acts, a property of the state alone (spec: The
+// move): finite coordinates, the sources strictly inside their supports, and
+// the share (clustered) or every allocation weight (gamma) in [2^-20,
+// 1 - 2^-20]. From a state outside it the move is the identity, and a
+// transformed point outside it has zero density on the orbit: the move is a
+// kernel for the posterior restricted to the set and the identity elsewhere.
+bool in_domain(Spec const &S, Point const &p)
+{
+  for (double v : p.x) if (!std::isfinite(v)) return false;
+  if (!(p.a > S.a_lower && p.a < S.a_upper)) return false;
+  if (S.form == Form::gamma) {
+    if (!(p.total > 0.0) || !std::isfinite(p.total)) return false;
+    for (unsigned j = 0; j < S.L; ++j) {
+      const double eta = p.x[S.K + 1 + j];
+      if (!(eta > S.weight_lower[j] && eta < S.weight_upper[j])) return false;
+      const double w = eta / p.total;
+      if (!(w >= weight_floor && w <= 1.0 - weight_floor)) return false;
+    }
+  } else if (S.form == Form::share) {
+    if (!(p.ws > S.share_lower && p.ws < S.share_upper)) return false;
+    if (!(p.ws >= weight_floor && p.ws <= 1.0 - weight_floor)) return false;
+  }
+  return true;
+}
+
+// T_c, c = exp(u), of the point (spec: The move); false when the transformed
+// point is outside the move's set (in_domain) or not representable. The
+// factor d = (1 - w_s) + w_s c^2 is formed from the sources, as a sum of
+// positive parts (no cancellation of 1 + w_s (c^2 - 1)).
 bool transform(Spec const &S, Point const &p, double u, int mutant, Vec &out)
 {
   const double c = std::exp(u);
   const double c2 = std::exp(2.0 * u);
-  const double d = 1.0 + p.ws * std::expm1(2.0 * u);
-  if (!(c > 0.0) || !std::isfinite(c) || !(c2 > 0.0) || !std::isfinite(c2) || !(d > 0.0) || !std::isfinite(d)) {
-    return false;
+  if (!(c > 0.0) || !std::isfinite(c) || !(c2 > 0.0) || !std::isfinite(c2)) return false;
+  double d = c2;
+  if (S.form == Form::gamma) {
+    d = static_cast<double>((static_cast<long double>(p.rest) + static_cast<long double>(p.x[S.K + 1 + S.s]) * c2) /
+                            p.total);
+  } else if (S.form == Form::share) {
+    d = static_cast<double>(static_cast<long double>(p.rest) + static_cast<long double>(p.ws) * c2);
   }
+  if (!(d > 0.0) || !std::isfinite(d)) return false;
   out.resize(p.x.size());
   for (unsigned k = 0; k < S.K; ++k) {
     out[k] = (mutant == 3 && k + 1 == S.K) ? p.x[k] : p.x[k] / c;
     if (!std::isfinite(out[k])) return false;
   }
-  const double a1 = p.a * std::sqrt(d);
-  if (!std::isfinite(a1) || !(a1 > S.a_lower && a1 < S.a_upper)) return false;
-  out[S.K] = a1;
+  out[S.K] = p.a * std::sqrt(d);
   if (S.form == Form::gamma) {
     for (unsigned j = 0; j < S.L; ++j) {
       const double eta = p.x[S.K + 1 + j];
       double value = j == S.s ? eta * c2 : eta;
       if (mutant != 4) value /= d;
-      if (!std::isfinite(value) || !(value > 0.0)) return false;
       out[S.K + 1 + j] = value;
     }
   } else if (S.form == Form::share) {
-    const double share = c2 * p.ws / d;
-    const double rest = (1.0 - p.ws) / d;
-    if (!std::isfinite(share) || !(share > S.share_lower && share < S.share_upper) || !(share < 1.0) ||
-        !(rest > 0.0)) return false;
-    out[S.K + 1] = share;
+    out[S.K + 1] = static_cast<double>(static_cast<long double>(c2) * p.ws / d);
   }
-  return true;
+  Point q;
+  q.x = out;
+  complete_point(S, q);
+  return in_domain(S, q);
 }
 
 // log f(u) up to a constant (spec: The move); -Inf outside the support.
@@ -272,14 +326,14 @@ class ScaleOwner : public Sampler {
   std::unique_ptr<Sampler> _location;
   std::vector<std::unique_ptr<Sampler>> _embedded;
   std::shared_ptr<Spec const> _spec;
-  std::vector<Vec> _entry, _trial;
+  std::vector<Vec> _entry, _trial, _before, _after;
   std::vector<Point> _point;
 
 public:
   ScaleOwner(GraphView *view, std::unique_ptr<Sampler> location, std::vector<std::unique_ptr<Sampler>> embedded,
              std::shared_ptr<Spec const> spec, unsigned int nchain)
     : Sampler(view), _location(std::move(location)), _embedded(std::move(embedded)), _spec(std::move(spec)),
-      _entry(nchain), _trial(nchain), _point(nchain)
+      _entry(nchain), _trial(nchain), _before(nchain), _after(nchain), _point(nchain)
   {
     OwnerRegistry &registry = owner_registry();
     const std::lock_guard<std::mutex> lock(registry.mutex);
@@ -385,9 +439,52 @@ public:
   {
     Point &p = _point[chain];
     read(chain, p);
-    if (!transform(*_spec, p, u, _spec->mutant, _trial[chain])) return false;
-    write(chain, _trial[chain]);
+    if (!in_domain(*_spec, p) || !transform(*_spec, p, u, _spec->mutant, _trial[chain])) return false;
+    commit(chain, p.x, _trial[chain]);
     return true;
+  }
+
+  // Writes the transformed coordinates and verifies the likelihood's
+  // invariance: every parent value of the stochastic children of the sources
+  // and latents that the write can change (Spec::watched; no other value can)
+  // is compared with its value before the write (relative 1e-6, as the
+  // factory's check compares). On a change the entry coordinates are written
+  // back and the classed error names the child: the move never continues on a
+  // graph whose likelihood it changes.
+  void commit(unsigned int chain, Vec const &entry, Vec const &moved)
+  {
+    Spec const &S = *_spec;
+    const auto start = std::chrono::steady_clock::now();
+    Vec &before = _before[chain];
+    Vec &after = _after[chain];
+    auto values = [&](Vec &out) {
+      out.clear();
+      for (std::vector<Node const *> const &parents : S.watched) {
+        for (Node const *parent : parents) {
+          double const *value = parent->value(chain);
+          out.insert(out.end(), value, value + parent->length());
+        }
+      }
+    };
+    values(before);
+    write(chain, moved);
+    values(after);
+    std::size_t k = 0;
+    for (std::size_t c = 0; c < S.children.size(); ++c) {
+      StochasticNode const *child = S.children[c];
+      std::size_t n = 0;
+      for (Node const *parent : S.watched[c]) n += parent->length();
+      for (std::size_t i = 0; i < n; ++i, ++k) {
+        if (!(std::fabs(after[k] - before[k]) <= runtime_tolerance * (1.0 + std::fabs(before[k])))) {
+          write(chain, entry);
+          throwNodeError(child, invariance_message);
+        }
+      }
+    }
+    if (S.timing) {
+      add(counters().seconds_check,
+          std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+    }
   }
 
 private:
@@ -400,6 +497,11 @@ private:
     }
     Point &p = _point[chain];
     read(chain, p);
+    // outside the move's set: the identity
+    if (!in_domain(S, p)) {
+      count(counters().outside);
+      return;
+    }
     Vec &trial = _trial[chain];
     std::uint64_t evaluations = 0;
     auto density_at = [&](double u) {
@@ -422,9 +524,9 @@ private:
       return;
     }
     if (u == 0.0) return;
-    // an accepted point is inside the support, so the transform succeeds
+    // an accepted point is inside the move's set, so the transform succeeds
     if (!transform(S, p, u, S.mutant, trial)) throw std::logic_error("location scale move outside the support");
-    write(chain, trial);
+    commit(chain, p.x, trial);
     add(counters().jump2, u * u);
   }
 };
@@ -537,23 +639,27 @@ bool close(double observed, double expected)
   return std::fabs(observed - expected) <= probe_tolerance * (1.0 + std::fabs(expected));
 }
 
-// The parent values of the children, concatenated.
-void parent_values(std::vector<StochasticNode *> const &children, Vec &out)
+// A point strictly inside (lower, upper): the midpoint of a bounded interval,
+// one inside a half-bounded one, zero otherwise.
+double interior(double lower, double upper)
 {
-  out.clear();
-  for (StochasticNode const *child : children) {
-    for (Node const *parent : child->parents()) {
-      double const *value = parent->value(0);
-      out.insert(out.end(), value, value + parent->length());
-    }
-  }
+  if (std::isfinite(lower) && std::isfinite(upper)) return lower + 0.5 * (upper - lower);
+  if (std::isfinite(lower)) return lower + 1.0;
+  if (std::isfinite(upper)) return upper - 1.0;
+  return 0.0;
 }
 
-// The invariance check (spec: Ownership), on chain 0 with the state restored:
-// with the indicators at their declared levels, the latents at nonzero values
-// and every level of the bias indicator, the charts of a, w and sigma_s match
-// the sources and, for c in {0.7, 1.3}, sigma_s' = c sigma_s and every parent
-// value of every child is unchanged. Returns "passed" or "failed: <reason>".
+// The chart check (spec: Ownership), on chain 0 with the state restored, at
+// probe values that the declaration alone fixes, so that ownership does not
+// depend on any node's initial value or differ between chains and workers:
+// the sources at interior points of their supports (and the share or the
+// gamma weights inside the move's set), the latents at fixed nonzero values,
+// the indicators at their declared levels and every level of the bias
+// indicator. The charts of a, w and sigma_s match the sources and, for c in
+// {0.7, 1.3} (moved halfway towards one until the transformed point stays in
+// the move's set), sigma_s' = c sigma_s. The likelihood's invariance under
+// the move is verified at every move (ScaleOwner::commit). Returns "passed" or
+// "failed: <reason>".
 std::string invariance_check(Spec const &S, Graph const &graph)
 {
   std::vector<StochasticNode *> nodes = S.sources();
@@ -575,6 +681,12 @@ std::string invariance_check(Spec const &S, Graph const &graph)
   for (std::size_t i = 0; i < S.indicators.size(); ++i) base[offset[S.indicators[i]]] = S.levels[i];
   for (unsigned k = 0; k < S.K; ++k) {
     base[offset[S.latents[k]]] = (k % 2 == 0 ? 1.0 : -1.0) * (0.5 + 0.25 * (k % 4));
+  }
+  base[offset[S.a]] = interior(S.a_lower, S.a_upper);
+  if (S.form == Form::gamma) {
+    for (unsigned j = 0; j < S.L; ++j) base[offset[S.weights[j]]] = interior(S.weight_lower[j], S.weight_upper[j]);
+  } else if (S.form == Form::share) {
+    base[offset[S.weights[0]]] = interior(std::max(S.share_lower, weight_floor), std::min(S.share_upper, 1.0 - weight_floor));
   }
   std::vector<double> bias_levels;
   if (S.bias == nullptr) bias_levels.push_back(0.0);
@@ -604,23 +716,20 @@ std::string invariance_check(Spec const &S, Graph const &graph)
       }
       if (outcome != "passed") break;
       if (!(sigma0 > 0.0) || !close(sigma0, p.a * std::sqrt(p.ws))) { outcome = "failed: the chart of sigma_s"; break; }
-      Vec before, after, moved;
-      parent_values(S.children, before);
-      for (double c : {0.7, 1.3}) {
-        if (!transform(S, p, std::log(c), 0, moved)) { outcome = "failed: a probe point is outside the support"; break; }
+      if (!in_domain(S, p)) { outcome = "failed: the probe point is outside the move's set"; break; }
+      Vec moved;
+      for (double c0 : {0.7, 1.3}) {
+        double c = c0;
+        bool inside = transform(S, p, std::log(c), 0, moved);
+        for (int halving = 0; halving < 40 && !inside; ++halving) {
+          c = 1.0 + 0.5 * (c - 1.0);
+          inside = transform(S, p, std::log(c), 0, moved);
+        }
+        if (!inside) { outcome = "failed: a probe point is outside the move's set"; break; }
         Vec w(v);
         for (std::size_t i = 0; i < coordinates.size(); ++i) w[offset[coordinates[i]]] = moved[i];
         probe.setValue(w, 0);
         if (!close(S.sigma->value(0)[0], c * sigma0)) { outcome = "failed: sigma_s does not scale by c"; break; }
-        parent_values(S.children, after);
-        if (after.size() != before.size()) { outcome = "failed: parent lengths"; break; }
-        for (std::size_t i = 0; i < before.size(); ++i) {
-          if (!close(after[i], before[i])) {
-            outcome = "failed: a child's parent value changes";
-            break;
-          }
-        }
-        if (outcome != "passed") break;
         probe.setValue(v, 0);
       }
       if (outcome != "passed") break;
@@ -747,6 +856,8 @@ std::unique_ptr<Sampler> location_scale_owner(std::unique_ptr<Sampler> location,
     for (StochasticNode *eta : S.weights) {
       double lower, upper;
       if (!scalar_source(eta, available, &lower, &upper)) return decline("the weights: a source is not free");
+      S.weight_lower.push_back(lower);
+      S.weight_upper.push_back(upper);
     }
     S.form = Form::gamma;
     S.layout = "allocation";
@@ -813,11 +924,18 @@ std::unique_ptr<Sampler> location_scale_owner(std::unique_ptr<Sampler> location,
     }
     for (StochasticNode *z : latents) S.offset.push_back(offset[z]);
     for (StochasticNode *source : sources) S.offset.push_back(offset[source]);
+    // the parents a write of the view can change: its nodes and their
+    // deterministic descendants (the per-move check reads these only)
+    std::set<Node const *> moving(S.view->nodes().begin(), S.view->nodes().end());
+    moving.insert(S.view->deterministicChildren().begin(), S.view->deterministicChildren().end());
     for (StochasticNode *child : S.view->stochasticChildren()) {
       const std::string name = child->distribution()->name();
       if (distinct.count(child) || name == BayesTools::sampler_declarations::block_marker_name() ||
           name == BayesTools::sampler_declarations::gate_marker_name()) continue;
       S.children.push_back(child);
+      std::vector<Node const *> watched;
+      for (Node const *parent : child->parents()) if (moving.count(parent)) watched.push_back(parent);
+      S.watched.push_back(watched);
     }
   }
 
@@ -877,8 +995,8 @@ std::unique_ptr<Sampler> location_scale_owner(std::unique_ptr<Sampler> location,
 std::vector<char const *> const &location_scale_report_names()
 {
   static const std::vector<char const *> names = {
-    "owners", "declined", "moves", "identity", "skipped", "exhausted", "evaluations", "jump2",
-    "seconds_embedded", "seconds_move"};
+    "owners", "declined", "moves", "identity", "outside", "skipped", "exhausted", "evaluations", "jump2",
+    "seconds_embedded", "seconds_move", "seconds_check"};
   return names;
 }
 
@@ -892,8 +1010,9 @@ std::vector<double> location_scale_report(bool clear)
   auto take_double = [clear](std::atomic<double> &value) {
     return clear ? value.exchange(0.0, std::memory_order_relaxed) : value.load(std::memory_order_relaxed);
   };
-  return {take(c.owners), take(c.declined), take(c.moves), take(c.identity), take(c.skipped), take(c.exhausted),
-          take(c.evaluations), take_double(c.jump2), take_double(c.seconds_embedded), take_double(c.seconds_move)};
+  return {take(c.owners), take(c.declined), take(c.moves), take(c.identity), take(c.outside), take(c.skipped),
+          take(c.exhausted), take(c.evaluations), take_double(c.jump2), take_double(c.seconds_embedded),
+          take_double(c.seconds_move), take_double(c.seconds_check)};
 }
 
 std::vector<LocationScaleDecision> location_scale_decisions(bool clear)

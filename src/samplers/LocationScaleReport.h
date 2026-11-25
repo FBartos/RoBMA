@@ -14,11 +14,15 @@ namespace RoBMA {
 // The per-fit counters of this process (relaxed atomics), read and cleared
 // when clear is true, in the order of location_scale_report_names(): scale
 // owners built and declarations declined; scale updates in a state where the
-// declared sources are active (moves), the identity updates of the other
-// states, the updates skipped because log f(0) was not finite and the slices
-// exhausted in floating point; the density evaluations of the moves and the
-// sum of the squared steps u = log c; with the timing switch the wall time of
-// the embedded heterogeneity updates and of the scale moves.
+// declared sources are active (moves, slice calls that exhausted their
+// interval included), the identity updates of the states where they are not,
+// the identity updates of states outside the move's set (a weight or share
+// beyond [2^-20, 1 - 2^-20], a source outside its support), the updates
+// skipped because log f(0) was not finite and the slices exhausted in
+// floating point; the density evaluations of the moves and the sum of the
+// squared steps u = log c; with the timing switch the wall time of the
+// embedded heterogeneity updates, of the scale moves and, within them, of the
+// per-move check that no child's parent value changed.
 std::vector<char const *> const &location_scale_report_names();
 std::vector<double> location_scale_report(bool clear);
 
@@ -65,11 +69,13 @@ LocationScaleState location_scale_test_state(int index, unsigned int chain);
 // Writes the move's coordinates (the order of the state) and updates their
 // deterministic descendants.
 void location_scale_test_set(int index, unsigned int chain, std::vector<double> const &values);
-// Applies T_c with c = exp(u) (the owner's mutant included); false when the
-// transformed state is outside the support (nothing is written).
+// Applies T_c with c = exp(u) (the owner's mutant included) with the move's
+// check of every child's parent values (the classed error, entry restored);
+// false when the current or the transformed state is outside the move's set
+// (nothing is written).
 bool location_scale_test_transform(int index, unsigned int chain, double u);
 // log f(u) of the move at the chain's current state (the owner's mutant
-// included); -Inf outside the support.
+// included); -Inf where the transformed state is outside the move's set.
 std::vector<double> location_scale_test_density(int index, unsigned int chain, std::vector<double> const &u);
 // One slice update of the move's kernel (width 0.5, budget 40) from each
 // start x0 of a uniform target on (lower, upper), shifted so that the update

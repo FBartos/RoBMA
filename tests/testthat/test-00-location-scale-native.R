@@ -108,8 +108,10 @@ test_that("frozen states: the scale move keeps the children, the gamma total and
     .scale_hook("set", owner, 0L, x)
     start <- .scale_hook("state", owner, 0L)
     if (mutant == 3L) {
-      .scale_hook("transform", owner, 0L, u[[1L]])
-      expect_gt(max(abs(.scale_hook("state", owner, 0L)$children - start$children)), 1e-3)
+      # a transformation that changes the children: the move's check undoes it
+      # with the classed error naming the child
+      expect_error(.scale_hook("transform", owner, 0L, u[[1L]]), "RoBMA_location_scale_invariance", fixed = TRUE)
+      expect_identical(.scale_hook("state", owner, 0L)$values, start$values)
     } else {
       hook <- .scale_hook("density", owner, 0L, c(0, u))
       expect_gt(max(abs((hook[-1L] - hook[1L]) - direct)), 1e-3, label = paste("mutant", mutant))
@@ -151,37 +153,163 @@ test_that("a truncated total SD and extreme shares keep the move and the embedde
   draws <- rjags::coda.samples(compiled$jags, "a", n.iter = 300L, progress.bar = "none")
   expect_lt(max(as.matrix(draws)), 0.6)
 
-  # w_s at 1e-8 and 1 - 1e-8, then the embedded updates and the move
+  # w_s at 1e-8 and 1 - 1e-8: outside the move's set ([2^-20, 1 - 2^-20]),
+  # where the move is the identity; the embedded updates run
   model <- .scale_allocation_model(.scale_allocation_setup())
   for (eta in list(c(1, 1e-8), c(1e-8, 1))) {
     compiled <- .scale_compile(model, list(I = 1))
-    .scale_hook("set", compiled$owner, 0L, c(0.8, -1.3, 0.4, 1.7, 0.45, eta))
-    expect_true(is.finite(.scale_hook("density", compiled$owner, 0L, 0)))
+    x <- c(0.8, -1.3, 0.4, 1.7, 0.45, eta)
+    .scale_hook("set", compiled$owner, 0L, x)
+    expect_identical(.scale_hook("density", compiled$owner, 0L, c(0, 0.3)), c(-Inf, -Inf))
+    expect_false(.scale_hook("transform", compiled$owner, 0L, 0.3))
+    expect_identical(.scale_hook("state", compiled$owner, 0L)$values, x)
     rjags::adapt(compiled$jags, 0L, end.adaptation = TRUE)
     expect_silent(stats::update(compiled$jags, n.iter = 50L, progress.bar = "none"))
   }
   clustered <- .scale_clustered_model(.scale_allocation_setup())
   for (rho in c(1e-8, 1 - 1e-8)) {
     compiled <- .scale_compile(clustered, list(tau_indicator = 2))
-    .scale_hook("set", compiled$owner, 0L, c(0.8, -1.3, 0.4, 1.7, 0.35, rho))
-    expect_true(is.finite(.scale_hook("density", compiled$owner, 0L, 0)))
+    x <- c(0.8, -1.3, 0.4, 1.7, 0.35, rho)
+    .scale_hook("set", compiled$owner, 0L, x)
+    expect_identical(.scale_hook("density", compiled$owner, 0L, 0), -Inf)
+    expect_false(.scale_hook("transform", compiled$owner, 0L, -0.3))
+    expect_identical(.scale_hook("state", compiled$owner, 0L)$values, x)
     rjags::adapt(compiled$jags, 0L, end.adaptation = TRUE)
     expect_silent(stats::update(compiled$jags, n.iter = 50L, progress.bar = "none"))
   }
 })
 
 
-test_that("the invariance check declines a dependence on the sampled SD that only the open gate shows", {
+test_that("the move acts on weights within [2^-20, 1 - 2^-20] with a stable chart and is the identity beyond", {
 
   skip_if_not_installed("rjags")
+  # The reviewers' frozen states. (1) Gamma sources (1e-16, 1): the sampled
+  # weight rounds to one and 1 + w_s expm1(2u) cancelled to zero; the state is
+  # outside the move's set. Inside it, at a weight one step from the bound,
+  # d = (eta_other + c^2 eta_s) / T is formed from the sources and log f
+  # agrees with the direct density in both directions.
+  model <- .scale_allocation_model(.scale_allocation_setup())
+  compiled <- .scale_compile(model, list(I = 1, a = 0.4, eta = c(0.7, 1.1), g = 2, slab = 0.3))
+  owner <- compiled$owner
+  outside <- c(rep(0, 4L), 0.45, 1e-16, 1)
+  .scale_hook("set", owner, 0L, outside)
+  # no density at the state itself and no move from it; the orbit point at
+  # u = -19.5 lies in the set and has a finite density (d = 1.1e-16, which the
+  # cancelling form gave as zero)
+  density <- .scale_hook("density", owner, 0L, c(0, -19.5))
+  expect_identical(density[1L], -Inf)
+  expect_true(is.finite(density[2L]))
+  expect_false(.scale_hook("transform", owner, 0L, -19.5))
+  expect_identical(.scale_hook("state", owner, 0L)$values, outside)
+  edge <- c(0.8, -1.3, 0.4, 1.7, 0.45, 2^-19, 1 - 2^-19)
+  .scale_hook("set", owner, 0L, edge)
+  u <- -3
+  hook <- .scale_hook("density", owner, 0L, c(0, u))
+  expect_lt(abs((hook[2L] - hook[1L]) - .scale_direct_density(edge, u, model, 2L)), 1e-8)
+  expect_true(.scale_hook("transform", owner, 0L, u))
+  moved <- .scale_hook("state", owner, 0L)$values
+  expect_lt(max(abs(moved - .scale_transform(edge, u, "allocation", 2L, 4L, 2L)) / (1 + abs(moved))), 1e-13)
+  back <- .scale_hook("density", owner, 0L, c(0, -u))
+  expect_lt(abs((back[2L] - back[1L]) + (hook[2L] - hook[1L])), 1e-8)
+  expect_true(.scale_hook("transform", owner, 0L, -u))
+  expect_lt(max(abs(.scale_hook("state", owner, 0L)$values - edge) / (1 + abs(edge))), 1e-13)
+  # a transformed point beyond the bound has no density on the orbit
+  expect_identical(.scale_hook("density", owner, 0L, 3), -Inf)
+
+  # (2) The clustered share one ULP below one with SEs near the data domain's
+  # lower limit: the rebuilt within-cluster variance changed the likelihood.
+  # The state is outside the move's set; one step inside it, the move keeps
+  # every child to rounding.
+  setup <- .scale_allocation_setup(a_sd = 300)
+  z <- c(0.8, -1.3, 0.4, 1.7)
+  setup$y <- 100 * z[setup$cluster] + 1e-5 * setup$y
+  setup$variance[] <- 1.1e-12
+  clustered <- .scale_compile(.scale_clustered_model(setup, rho_shapes = c(5e15, 1)),
+                              list(tau_indicator = 2, tau_component_2 = 100, rho_component_1 = 0.4, g = 1L, slab = 0))
+  owner <- clustered$owner
+  x <- c(z, 100, 1 - .Machine$double.eps / 2)
+  .scale_hook("set", owner, 0L, x)
+  expect_identical(.scale_hook("density", owner, 0L, log(0.8)), -Inf)
+  expect_false(.scale_hook("transform", owner, 0L, log(0.8)))
+  expect_identical(.scale_hook("state", owner, 0L)$values, x)
+  inside <- c(z, 100, 1 - 2^-19)
+  .scale_hook("set", owner, 0L, inside)
+  before <- .scale_hook("state", owner, 0L)
+  expect_true(.scale_hook("transform", owner, 0L, log(1.2)))
+  after <- .scale_hook("state", owner, 0L)
+  expect_lt(abs(sum(after$children) - sum(before$children)), 1e-6)
+  expect_identical(.scale_hook("density", owner, 0L, log(2)), -Inf)
+})
+
+
+test_that("ownership does not depend on initial values, and a move that changes the likelihood is an error", {
+
+  skip_if_not_installed("rjags")
+  # (1) A truncated total SD: from a start near its bound the factory's probe
+  # (now at interior values) decides as from a start far from it.
+  truncated <- .scale_allocation_model(.scale_allocation_setup(a_upper = 0.6))
+  for (a in c(0.59, 0.05)) {
+    compiled <- .scale_compile(truncated, list(I = 1, a = a))
+    expect_identical(compiled$decisions$status, "owned", info = paste("a =", a))
+    expect_identical(compiled$decisions$check, "passed", info = paste("a =", a))
+  }
+
+  # (2) A hand-tagged graph whose integrated variance also depends on the
+  # sampled SD through an undeclared indicator h: the same decision from
+  # either initial value of h. With h = 1 the move would change the
+  # likelihood: the classed error names the child and the state is restored.
+  model <- .scale_allocation_model(.scale_allocation_setup())
+  model$syntax <- sub("  integrated <- ([^\n]+)", "  h ~ dbern(0.5)\n  integrated <- \\1 + h * 0.5 * pow(sigma, 2)",
+                      model$syntax)
+  starts <- list(I = 1, a = 0.4, eta = c(0.7, 1.1), g = 2, slab = 0.3)
+  zero <- .scale_compile(model, c(starts, list(h = 0)))
+  one  <- .scale_compile(model, c(starts, list(h = 1)))
+  expect_identical(zero$decisions$status, "owned")
+  expect_identical(one$decisions[c("status", "check")], zero$decisions[c("status", "check")])
+  owner <- one$owner
+  x <- c(0.8, -1.3, 0.4, 1.7, 0.45, 0.7, 1.1)
+  .scale_hook("set", owner, 0L, x)
+  before <- .scale_hook("state", owner, 0L)
+  expect_error(.scale_hook("transform", owner, 0L, log(1.3)), "RoBMA_location_scale_invariance", fixed = TRUE)
+  after <- .scale_hook("state", owner, 0L)
+  expect_identical(after$values, x)
+  expect_identical(after$children, before$children)
+  # in the chain the error arises at the first move with h = 1 and the
+  # inclusion on, and the move's entry is restored (the graph refused nothing)
+  rjags::adapt(one$jags, 0L, end.adaptation = TRUE)
+  error <- tryCatch({
+    stats::update(one$jags, n.iter = 200L, progress.bar = "none")
+    NULL
+  }, error = conditionMessage)
+  expect_match(error, "RoBMA_location_scale_invariance", fixed = TRUE)
+  expect_match(error, "y[", fixed = TRUE)
+})
+
+
+test_that("a dependence on the sampled SD that only the open gate shows is an error at the first move", {
+
+  skip_if_not_installed("rjags")
+  # The factory's probe checks the charts at values the declaration fixes; the
+  # likelihood's invariance is checked at every move, so the extra dependence
+  # raises the classed error once the gate is open, from either initial value
+  # of the gate, with the move's entry restored.
   model <- .scale_allocation_model(.scale_allocation_setup(), extra = TRUE)
   for (included in 0:1) {
     compiled <- .scale_compile(model, list(I = included, a = 0.4))
-    expect_identical(compiled$decisions$status, "declined")
-    expect_identical(compiled$decisions$reason, "invariance check")
-    expect_match(compiled$decisions$check, "^failed: ")
-    expect_false(any(compiled$samplers[c("a", "eta[1]", "eta[2]")] == "RoBMA::LocationBlock"))
-    expect_true(all(compiled$samplers[paste0("Z[", 1:4, "]")] == "RoBMA::LocationBlock"))
+    expect_identical(compiled$decisions$status, "owned")
+    expect_identical(compiled$decisions$check, "passed")
+    .scale_hook("set", compiled$owner, 0L, c(0.8, -1.3, 0.4, 1.7, 0.45, 0.7, 1.1))
+    before <- .scale_hook("state", compiled$owner, 0L)
+    if (before$active) {
+      expect_error(.scale_hook("transform", compiled$owner, 0L, 0.2), "RoBMA_location_scale_invariance", fixed = TRUE)
+      expect_identical(.scale_hook("state", compiled$owner, 0L)$values, before$values)
+    }
+    rjags::adapt(compiled$jags, 0L, end.adaptation = TRUE)
+    error <- tryCatch({
+      stats::update(compiled$jags, n.iter = 300L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+    expect_match(error, "RoBMA_location_scale_invariance", fixed = TRUE)
   }
 })
 

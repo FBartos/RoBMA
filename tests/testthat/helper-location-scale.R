@@ -182,7 +182,8 @@
   sources <- x[-seq_len(K + 1L)]
   c2 <- exp(2 * u)
   ws <- if (layout == "allocation") sources[s] / sum(sources) else sources[1L]
-  d <- 1 - ws + c2 * ws
+  # d = (1 - w_s) + w_s c^2 as a sum of positive parts
+  d <- if (layout == "allocation") (sum(sources[-s]) + c2 * sources[s]) / sum(sources) else (1 - ws) + c2 * ws
   moved <- if (layout == "allocation") {
     sources * ifelse(seq_along(sources) == s, c2, 1) / d
   } else {

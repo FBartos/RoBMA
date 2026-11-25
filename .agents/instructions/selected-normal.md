@@ -839,17 +839,34 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   nodes and embedded unchanged, so their adaptation, fallback and
   corrected-sampler record are those of an ordinary fit), then the move, which
   is the identity unless every declared gate indicator is at its declared
-  level. The factory declines (everything as before; draws identical) unless
+  level. The move acts on a set defined by the state alone: finite sources
+  strictly inside their supports and the share (clustered) or every
+  allocation weight (gamma) in `[2^-20, 1 - 2^-20]`, within which the
+  variances the graph rebuilds from the rounded weights keep a relative
+  accuracy of about `2^-33`; from a state outside it the move is the identity
+  (counted as `outside`) and a transformed point outside it has zero density
+  on the orbit, so the move is a kernel for the posterior restricted to the
+  set. `d = (1 - w_s) + w_s c^2` is formed from the sources as a sum of
+  positive parts. After each move's write every parent value of the
+  stochastic children of the sources and latents (markers excluded) that the
+  write can change is compared with its value before (`1e-6 (1 + |value|)`);
+  a change restores the entry and raises the error `RoBMA_location_scale_
+  invariance` naming the child (measured cost: 0.12 ms per sweep, 0.3%, on
+  `gender`; 0.004 ms, 0.07%, on `assink_V_mods`). The factory declines
+  (everything as before; draws identical) unless
   the sources are free, unobserved, fixed-parameter scalars with the declared
   supports (a gamma group recognized by `find_gamma_groups` behind the
   declared ratios), the block owns all `K` latents, no source has a gate
   marker or shares a block marker with another node, the sources' samplers
-  claim exactly them, and the invariance check passes: once at construction
-  (chain 0, state restored) with the indicators forced to their levels, the
-  latents at nonzero values and every bias label, for `c` in {0.7, 1.3}
-  every parent value of every stochastic child of the sources and latents
-  (markers excluded) is unchanged within `1e-9 (1 + |value|)`, the charts of
-  `a`, `w` and `sigma_s` match and `sigma_s' = c sigma_s`. The tag passes the
+  claim exactly them, and the chart check passes: once at construction
+  (chain 0, state restored) at values the declaration alone fixes (the
+  sources at interior points of their supports, the latents at nonzero
+  values, the indicators at their declared levels, every bias label), the
+  charts of `a`, `w` and `sigma_s` match and `sigma_s' = c sigma_s` for `c`
+  in {0.7, 1.3} (moved halfway towards one until the point stays in the
+  move's set), so that ownership does not depend on initial values or differ
+  between chains and workers; the likelihood's invariance is the per-move
+  check's (a dependence it finds is an error, not a decline). The tag passes the
   gamma sources through their ratio nodes so that it adds no child to the
   gamma group. The record `sampler_declarations$robma$joint$scale` holds the
   factory decisions (layout, L, K, status, reason, invariance check, embedded
