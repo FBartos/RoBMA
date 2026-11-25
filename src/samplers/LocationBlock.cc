@@ -183,9 +183,16 @@ std::atomic<bool> test_timing(false);
 // the schedule of L2 (0 the default, k: probability 1 / k) and its per-attempt trace
 std::atomic<int> test_swap(0);
 std::atomic<int> test_trace(0);
-// the coin of the two-state accept/rejects and of L0 (0 the default, a state-independent
-// coin per attempt with probability 1/4; 1 always the alternative: Barker, Gibbs; 2 never)
+// the coin of the gate flips' and location swaps' first stage and of L0 (0 the
+// default, a state-independent coin per attempt with probability
+// two_state_coin or label_coin; 1 always the alternative: Barker, Gibbs; 2 never)
 std::atomic<int> test_coin(0);
+// The state-independent coins (spec: periodicity): Barker's first stage of the
+// gate flips and location swaps with probability 1/4 per attempt, and the
+// plain Gibbs draw of L0 with probability 1/8 (Liu's step otherwise). L2 needs
+// no coin: it is attempted on a state-independent quarter of the sweeps.
+constexpr double two_state_coin = 0.25;
+constexpr double label_coin = 0.125;
 // The probability of attempting the bias label's cross-family swap L2 in a sweep
 // (wp3-spec.md, schedule): one unless L2 costs more than 5% of the sampling
 // sweep on the Assink full-V moderator fit or the 18-moderator tutorial fit,
@@ -1895,25 +1902,25 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return log_ratio >= 0 || std::log(rng->uniform()) < log_ratio;
   }
 
-  // A state-independent coin per attempt: true with probability 1/4 (the
-  // test switch coin forces it each way without a draw).
-  bool alternative(RNG *rng)
+  // A state-independent coin per attempt: true with the given probability
+  // (the test switch coin forces it each way without a draw).
+  bool alternative(RNG *rng, double probability)
   {
     if (s().coin == 1) return true;
     if (s().coin == 2) return false;
-    return rng->uniform() < 0.25;
+    return rng->uniform() < probability;
   }
 
-  // The first stage of a two-state accept/reject (gate flips, swaps, the bias
-  // swap L2): Barker's acceptance r / (1 + r) after the coin, otherwise
-  // min(1, r). The ratio of the two directions' acceptances is r under both,
-  // so the later stages are unchanged; the mixture cannot alternate
-  // deterministically between two states (a Metropolis step at ratio one
-  // would, and an evenly thinned chain would keep one of them).
+  // The first stage of a two-state accept/reject (gate flips, location swaps):
+  // Barker's acceptance r / (1 + r) after the coin, otherwise min(1, r). The
+  // ratio of the two directions' acceptances is r under both, so the later
+  // stages are unchanged; the mixture cannot alternate deterministically
+  // between two states (a Metropolis step at ratio one would, and an evenly
+  // thinned chain would keep one of them).
   bool first_stage(RNG *rng, double log_ratio)
   {
     if (std::isnan(log_ratio)) return false;
-    if (!alternative(rng)) return metropolis(rng, log_ratio);
+    if (!alternative(rng, two_state_coin)) return metropolis(rng, log_ratio);
     const double barker = log_ratio >= 0 ? 1.0 / (1.0 + std::exp(-log_ratio)) :
       std::exp(log_ratio) / (1.0 + std::exp(log_ratio));
     return rng->uniform() < barker;

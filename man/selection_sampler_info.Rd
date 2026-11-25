@@ -128,8 +128,8 @@ Indicators. The screened indicator sampler scores every level of the
 indicator with the surrogates of its selection children, each level's score
 computed from that level's model state alone. At each update it proposes a
 level from these scores by one of two moves, chosen at random independently
-of the state: with probability 3/4 a Metropolized Gibbs step (a level other
-than the current one, accepted on the scores), with probability 1/4 a draw
+of the state: with probability 7/8 a Metropolized Gibbs step (a level other
+than the current one, accepted on the scores), with probability 1/8 a draw
 from the scores with the current level included (which keeps a thinned
 chain from alternating between two equally likely levels). A change of
 level is corrected with one Metropolis step against the exact scores of

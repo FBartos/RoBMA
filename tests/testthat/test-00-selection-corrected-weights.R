@@ -179,9 +179,9 @@ test_that("the screened indicator's default kernel is aperiodic between two tied
   # The tie fixture (helper-step-row-cache.R): both labels score the same, so
   # Liu's step alone swaps them at every update and a chain thinned by two
   # keeps its initial label. The default kernel takes Liu's step (moves with
-  # probability one) with probability 3/4 and the plain draw (moves with
-  # probability 1/2) with 1/4: the label changes with probability q = 7/8 per
-  # update and 2 q (1 - q) = 7/32 per two. A two-state chain that switches
+  # probability one) with probability 7/8 and the plain draw (moves with
+  # probability 1/2) with 1/8: the label changes with probability q = 15/16
+  # per update and 2 q (1 - q) = 15/128 per two. A two-state chain that switches
   # with probability q per retained draw keeps each label with frequency 1/2
   # and variance (1 - q) / (4 n q) over n draws; the bound is 4 of its
   # standard deviations.
@@ -199,7 +199,7 @@ test_that("the screened indicator's default kernel is aperiodic between two tied
     mean(as.matrix(draws[[1L]])[, 1L] == 2)
   }
   for (thin in c(2L, 1L)) {
-    q <- if (thin == 1L) 7 / 8 else 2 * (7 / 8) * (1 / 8)
+    q <- if (thin == 1L) 15 / 16 else 2 * (15 / 16) * (1 / 16)
     bound <- 4 * sqrt((1 - q) / (4 * n * q))
     for (entry in 1:2) {
       label <- sprintf("thin %d, initial label %d", thin, entry)

@@ -279,6 +279,25 @@ test_that("the bias label's family record agrees with the moves of the label upd
   expect_lt(abs(record[["swap_stage1"]] - passes), 4 * sqrt(passes))
   expect_lte(record[["leave_selection_pass_probability_sum"]], record[["leave_selection_attempts"]])
   expect_lte(record[["leave_gaussian_pass_probability_sum"]], record[["leave_gaussian_attempts"]])
+
+  # L2's first stage is a plain Metropolis step, so its recorded pass
+  # probabilities are min(1, exp(stage 1)) of the kernel that runs: the sums
+  # equal those over the traced attempts after adaptation (the last ones)
+  trace <- function() .Call("RoBMA_location_block_test_trace", PACKAGE = "RoBMA")
+  invisible(trace())
+  RoBMA:::.location_bias_evidence_read()
+  .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 1600L, adapt = 100L, burnin = 0L,
+                       config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = 1L))
+  attempts <- trace()
+  record <- as.list(RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ])
+  n <- record[["leave_selection_attempts"]] + record[["leave_gaussian_attempts"]]
+  expect_gt(n, 100)
+  rows <- attempts[utils::tail(seq_len(nrow(attempts)), n), , drop = FALSE]
+  selection <- rows[, "from"] == 2
+  expect_lt(abs(sum(exp(pmin(rows[selection, "stage1"], 0))) - record[["leave_selection_pass_probability_sum"]]),
+            1e-9 * n)
+  expect_lt(abs(sum(exp(pmin(rows[!selection, "stage1"], 0))) - record[["leave_gaussian_pass_probability_sum"]]),
+            1e-9 * n)
 })
 
 
@@ -426,9 +445,10 @@ test_that("the label update sums the other labels' masses directly at both endpo
 test_that("the bias swap's and the label update's identities hold with the coin forced each way", {
 
   skip_if_not_installed("rjags")
-  # coin 1: Barker's first stage of L2 and the Gibbs draw of L0 in every
-  # attempt; coin 2: never. The reverse ratios and flows keep their bounds
-  # (the test above), and L0's buffered scores agree with the graph's.
+  # coin 1: the Gibbs draw of L0 in every update; coin 2: never (L2's first
+  # stage is Metropolis's under either). The reverse ratios and flows keep
+  # their bounds (the test above), and L0's buffered scores agree with the
+  # graph's.
   for (coin in 1:2) {
     config <- c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = -1L, coin = coin)
     chain <- .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 1200L, burnin = 100L,

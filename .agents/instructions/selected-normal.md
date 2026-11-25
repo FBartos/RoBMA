@@ -650,10 +650,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   density of children without one, the label-dependent prior of shared nested
   weights included), proposes by one of two moves reversible for the
   surrogate law on `exp(s)`, chosen per update by a coin that does not depend
-  on the state: with probability 3/4 Liu's Metropolized Gibbs sampler (a
+  on the state: with probability 7/8 Liu's Metropolized Gibbs sampler (a
   level other than `k` with probability `p_k' / (1 - p_k)`, accepted on the
   surrogate with `min(1, (1 - p_k) / (1 - p_k'))`; the identity when no other
-  level has mass), with probability 1/4 the plain surrogate draw from
+  level has mass), with probability 1/8 (`plain_proposal_probability`) the
+  plain surrogate draw from
   `exp(s)` (current level included), and for `k' != k`
   evaluates the exact scores of `k` and then `k'` (so the last exact
   evaluation is the proposed state) and accepts with
@@ -662,7 +663,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the plain draw's holding probability makes the chain aperiodic: Liu's step
   alone swaps two equally scored levels at every update, so a chain thinned by
   two kept its initial label (tested with the tie fixture at `thin = 2` from
-  both labels). The test hook keeps either move alone (`finite_proposal = 2`
+  both labels; at 1/8 the tied label keeps a holding probability of 1/16 per
+  update). The test hook keeps either move alone (`finite_proposal = 2`
   Liu, `0` plain; `3` the default mixture). Liu's step raised the bias label's
   switches on the tutorial and Assink fits by 37% to 2x for 2-10% more time
   than the plain draw. The exact
@@ -803,17 +805,21 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   an endpoint is a selection label. Components, first in the forward sweep and
   mirrored in the reversed one: D draws dormant slopes from their priors; L0
   is Liu's Metropolized Gibbs step on the label's surrogate full conditional,
-  or after a state-independent coin with probability 1/4 the plain Gibbs draw
-  over the label scores (the current label included), with the other labels'
-  masses summed directly at both endpoints. No move of the block is a
-  periodic two-state move: a Metropolis step between two states with ratio
-  exactly one alternates deterministically, so an evenly thinned chain could
-  keep one state. The first stage of every two-state accept/reject (gate
-  flips, the location swaps, L2) therefore uses Barker's acceptance
-  `r / (1 + r)` instead of `min(1, r)` after a coin with probability 1/4 per
-  attempt; the later stages are unchanged, since the ratio of the two
-  directions' first-stage acceptances is `r` under both (test switch `coin`
-  of `RoBMA_location_block_test_config` forces either way);
+  or after a state-independent coin with probability 1/8 (`label_coin`) the
+  plain Gibbs draw over the label scores (the current label included), with
+  the other labels' masses summed directly at both endpoints. No move of the
+  block is a periodic two-state move: a Metropolis step between two states
+  with ratio exactly one alternates deterministically, so an evenly thinned
+  chain could keep one state. The first stage of the gate flips and the
+  location swaps therefore uses Barker's acceptance `r / (1 + r)` instead of
+  `min(1, r)` after a coin with probability 1/4 per attempt
+  (`two_state_coin`); the later stages are unchanged, since the ratio of the
+  two directions' first-stage acceptances is `r` under both (test switch
+  `coin` of `RoBMA_location_block_test_config` forces either way, and L0's
+  coin too). L2 uses the plain Metropolis first stage: it is attempted on a
+  state-independent quarter of the sweeps, so it cannot alternate
+  deterministically, and its recorded pass probabilities are those of the
+  kernel that runs;
   L1 (Gaussian labels) proposes label, intercept gate and slab, both slopes
   and the latents from the collapsed Gaussian cells (an independence
   Metropolis-Hastings step computed from the inner target and both proposal
@@ -863,8 +869,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the stage-1 log ratio of the swaps the exact correction kept, and for L0,
   from the label scores it computes and without another likelihood
   evaluation, its updates, the sum of their probabilities of moving to the
-  other family on the inner target (the update's mixture: 3/4 Liu's
-  `p_j / max(1 - p_i, 1 - p_j)`, 1/4 the Gibbs draw's `p_j`), the
+  other family on the inner target of the kernel that ran (after the coin
+  Liu's `p_j / max(1 - p_i, 1 - p_j)` or the Gibbs draw's `p_j`; the screened
+  indicator's record has the same convention), the
   moves it made there and the maximum of `log P(other family) - log P(own
   family)`), `evidence$bias_labels` (sweeps ending in each label) and
   `evidence$bias_sojourns` (per chain, from all retained draws of a

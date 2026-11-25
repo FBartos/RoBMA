@@ -12,11 +12,11 @@
 // proposes a level k' on these scores, p_l = exp(s_l) / sum exp(s), by one of
 // two moves reversible for the surrogate law, chosen at each update by a coin
 // that does not depend on the state:
-//   - with probability 3/4 Liu's Metropolized Gibbs sampler (a level other
+//   - with probability 7/8 Liu's Metropolized Gibbs sampler (a level other
 //     than the current level k with probability p_k' / (1 - p_k), accepted on
 //     the surrogate with min(1, (1 - p_k) / (1 - p_k')); the identity when no
 //     other level has mass);
-//   - with probability 1/4 the plain surrogate full-conditional draw (k' with
+//   - with probability 1/8 the plain surrogate full-conditional draw (k' with
 //     probability p_k', the current level included: an independence proposal),
 // and, when k' != k, accepts it with probability
 //   min(1, exp((e_k' - s_k') - (e_k - s_k))),
@@ -64,7 +64,7 @@ namespace RoBMA {
 // The screened indicator's proposals (the test hook's finite_proposal): the
 // plain surrogate full conditional, the same without the exact correction (a
 // test mutant that is not exact), Liu's Metropolized Gibbs, and the default
-// mixture of the plain draw (1/4) and Liu's step (3/4).
+// mixture of the plain draw (1/8) and Liu's step (7/8).
 enum ScreenedProposal { proposal_plain = 0, proposal_uncorrected = 1, proposal_liu = 2, proposal_mixture = 3 };
 
 class ScreenedFiniteKernel {

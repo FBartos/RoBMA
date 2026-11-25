@@ -32,8 +32,9 @@ const char *const screened_label = "Corrected finite sampler";
 const double negative_infinity = -std::numeric_limits<double>::infinity();
 // Larger supports keep the stock sampler.
 const double maximum_levels = 10000;
-// The probability of the plain proposal in the default mixture.
-const double plain_proposal_probability = 0.25;
+// The probability of the plain proposal in the default mixture (its holding
+// probability keeps the chain aperiodic; Liu's step moves more).
+const double plain_proposal_probability = 0.125;
 
 // The probability that a proposal on the surrogate masses changes level k
 // before the exact correction: 1 - p_k for the plain draw, and for Liu's step

@@ -368,7 +368,7 @@
   }
 
   // ---- L0: the screened label update. Liu's Metropolized Gibbs step, or with
-  // probability 1/4 the plain Gibbs draw, on the label's surrogate full
+  // probability 1/8 the plain Gibbs draw, on the label's surrogate full
   // conditional at the current working state (every label with prior mass:
   // the surrogate terms of the coarse-capable children, the exact terms of
   // the others, the nested node's term), reversible for the inner target; the
@@ -404,15 +404,20 @@
     // summed directly at both endpoints (never total - mass, which loses a
     // small positive sum against a dominant label), shared with the record
     const long double others = other_mass(mass, k);
-    label_record(k, mass);
-    if (!(others > 0)) return;
+    if (!(others > 0)) {
+      label_record(k, mass, false);
+      return;
+    }
     bias_tally(bias_label, 0);
-    // A state-independent coin (probability 1/4): the plain Gibbs draw over
+    // A state-independent coin (label_coin, 1/8): the plain Gibbs draw over
     // the label scores, the current label included; otherwise Liu's step,
     // which between two labels of equal mass alternates deterministically.
-    // Both are reversible for the inner target, and so is their mixture.
+    // Both are reversible for the inner target, and so is their mixture. The
+    // record holds the move probability of the kernel that runs.
+    const bool gibbs = alternative(rng, label_coin);
+    label_record(k, mass, gibbs);
     int proposed = 0;
-    if (alternative(rng)) {
+    if (gibbs) {
       long double draw = static_cast<long double>(rng->uniform()) * (mass[static_cast<std::size_t>(k - 1)] + others);
       for (int l = 1; l <= B.levels; ++l) {
         if (mass[static_cast<std::size_t>(l - 1)] == 0.0L) continue;
@@ -1691,7 +1696,9 @@
     if (!std::isfinite(stage1)) return;
     if (!dry) {
       swap_record_attempt(from_selection, stage1);
-      if (!first_stage(rng, stage1)) {
+      // a plain Metropolis first stage: L2 runs on a state-independent quarter
+      // of the sweeps, so it cannot alternate deterministically
+      if (!metropolis(rng, stage1)) {
         swap_trace(from, target, false, stage1, 0.0, false);
         return;
       }
@@ -1848,13 +1855,13 @@
 
   // An L0 update from label k (its family's direction), from the label
   // masses exp(score - max) it computed: the probability of moving to a label
-  // of the other family of the update's mixture (with probability 3/4 Liu's
-  // Metropolized Gibbs, p_j / max(1 - p_k, 1 - p_j) with 1 - p_k and 1 - p_j
-  // summed over the other labels as the update sums them, other_mass; with
-  // probability 1/4 the Gibbs draw, p_j) and
+  // of the other family of the kernel that runs (Liu's Metropolized Gibbs,
+  // p_j / max(1 - p_k, 1 - p_j) with 1 - p_k and 1 - p_j summed over the other
+  // labels as the update sums them, other_mass; or, after the coin, the Gibbs
+  // draw, p_j), as the screened indicator's record holds, and
   // log P(other family) - log P(own family) of the surrogate full
   // conditional, from the scores (log-sum-exp).
-  void label_record(int k, std::vector<long double> const &mass)
+  void label_record(int k, std::vector<long double> const &mass, bool gibbs)
   {
     if (_adapting) return;
     BiasSpec const &B = bspec();
@@ -1862,8 +1869,6 @@
     const int d = gaussian ? 1 : 0;
     const long double others = other_mass(mass, k);
     const long double all = others + mass[static_cast<std::size_t>(k - 1)];
-    // the update's mixture: the Gibbs draw with the coin's probability
-    const long double gibbs = s().coin == 1 ? 1.0L : s().coin == 2 ? 0.0L : 0.25L;
     long double cross = 0;
     double own_max = negative_infinity, other_max = negative_infinity;
     for (int l = 1; l <= B.levels; ++l) {
@@ -1874,7 +1879,7 @@
       }
       other_max = std::max(other_max, v);
       const long double m = mass[static_cast<std::size_t>(l - 1)];
-      if (m > 0) cross += (1.0L - gibbs) * m / std::max(others, other_mass(mass, l)) + gibbs * m / all;
+      if (m > 0) cross += gibbs ? m / all : m / std::max(others, other_mass(mass, l));
     }
     auto log_sum_exp = [&](bool family_gaussian, double top) {
       if (!(top > negative_infinity)) return negative_infinity;
