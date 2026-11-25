@@ -67,8 +67,10 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // coin of the two-state moves instead of Metropolis's; 21 the unmoved
 // children whose graph mean changed left out of the exact correction; 22 and
 // 23 the entry mean that an unmoved mean is compared with, 0.1 and 10 times
-// the row's tolerance above it, within it and beyond it). Returns the
-// previous value.
+// the row's tolerance above it, within it and beyond it; with an owned bias
+// label, of its swap L2: 24 the working means' criterion Q left out of the
+// skip rule, 25 an entered selection label's base point taken as not
+// representable after the target label's draw). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -101,7 +103,13 @@ std::string location_block_test_decision();
 // between the proposal end the swap rebuilt and the one an attempt started
 // there computes (geometry and base point, label proposals, stage 1 and the
 // two log proposal densities; all zero) and the sum of the two moves'
-// inner-target changes), type 10 L0 (the
+// inner-target changes; kind 7, with each rebuilt proposal end: the end
+// rebuilt again from working means read from the graph at the proposal, the
+// largest difference of the rule's inputs (stage 1 and the log ratio of the
+// proposal densities) from the end rebuilt from the carried means, the
+// difference of the reverse proposal density, and Q of the carried and the
+// fresh rebuild; kind 8, a dry run skipped at its base point: M_0, Q, 1 when
+// after the target label's draw), type 10 L0 (the
 // largest difference of a label's buffered exact score from the graph's and
 // the scale) and type 12 L0's record at each update (kind 1: the kernel, 1
 // the Gibbs draw, the probability of moving to the other family that the

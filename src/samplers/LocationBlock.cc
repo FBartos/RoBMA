@@ -79,6 +79,20 @@ constexpr double fit_tolerance = 1e-10;
 // the bound of the frozen-state tests, about 1e4 times the residual of
 // ordinary data (1e-13) and far below a missing Hastings term (at least 1e-3).
 constexpr double swap_reciprocity_tolerance = 1e-9;
+// L2 is the identity where its base point's working means are not
+// representable for the swap: Q (LocationBlockBiasMoves.h,
+// swap_working_criterion), the size of the working means' rounding in units
+// of the rows' SDs weighted by their residuals, exceeds this tolerance. The
+// rule above compares two ends that share their working means, while an
+// attempt that starts at the proposal in a later sweep reaches the base point
+// from other working means. Q is a representability criterion, not a bound
+// on what re-read working means change (label_swap): it separates the
+// regimes, at most 6e-11 on ordinary data (the real cases 1.1e-11, a
+// 10,000-row fixture 5.6e-11) and at least 4e-6 at a row of 1000 / 1e-6. A
+// working mean's rounding is taken as swap_working_rounding eps
+// (eps = 2^-52) times the size of its terms.
+constexpr double swap_working_tolerance = 1e-8;
+constexpr double swap_working_rounding = 4.0;
 // The refresh kernels of the active coefficients in selection labels (A3; see
 // LocationBlock::refresh_variant): chosen by measurement.
 constexpr int default_refresh = 1;
@@ -127,8 +141,11 @@ struct Counters {
   // (a matrix not numerically positive definite)
   std::atomic<std::uint64_t> factorization_skips{0};
   // sweeps whose cross-family swap (L2) made no proposal because its base
-  // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable)
+  // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable:
+  // M_0 or the working means' representability criterion Q), and after
+  // adaptation the largest Q of the base points the rule admitted
   std::atomic<std::uint64_t> swap_unrepresentable{0};
+  std::atomic<double> max_swap_working{0.0};
   // sweeps whose cross-family swap passed stage 1 and was then the identity
   // because its proposal end did not reproduce it (swap_irreproducible), and
   // after adaptation the largest reciprocity residuals of the attempts that
@@ -1457,6 +1474,22 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     return law;
   }
 
+  // The working residuals r = y - mean and weighted residuals W r from the
+  // working means (prepare(); the swap's probe, fresh_working_means()).
+  void working_residuals()
+  {
+    Shared const &sh = s();
+    for (unsigned i = 0; i < sh.rows; ++i) _r[i] = _y[i] - _mean[i];
+    for (ChildSpec const &child : sh.children) {
+      double const *W = &_W[child.woff];
+      for (unsigned i = 0; i < child.n; ++i) {
+        long double v = 0;
+        for (unsigned j = 0; j < child.n; ++j) v += static_cast<long double>(W[i * child.n + j]) * _r[child.row0 + j];
+        _wr[child.row0 + i] = static_cast<double>(v);
+      }
+    }
+  }
+
   void prepare()
   {
     Shared const &sh = s();
@@ -1521,15 +1554,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
 
     _mean = _mean_entry;
-    for (unsigned i = 0; i < sh.rows; ++i) _r[i] = _y[i] - _mean[i];
-    for (ChildSpec const &child : sh.children) {
-      double const *W = &_W[child.woff];
-      for (unsigned i = 0; i < child.n; ++i) {
-        long double v = 0;
-        for (unsigned j = 0; j < child.n; ++j) v += static_cast<long double>(W[i * child.n + j]) * _r[child.row0 + j];
-        _wr[child.row0 + i] = static_cast<double>(v);
-      }
-    }
+    working_residuals();
 
     // Gaussian working model with the latents integrated: P = B + X' S^-1 X,
     // h = B m0 + X' S^-1 r0, r0 = y - offset; per latent the within/between
@@ -3619,22 +3644,30 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // The exact correction: accept the sweep with [pi(new) / pi~(new)] /
   // [pi(old) / pi~(old)] over the changed members and the children whose
   // means changed, the exact terms from the graph's own densities.
+  // The member values of the working state (the update's entry with the
+  // gates, slabs, latents and the bias label and sources of the sweep).
+  void working_members(Vec &out) const
+  {
+    Shared const &S = s();
+    out = _entry;
+    for (unsigned j = 0; j < S.groups.size(); ++j) {
+      GroupSpec const &g = S.groups[j];
+      if (g.gate != nullptr) out[g.gate_pos] = _g[j] ? g.label : 3.0 - g.label;
+      for (unsigned i = 0; i < g.d; ++i) out[g.slab_pos + i] = _beta[g.coord0 + i];
+    }
+    for (unsigned lat = 0; lat < S.latents.size(); ++lat) out[S.latent_pos[lat]] = _z[lat];
+    if (bias()) {
+      out[S.bias->pos] = _label;
+      for (int b = 0; b < 2; ++b) if (S.bias->slope[b].source != nullptr) out[S.bias->slope[b].pos] = _theta[b];
+    }
+  }
+
   void correct(RNG *rng)
   {
     Shared const &S = s();
     // the final member values
-    _final = _entry;
-    for (unsigned j = 0; j < S.groups.size(); ++j) {
-      GroupSpec const &g = S.groups[j];
-      if (g.gate != nullptr) _final[g.gate_pos] = _g[j] ? g.label : 3.0 - g.label;
-      for (unsigned i = 0; i < g.d; ++i) _final[g.slab_pos + i] = _beta[g.coord0 + i];
-    }
-    for (unsigned lat = 0; lat < S.latents.size(); ++lat) _final[S.latent_pos[lat]] = _z[lat];
+    working_members(_final);
     const bool label_changed = bias() && _label != _label_entry;
-    if (bias()) {
-      _final[S.bias->pos] = _label;
-      for (int b = 0; b < 2; ++b) if (S.bias->slope[b].source != nullptr) _final[S.bias->slope[b].pos] = _theta[b];
-    }
     if (_final == _entry) {
       count(counters().corrections_accepted);
       evidence_endpoint(true);
@@ -4544,7 +4577,7 @@ std::vector<char const *> const &location_block_report_names()
       "slice_refresh_groups", "slice_refresh_multi", "factorization_skips", "swap_unrepresentable",
       "swap_irreproducible", "unmoved_mean_inexact", "unmoved_included", "max_correction", "max_correction_gaussian",
       "max_endpoint", "max_endpoint_change", "max_stage2_gaussian", "max_swap_stage1_residual",
-      "max_swap_full_residual", "unmoved_mean_max", "unmoved_density_max"};
+      "max_swap_full_residual", "max_swap_working", "unmoved_mean_max", "unmoved_density_max"};
     static std::vector<std::string> storage;
     for (int i = 0; i < component_count; ++i) {
       for (char const *stage : {"proposed", "stage0", "stage1", "accepted"}) {
@@ -4584,7 +4617,8 @@ std::vector<double> location_block_report(bool clear)
     take(c.unmoved_included),
     take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian), take_max(c.max_swap_stage1_residual),
-    take_max(c.max_swap_full_residual), take_max(c.unmoved_mean_max), take_max(c.unmoved_density_max)};
+    take_max(c.max_swap_full_residual), take_max(c.max_swap_working), take_max(c.unmoved_mean_max),
+    take_max(c.unmoved_density_max)};
   for (int i = 0; i < component_count; ++i) {
     out.push_back(take(c.proposed[i]));
     out.push_back(take(c.stage0[i]));

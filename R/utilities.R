@@ -47,7 +47,11 @@
 #' and sampler assignments. The joint sampler report records \code{"budget_bypassed"}
 #' when an otherwise eligible automatic Gaussian fit exceeds the row limit.
 #' For the location block sampler, \code{$joint$counters} holds its per-fit
-#' counters and \code{$joint$scale}, present when the block also owns the
+#' counters (with a bias indicator owned by the block, \code{max_swap_working}
+#' is the largest representability criterion of the working means at the base
+#' points of the cross-family swaps admitted after adaptation; above \code{1e-8}
+#' a swap is skipped and counted in \code{swap_unrepresentable}) and
+#' \code{$joint$scale}, present when the block also owns the
 #' heterogeneity sources, the scale ownership decisions and the move's counters:
 #' \code{moves} counts updates in states where the declared sources are active
 #' (slice calls that exhausted their interval included), \code{identity} and

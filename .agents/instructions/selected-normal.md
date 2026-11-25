@@ -920,23 +920,70 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   after adaptation the counters keep the largest residuals of the attempts
   that went on to stage 2 (`max_swap_stage1_residual`,
   `max_swap_full_residual`).
+  The rebuilt end shares the forward end's working means (moved by the
+  swap's shift), while the chain's own reverse attempt, starting at the
+  proposal in a later sweep, reads the graph's means there and moves them by
+  that sweep's shifts; the two differ by rounding, which at extreme rows the
+  fits amplify (at `1000 / 1e-6` rule residuals up to 4.7e-4 with
+  bitwise-equal base points). So the base point is also not representable
+  for the swap when the working means' representability criterion
+  `Q = sum_i delta_i (1 + |z_i|)` exceeds `swap_working_tolerance` (1e-8),
+  over every child's rows, with `delta_i = 4 eps size_i / sd_i` (`size_i` the
+  sum of the absolute terms of the row's mean at the base point: the working
+  mean, the design terms and the latent's term; `sd_i = W_ii^-1/2`;
+  `eps = 2^-52`; 4 eps the rounding the tracked comparison allows a probed
+  slope) and `z_i = sd_i (W r)_i` the standardized working residual
+  (`swap_working_criterion`). `Q` is evaluated at the base point wherever
+  `M_0` is, from both ends, and counts with it (`swap_unrepresentable`; at the
+  rebuilt end `swap_irreproducible`); after adaptation the counters keep the
+  largest admitted `Q` (`max_swap_working`). `Q` is a criterion, not a bound.
+  It separates the regimes: ordinary data have `Q` from 1e-13 to 6e-11 (at
+  most 1.1e-11 on the real cases and 5.6e-11 on a 10,000-row fixture, at
+  least 180 times below the tolerance), a row at `2 / 1e-3` up to 3.4e-9,
+  at `20 / 1e-4` up to 4.1e-9, rows at `1000 / 1e-6` and `8000 / 1e-6` at
+  least 4e-6; it costs 2 to 3% of a swap attempt. The probe rebuilds each
+  dry run's proposal end from working means read from the graph at the
+  proposal (kind 7) and records the change of the rule's inputs against the
+  rebuild from the carried means. Over chain seeds 1-40 (L2 in every sweep,
+  about 32,000 dry runs per fixture) that change is of the order of `Q` in
+  most dry runs the whole rule admits (99.9% within 11 `Q`), not in all: on
+  the default fixture changes up to 8e-12, a floor of rounding, reach 120 `Q`
+  where `Q` is 4e-14; at `20 / 1e-4` they stay within 20 `Q` (largest
+  3.3e-8); at `2 / 1e-3` 7 admitted dry runs exceed 100 `Q`, by up to 1.6e-5
+  at `Q` from 4e-12 to 3.3e-9. In the two largest the fresh rebuild's
+  Laplace fit, with `G0` equal, stops at a mean 1.2e-5 and 1.7e-5 law SDs
+  from the carried one's (the fits run two damped Newton iterations whose
+  step halvings are decided by comparisons of the objective), and the
+  proposal densities move with it.
   Stage 2 takes each proposal density from the base point of the end that
   draws it, `r = delta + log q'(x|x') - log q(x'|x)`, the exact
   Metropolis-Hastings ratio and the exact negative of the reverse move's
   (a symmetrized ratio of the two ends' own-base ratios, `(full - full') / 2`,
   is off by half the sum of the two ends' discrepancies of the proposal
   densities, up to 3.4e-4 on that fixture, which the rule bounds only when
-  one end's discrepancy dominates). The kernel is therefore exact for the
-  inner target up to `swap_reciprocity_tolerance` in stage 1, for every
-  input. The rebuild adds one base-point evaluation with one fit to every
+  one end's discrepancy dominates). The swap is exact for the inner target
+  given the working means, up to `swap_reciprocity_tolerance` in stage 1;
+  the working means are carried through an update, and the swap runs only
+  where `Q <= 1e-8` and elsewhere is the identity. The chain's own reverse
+  attempt, from re-read working means, agrees with the rebuilt end to an
+  amount of the order of `Q` in most attempts and by up to 1.6e-5 in a log
+  ratio in rare ones (the measurements above): that agreement is measured,
+  not guaranteed.
+  The rebuild adds one base-point evaluation with one fit to every
   attempt that passes stage 1. On ordinary fixtures nothing is skipped; at
-  `1000 / 1e-6` most attempts after adaptation are (the swaps that reach
-  stage 2 have residuals below 2e-13), at `20 / 1e-4` a few. The probe
-  records the rule's residuals of each dry run, and after each accepted
+  `1000 / 1e-6` every attempt after adaptation is skipped at its base point
+  by `Q` (without the `Q` rule most are the identity after stage 1, and the
+  swaps that reach stage 2 have residuals below 2e-13), at `20 / 1e-4` a few
+  are the identity after stage 1. The probe records the rule's residuals of
+  each dry run, `M_0` and `Q` of each dry run skipped at its base point, and
+  the change of the rule's inputs when the proposal end is rebuilt from
+  working means read from the graph, and after each accepted
   live swap an attempt started at its state, forced back, whose end must
   equal the rebuilt one bitwise (mutant 19 scores the reverse with the
-  forward end's base point, as the swap did before, and skips nothing; mutant
-  20 runs Barker's first stage). The gate of the target cell is drawn and
+  forward end's base point, as the swap did before, and skips nothing after
+  stage 1; mutant 20 runs Barker's first stage; mutant 24 leaves `Q` out of
+  the rule; mutant 25 takes an entered selection label's base point as not
+  representable after the target label's draw). The gate of the target cell is drawn and
   scored with the same two log probabilities, `-log(1 + e^-d)` and
   `-log(1 + e^d)` of the difference `d` of the cell's two evidences
   (`swap_gate_log_probabilities`): normalized by their total, evidences of
@@ -1176,11 +1223,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   cluster latent absorbs, has base-point sums of about 5e17 in the first
   adapting sweeps (the relative reciprocity residual 1.17 before the rule)
   and is skipped there; after adaptation the state (`M` = 1.3e7) and the base
-  point (`M_0` = 1.2e7) are representable, and L2 is exact there up to
-  `swap_reciprocity_tolerance` in stage 1: the attempts whose proposal end,
-  rebuilt with Laplace laws up to 7e-4 SD from the forward end's, does not
-  reproduce them to that tolerance are the identity (`swap_irreproducible`,
-  the L2 paragraph above).
+  point (`M_0` = 1.2e7) are representable, but its working means are not for
+  the swap (`Q` at least 4e-6, the tolerance 1e-8), and every attempt is
+  skipped at its base point (`swap_unrepresentable`, the L2 paragraph above).
+  Without the `Q` rule (mutant 24) swaps run there, and the attempts whose
+  proposal end, rebuilt with Laplace laws up to 7e-4 SD from the forward
+  end's, does not reproduce them to `swap_reciprocity_tolerance` are the
+  identity (`swap_irreproducible`).
   The test hook `RoBMA_corrected_sampler_test` reports the largest `M` per site
   after adaptation (`likelihood_magnitude`); tests in
   `test-00-selection-corrected-block.R` (block, gated, scalar, both kernels,

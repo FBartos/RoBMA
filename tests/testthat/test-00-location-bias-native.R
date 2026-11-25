@@ -191,6 +191,12 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_gt(min(shared$selection_part), 0, label = label)
     expect_lt(max(abs(shared$selection_part - shared$log_odds) / shared$selection_part), 1e-12, label = label)
     expect_identical(chain$counters[["swap_unrepresentable"]], 0, label = label)
+    # nor any dry run at its base point (kind 8: M_0, Q, the working means'
+    # representability criterion): Q stays far below its tolerance 1e-8 on
+    # ordinary data (measured at most 2.4e-13 on these fixtures)
+    expect_false(any(swap$kind == 8), label = label)
+    expect_gt(chain$counters[["max_swap_working"]], 0, label = label)
+    expect_lt(chain$counters[["max_swap_working"]], 1e-10, label = label)
     # E_0, the shears, the evidences and the label proposals agree; the
     # accepted flows of the two directions are equal up to the same rounding
     # of the refitted laws (measured maximum 3.5e-11 over the same seeds; the
@@ -229,9 +235,12 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   # 1000 / 1e-6 is fitted only through its cluster latent: from the chain's
   # start the latent is far from that row, so while adapting (the precision
   # guard is silent then) the base point's terms sum to about 5e17 and L2
-  # makes no proposal; once the latent absorbs the row, the state and the
-  # base point are representable (M_0 about 1.2e7) and swaps run. L2 is
-  # scheduled in every sweep (switch swap = 1) and every attempt is traced.
+  # makes no proposal; once the latent absorbs the row, M_0 is representable
+  # (about 1.2e7) but the working means are not for the swap: Q, the size of
+  # their rounding in units of the rows' SDs weighted by the standardized
+  # residuals (swap_working_criterion), is at least 4e-6 against the
+  # tolerance 1e-8, and L2 still makes no proposal. L2 is scheduled in every
+  # sweep (switch swap = 1) and every attempt is traced.
   extreme <- function(y1, se1) {
     setup <- .bias_setup()
     setup$y[1]  <- y1
@@ -261,32 +270,49 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   expect_gt(adapting[["bias_label_accepted"]], 0)
   expect_gt(adapting[["bias_gaussian_family_proposed"]], 0)
   expect_gt(adapting[["corrections_accepted"]], 0)
-  # after adaptation the base point is representable: no skip in the counters
-  # or the evidence record. The proposal end's Laplace laws, refitted from
-  # working means whose rounding the row's term amplifies (M_0 about 1.2e7),
-  # reproduce the forward end's to 1e-4, not to the tolerance 1e-9, in most
-  # attempts: those swaps are the identity after stage 1
-  # (swap_irreproducible, in the counters and the evidence record; the trace
-  # holds them as passed attempts without a stage-2 ratio), and every swap
-  # that went on to stage 2 had both residuals within the tolerance
-  sampled_after <- function(mutant) {
+  # after adaptation (the counters and the evidence record read after the
+  # adapting sweeps were cleared): every attempt is skipped at its base point
+  # by Q, so nothing is proposed, traced or accepted, no admitted Q is kept,
+  # and the evidence record counts the skips
+  sampled_after <- function(mutant, setup = extreme(1000, 1e-6), draws = 200L) {
     invisible(trace())
     RoBMA:::.location_block_report_read()
-    jags <- .location_compile(.bias_model(extreme(1000, 1e-6)), mutant = mutant,
+    jags <- .location_compile(.bias_model(setup), mutant = mutant,
                               config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = 1L, coin = -1L))
     rjags::adapt(jags, 100L, end.adaptation = TRUE)
     RoBMA:::.location_block_report_read()
     RoBMA:::.location_bias_evidence_read()
     invisible(trace())
-    invisible(rjags::coda.samples(jags, "bias_indicator", n.iter = 200L, progress.bar = "none"))
+    invisible(rjags::coda.samples(jags, "bias_indicator", n.iter = draws, progress.bar = "none"))
     list(counters = RoBMA:::.location_block_report_read(),
          record = RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ], attempts = trace())
   }
-  sampling <- sampled_after(0L)
+  skipped <- sampled_after(0L)
+  expect_identical(skipped$counters[["factorization_skips"]], 0)
+  expect_identical(skipped$counters[["swap_unrepresentable"]], skipped$counters[["sweeps"]])
+  expect_identical(skipped$counters[["bias_label_swap_proposed"]], 0)
+  expect_identical(skipped$counters[["bias_label_swap_accepted"]], 0)
+  expect_identical(skipped$counters[["max_swap_working"]], 0)
+  expect_identical(NROW(skipped$attempts), 0L)
+  expect_gt(unname(skipped$record[["swap_unrepresentable"]]), 0)
+  expect_identical(unname(skipped$record[["swap_unrepresentable"]]), skipped$counters[["swap_unrepresentable"]])
+  expect_identical(unname(skipped$record[["swap_proposed"]]), 0)
+  # mutant 24 leaves Q out of the rule: swaps run and are accepted at this
+  # row, with admitted Q above the tolerance (so the expectations above
+  # fail). The proposal end's Laplace laws, refitted from working means whose
+  # rounding the row's term amplifies (M_0 about 1.2e7), then reproduce the
+  # forward end's to 1e-4, not to the tolerance 1e-9, in many attempts: those
+  # swaps are the identity after stage 1 (swap_irreproducible, in the
+  # counters and the evidence record; the trace holds them as passed
+  # attempts without a stage-2 ratio), and every swap that went on to stage
+  # 2 had both residuals within the tolerance
+  sampling <- sampled_after(24L)
   record   <- sampling$record
   expect_identical(sampling$counters[["swap_unrepresentable"]], 0)
   expect_identical(unname(record[["swap_unrepresentable"]]), 0)
   expect_identical(unname(record[["swap_proposed"]]), sampling$counters[["sweeps"]])
+  expect_gt(sampling$counters[["bias_label_swap_accepted"]], 0)
+  expect_gt(sampling$counters[["max_swap_working"]], 1e-8)
   expect_gt(sampling$counters[["swap_irreproducible"]], 0)
   expect_identical(unname(record[["swap_irreproducible"]]), sampling$counters[["swap_irreproducible"]])
   expect_lte(sampling$counters[["max_swap_stage1_residual"]], 1e-9)
@@ -295,15 +321,50 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   expect_identical(as.numeric(sum(passed & is.nan(sampling$attempts[, "stage2"]))),
                    sampling$counters[["swap_irreproducible"]])
   expect_true(all(is.finite(sampling$attempts[sampling$attempts[, "accepted"] == 1, "stage2"])))
-  # mutant 19 scores the reverse move with the forward end's base point, as
-  # the swap did before: its residuals vanish, nothing is skipped, and the
-  # expectation of skips above fails
-  expect_identical(sampled_after(19L)$counters[["swap_irreproducible"]], 0)
-  # with the probe: the dry runs' rule skips most attempts, the residuals
-  # being far above the tolerance, and an attempt started at an accepted
-  # swap's state reproduces its rebuilt end bitwise here too
+  # the rebuild's rule with Q in place: at 20 / 1e-4 (Q up to about 4e-9) a
+  # few attempts are the identity after stage 1; mutant 19 scores the
+  # reverse move with the forward end's base point, as the swap did before:
+  # its residuals vanish, nothing is skipped after stage 1, and the
+  # expectation of such skips fails
+  moderate <- sampled_after(0L, extreme(20, 1e-4), draws = 600L)
+  expect_identical(moderate$counters[["swap_unrepresentable"]], 0)
+  expect_gt(moderate$counters[["swap_irreproducible"]], 0)
+  expect_lte(moderate$counters[["max_swap_working"]], 1e-8)
+  expect_identical(sampled_after(19L, extreme(20, 1e-4), draws = 600L)$counters[["swap_irreproducible"]], 0)
+  # the skip after the target label's draw (an entered selection label's
+  # terms join M_0 only there): mutant 25 takes every such base point as not
+  # representable, so on the default fixture every attempt from a Gaussian
+  # label (none, PET, PEESE) is skipped after its draw, counted as
+  # swap_unrepresentable after adaptation in the counters and the evidence
+  # record, and neither proposed nor traced, while swaps from the selection
+  # label run; without the mutant no attempt is skipped
+  after_draw <- sampled_after(25L, .bias_setup())
+  counters   <- after_draw$counters
+  expect_gt(counters[["swap_unrepresentable"]], 0)
+  expect_identical(unname(after_draw$record[["swap_unrepresentable"]]), counters[["swap_unrepresentable"]])
+  expect_identical(counters[["swap_unrepresentable"]] + counters[["bias_label_swap_proposed"]], counters[["sweeps"]])
+  expect_identical(NROW(after_draw$attempts), as.integer(counters[["bias_label_swap_proposed"]]))
+  expect_false(any(after_draw$attempts[, "from"] %in% c(1, 3, 4)))
+  expect_gt(counters[["bias_label_swap_accepted"]], 0)
+  ordinary <- sampled_after(0L, .bias_setup())
+  expect_identical(ordinary$counters[["swap_unrepresentable"]], 0)
+  expect_true(any(ordinary$attempts[, "from"] %in% c(1, 3, 4)))
+  # with the probe: every dry run is skipped at its base point (kind 8: M_0,
+  # Q, after the draw), wherever M_0 is representable by Q, which stays at
+  # least 100 times above the tolerance (measured at least 4.1e-6); without
+  # the Q rule (mutant 24) the dry runs' rebuild rule skips most attempts,
+  # the residuals being far above the tolerance, and an attempt started at
+  # an accepted swap's state reproduces its rebuilt end bitwise here too
   chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 600L,
                                 burnin = 100L, adapt = 100L, probe = TRUE)
+  swap <- chain$probe[chain$probe$type == "label_swap", ]
+  base_skips <- swap[swap$kind == 8, ]
+  expect_gt(nrow(base_skips), 500L)
+  expect_false(any(swap$kind %in% c(5, 6, 7)))
+  expect_gt(min(base_skips$full[base_skips$stage1 <= 1e9]), 1e-6)
+  expect_identical(chain$counters[["bias_label_swap_accepted"]], 0)
+  chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 600L,
+                                burnin = 100L, adapt = 100L, probe = TRUE, mutant = 24L)
   swap <- chain$probe[chain$probe$type == "label_swap", ]
   rule <- swap[swap$kind == 5 & swap$stage1 == 1, ]
   expect_gt(mean(rule$full > 1e-9 | rule$selection_part > 1e-9), 0.5)
@@ -319,7 +380,11 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   # At 20 / 1e-4 (M_0 about 4.6e3) the residual, from the Laplace laws
   # refitted at the other end, reaches 5e-9 (the full ratio's) and 2e-9
   # (stage 1's) with this seed: those attempts are skipped, and the swaps
-  # that went on to stage 2 keep the bound.
+  # that went on to stage 2 keep the bound. Neither row skips an attempt by
+  # Q, the working means' representability criterion (a dry run skipped at
+  # its base point with M_0 within its limit, kind 8): Q stays below its
+  # tolerance 1e-8 (measured at most 3.4e-9 at 2 / 1e-3 and 4.1e-9 at
+  # 20 / 1e-4 over chain seeds 1-40).
   for (row in list(c(2, 1e-3), c(20, 1e-4))) {
     label <- paste(row, collapse = " / ")
     chain <- .location_hand_chain(.bias_model(extreme(row[1], row[2])), "bias_indicator", draws = 600L,
@@ -328,6 +393,8 @@ test_that("the cross-family swap makes no proposal while its base point is not r
     reciprocal <- swap[swap$kind == 0, ]
     shared     <- swap[swap$kind == 3, ]
     expect_identical(chain$counters[["swap_unrepresentable"]], 0, label = label)
+    expect_false(any(swap$kind == 8 & swap$stage1 <= 1e9), label = label)
+    expect_lte(chain$counters[["max_swap_working"]], 1e-8, label = label)
     expect_gt(chain$counters[["bias_label_swap_accepted"]], 50, label = label)
     expect_gt(nrow(reciprocal), 500L, label = label)
     expect_lt(max(shared$selection_part, shared$log_odds), 1e4, label = label)
