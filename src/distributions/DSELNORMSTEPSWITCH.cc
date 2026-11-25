@@ -9,6 +9,7 @@
 
 #include "../selnorm/selnorm.h"
 #include "selnorm-jags-bounds.h"
+#include "../samplers/StepRowNormalizer.h"
 
 namespace jags {
 namespace RoBMA {
@@ -70,53 +71,26 @@ double DSELNORMSTEPSWITCH::logDensity(double const *x,
                                       std::vector<double const *> const &par,
                                       std::vector<unsigned long> const &len) const
 {
+  // The one implementation of the row density (StepRowNormalizer.h), which
+  // the location block also evaluates; the bounds are decoded only for a row
+  // in step mode with an observed bin.
+  StepRowLaw law;
+  law.sd          = *par[1];
+  law.se          = *par[2];
+  law.effect_sign = static_cast<int>(*par[8]);
+  law.bins        = static_cast<int>(len[4]);
+  law.omega       = par[4];
   const int kernel_mode = static_cast<int>(*par[9]);
-
-  if (kernel_mode == SELKERNEL_NORMAL || *par[7] == 0) {
-    const double log_lik = dnorm(*x, *par[0], *par[1], true);
-    return *par[3] == 1 ? log_lik : *par[3] * log_lik;
+  const int bin         = static_cast<int>(*par[7]);
+  const bool telescope  = static_cast<int>(*par[10]) == 1;
+  if (kernel_mode == SELKERNEL_NORMAL || bin == 0) {
+    return step_row_log_density(law, *par[3], bin, kernel_mode, telescope, *x, *par[0]);
   }
-
-  double phack_z_zero[2] = {0, 0};
-  double segment_bounds_zero[1] = {0};
-  int segment_zero[1] = {0};
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
-
-  SelNormKernelData data;
-  data.n_bins               = static_cast<int>(len[4]);
-  data.n_segments           = 0;
-  data.effect_sign          = static_cast<int>(*par[8]);
-  data.q                    = 0;
-  data.z_lower              = z_lower.data();
-  data.z_upper              = z_upper.data();
-  data.phack_z_source       = phack_z_zero;
-  data.phack_z_dest         = phack_z_zero;
-  data.segment_bounds       = segment_bounds_zero;
-  data.segment_step_bin     = segment_zero;
-  data.segment_phack_region = segment_zero;
-  data.segment_step_bin_real = 0;
-  data.segment_phack_region_real = 0;
-  data.trusted_step_partition = true;
-  data.telescope_probabilities = static_cast<int>(*par[10]) == 1;
-
-  return cpp_selnorm_kernel_lpdf(
-    *x,
-    *par[0],
-    *par[1],
-    *par[0],
-    *par[1],
-    *par[2],
-    *par[3],
-    par[4],
-    static_cast<int>(*par[7]),
-    0,
-    0,
-    SELKERNEL_STEP,
-    data,
-    1,
-    false
-  );
+  law.lower = z_lower.data();
+  law.upper = z_upper.data();
+  return step_row_log_density(law, *par[3], bin, kernel_mode, telescope, *x, *par[0]);
 }
 
 void DSELNORMSTEPSWITCH::randomSample(double *x,

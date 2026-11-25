@@ -104,6 +104,9 @@ struct Counters {
   // coordinates in reversed sweeps)
   std::atomic<std::uint64_t> slice_refresh_groups{0};
   std::atomic<std::uint64_t> slice_refresh_multi{0};
+  // components skipped because a factorization of the working model failed
+  // (a matrix not numerically positive definite)
+  std::atomic<std::uint64_t> factorization_skips{0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
@@ -476,42 +479,24 @@ bool floor_precision(Vec const &P, Vec const &Pchol, Vec const &hessian, std::si
   return true;
 }
 
-double normal_cdf(double z)
-{
-  if (z == std::numeric_limits<double>::infinity()) return 1.0;
-  if (z == -std::numeric_limits<double>::infinity()) return 0.0;
-  return 0.5 * std::erfc(-z * 0.70710678118654752440);
-}
-
-double normal_density(double z)
-{
-  if (!std::isfinite(z)) return 0.0;
-  return std::exp(-0.5 * z * z - 0.91893853320467274178);
-}
-
 // The row-marginal selected-normal normalizer of one row, A(mu) =
 // sum_b omega_b P(lower_b < sign y / se < upper_b), y ~ N(mu, sd^2), and the
-// first two derivatives of log A in mu (spec: the free screen).
+// first two derivatives of log A in mu (spec: the free screen), by the
+// tail-safe evaluation of the step rows (StepRowNormalizer), so that a row far
+// in a tail keeps its screen.
 bool row_log_normalizer(double mu, double sd, double se, int sign, double const *omega,
                         double const *lower, double const *upper, int bins,
                         double *log_a, double *d1, double *d2)
 {
-  long double a = 0, a1 = 0, a2 = 0;
-  for (int b = 0; b < bins; ++b) {
-    const double zu = (upper[b] * se - sign * mu) / sd;
-    const double zl = (lower[b] * se - sign * mu) / sd;
-    const double probability = normal_cdf(zu) - normal_cdf(zl);
-    const double fu = normal_density(zu), fl = normal_density(zl);
-    a += static_cast<long double>(omega[b]) * probability;
-    a1 += static_cast<long double>(omega[b]) * (-sign * (fu - fl) / sd);
-    a2 += static_cast<long double>(omega[b]) *
-      (-((std::isfinite(zu) ? zu * fu : 0.0) - (std::isfinite(zl) ? zl * fl : 0.0)) / (sd * sd));
-  }
-  if (!(a > 0)) return false;
-  *log_a = std::log(static_cast<double>(a));
-  *d1 = static_cast<double>(a1 / a);
-  *d2 = static_cast<double>(a2 / a) - (*d1) * (*d1);
-  return std::isfinite(*log_a) && std::isfinite(*d1) && std::isfinite(*d2);
+  StepRowLaw law;
+  law.sd = sd;
+  law.se = se;
+  law.effect_sign = sign;
+  law.bins = bins;
+  law.omega = omega;
+  law.lower = lower;
+  law.upper = upper;
+  return step_row_log_normalizer(law, mu, log_a, d1, d2);
 }
 
 // ---- structure of the declared model
@@ -973,6 +958,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   // the evidence record of the gates (GateEvidence), flushed after each update
   std::vector<GateEvidence> _gate_evidence;
   bool _gate_dirty = false;
+
+  // A component skipped because a factorization of the working model failed
+  // (a matrix not numerically positive definite): counted in the report.
+  void skipped_factorization() { count(counters().factorization_skips); }
 
   void evidence_proposed(unsigned j, bool on)
   {
@@ -1901,7 +1890,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     Shared const &S = s();
     GroupSpec const &g = S.groups[j];
     Line L;
-    if (!build_line({j}, L)) return;
+    if (!build_line({j}, L)) { skipped_factorization(); return; }
     const bool on = active(j);
     const Component type = on ? flip_off : flip_on;
     // Savage-Dickey form of the collapsed odds of the line
@@ -1986,7 +1975,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   {
     GroupSpec const &g = s().groups[j];
     Line L;
-    if (!build_line({j}, L)) return;
+    if (!build_line({j}, L)) { skipped_factorization(); return; }
     if (!dry) count(counters().proposed[refresh]);
     Vec proposal(g.d), db(g.d);
     draw_precision(L.m, L.Pchol, rng, proposal.data());
@@ -2046,7 +2035,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   {
     GroupSpec const &g = s().groups[j];
     Line L;
-    if (!build_line({j}, L)) return;
+    if (!build_line({j}, L)) { skipped_factorization(); return; }
     const std::size_t nm = L.moving.size();
     std::vector<unsigned> prior_coords(L.partners);
     prior_coords.push_back(g.coord0);
@@ -2587,7 +2576,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     if (_line.valid && _line.group == j) return true;
     _line = GroupLine();
     _line.group = j;
-    if (!build_line({j}, _line.L)) return false;
+    if (!build_line({j}, _line.L)) { skipped_factorization(); return false; }
     GroupSpec const &g = s().groups[j];
     Vec zero(g.d, 0.0);
     _line.log_odds_gauss = (g.log_on - g.log_off) + log_slab(g, zero.data()) -
@@ -2746,14 +2735,14 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     GroupSpec const &gj = S.groups[j];
     GroupSpec const &gk = S.groups[k];
     Line L;
-    if (!build_line({j, k}, L)) return;
+    if (!build_line({j, k}, L)) { skipped_factorization(); return; }
     count(counters().proposed[swap]);
     const std::size_t dj = gj.d, dk = gk.d, nm = dj + dk;
     // the conditional Gaussian laws of each group with the other at zero, and
     // the Gaussian log ratio of the pattern evidences
     Vec cj, Cj, ck, Ck, mj, Pj, mk, Pk;
     double lcj, lck, lj, lk;
-    if (!swap_laws(L, dj, dk, mj, Pj, lj, mk, Pk, lk, cj, Cj, lcj, ck, Ck, lck)) return;
+    if (!swap_laws(L, dj, dk, mj, Pj, lj, mk, Pk, lk, cj, Cj, lcj, ck, Ck, lck)) { skipped_factorization(); return; }
     Vec zero_j(dj, 0.0), zero_k(dk, 0.0);
     const double prior_odds = gj.log_off + gk.log_on - gj.log_on - gk.log_off;
     const double gauss = prior_odds + log_slab(gk, zero_k.data()) + log_normal_precision(zero_j.data(), mj, Pj, lj) -
@@ -2940,7 +2929,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       for (std::size_t k = 0; k < na; ++k) PA[i * na + k] = _P[A[i] * p + A[k]];
     }
     Vec chol(PA);
-    if (!cholesky(chol, na)) return;
+    if (!cholesky(chol, na)) { skipped_factorization(); return; }
     Vec mean(hA);
     solve_lower(chol, na, mean.data());
     solve_lower_transpose(chol, na, mean.data());
@@ -3046,7 +3035,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     std::vector<unsigned> A;
     Vec mu, chol;
     double log_det = 0;
-    if (!active_law(A, mu, chol, log_det)) return;
+    if (!active_law(A, mu, chol, log_det)) { skipped_factorization(); return; }
     const std::size_t na = A.size();
     Vec old(na), nu(na), center(mu), db(na);
     for (std::size_t i = 0; i < na; ++i) old[i] = _b[A[i]];
@@ -3193,7 +3182,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     GroupSpec const &gj = S.groups[j];
     GroupSpec const &gk = S.groups[k];
     Line L;
-    if (!build_line({j, k}, L)) return;
+    if (!build_line({j, k}, L)) { skipped_factorization(); return; }
     if (!dry) {
       count(counters().proposed[swap]);
       count(counters().stage0[swap]);
@@ -3203,7 +3192,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // conditionals of one given the other at zero
     Vec mj, Pj, mk, Pk, cj, Cj, ck, Ck;
     double lj, lk, lcj, lck;
-    if (!swap_laws(L, dj, dk, mj, Pj, lj, mk, Pk, lk, cj, Cj, lcj, ck, Ck, lck)) return;
+    if (!swap_laws(L, dj, dk, mj, Pj, lj, mk, Pk, lk, cj, Cj, lcj, ck, Ck, lck)) { skipped_factorization(); return; }
     Vec zero_j(dj, 0.0), zero_k(dk, 0.0);
     const double stage1 = (gj.log_off + gk.log_on - gj.log_on - gk.log_off) +
       log_slab(gk, zero_k.data()) + log_normal_precision(zero_j.data(), mj, Pj, lj) -
@@ -3257,7 +3246,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     const unsigned p = S.p;
     std::vector<std::pair<unsigned, unsigned>> pairs;
     Vec chol(_P);
-    if (!cholesky(chol, p)) return pairs;
+    if (!cholesky(chol, p)) { skipped_factorization(); return pairs; }
     const Vec Sigma = inverse_from_cholesky(chol, p);
     for (unsigned j = 0; j < S.groups.size(); ++j) {
       if (S.groups[j].gate == nullptr) continue;
@@ -4175,7 +4164,7 @@ std::vector<char const *> const &location_block_report_names()
       "samplers", "sweeps", "sweeps_selection", "sweeps_evidence", "corrections_accepted",
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
-      "slice_refresh_groups", "slice_refresh_multi",
+      "slice_refresh_groups", "slice_refresh_multi", "factorization_skips",
       "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
       "max_stage2_gaussian"};
     static std::vector<std::string> storage;
@@ -4212,7 +4201,7 @@ std::vector<double> location_block_report(bool clear)
     take(c.corrections_accepted), take(c.corrections_selection_accepted),
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
-    take(c.slice_refresh_groups), take(c.slice_refresh_multi),
+    take(c.slice_refresh_groups), take(c.slice_refresh_multi), take(c.factorization_skips),
     take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
   for (int i = 0; i < component_count; ++i) {

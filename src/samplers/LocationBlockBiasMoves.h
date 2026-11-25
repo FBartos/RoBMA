@@ -1634,7 +1634,7 @@
     const int from = _label;
     const bool from_selection = !B.gaussian(from);
     SwapGeometry G;
-    if (!swap_geometry(G)) return;
+    if (!swap_geometry(G)) { skipped_factorization(); return; }
     if (!dry) bias_tally(bias_swap, 0);
     // the base point: the Gaussian labels' evidences, the selection labels'
     // screens and, leaving a selection label, its own Laplace evidence

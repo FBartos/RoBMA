@@ -114,6 +114,7 @@ r-selnorm.o: selnorm/zplot-context.h selnorm/selnorm-compact-partition.h
 distributions/DSELNORMSAMPLINGCONDITIONED.o: selnorm/selnorm-mv.h selnorm/selnorm.h
 
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h
+distributions/DSELNORMSTEPSWITCH.o: samplers/StepRowNormalizer.h
 
 $(filter distributions/DSELNORM%.o,$(OBJECTS)): distributions/selnorm-jags-bounds.h distributions/selnorm-node-memo.h
 

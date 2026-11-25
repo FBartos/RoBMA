@@ -31,6 +31,7 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
   expect_identical(unname(counters[c("sweeps_selection", "surrogate_evaluations", "exact_evaluations")]),
                    c(0, 0, 0))
   expect_gt(counters[["flip_on_accepted"]], 1000)
+  expect_identical(counters[["factorization_skips"]], 0)
   # frozen-state identity: the collapsed odds and line laws equal the direct
   # Gaussian evaluation of priors, children and proposals
   expect_lt(max(abs(chain$probe$full - chain$probe$stage1)), 1e-10)

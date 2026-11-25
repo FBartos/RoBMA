@@ -28,9 +28,10 @@ struct StepRowLaw {
 bool step_row_log_normalizer(StepRowLaw const &law, double mean, double *log_a, double *d1, double *d2);
 
 // The row's own log density at observation x and mean m with its parameters
-// read once (power, observed bin, kernel mode, telescoping): the evaluations
-// of DSELNORMSTEPSWITCH::logDensity, in the same order, so that the value is
-// the distribution's to the last bit. The caller has checked the parameters.
+// read once (power, observed bin, kernel mode, telescoping): the one
+// implementation of the row density, which DSELNORMSTEPSWITCH::logDensity
+// calls and the location block evaluates directly. The caller has checked the
+// parameters; the bounds are read only in step mode with an observed bin.
 double step_row_log_density(StepRowLaw const &law, double power, int bin, int mode, bool telescope,
                             double x, double mean);
 
