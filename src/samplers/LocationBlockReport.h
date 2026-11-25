@@ -107,8 +107,8 @@ std::vector<double> location_block_test_take_probe();
 std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap = -1, int trace = -1,
                                             int coin = -1);
 // The per-attempt record of L2 since the last call (trace switch): per
-// attempt chain, source label, target label, stage 1 passed, stage-1 log
-// ratio, gate drawn, stage-2 log ratio, accepted, the first latent column
+// attempt (14 fields) chain, source label, target label, stage 1 passed,
+// stage-1 log ratio, stage-2 log ratio, accepted, the first latent column
 // entry (the random-effect SD) and the target label's first six weights.
 std::vector<double> location_block_test_take_trace();
 // The sweep sequences since the last call (trace switch, bit 2): per sweep a

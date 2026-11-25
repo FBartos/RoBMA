@@ -814,8 +814,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   L0's buffered scores against the graph's; mutants 6-11 remove parts of L2
   or take the joint slot from the entry label (a target term left out of
   both a component's ratio and its recorded inner-target change is restored
-  by the exact correction, apart from the identical-state shortcut, so the
-  mutants remove terms from the ratio only); the trace switch records every
+  by the exact correction, so the mutants remove terms from the ratio only);
+  the trace switch records every
   L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
   `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
   L2; by source family, `leave_selection_*` and `leave_gaussian_*`, for L2
@@ -824,7 +824,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the stage-1 log ratio of the swaps the exact correction kept, and for L0,
   from the label scores it computes and without another likelihood
   evaluation, its updates, the sum of their probabilities of moving to the
-  other family on the inner target (Liu: `p_j / max(1 - p_i, 1 - p_j)`), the
+  other family on the inner target (the update's mixture: 3/4 Liu's
+  `p_j / max(1 - p_i, 1 - p_j)`, 1/4 the Gibbs draw's `p_j`), the
   moves it made there and the maximum of `log P(other family) - log P(own
   family)`), `evidence$bias_labels` (sweeps ending in each label) and
   `evidence$bias_sojourns` (per chain, from all retained draws of a

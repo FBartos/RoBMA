@@ -64,6 +64,24 @@ For joint sampler candidates and explicitly requested weight or probability opti
 inspect \code{attr(fit$fit, "sampler_declarations")$robma} for eligibility
 and sampler assignments. The joint sampler report records \code{"budget_bypassed"}
 when an otherwise eligible automatic Gaussian fit exceeds the row limit.
+For the location block sampler, \code{$joint$counters} holds its per-fit
+counters and \code{$joint$scale}, present when the block also owns the
+heterogeneity sources, the scale ownership decisions and the move's counters:
+\code{moves} counts updates in states where the declared sources are active
+(slice calls that exhausted their interval included), \code{identity} and
+\code{outside} the updates where the move is the identity (sources inactive,
+or an allocation weight or share outside [2^-20, 1 - 2^-20]).
+\code{$evidence} describes indicators that may not switch (it decides
+nothing and is absent when no run reported): \code{location} per gate and
+chain the updates after adaptation and the transitions the chain retained
+(\code{switched_on}, \code{switched_off}), with the inner stage's flips and
+log odds as \code{inner_*}; with a bias indicator owned by the block,
+\code{bias} per chain the proposals and acceptances of its label, Gaussian
+family, slope and swap moves and their cross-family evidence over the updates
+after adaptation, \code{bias_labels} the tally of those updates by the label
+they end in, and \code{bias_sojourns} per chain the runs of the retained
+draws of the indicator in the step-selection and the Gaussian families
+(absent when the indicator is not monitored).
 \code{fit$fit$samplers} lists the assigned sampler
 for each sampled node in the first worker, and
 \code{fit$fit$samplers_by_worker} records assignments when workers differ.
