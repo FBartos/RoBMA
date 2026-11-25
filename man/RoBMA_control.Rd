@@ -124,7 +124,10 @@ chains: one deviating chain raises the split-chain R-hat of a continuous
 parameter less the more chains are run, so a fit with many chains (eight or
 more) may set a lower value. A slowly mixing model can exceed the threshold
 although its chains agree; more burn-in then does not help, and the
-convergence checks of the retained samples report the slow mixing.}
+convergence checks of the retained samples report the slow mixing. When
+the warning appears for chains that started in different components (for
+example of the publication-bias mixture), a longer adaptation (such as
+\code{adapt = 5000}) resolves it sooner than more burn-in alone.}
 
 \item{burnin_extend}{number of final burn-in iterations that the readiness
 check assesses and of each extension of burn-in; at least \code{100}.
