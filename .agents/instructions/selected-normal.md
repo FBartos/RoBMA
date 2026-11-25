@@ -622,7 +622,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   descendant is not finite, otherwise kept (each attempt is an independent
   prior draw, so the kernel is the restricted prior or, with a probability that
   does not depend on the state, no move); while adapting, a change of the
-  children's log density is `GatedSlice`'s declaration error. Gate open: one
+  children's log density is `GatedSlice`'s declaration error, and any error
+  of the closed update restores the block-entry values and their
+  deterministic descendants before it propagates. Gate open: one
   update of the shared block kernel, whose axes learn from these updates only;
   until they are first refreshed (100 open adaptive updates) the coordinate
   axes have widths of 2.5 prior SDs (trigamma of the shapes for gamma and beta

@@ -202,6 +202,23 @@ test_that("the screened indicator's default kernel is aperiodic between two tied
 })
 
 
+test_that("an error of a closed gate's update leaves the graph as it found it", {
+
+  skip_if_not_installed("rjags")
+  # an invalid declaration: the gate of r is closed, but r reaches the
+  # likelihood through the weights. The closed update writes a prior draw and
+  # its diagnostic then throws (while adapting); the state is the entry one.
+  syntax <- paste0("model {\n  r ~ dbeta(2, 2)\n  gate ~ dbt_gate(r, 0)\n  w[1] <- 1\n  w[2] <- r\n",
+                   "  y ~ dselnorm_step_switch(0, 1, 1, 1, w[1:2], lo[1:2], hi[1:2], 1, 1, 1, 1)\n}")
+  hand <- .block_hand_model(syntax, list(gate = 0, y = .25, lo = c(0, -1e300), hi = c(1e300, 0)),
+                            inits = list(r = .4))
+  expect_identical(unname(hand$samplers["r"]), "RoBMA::GatedCorrectedBlock")
+  expect_error(stats::update(hand$model, n.iter = 1L, progress.bar = "none"),
+               "changes the likelihood while its gate is closed")
+  expect_identical(hand$model$state(internal = TRUE)[[1L]][["r"]], .4)
+})
+
+
 test_that("the screened evidence records the move probability of the kernel that ran", {
 
   skip_if_not_installed("rjags")

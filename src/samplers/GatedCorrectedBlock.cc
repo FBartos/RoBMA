@@ -80,32 +80,41 @@ class GatedCorrectedBlock : public MutableSampleMethod {
   // of times (each attempt an independent draw, so the kernel is a draw from
   // the restricted law or, with a probability that does not depend on the
   // state, no move), and otherwise the previous values are kept.
+  // Any exception restores the block-entry values (and, through the graph
+  // view, their deterministic descendants) before it propagates, as the open
+  // update does.
   void closed_update(RNG *rng)
   {
     std::vector<StochasticNode *> const &nodes = _graph->nodes();
     const unsigned int d = static_cast<unsigned int>(nodes.size());
     std::vector<double> previous(d), drawn(d);
     _graph->getValue(previous, _chain);
-    const bool adapting = _kernel.adapting();
-    const double before = adapting ? children_log_density() : 0.0;
-    bool valid = false;
-    for (unsigned int attempt = 0; attempt < closed_draw_attempts && !valid; ++attempt) {
-      for (unsigned int i = 0; i < d; ++i) {
-        nodes[i]->randomSample(rng, _chain);
-        drawn[i] = nodes[i]->value(_chain)[0];
+    try {
+      const bool adapting = _kernel.adapting();
+      const double before = adapting ? children_log_density() : 0.0;
+      bool valid = false;
+      for (unsigned int attempt = 0; attempt < closed_draw_attempts && !valid; ++attempt) {
+        for (unsigned int i = 0; i < d; ++i) {
+          nodes[i]->randomSample(rng, _chain);
+          drawn[i] = nodes[i]->value(_chain)[0];
+        }
+        _graph->setValue(drawn, _chain);
+        valid = true;
+        for (unsigned int i = 0; i < d && valid; ++i) {
+          valid = std::isfinite(drawn[i]) && drawn[i] > _lower[i] && drawn[i] < _upper[i];
+        }
+        valid = valid && descendants_finite();
       }
-      _graph->setValue(drawn, _chain);
-      valid = true;
-      for (unsigned int i = 0; i < d && valid; ++i) {
-        valid = std::isfinite(drawn[i]) && drawn[i] > _lower[i] && drawn[i] < _upper[i];
+      if (!valid) _graph->setValue(previous, _chain);
+      // Diagnostic for declaration errors during adaptation only; the
+      // declaration step in R establishes the condition.
+      if (adapting && !same_log_density(before, children_log_density())) {
+        throwNodeError(nodes[0], "gated node changes the likelihood while its gate is closed");
       }
-      valid = valid && descendants_finite();
     }
-    if (!valid) _graph->setValue(previous, _chain);
-    // Diagnostic for declaration errors during adaptation only; the
-    // declaration step in R establishes the condition.
-    if (adapting && !same_log_density(before, children_log_density())) {
-      throwNodeError(nodes[0], "gated node changes the likelihood while its gate is closed");
+    catch (...) {
+      _graph->setValue(previous, _chain);
+      throw;
     }
   }
 
