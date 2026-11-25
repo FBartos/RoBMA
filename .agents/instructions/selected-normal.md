@@ -849,7 +849,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   records), the two directions' probability flows at most 3.5e-11; a
   missing Hastings term is at least 1e-3, so the tests bound both by 1e-9,
   which leaves room for other platforms' rounding (the residual grows with
-  the size of the terms: 1.6e-8 with one row of `y = 20`, `se = 1e-4`). The tilted fits of the location components (flips, refreshes and
+  the size of the terms: 3e-9 to 1.6e-8 with one row of `y = 20`,
+  `se = 1e-4`). The tilted fits of the location components (flips, refreshes and
   swaps, whose reverse fit is evaluated at inputs that differ from the
   forward ones by rounding) take their steps by the same rule, so they too
   agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
