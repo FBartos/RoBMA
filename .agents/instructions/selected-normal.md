@@ -837,7 +837,20 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   Gaussian plane in closed form, a selection label's value there times its
   Laplace odds along the line), stage 1 on the evidences and the label
   Hastings factor, stage 2 on the inner target with the complete proposal
-  densities. The full ratio of the reverse move equals the inverse of the
+  densities. L2 is the identity when its base point is not representable:
+  each label's evaluation of the children there (G0's and a fitted selection
+  label's absolute evidence) sums the absolute values of their terms, and
+  when the largest sum `M_0` exceeds `likelihood_representable_limit` (1e9)
+  the swap makes no proposal in that sweep (nothing further is drawn, no
+  proposal, attempt or inner-target change is recorded, and
+  `swap_unrepresentable` counts the sweep in the block's counters and, after
+  adaptation, in `evidence$bias`), while adapting too, without an error.
+  `M_0` is a function of what the move holds fixed (`E_0` and the unchanged
+  state, evaluated equal up to rounding from both ends; the probe records
+  both ends' `M_0`), so the pair is skipped from either end and the kernel
+  stays exact; entering a selection label, its terms join `M_0` after the
+  target label's draw, and the reverse move checks them before its own. The
+  full ratio of the reverse move equals the inverse of the
   forward ratio up to the rounding of the refitted Laplace laws: the base
   point rebuilt from either end agrees to rounding, and the damped Newton
   fits reject a step only when it lowers their objective by more than
@@ -868,8 +881,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the trace switch records every
   L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
   `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
-  L2; by source family, `leave_selection_*` and `leave_gaussian_*`, for L2
-  the count, sum and maximum of the stage-1 log ratio and the sum of
+  L2 and the sweeps L2 skipped, `swap_unrepresentable`; by source family,
+  `leave_selection_*` and `leave_gaussian_*`, for L2 the count, sum and maximum of the stage-1 log ratio and the sum of
   `min(1, exp(stage 1))` of all attempts and the count, sum and maximum of
   the stage-1 log ratio of the swaps the exact correction kept, and for L0,
   from the label scores it computes and without another likelihood
@@ -1041,10 +1054,17 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   (a chain may start far from the data), and a proposed state is never checked
   (a huge term rejects it as before). Up to the limit, sums of the terms are
   differenced with an error below 1e-6, so the bias-side samplers keep their
-  totals. The guard sees only the state the chain is in: a fixture whose
-  latents absorb the extreme row (L2's frozen-state fixture with `y = 1000`,
-  `se = 1e-6`: `M` = 1.3e7) passes it while L2's base-point evidences, far
-  from that state, still lose L2's reciprocity (relative residual 1.17).
+  totals. The guard sees only the state the chain is in; L2's evidences are
+  evaluated at its base point, so L2 applies the same limit there and makes
+  no proposal above it (`swap_unrepresentable`, the L2 paragraph above), a
+  rule of what the move holds fixed that keeps the kernel exact. L2's
+  frozen-state fixture with one row at `y = 1000`, `se = 1e-6`, which its
+  cluster latent absorbs, has base-point sums of about 5e17 in the first
+  adapting sweeps (the relative reciprocity residual 1.17 before the rule)
+  and is skipped there; after adaptation the state (`M` = 1.3e7) and the base
+  point (`M_0` = 1.2e7) are representable and swaps run, with relative
+  residuals up to about 5e-4 from the Laplace laws refitted at the other end
+  (their means differ by up to 7e-4 SD).
   The test hook `RoBMA_corrected_sampler_test` reports the largest `M` per site
   after adaptation (`likelihood_magnitude`); tests in
   `test-00-selection-corrected-block.R` (block, gated, scalar, both kernels,

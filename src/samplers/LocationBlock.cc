@@ -119,6 +119,9 @@ struct Counters {
   // components skipped because a factorization of the working model failed
   // (a matrix not numerically positive definite)
   std::atomic<std::uint64_t> factorization_skips{0};
+  // sweeps whose cross-family swap (L2) made no proposal because its base
+  // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable)
+  std::atomic<std::uint64_t> swap_unrepresentable{0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
@@ -4336,7 +4339,7 @@ std::vector<char const *> const &location_block_report_names()
       "samplers", "sweeps", "sweeps_selection", "sweeps_evidence", "corrections_accepted",
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
-      "slice_refresh_groups", "slice_refresh_multi", "factorization_skips",
+      "slice_refresh_groups", "slice_refresh_multi", "factorization_skips", "swap_unrepresentable",
       "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
       "max_stage2_gaussian"};
     static std::vector<std::string> storage;
@@ -4374,7 +4377,7 @@ std::vector<double> location_block_report(bool clear)
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
     take(c.slice_refresh_groups), take(c.slice_refresh_multi), take(c.factorization_skips),
-    take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
+    take(c.swap_unrepresentable), take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
   for (int i = 0; i < component_count; ++i) {
     out.push_back(take(c.proposed[i]));
@@ -4447,7 +4450,7 @@ std::vector<char const *> const &location_bias_evidence_names()
 {
   static const std::vector<char const *> names = {
     "chain", "label_proposed", "label_accepted", "family_proposed", "family_accepted", "slope_proposed",
-    "slope_accepted", "swap_proposed", "swap_stage1", "swap_accepted",
+    "slope_accepted", "swap_proposed", "swap_stage1", "swap_accepted", "swap_unrepresentable",
     "leave_selection_attempts", "leave_selection_log_ratio_sum", "leave_selection_log_ratio_max",
     "leave_selection_pass_probability_sum",
     "leave_gaussian_attempts", "leave_gaussian_log_ratio_sum", "leave_gaussian_log_ratio_max",
@@ -4476,6 +4479,7 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
       if (i == 3) out.push_back(e.stage1[i]);
       out.push_back(e.accepted[i]);
     }
+    out.push_back(e.swap_unrepresentable);
     for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.attempts[d], e.attempt_sum[d], e.attempt_max[d], e.pass_sum[d]});
     for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.kept[d], e.kept_sum[d], e.kept_max[d]});
     for (int d = 0; d < 2; ++d) {

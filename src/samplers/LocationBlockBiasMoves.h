@@ -963,6 +963,10 @@
   struct SwapBase {
     Vec E0;                           // partners then latents
     double G0 = 0;                    // sum of the children's normal densities at the base point
+    // M_0: the largest sum of the children's absolute terms over the labels
+    // evaluated at the base point (G0's and each fit's absolute evidence;
+    // swap_unrepresentable)
+    double magnitude = 0;
     // the Gaussian plane in (t, theta_b): G(x) = G0 + eta'x - x'Pi x / 2
     double eta_t = 0, Pi_tt = 0, eta_b[2] = {0, 0}, Pi_bb[2] = {0, 0}, Pi_tb[2] = {0, 0};
     Vec log_e_off, log_e_on;          // per label: log evidences (-Inf without mass or gate)
@@ -1295,7 +1299,10 @@
   // The base-point evaluations: moves the working state to the base point,
   // evaluates the Gaussian plane, every Gaussian label's evidences, every
   // selection label's screen and the absolute evidences and Laplace laws of
-  // the selection labels in `fits`, then restores the working state.
+  // the selection labels in `fits`, then restores the working state. Each
+  // label's evaluation of the children also gives its sum of absolute terms
+  // (M_0 is the largest); a base point whose G0 is not representable returns
+  // false after G0, a fit that is not returns false after its terms.
   bool swap_base(SwapGeometry const &G, std::vector<int> const &fits, SwapBase &base)
   {
     Shared const &S = s();
@@ -1315,6 +1322,7 @@
     Snapshot saved;
     take(saved);
     bool ok = true;
+    base.magnitude = 0.0;
     try {
       Shift to_base;
       swap_shift(G, -t, b_now, -th, dE, to_base);
@@ -1328,8 +1336,18 @@
       }
       swap_set_label(gaussian_label);
       long double g0_sum = 0;
-      for (unsigned c = 0; c < S.children.size(); ++c) g0_sum += term_now(c);
+      LikelihoodMagnitude g0_size;
+      for (unsigned c = 0; c < S.children.size(); ++c) {
+        const double v = term_now(c);
+        g0_sum += v;
+        g0_size.add(S.children[c].node, v);
+      }
       base.G0 = static_cast<double>(g0_sum);
+      base.magnitude = g0_size.sum;
+      if (swap_unrepresentable_base(base)) {
+        put(saved);
+        return false;
+      }
       // the plane: t and each slope
       Shift st;
       swap_shift(G, 1.0, -1, 0.0, G.Kt, st);
@@ -1404,7 +1422,14 @@
         const std::size_t i = static_cast<std::size_t>(l - 1);
         swap_set_label(l);
         long double absolute = 0;
-        for (unsigned c = 0; c < S.children.size(); ++c) absolute += term_now(c);
+        LikelihoodMagnitude size;
+        for (unsigned c = 0; c < S.children.size(); ++c) {
+          const double v = term_now(c);
+          absolute += v;
+          size.add(S.children[c].node, v);
+        }
+        base.magnitude = std::max(base.magnitude, size.sum);
+        if (swap_unrepresentable_base(base)) { ok = false; break; }
         const double head = B.log_prior[i] + nested_term();
         // the absolute evidence at the base point with the gate off, and the
         // Laplace odds of the gate along the intercept's line (prior odds
@@ -1642,6 +1667,41 @@
     _theta[1] = from.theta[1];
   }
 
+  // L2 is the identity when its base point is not representable. Its
+  // evidences are sums of the children's terms at the base point (G0 and a
+  // selection label's absolute evidence), which can lie far from the state
+  // the chain is in (a row its latents absorb there but not at E_0, where its
+  // term can be -5e17); when the absolute terms of one label's evaluation sum
+  // to more than likelihood_representable_limit (M_0, the largest such sum;
+  // non-finite terms do not count, as in the precision guard), the evidences
+  // are differences of totals that double precision cannot resolve and the
+  // reverse move would not reproduce them. The swap then makes no proposal:
+  // nothing further is drawn (only a skip at an entered selection label's fit
+  // follows the target label's draw), no proposal, attempt or change of the
+  // inner target is recorded, and the sweep counts swap_unrepresentable. M_0
+  // is a function of what the move holds fixed: both ends evaluate G0 and the
+  // pair's selection label at the same base point E_0 with the same unchanged
+  // state, equal up to rounding (the frozen-state probe records both ends'
+  // M_0), so the pair is skipped from either end and the kernel stays exact.
+  // It is a skip, not an error, also while adapting; the chain continues with
+  // the other label moves.
+  bool swap_unrepresentable_base(SwapBase const &base) const
+  {
+    return base.magnitude > likelihood_representable_limit;
+  }
+
+  bool swap_skip_unrepresentable(SwapBase const &base, bool dry)
+  {
+    if (!swap_unrepresentable_base(base)) return false;
+    if (dry) return true;
+    count(counters().swap_unrepresentable);
+    if (!_adapting) {
+      _bias_evidence.swap_unrepresentable += 1;
+      _bias_dirty = true;
+    }
+    return true;
+  }
+
   // One attempt of L2: propose a label of the other family, a gate, the
   // intercept and the entering slope from the target cell's law at the base
   // point (the leaving slope from its prior), E = E_0 + K_t t + K_b theta;
@@ -1667,18 +1727,18 @@
     const bool from_selection = !B.gaussian(from);
     SwapGeometry G;
     if (!swap_geometry(G)) { skipped_factorization(); return; }
-    if (!dry) bias_tally(bias_swap, 0);
     // the base point: the Gaussian labels' evidences, the selection labels'
     // screens and, leaving a selection label, its own Laplace evidence
     SwapBase base;
     std::vector<int> fits;
     if (from_selection) fits.push_back(from);
-    if (!swap_base(G, fits, base)) return;
+    bool proposing = swap_base(G, fits, base);
+    if (swap_skip_unrepresentable(base, dry)) return;
     Vec log_qG, log_qS;
-    swap_label_proposals(base, log_qG, log_qS);
-    Vec const &forward_q = from_selection ? log_qG : log_qS;
     int target = 0;
-    {
+    if (proposing) {
+      swap_label_proposals(base, log_qG, log_qS);
+      Vec const &forward_q = from_selection ? log_qG : log_qS;
       double u = rng->uniform();
       for (int l = 1; l <= B.levels; ++l) {
         const double q = forward_q[static_cast<std::size_t>(l - 1)];
@@ -1688,10 +1748,17 @@
         if (u < p) break;
         u -= p;
       }
+      proposing = target != 0;
     }
-    if (target == 0) return;
-    // entering a selection label: its Laplace evidence at the base point
-    if (!from_selection && !swap_base(G, {target}, base)) return;
+    // entering a selection label: its Laplace evidence at the base point (its
+    // terms enter M_0 only here, after the target label's draw; the reverse
+    // move, from the target, checks the same terms before its draw)
+    if (proposing && !from_selection) {
+      proposing = swap_base(G, {target}, base);
+      if (swap_skip_unrepresentable(base, dry)) return;
+    }
+    if (!dry) bias_tally(bias_swap, 0);
+    if (!proposing) return;
     const double stage1 = swap_stage1(base, log_qG, log_qS, from, target);
     if (!std::isfinite(stage1)) return;
     if (!dry) {
@@ -1785,11 +1852,12 @@
     probe_raw(probe_swap, 1.0, e0_diff, std::max(e_diff, q_diff), k_diff, flow_forward - flow_reverse);
     // the reverse move's stage-1 and full ratios plus the forward's, from the
     // forward move's base quantities (the proposal densities are functions
-    // of the base quantities and the two states only)
+    // of the base quantities and the two states only), and M_0 of both ends
+    // (the skip rule, swap_unrepresentable)
     const double stage1_shared = stage1 + swap_stage1(base, log_qG, log_qS, proposal.label, current.label);
     const double full_shared = full + static_cast<double>(-delta + swap_log_q(base, log_qG, log_qS, current, proposal) -
                                                           swap_log_q(base, log_qG, log_qS, proposal, current));
-    probe_raw(probe_swap, 3.0, stage1_shared, full_shared, 0.0, 0.0);
+    probe_raw(probe_swap, 3.0, stage1_shared, full_shared, base.magnitude, base2.magnitude);
     // the base point's functions rebuilt from the two ends (relative
     // differences of G0 and of the Gaussian plane) against the refitted
     // Laplace laws (largest difference of the means in units of the law's SD,

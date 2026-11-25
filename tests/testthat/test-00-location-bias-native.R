@@ -185,6 +185,12 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_lt(max(abs(shared$stage1) / pmax(1, abs(reciprocal$stage1))), 1e-12, label = label)
     expect_lt(max(abs(shared$full) / pmax(1, abs(reciprocal$selection_part))), 1e-12, label = label)
     expect_lt(max(base_point$stage1, base_point$full), 1e-12, label = label)
+    # the skip rule's M_0 (the largest sum of absolute child terms of a label
+    # at the base point) is the same from both ends (measured at most 1e-15
+    # relative), and no sweep of these fixtures skips L2
+    expect_gt(min(shared$selection_part), 0, label = label)
+    expect_lt(max(abs(shared$selection_part - shared$log_odds) / shared$selection_part), 1e-12, label = label)
+    expect_identical(chain$counters[["swap_unrepresentable"]], 0, label = label)
     # E_0, the shears, the evidences and the label proposals agree; the
     # accepted flows of the two directions are equal up to the same rounding
     # of the refitted laws (measured maximum 3.5e-11 over the same seeds; the
@@ -197,6 +203,87 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_gt(nrow(scores), 500L, label = label)
     expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
     expect_gt(chain$counters[["bias_label_swap_accepted"]], 100, label = label)
+  }
+})
+
+
+test_that("the cross-family swap makes no proposal while its base point is not representable", {
+
+  skip_if_not_installed("rjags")
+  # L2 is the identity when the absolute child terms of one label at its base
+  # point sum to more than 1e9 (M_0; swap_unrepresentable in
+  # LocationBlockBiasMoves.h). The bias fixture with its first row at
+  # 1000 / 1e-6 is fitted only through its cluster latent: from the chain's
+  # start the latent is far from that row, so while adapting (the precision
+  # guard is silent then) the base point's terms sum to about 5e17 and L2
+  # makes no proposal; once the latent absorbs the row, the state and the
+  # base point are representable (M_0 about 1.2e7) and swaps run. L2 is
+  # scheduled in every sweep (switch swap = 1) and every attempt is traced.
+  extreme <- function(y1, se1) {
+    setup <- .bias_setup()
+    setup$y[1]  <- y1
+    setup$se[1] <- se1
+    setup$residual_sd <- setup$se * sqrt(1 - .85)
+    setup$loading     <- setup$se * sqrt(.85)
+    setup
+  }
+  trace <- function() .Call("RoBMA_location_block_test_trace", PACKAGE = "RoBMA")
+  invisible(trace())
+  RoBMA:::.location_block_report_read()
+  jags <- .location_compile(.bias_model(extreme(1000, 1e-6)),
+                            config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = 1L, coin = -1L))
+  rjags::adapt(jags, 100L, end.adaptation = FALSE)
+  adapting <- RoBMA:::.location_block_report_read()
+  attempts <- trace()
+  expect_gt(adapting[["swap_unrepresentable"]], 0)
+  # a skipped sweep is neither a proposal nor an attempt: the sweeps split
+  # into skips and proposals, and only proposals are traced
+  expect_identical(adapting[["factorization_skips"]], 0)
+  expect_identical(adapting[["swap_unrepresentable"]] + adapting[["bias_label_swap_proposed"]], adapting[["sweeps"]])
+  expect_lte(NROW(attempts), adapting[["bias_label_swap_proposed"]])
+  expect_lte(adapting[["bias_label_swap_accepted"]], NROW(attempts))
+  # the other moves run (L0 proposes once the other labels' masses are
+  # positive, which the first sweeps' scores of about -5e17 leave at zero)
+  expect_gt(adapting[["bias_label_proposed"]], 0)
+  expect_gt(adapting[["bias_label_accepted"]], 0)
+  expect_gt(adapting[["bias_gaussian_family_proposed"]], 0)
+  expect_gt(adapting[["corrections_accepted"]], 0)
+  # after adaptation the base point is representable: no skip in the counters
+  # or the evidence record, and swaps run
+  rjags::adapt(jags, 0L, end.adaptation = TRUE)
+  RoBMA:::.location_bias_evidence_read()
+  invisible(rjags::coda.samples(jags, "bias_indicator", n.iter = 200L, progress.bar = "none"))
+  sampling <- RoBMA:::.location_block_report_read()
+  record   <- RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ]
+  invisible(trace())
+  expect_identical(sampling[["swap_unrepresentable"]], 0)
+  expect_identical(unname(record[["swap_unrepresentable"]]), 0)
+  expect_identical(unname(record[["swap_proposed"]]), sampling[["sweeps"]])
+  expect_gt(sampling[["bias_label_swap_accepted"]], 0)
+
+  # moderately extreme rows: nothing is skipped, swaps run, and L2's
+  # reciprocity keeps the bound of the ordinary fixtures (1e-9) at 2 / 1e-3
+  # (M_0 about 31; measured 1.2e-10 for the full ratio, 4.5e-11 for stage 1).
+  # At 20 / 1e-4 (M_0 about 4.6e3) the residual, from the Laplace laws
+  # refitted at the other end, is 3.3e-9 (full ratio) and 2.2e-9 (stage 1)
+  # with this seed: above that bound, so it is a measurement, not an
+  # expectation.
+  for (row in list(c(2, 1e-3), c(20, 1e-4))) {
+    label <- paste(row, collapse = " / ")
+    chain <- .location_hand_chain(.bias_model(extreme(row[1], row[2])), "bias_indicator", draws = 600L,
+                                  burnin = 100L, adapt = 100L, probe = TRUE)
+    swap <- chain$probe[chain$probe$type == "label_swap", ]
+    reciprocal <- swap[swap$kind == 0, ]
+    shared     <- swap[swap$kind == 3, ]
+    expect_identical(chain$counters[["swap_unrepresentable"]], 0, label = label)
+    expect_gt(chain$counters[["bias_label_swap_accepted"]], 50, label = label)
+    expect_gt(nrow(reciprocal), 500L, label = label)
+    expect_lt(max(shared$selection_part, shared$log_odds), 1e4, label = label)
+    expect_lt(max(abs(shared$selection_part - shared$log_odds) / shared$selection_part), 1e-12, label = label)
+    if (row[1] == 2) {
+      expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-9, label = label)
+      expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-9, label = label)
+    }
   }
 })
 
