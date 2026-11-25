@@ -387,21 +387,102 @@ test_that("after adaptation the move's invariance is also checked in log-likelih
   expect_match(error, "Location scale move [RoBMA_likelihood_not_representable]", fixed = TRUE)
   expect_identical(.scale_hook("state", clustered$owner, 0L)$values, before$values)
 
+  # The same ordinary clustered graph with its outcomes times 0.05 is inside
+  # the chart at M = 1.94e8: moves that stretch it by 0.65 to 0.9 change the
+  # rows' summed log density by rounding (up to 0.006, below the tolerance
+  # 1e-9 M = 0.19). Each is evaluated, counted and kept, without an error.
+  setup$y <- setup$y * .05
+  clustered <- .scale_compile(.scale_clustered_model(setup), list(g = 1, slab = 0, gamma = c(.8, -1.3, .4, 1.7),
+    tau_indicator = 2, tau_component_2 = 1e-3, rho_component_1 = 1 - 2^-20))
+  rjags::adapt(clustered$jags, 0L, end.adaptation = TRUE)
+  for (factor in c(.65, .7, .75, .8, .85, .9)) {
+    .scale_hook("set", clustered$owner, 0L, values)
+    expect_true(.scale_hook("transform", clustered$owner, 0L, log(factor)))
+  }
+  counters <- RoBMA:::.location_scale_report_read()$counters
+  expect_identical(counters[["likelihood_checks"]], 6)
+  expect_gt(counters[["likelihood_changed"]], 0)
+  expect_gt(counters[["likelihood_change_max"]], 1e-4)
+  expect_lt(counters[["likelihood_change_max"]], 0.19)
+
+  # Every move after adaptation is evaluated, not the first and every 64th:
+  # in the second hand-tagged graph a move that stretches by 1 + 1e-10
+  # changes the rows by 1.8e-10 and is kept, the next (c = 1.8) changes them
+  # by +1.40 and fails with the entry of that move restored.
+  graph <- second()
+  rjags::adapt(graph$compiled$jags, 0L, end.adaptation = TRUE)
+  .scale_hook("set", graph$compiled$owner, 0L, graph$x)
+  expect_true(.scale_hook("transform", graph$compiled$owner, 0L, log(1 + 1e-10)))
+  kept <- .scale_hook("state", graph$compiled$owner, 0L)
+  expect_false(identical(kept$values, graph$x))
+  error <- tryCatch({
+    .scale_hook("transform", graph$compiled$owner, 0L, log(1.8))
+    ""
+  }, error = conditionMessage)
+  expect_match(error, "[RoBMA_location_scale_invariance]: the log density of this likelihood node changed", fixed = TRUE)
+  expect_identical(.scale_hook("state", graph$compiled$owner, 0L)$values, kept$values)
+
   # the valid fixtures pass the check at every one of 20,000 moves after
-  # adaptation (the test switch checks every active move, not every 64th)
+  # adaptation; their changes are rounding
   allocation <- .scale_allocation_model(.scale_allocation_setup(include = 1))
   clustered  <- .scale_clustered_model(.scale_allocation_setup())
   for (case in list(list(model = allocation, inits = list(I = 1), monitor = "a", draws = 20500L),
                     list(model = clustered, inits = list(tau_indicator = 2), monitor = "tau_component_2",
                          draws = 30000L))) {
-    run <- .scale_run(.scale_compile(case$model, case$inits, check = 1L), case$monitor, draws = case$draws,
-                      burnin = 0L)
+    run <- .scale_run(.scale_compile(case$model, case$inits), case$monitor, draws = case$draws, burnin = 0L)
     counters <- run$report$counters
     # every move that was not exhausted wrote its point and was checked
     expect_identical(counters[["likelihood_checks"]], counters[["moves"]] - counters[["exhausted"]],
                      info = case$monitor)
     expect_gte(counters[["likelihood_checks"]], 20000, label = case$monitor)
+    expect_lt(counters[["likelihood_change_max"]], 1e-10, label = case$monitor)
   }
+})
+
+
+test_that("the scale move's likelihood correction samples a graph whose change stays within the tolerance", {
+
+  skip_if_not_installed("rjags")
+  # A hand-tagged allocation graph whose likelihood the orbit changes by less
+  # than the move's tolerance: a child v of sigma alone, mean 1e-7 sigma^2 /
+  # (0.09 + sigma^2) (below the parent check's 1e-6) at precision 1.7e14, so
+  # its log density spans (-0.85, 0]; and a child far from its constant mean
+  # (log density -9e8, unchanged by the move) that sets M, and so the
+  # tolerance 1e-9 M, near 0.9. Every move's change stays below it, and the
+  # move corrects it: the posterior mean of sigma agrees with the stock
+  # samplers' (the scale declined) within Monte Carlo error (|z| < 4, batch
+  # means), and without the correction (mutant 5) it does not.
+  setup <- .scale_allocation_setup(include = 1)
+  model <- .scale_allocation_model(setup)
+  model$syntax <- sub("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }",
+                      paste("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }", "  far <- 0 * a + far_mean",
+                            "  y_far ~ dnorm(far, 1)", "  v_mean <- 1e-7 * pow(sigma, 2) / (0.09 + pow(sigma, 2))",
+                            "  v ~ dnorm(v_mean, v_precision)", sep = "\n"),
+                      model$syntax, fixed = TRUE)
+  model$data <- c(model$data, list(far_mean = sqrt(2 * 9e8), y_far = 0, v = 0, v_precision = 1.7e14))
+  run <- function(mutant = 0L, decline = 0L) {
+    compiled <- .scale_compile(model, list(I = 1), mutant = mutant, decline = decline, seed = 9157L)
+    out <- .scale_run(compiled, "sigma", draws = 100000L, burnin = 500L, adapt = 500L)
+    sigma <- out$draws[, "sigma"]
+    means <- colMeans(matrix(sigma, length(sigma) / 50L, 50L))
+    list(status = compiled$decisions$status, mean = mean(sigma), mcse = stats::sd(means) / sqrt(50),
+         counters = out$report$counters)
+  }
+  z <- function(a, b) (a$mean - b$mean) / sqrt(a$mcse^2 + b$mcse^2)
+  stock     <- run(decline = 1L)
+  corrected <- run()
+  expect_identical(stock$status, "declined")
+  expect_identical(corrected$status, "owned")
+  expect_lt(abs(z(corrected, stock)), 4)
+  # the moves changed the likelihood, within the tolerance, and the
+  # correction rejected some of them
+  expect_gt(corrected$counters[["likelihood_changed"]], 0.99 * corrected$counters[["likelihood_checks"]])
+  expect_gt(corrected$counters[["likelihood_rejected"]], 0)
+  expect_gt(corrected$counters[["likelihood_change_max"]], 0.1)
+  expect_lt(corrected$counters[["likelihood_change_max"]], 0.9)
+  uncorrected <- run(mutant = 5L)
+  expect_identical(uncorrected$counters[["likelihood_rejected"]], 0)
+  expect_gt(abs(z(uncorrected, stock)), 4)
 })
 
 

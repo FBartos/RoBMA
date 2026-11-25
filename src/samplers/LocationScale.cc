@@ -41,11 +41,10 @@ constexpr unsigned long tag_arity = 9;
 constexpr double slice_width = 0.5;
 constexpr int slice_budget = 40;
 constexpr double probe_tolerance = 1e-9;
-// The check in log-likelihood units runs at the first active move after
-// adaptation and at every 64th after it; it admits a change of the children's
-// summed log density up to max(1e-6, 1e-9 M), M the sum of their absolute
-// log densities before the write (the precision guard's sum).
-constexpr std::uint64_t likelihood_check_period = 64;
+// After adaptation every move's change of the children's summed log density
+// is evaluated (ScaleOwner::commit): above max(1e-6, 1e-9 M), M the sum of
+// their absolute log densities before the write (the precision guard's sum),
+// it is the invariance error; below it the change corrects the move.
 constexpr double likelihood_tolerance = 1e-6;
 constexpr double likelihood_relative_tolerance = 1e-9;
 const double negative_infinity = -std::numeric_limits<double>::infinity();
@@ -54,9 +53,9 @@ const double negative_infinity = -std::numeric_limits<double>::infinity();
 
 struct Counters {
   std::atomic<std::uint64_t> owners{0}, declined{0}, moves{0}, identity{0}, outside{0}, skipped{0}, exhausted{0},
-    evaluations{0}, likelihood_checks{0};
+    evaluations{0}, likelihood_checks{0}, likelihood_changed{0}, likelihood_rejected{0};
   std::atomic<double> jump2{0.0}, seconds_embedded{0.0}, seconds_move{0.0}, seconds_check{0.0},
-    seconds_likelihood{0.0};
+    seconds_likelihood{0.0}, likelihood_change_max{0.0};
 };
 
 // The error of a move that changed a child's parent value (ScaleOwner::commit);
@@ -86,11 +85,15 @@ void add(std::atomic<double> &target, double value)
   while (!target.compare_exchange_weak(old, old + value, std::memory_order_relaxed)) {}
 }
 
+void record_max(std::atomic<double> &target, double value)
+{
+  double current = target.load(std::memory_order_relaxed);
+  while (value > current && !target.compare_exchange_weak(current, value, std::memory_order_relaxed)) {}
+}
+
 std::atomic<int> test_mutant(0);
 std::atomic<int> test_decline(0);
 std::atomic<int> test_timing(0);
-// the period of the check in log-likelihood units (0: likelihood_check_period)
-std::atomic<int> test_check(0);
 
 struct DecisionStore {
   std::mutex mutex;
@@ -135,7 +138,6 @@ struct Spec {
   std::vector<std::vector<Node const *>> watched;  // per child: its parents that a write of the view can change
   int mutant = 0;
   bool timing = false;
-  std::uint64_t check_period = likelihood_check_period;
   std::string layout;
 
   unsigned coordinates() const { return K + 1 + static_cast<unsigned>(weights.size()); }
@@ -344,17 +346,14 @@ class ScaleOwner : public Sampler {
   std::shared_ptr<Spec const> _spec;
   std::vector<Vec> _entry, _trial, _before, _after, _density;
   std::vector<Point> _point;
-  // adaptation (the check in log-likelihood units and the precision guard run
-  // after it) and, per chain, the active moves (writes) after adaptation
+  // adaptation (the likelihood's correction and the precision guard run after it)
   bool _adapting = true;
-  std::vector<std::uint64_t> _active;
 
 public:
   ScaleOwner(GraphView *view, std::unique_ptr<Sampler> location, std::vector<std::unique_ptr<Sampler>> embedded,
              std::shared_ptr<Spec const> spec, unsigned int nchain)
     : Sampler(view), _location(std::move(location)), _embedded(std::move(embedded)), _spec(std::move(spec)),
-      _entry(nchain), _trial(nchain), _before(nchain), _after(nchain), _density(nchain), _point(nchain),
-      _active(nchain, 0)
+      _entry(nchain), _trial(nchain), _before(nchain), _after(nchain), _density(nchain), _point(nchain)
   {
     OwnerRegistry &registry = owner_registry();
     const std::lock_guard<std::mutex> lock(registry.mutex);
@@ -457,12 +456,14 @@ public:
     return log_f(*_spec, p, u, chain, _spec->mutant, _trial[chain]);
   }
 
+  // The test hook's transform: the move's write and checks without its
+  // correction (no draw; a change within the tolerance is kept).
   bool apply(unsigned int chain, double u)
   {
     Point &p = _point[chain];
     read(chain, p);
     if (!in_domain(*_spec, p) || !transform(*_spec, p, u, _spec->mutant, _trial[chain])) return false;
-    commit(chain, p.x, _trial[chain]);
+    commit(chain, p.x, _trial[chain], nullptr);
     return true;
   }
 
@@ -474,13 +475,23 @@ public:
   // back and the classed error names the child: the move never continues on a
   // graph whose likelihood it changes. A relative tolerance on parent values
   // has no unit-free meaning (in small units a material change of a mean
-  // passes it), so at the first active move after adaptation and at every
-  // 64th after it the children's log densities are compared too, in
-  // log-likelihood units: a change of their sum above max(1e-6, 1e-9 M)
-  // restores the entry and raises the same error naming the child whose log
-  // density changed most. M, the sum of their absolute log densities at the
-  // chain's state, carries the precision guard (CorrectedSampler.h).
-  void commit(unsigned int chain, Vec const &entry, Vec const &moved)
+  // passes it), so after adaptation every move also evaluates the children's
+  // log densities before and after the write, each paired with its own value
+  // (long double sum). A change of their sum above max(1e-6, 1e-9 M) restores
+  // the entry and raises the same error naming the child whose log density
+  // changed most (a design diagnostic: the orbit leaves the likelihood
+  // unchanged in exact arithmetic); M, the sum of their absolute log
+  // densities at the chain's state, carries the precision guard
+  // (CorrectedSampler.h). Below the tolerance the move is a proposal that the
+  // children's likelihood corrects: the write is kept with probability
+  // min(1, exp(change)), without a draw when change >= 0 and with one uniform
+  // otherwise (the entry written back on rejection). The slice update is
+  // reversible for f, and the paired changes of a move and of its reverse are
+  // exact negatives, so the corrected kernel is exact for the model as the
+  // graph computes it (mutant 5 omits the correction). While adapting only
+  // the parent values are compared. Without an RNG (the test hook's
+  // transform) the write is kept. Returns whether the write is kept.
+  bool commit(unsigned int chain, Vec const &entry, Vec const &moved, RNG *rng)
   {
     Spec const &S = *_spec;
     const auto start = std::chrono::steady_clock::now();
@@ -495,7 +506,8 @@ public:
         }
       }
     };
-    const bool check_likelihood = !_adapting && _active[chain]++ % S.check_period == 0;
+    const bool check_likelihood = !_adapting;
+    bool kept = true;
     Vec &density = _density[chain];
     LikelihoodMagnitude magnitude;
     if (check_likelihood) {
@@ -540,9 +552,20 @@ public:
         }
       }
       const double tolerance = std::max(likelihood_tolerance, likelihood_relative_tolerance * magnitude.sum);
-      if (changed != nullptr && !(std::fabs(static_cast<double>(change)) <= tolerance)) {
+      const double log_ratio = static_cast<double>(change);
+      if (changed != nullptr && !(std::fabs(log_ratio) <= tolerance)) {
         write(chain, entry);
         throwNodeError(changed, likelihood_invariance_message);
+      }
+      if (log_ratio != 0.0) {
+        count(counters().likelihood_changed);
+        record_max(counters().likelihood_change_max, std::fabs(log_ratio));
+      }
+      // the correction: the write kept with probability min(1, exp(change))
+      if (log_ratio < 0.0 && rng != nullptr && S.mutant != 5 && !(std::log(rng->uniform()) < log_ratio)) {
+        write(chain, entry);
+        count(counters().likelihood_rejected);
+        kept = false;
       }
       if (S.timing) {
         add(counters().seconds_likelihood,
@@ -554,6 +577,7 @@ public:
       add(counters().seconds_check,
           std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
     }
+    return kept;
   }
 
 private:
@@ -595,8 +619,7 @@ private:
     if (u == 0.0) return;
     // an accepted point is inside the move's set, so the transform succeeds
     if (!transform(S, p, u, S.mutant, trial)) throw std::logic_error("location scale move outside the support");
-    commit(chain, p.x, trial);
-    add(counters().jump2, u * u);
+    if (commit(chain, p.x, trial, rng)) add(counters().jump2, u * u);
   }
 };
 
@@ -869,9 +892,6 @@ std::unique_ptr<Sampler> location_scale_owner(std::unique_ptr<Sampler> location,
   S.K = static_cast<unsigned>(counts[2]);
   S.mutant = test_mutant.load(std::memory_order_relaxed);
   S.timing = test_timing.load(std::memory_order_relaxed) != 0;
-  if (test_check.load(std::memory_order_relaxed) > 0) {
-    S.check_period = static_cast<std::uint64_t>(test_check.load(std::memory_order_relaxed));
-  }
 
   std::set<StochasticNode *> available(free.begin(), free.end());
   S.a = anchor;
@@ -1068,7 +1088,8 @@ std::vector<char const *> const &location_scale_report_names()
 {
   static const std::vector<char const *> names = {
     "owners", "declined", "moves", "identity", "outside", "skipped", "exhausted", "evaluations", "jump2",
-    "seconds_embedded", "seconds_move", "seconds_check", "likelihood_checks", "seconds_likelihood"};
+    "seconds_embedded", "seconds_move", "seconds_check", "likelihood_checks", "seconds_likelihood",
+    "likelihood_changed", "likelihood_rejected", "likelihood_change_max"};
   return names;
 }
 
@@ -1085,7 +1106,8 @@ std::vector<double> location_scale_report(bool clear)
   return {take(c.owners), take(c.declined), take(c.moves), take(c.identity), take(c.outside), take(c.skipped),
           take(c.exhausted), take(c.evaluations), take_double(c.jump2), take_double(c.seconds_embedded),
           take_double(c.seconds_move), take_double(c.seconds_check), take(c.likelihood_checks),
-          take_double(c.seconds_likelihood)};
+          take_double(c.seconds_likelihood), take(c.likelihood_changed), take(c.likelihood_rejected),
+          take_double(c.likelihood_change_max)};
 }
 
 std::vector<LocationScaleDecision> location_scale_decisions(bool clear)
@@ -1097,13 +1119,12 @@ std::vector<LocationScaleDecision> location_scale_decisions(bool clear)
   return out;
 }
 
-std::vector<int> location_scale_test_config(int mutant, int decline, int timing, int check)
+std::vector<int> location_scale_test_config(int mutant, int decline, int timing)
 {
-  std::vector<int> previous = {test_mutant.load(), test_decline.load(), test_timing.load(), test_check.load()};
+  std::vector<int> previous = {test_mutant.load(), test_decline.load(), test_timing.load()};
   if (mutant >= 0) test_mutant.store(mutant);
   if (decline >= 0) test_decline.store(decline);
   if (timing >= 0) test_timing.store(timing);
-  if (check >= 0) test_check.store(check);
   return previous;
 }
 

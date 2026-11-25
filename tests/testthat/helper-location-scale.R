@@ -5,13 +5,12 @@
 
 # The native switches frozen into scale owners built afterwards: the mutant
 # (0 none, 1 exponent c^(1 - K), 2 no a'^-(2L - 1), 3 the last latent left
-# out, 4 the gamma total not preserved), the decline switch, the timing
-# switch and the period of the check in log-likelihood units (0 every 64th
-# active move after adaptation, k every k-th); negative values keep a
+# out, 4 the gamma total not preserved, 5 the likelihood's correction
+# omitted), the decline switch and the timing switch; negative values keep a
 # setting. Returns the previous settings.
-.scale_config <- function(mutant = -1L, decline = -1L, timing = -1L, check = -1L) {
+.scale_config <- function(mutant = -1L, decline = -1L, timing = -1L) {
 
-  .Call("RoBMA_location_scale_test_config", as.integer(c(mutant, decline, timing, check)), PACKAGE = "RoBMA")
+  .Call("RoBMA_location_scale_test_config", as.integer(c(mutant, decline, timing)), PACKAGE = "RoBMA")
 }
 
 
@@ -138,14 +137,12 @@
 
 # Compiles a hand model (one chain, the scale switches frozen into its
 # sampler) without running it; returns the rjags model, the sampler of each
-# node, the owner index and the factory decisions. `check`: the period of the
-# check in log-likelihood units (0 the default, every 64th active move).
-.scale_compile <- function(model, inits = list(), mutant = 0L, decline = 0L, seed = 2711L, check = 0L) {
+# node, the owner index and the factory decisions.
+.scale_compile <- function(model, inits = list(), mutant = 0L, decline = 0L, seed = 2711L) {
 
   BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
-  previous <- .scale_config(mutant, decline, 0L, check)
-  on.exit(.scale_config(previous[["mutant"]], previous[["decline"]], previous[["timing"]], previous[["check"]]),
-          add = TRUE)
+  previous <- .scale_config(mutant, decline, 0L)
+  on.exit(.scale_config(previous[["mutant"]], previous[["decline"]], previous[["timing"]]), add = TRUE)
   RoBMA:::.location_scale_report_read()
   connection <- textConnection(model$syntax)
   on.exit(close(connection), add = TRUE)

@@ -984,18 +984,32 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   invariance` naming the child (measured cost: 0.12 ms per sweep, 0.3%, on
   `gender`; 0.004 ms, 0.07%, on `assink_V_mods`). A relative tolerance on
   parent values has no unit-free meaning (in units of 1e-5 a mean term
-  `0.5 sigma` changed the rows' log density by -0.63 within it), so at the
-  first active move after adaptation and at every 64th after it
-  (`likelihood_check_period`) the children's log densities are also compared
-  before and after the write, each paired with its own value: a change of
-  their sum above `max(1e-6, 1e-9 M)` (`M` the sum of their absolute values
-  before the write, which carries the precision guard below) restores the
-  entry and raises the same error naming the child whose log density changed
-  most (measured cost: 0.018 ms per sweep, 0.04%, on `gender`; 0.004 ms,
-  0.05%, on `assink_V_mods`; the counters `likelihood_checks` and, with the
-  timing switch, `seconds_likelihood`; the test switch `check` of
-  `RoBMA_location_scale_test_config` checks every k-th move). While adapting
-  only the parent values are compared. The factory declines
+  `0.5 sigma` changed the rows' log density by -0.63 within it), so after
+  adaptation every move also evaluates the children's log densities before
+  and after the write, each paired with its own value (a long double sum).
+  A change of their sum above `max(1e-6, 1e-9 M)` (`M` the sum of their
+  absolute values before the write, which carries the precision guard below)
+  restores the entry and raises the same error naming the child whose log
+  density changed most: a design diagnostic, since the orbit leaves the
+  likelihood unchanged in exact arithmetic (checked on every move: when only
+  the first and every 64th were, a hand-tagged graph passed a small first
+  move and committed +1.40 on the second). Below it the move is a proposal
+  that the children's likelihood corrects: the write is kept with
+  probability `min(1, exp(change))`, without a draw when the change is not
+  negative and with one uniform otherwise (the entry restored on rejection).
+  The slice update is reversible for `f` and the paired changes of a move and
+  of its reverse are exact negatives, so the corrected kernel is exact for
+  the model as the graph computes it: a valid clustered graph inside the chart
+  at `M = 1.94e8` changes by rounding up to 0.006 per move (within its
+  tolerance 0.19), and a hand-tagged graph whose change stays below the
+  tolerance (a child of `sigma` alone spanning 0.85 in log density, a
+  constant child far from its mean setting `M` near 9e8) is sampled as the
+  stock samplers sample it, while without the correction (scale mutant 5)
+  it is not. Counters: `likelihood_checks` (the moves evaluated),
+  `likelihood_changed` (a nonzero change), `likelihood_rejected`,
+  `likelihood_change_max` (the largest absolute change, log units) and, with
+  the timing switch, `seconds_likelihood`. While adapting only the parent
+  values are compared (no evaluation, no correction). The factory declines
   (everything as before; draws identical) unless
   the sources are free, unobserved, fixed-parameter scalars with the declared
   supports (a gamma group recognized by `find_gamma_groups` behind the

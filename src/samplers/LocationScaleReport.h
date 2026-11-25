@@ -22,8 +22,12 @@ namespace RoBMA {
 // floating point; the density evaluations of the moves and the sum of the
 // squared steps u = log c; with the timing switch the wall time of the
 // embedded heterogeneity updates, of the scale moves and, within them, of the
-// per-move check that no child's parent value changed; the checks in
-// log-likelihood units and, with the timing switch, their wall time.
+// per-move check that no child's parent value changed; after adaptation the
+// moves whose children's log densities were evaluated before and after the
+// write (every move that wrote) and, with the timing switch, the wall time of
+// those evaluations; of them, the moves whose paired change of the children's
+// summed log density was not zero, the moves its correction rejected, and the
+// largest absolute change (log units).
 std::vector<char const *> const &location_scale_report_names();
 std::vector<double> location_scale_report(bool clear);
 
@@ -43,11 +47,11 @@ std::vector<LocationScaleDecision> location_scale_decisions(bool clear);
 // built from now on (a negative argument keeps a setting): mutant 0 none,
 // 1 the exponent c^(1 - K) instead of c^(2 - K), 2 the factor a'^-(2L - 1)
 // omitted, 3 the last latent left out of the transformation, 4 the gamma
-// total not preserved (only eta_s scaled, by c^2); decline 1 makes the factory
-// decline every scale declaration after reading it; timing 1 accumulates the
-// wall times; check k > 0 runs the check in log-likelihood units at every k-th
-// active move after adaptation (0: every 64th). Returns the previous four.
-std::vector<int> location_scale_test_config(int mutant, int decline, int timing, int check);
+// total not preserved (only eta_s scaled, by c^2), 5 the likelihood's
+// correction omitted (a change within the tolerance always kept); decline 1
+// makes the factory decline every scale declaration after reading it; timing 1
+// accumulates the wall times. Returns the previous three.
+std::vector<int> location_scale_test_config(int mutant, int decline, int timing);
 // The serial number of the most recently built live scale owner (owners are
 // numbered from 0 in construction order), or -1 without one. The functions
 // below take this serial number as `index`.

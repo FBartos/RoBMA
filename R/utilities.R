@@ -52,7 +52,10 @@
 #' \code{moves} counts updates in states where the declared sources are active
 #' (slice calls that exhausted their interval included), \code{identity} and
 #' \code{outside} the updates where the move is the identity (sources inactive,
-#' or an allocation weight or share outside [2^-20, 1 - 2^-20]).
+#' or an allocation weight or share outside [2^-20, 1 - 2^-20]);
+#' after adaptation \code{likelihood_changed} counts the moves that changed the
+#' likelihood by rounding, \code{likelihood_rejected} those its correction
+#' undid, and \code{likelihood_change_max} is the largest such change (log units).
 #' \code{$evidence} describes indicators that may not switch (it decides
 #' nothing and is absent when no run reported): \code{location} per gate and
 #' chain the updates after adaptation and the transitions the chain retained

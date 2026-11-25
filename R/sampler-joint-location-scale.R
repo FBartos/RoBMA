@@ -145,7 +145,8 @@
 
 # The scale ownership of a fit's retained runs: the distinct factory decisions
 # (layout, L, K, status, reason, invariance check, embedded samplers) and the
-# counters summed over runs and processes; NULL when no report covers it.
+# counters summed over runs and processes (the `_max` entries are maxima);
+# NULL when no report covers it.
 .location_scale_record <- function(values) {
 
   reports <- list()
@@ -156,6 +157,9 @@
   }
   if (length(reports) == 0L) return(NULL)
   decisions <- do.call(rbind, lapply(reports, function(report) as.data.frame(report[["decisions"]])))
-  counters  <- colSums(do.call(rbind, lapply(reports, `[[`, "counters")))
+  counts    <- do.call(rbind, lapply(reports, `[[`, "counters"))
+  counters  <- colSums(counts)
+  maxima    <- endsWith(colnames(counts), "_max")
+  counters[maxima] <- apply(counts[, maxima, drop = FALSE], 2L, max)
   list(decisions = unique(decisions), counters = counters)
 }
