@@ -368,9 +368,12 @@ test_that("random-effect variances are tested through their standard deviations"
 
   skip_if_missing_fits("BMA.mv_random_components")
   fit <- load_fit("BMA.mv_random_components", validate = FALSE)
-  probe_fit("cached BMA.mv_random_components at the hypothesis test", fit)
+  # TEMPORARY post-mortem probe: runs when the test ends, nothing before
+  withr::defer({
+    probe_fit("post-mortem: cached BMA.mv_random_components", fit)
+    probe_state("post-mortem: after the hypothesis test")
+  })
   # 'tau2 = v^2' is 'tau = v' with the prior and posterior densities divided
-  probe_state("at the hypothesis test of the cached BMA.mv_random_components")
   # by the derivative 2 * v of the square map, so every density method gives
   # the same Bayes factor for the gated SD and its variance.
   value <- 0.06

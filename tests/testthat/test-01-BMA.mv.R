@@ -50,9 +50,7 @@ test_that("BMA.mv fits a product space over fixed and random components", {
       min_ESS  = NULL
     )
   )
-  probe_fit("BMA.mv_random_components as fitted in test-01", fit)
   fit <- suppressWarnings(add_loo(fit))
-  probe_state("after BMA.mv_random_components was fitted in test-01")
   save_fit(
     "BMA.mv_random_components",
     fit,

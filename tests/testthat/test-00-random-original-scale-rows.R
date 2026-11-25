@@ -60,9 +60,7 @@ context("Random-effect rows without an original-scale value")
     ))
   }
 
-  probe_fit("in-test us() BMA.mv fit", .random_na_rows_env[["bma"]])
   return(.random_na_rows_env[["bma"]])
-  probe_state("after the in-test us() BMA.mv fit")
 }
 
 # The unavailable rows as the table of all draws gives them (the rule before the
@@ -193,6 +191,11 @@ test_that("the unavailable rows are read from a few draws and equal those of the
 test_that("model-averaged heterogeneity rows without an original-scale value carry that note alone", {
 
   skip_on_cran()
+  # TEMPORARY post-mortem probe: runs when the test ends, nothing before
+  withr::defer({
+    probe_fit("post-mortem: in-test us() BMA.mv fit", .random_na_rows_env[["bma"]])
+    probe_state("post-mortem: after the in-test us() BMA.mv test")
+  })
   fit       <- .random_na_rows_bma_fit()
   result    <- summary_heterogeneity(fit)
   estimates <- result[["estimates"]]
