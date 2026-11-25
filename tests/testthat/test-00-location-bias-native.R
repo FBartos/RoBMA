@@ -212,9 +212,10 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     # the live swap rebuilds its proposal end as an attempt that starts there
     # computes it, from that state alone: after every accepted swap an
     # attempt started at the new state, forced back, reproduces the rebuilt
-    # geometry, base point, label proposals, stage 1 and proposal densities
-    # bitwise (kind 6); the skip rule's residuals stay below its tolerance in
-    # every dry run (kind 5), and no live swap is skipped
+    # geometry, base point (Q among its quantities), label proposals, stage 1
+    # and proposal densities bitwise (kind 6); the skip rule's residuals stay
+    # below its tolerance in every dry run (kind 5), and no live swap is
+    # skipped
     reproduced <- swap[swap$kind == 6, ]
     rule       <- swap[swap$kind == 5, ]
     expect_gte(nrow(reproduced), chain$counters[["bias_label_swap_accepted"]], label = label)
@@ -223,6 +224,17 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_lt(max(rule$full, rule$selection_part), 1e-9, label = label)
     expect_identical(chain$counters[["swap_irreproducible"]], 0, label = label)
   }
+  # Q is a function of the end's state (its rows' sizes before the move to
+  # the base point), so the two builds of one end from the same working
+  # state give it bitwise equal; mutant 31 takes the rebuilt end's sizes
+  # from the attempt's own end, which both ends' Q still admit on this
+  # fixture, and the reproduction records the difference
+  chain <- .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 300L, burnin = 50L,
+                                adapt = 50L, probe = TRUE, mutant = 31L)
+  reproduced <- chain$probe[chain$probe$type == "label_swap" & chain$probe$kind == 6, ]
+  expect_gt(nrow(reproduced), 10L)
+  expect_true(all(is.finite(reproduced$stage1)))
+  expect_gt(max(reproduced$stage1), 0)
 })
 
 
@@ -433,6 +445,58 @@ test_that("the cross-family swap makes no proposal while its base point is not r
       expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-9, label = label)
     }
   }
+})
+
+
+test_that("a Q refusal at the swap's rebuilt end alone makes the attempt the identity", {
+
+  skip_if_not_installed("rjags")
+  # Q is checked at the attempt's own end (swap_start) and at its rebuilt
+  # proposal end (swap_back, counted as swap_irreproducible). Mutant 29 takes
+  # the rebuilt end's Q as 10 times its tolerance and changes nothing else;
+  # on the default fixture the own ends pass (Q about 1e-13), M_0 is far
+  # within its limit and both reciprocity residuals are about 1e-13, so only
+  # that check refuses: every attempt that passes stage 1 is the identity
+  # and none reaches stage 2. Mutant 30 is mutant 29 without the rebuilt
+  # end's Q check: the same attempts reach stage 2 and are accepted.
+  run <- function(mutant) {
+    chain <- .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 300L, burnin = 50L,
+                                  adapt = 50L, probe = TRUE, mutant = mutant,
+                                  config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = -1L,
+                                             coin = -1L))
+    list(counters = chain$counters, swap = chain$probe[chain$probe$type == "label_swap", ])
+  }
+  forced <- run(29L)
+  counters <- forced$counters
+  expect_identical(counters[["swap_unrepresentable"]], 0)
+  expect_identical(counters[["bias_label_swap_proposed"]], counters[["sweeps"]])
+  expect_gt(counters[["bias_label_swap_stage1"]], 50)
+  expect_identical(counters[["swap_irreproducible"]], counters[["bias_label_swap_stage1"]])
+  expect_identical(counters[["bias_label_swap_accepted"]], 0)
+  # the largest admitted Q is the own ends'
+  expect_lt(counters[["max_swap_working"]], 1e-10)
+  # no dry run is skipped at its own end (kind 8) or rebuilt (kind 5 with 1),
+  # and no live attempt reaches stage 2 (kind 10)
+  expect_false(any(forced$swap$kind %in% c(8, 10)))
+  expect_gt(sum(forced$swap$kind == 5), 100L)
+  expect_true(all(forced$swap$stage1[forced$swap$kind == 5] == 0))
+  dropped <- run(30L)
+  counters <- dropped$counters
+  swap     <- dropped$swap
+  expect_identical(counters[["swap_unrepresentable"]], 0)
+  expect_identical(counters[["swap_irreproducible"]], 0)
+  expect_gt(counters[["bias_label_swap_accepted"]], 50)
+  expect_gt(sum(swap$kind == 10), 50L)
+  # the rebuilt ends' Q is the forced one, M_0 of both ends and both
+  # residuals pass
+  expect_identical(counters[["max_swap_working"]], 10 * 1e-8)
+  expect_lte(max(counters[c("max_swap_stage1_residual", "max_swap_full_residual")]), 1e-9)
+  rule   <- swap[swap$kind == 5, ]
+  shared <- swap[swap$kind == 3, ]
+  expect_gt(nrow(rule), 100L)
+  expect_true(all(rule$stage1 == 1))
+  expect_lt(max(rule$full, rule$selection_part), 1e-9)
+  expect_lt(max(shared$selection_part, shared$log_odds), 1e9)
 })
 
 

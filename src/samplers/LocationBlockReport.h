@@ -74,7 +74,10 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // densities from the forward end's base point, 27 the dormant draws and L2
 // alone in every sweep (no other component), every proposal of L2 rejected
 // at stage 2, 28 mutant 27 with the working state's snapshot leaving the
-// evidence flag as the swap's evaluations set it). Returns the previous value.
+// evidence flag as the swap's evaluations set it, 29 the rebuilt end's Q
+// taken as 10 times its tolerance, 30 mutant 29 without the Q check at the
+// rebuilt end, 31 the rebuilt end's Q from the sizes of the attempt's own
+// end). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -105,7 +108,7 @@ std::string location_block_test_decision();
 // proposal densities|, and the symmetrized own-base full ratio minus the live
 // ratio; kind 6, after each accepted live swap: the largest differences
 // between the proposal end the swap rebuilt and the one an attempt started
-// there computes (geometry and base point, label proposals, stage 1 and the
+// there computes (geometry and base point with Q, label proposals, stage 1 and the
 // two log proposal densities; all zero) and the sum of the two moves'
 // inner-target changes; kind 7, with each rebuilt proposal end: the end
 // rebuilt again from working means read from the graph at the proposal, the

@@ -1414,7 +1414,9 @@
     take(saved);
     bool ok = true;
     base.magnitude = 0.0;
-    swap_working_sizes(_swap_size);
+    // mutant 31 (test hook): the rebuilt end's Q from the sizes of the
+    // attempt's own end, left in the scratch by its swap_base
+    if (!(_swap_rebuilding && S.mutant == 31)) swap_working_sizes(_swap_size);
     try {
       Shift to_base;
       swap_shift(G, -t, b_now, -th, dE, to_base);
@@ -1422,6 +1424,9 @@
       for (unsigned c = 0; c < S.children.size(); ++c) _value_ok[c] = 0;
       rebuild_h();
       base.working = swap_working_criterion(_swap_size);
+      // mutants 29 and 30 (test hooks): the rebuilt end's Q taken as 10 times
+      // the tolerance
+      if (_swap_rebuilding && (S.mutant == 29 || S.mutant == 30)) base.working = 10.0 * swap_working_tolerance;
       // the children's normal densities at the base point (a Gaussian label)
       int gaussian_label = 0;
       for (int l = 1; l <= levels && gaussian_label == 0; ++l) {
@@ -1796,11 +1801,12 @@
   // swap_unrepresentable) and at its rebuilt end (swap_back, counted as
   // swap_irreproducible), the reverse attempt at the same two ends, so given
   // the working means the pair is skipped from either end. It is checked
-  // wherever M_0 is (mutant 24 leaves it out).
+  // wherever M_0 is (mutant 24 leaves it out; mutant 30 leaves it out at the
+  // rebuilt end only).
   bool swap_unrepresentable_base(SwapBase const &base) const
   {
-    return base.magnitude > likelihood_representable_limit ||
-      (s().mutant != 24 && base.working > swap_working_tolerance);
+    const bool checks_q = s().mutant != 24 && !(s().mutant == 30 && _swap_rebuilding);
+    return base.magnitude > likelihood_representable_limit || (checks_q && base.working > swap_working_tolerance);
   }
 
   // The skip of an attempt at its base point (swap_start): counted as
@@ -1903,6 +1909,11 @@
   // make no proposal of `there`.
   bool swap_back(SwapState const &here, SwapState const &there, SwapEnd &end)
   {
+    struct RebuildScope {
+      bool &flag;
+      explicit RebuildScope(bool &f) : flag(f) { flag = true; }
+      ~RebuildScope() { flag = false; }
+    } scope(_swap_rebuilding);
     BiasSpec const &B = bspec();
     rebuild_h();
     if (!swap_geometry(end.G)) return false;
@@ -2090,7 +2101,9 @@
   // its target and proposal, computes its own end by the attempt's code
   // (swap_start), and that end must equal bitwise the one the swap rebuilt
   // there (swap_back). Kind 6: the largest differences of the geometry and
-  // base point, of the label proposals, and of the stage-1 log ratio and the
+  // base point (Q among its quantities: both ends take their sizes from the
+  // same working state; mutant 31 takes the rebuilt end's from the forward
+  // end's state), of the label proposals, and of the stage-1 log ratio and the
   // two log proposal densities (all zero; infinite when the attempt makes no
   // proposal), and the sum of the two moves' inner-target changes (rounding
   // of the working means, not compared). Draws nothing; the state is kept.
@@ -2131,6 +2144,7 @@
     double base_diff = std::max(diff_vec(start.G.Kt, back.G.Kt),
                                 std::max(diff_vec(start.G.Kb[0], back.G.Kb[0]), diff_vec(start.G.Kb[1], back.G.Kb[1])));
     base_diff = std::max(base_diff, std::max(diff_vec(x.E0, y.E0), std::max(diff(x.G0, y.G0), diff(x.magnitude, y.magnitude))));
+    base_diff = std::max(base_diff, diff(x.working, y.working));
     base_diff = std::max(base_diff, std::max(diff(x.eta_t, y.eta_t), diff(x.Pi_tt, y.Pi_tt)));
     for (int b = 0; b < 2; ++b) {
       base_diff = std::max(base_diff, std::max(diff(x.eta_b[b], y.eta_b[b]),
@@ -2540,6 +2554,8 @@
   double _swap_nested = 0.0;
   // L2 is running: its fits and evaluations count as label_swap (LocationBlock::enter)
   bool _in_swap = false;
+  // swap_back is evaluating the rebuilt end (test hooks: mutants 29-31)
+  bool _swap_rebuilding = false;
 
   void bias_sweep_start(RNG *rng)
   {

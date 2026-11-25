@@ -1009,7 +1009,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the change of the rule's inputs when the proposal end is rebuilt from
   working means read from the graph, after each accepted
   live swap an attempt started at its state, forced back, whose end must
-  equal the rebuilt one bitwise, and for each live attempt that reaches
+  equal the rebuilt one bitwise (`Q` included: both builds of that end take
+  their sizes from the same working state), and for each live attempt that reaches
   stage 2 the acceptance's input with stage 1, the exact ratio and the
   forward end's own ratio from the attempt's quantities (kind 10) (mutant 19
   scores the reverse with the forward end's base point, as the swap did
@@ -1019,7 +1020,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   draw; mutant 26 takes stage 2's ratio from the forward end's base point
   alone; mutants 27 and 28 run only the dormant draws and L2, rejecting every
   proposal at stage 2, 28 with the snapshot leaving the evidence flag as the
-  swap's evaluations set it). The gate of the target cell is drawn and
+  swap's evaluations set it; mutant 29 takes the rebuilt end's `Q` as 10
+  times its tolerance, so that on ordinary fixtures, where the own end, `M_0`
+  and both residuals pass, only that check refuses, and mutant 30 is mutant 29
+  without it; mutant 31 takes the rebuilt end's sizes from the attempt's own
+  end). The gate of the target cell is drawn and
   scored with the same two log probabilities, `-log(1 + e^-d)` and
   `-log(1 + e^d)` of the difference `d` of the cell's two evidences
   (`swap_gate_log_probabilities`): normalized by their total, evidences of
