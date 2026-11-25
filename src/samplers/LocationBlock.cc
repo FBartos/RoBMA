@@ -87,10 +87,12 @@ constexpr double swap_reciprocity_tolerance = 1e-9;
 // attempt that starts at the proposal in a later sweep reaches the base point
 // from other working means. Q is a representability criterion, not a bound
 // on what re-read working means change (label_swap): it separates the
-// regimes, at most 6e-11 on ordinary data (the real cases 1.1e-11, a
-// 10,000-row fixture 5.6e-11) and at least 4e-6 at a row of 1000 / 1e-6. A
+// regimes, at most 9.1e-11 on ordinary data (the real cases 2.3e-11, a
+// 10,000-row fixture 9.1e-11) and at least 4e-6 at a row of 1000 / 1e-6;
+// outcomes located far from zero relative to their SEs (from a median
+// |y| / SE of about 1,000 on the tests' 10-row fixture) are skipped. A
 // working mean's rounding is taken as swap_working_rounding eps
-// (eps = 2^-52) times the size of its terms.
+// (eps = 2^-52) times the size of its terms at the end's state.
 constexpr double swap_working_tolerance = 1e-8;
 constexpr double swap_working_rounding = 4.0;
 // The refresh kernels of the active coefficients in selection labels (A3; see

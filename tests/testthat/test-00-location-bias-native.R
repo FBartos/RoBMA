@@ -349,6 +349,33 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   ordinary <- sampled_after(0L, .bias_setup())
   expect_identical(ordinary$counters[["swap_unrepresentable"]], 0)
   expect_true(any(ordinary$attempts[, "from"] %in% c(1, 3, 4)))
+  # data located far from zero relative to their SEs: every estimate and the
+  # intercept's prior mean shifted by 30,000, the SEs times 100 (|y| / SE
+  # from 1,200 to 1,670). The working means were read and carried where the
+  # intercept holds the rows' size, which the move to the base point removes
+  # from the means but not from their rounding; Q takes the rows' sizes at
+  # the end's state (about 2.2e-8 here; at the base point it was 1.5e-12)
+  # and skips every attempt after adaptation, counted in the counters and the
+  # evidence record, while the other label moves run. Without the Q rule
+  # (mutant 24) swaps are accepted
+  relocated <- function(shift, scale) {
+    setup <- .bias_setup()
+    setup$y  <- setup$y + shift
+    setup$se <- setup$se * scale
+    setup$residual_sd <- setup$se * sqrt(1 - .85)
+    setup$loading     <- setup$se * sqrt(.85)
+    setup$prior_mean[1]   <- setup$prior_mean[1] + shift
+    setup$gated_intercept <- FALSE
+    setup
+  }
+  far <- sampled_after(0L, relocated(30000, 100))
+  expect_identical(far$counters[["factorization_skips"]], 0)
+  expect_identical(far$counters[["swap_unrepresentable"]], far$counters[["sweeps"]])
+  expect_identical(far$counters[["bias_label_swap_proposed"]], 0)
+  expect_identical(far$counters[["bias_label_swap_accepted"]], 0)
+  expect_identical(unname(far$record[["swap_unrepresentable"]]), far$counters[["swap_unrepresentable"]])
+  expect_gt(far$counters[["bias_label_accepted"]], 0)
+  expect_gt(sampled_after(24L, relocated(30000, 100))$counters[["bias_label_swap_accepted"]], 0)
   # with the probe: every dry run is skipped at its base point (kind 8: M_0,
   # Q, after the draw), wherever M_0 is representable by Q, which stays at
   # least 100 times above the tolerance (measured at least 4.1e-6); without
@@ -383,8 +410,8 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   # that went on to stage 2 keep the bound. Neither row skips an attempt by
   # Q, the working means' representability criterion (a dry run skipped at
   # its base point with M_0 within its limit, kind 8): Q stays below its
-  # tolerance 1e-8 (measured at most 3.4e-9 at 2 / 1e-3 and 4.1e-9 at
-  # 20 / 1e-4 over chain seeds 1-40).
+  # tolerance 1e-8 (measured at most 4.7e-11 at 2 / 1e-3 and 4.1e-9 at
+  # 20 / 1e-4 over chain seeds 1-40, L2 in every sweep).
   for (row in list(c(2, 1e-3), c(20, 1e-4))) {
     label <- paste(row, collapse = " / ")
     chain <- .location_hand_chain(.bias_model(extreme(row[1], row[2])), "bias_indicator", draws = 600L,

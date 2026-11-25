@@ -929,32 +929,55 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   for the swap when the working means' representability criterion
   `Q = sum_i delta_i (1 + |z_i|)` exceeds `swap_working_tolerance` (1e-8),
   over every child's rows, with `delta_i = 4 eps size_i / sd_i` (`size_i` the
-  sum of the absolute terms of the row's mean at the base point: the working
-  mean, the design terms and the latent's term; `sd_i = W_ii^-1/2`;
-  `eps = 2^-52`; 4 eps the rounding the tracked comparison allows a probed
-  slope) and `z_i = sd_i (W r)_i` the standardized working residual
-  (`swap_working_criterion`). `Q` is evaluated at the base point wherever
-  `M_0` is, from both ends, and counts with it (`swap_unrepresentable`; at the
-  rebuilt end `swap_irreproducible`); after adaptation the counters keep the
-  largest admitted `Q` (`max_swap_working`). `Q` is a criterion, not a bound.
-  It separates the regimes: ordinary data have `Q` from 1e-13 to 6e-11 (at
-  most 1.1e-11 on the real cases and 5.6e-11 on a 10,000-row fixture, at
-  least 180 times below the tolerance), a row at `2 / 1e-3` up to 3.4e-9,
+  sum of the absolute terms of the row's mean at the end's state before its
+  move to the base point: the working mean, the design terms with the
+  intercept's, the latent's term and the active slope's term;
+  `sd_i = W_ii^-1/2`; `eps = 2^-52`; 4 eps the rounding the tracked
+  comparison allows a probed slope) and `z_i = sd_i (W r)_i` the
+  standardized working residual at the base point
+  (`swap_working_criterion`). The working means were read and carried where
+  the intercept and the slopes hold their values; the move to the base point
+  removes those terms from the means but not from their rounding, so `size_i`
+  is taken before it (taken at the base point, it gave data shifted far
+  from zero the `Q` of ordinary data, 1.5e-12 at `|y| / SE` of 1,400, while
+  re-read means moved the rule's inputs by up to 3.3e-6 and 85 to 97% of the
+  attempts that passed stage 1 were the identity after it). `Q` is thus a
+  function of each end, not of the base point alone: every attempt
+  evaluates it at its own end wherever `M_0` is (`swap_unrepresentable`) and
+  at its rebuilt end (`swap_irreproducible`), and the reverse attempt at the
+  same two ends; after adaptation the counters keep the largest admitted `Q`
+  (`max_swap_working`). `Q` is a criterion, not a bound.
+  It separates the regimes: ordinary data have `Q` from 1e-14 to 9e-11 (at
+  most 2.3e-11 on the real cases and 9.1e-11 on a 10,000-row fixture, at
+  least 110 times below the tolerance), a row at `2 / 1e-3` up to 4.7e-11,
   at `20 / 1e-4` up to 4.1e-9, rows at `1000 / 1e-6` and `8000 / 1e-6` at
-  least 4e-6; it costs 2 to 3% of a swap attempt. The probe rebuilds each
+  least 4e-6. Outcomes located far from zero relative to their standard
+  errors are skipped by `Q` (`swap_unrepresentable`), and the chain keeps
+  its other label moves: on the bias fixture with every estimate and the
+  intercept's prior mean shifted and the SEs scaled by 10 or 100, every
+  attempt is skipped once the rows' median `|y| / SE` reaches 980 (none at
+  930); with the fixture's SEs of about 0.2, where its cluster latents take
+  up part of the location at the base point, some attempts are skipped from
+  a median of 1,210 and every one from 1,860 (none at 1,170). `Q` sums over
+  the rows, so with more rows the swap is skipped from smaller ratios. Just
+  below, the rule's residuals reach its tolerance instead: at a median of 700
+  to 930 (SEs times 10) 64 to 73% of the attempts that pass stage 1 are the
+  identity (`swap_irreproducible`), at 470 to 560 about 30%. `Q` costs 2 to
+  3% of a swap attempt. The probe rebuilds each
   dry run's proposal end from working means read from the graph at the
   proposal (kind 7) and records the change of the rule's inputs against the
   rebuild from the carried means. Over chain seeds 1-40 (L2 in every sweep,
-  about 32,000 dry runs per fixture) that change is of the order of `Q` in
-  most dry runs the whole rule admits (99.9% within 11 `Q`), not in all: on
-  the default fixture changes up to 8e-12, a floor of rounding, reach 120 `Q`
-  where `Q` is 4e-14; at `20 / 1e-4` they stay within 20 `Q` (largest
-  3.3e-8); at `2 / 1e-3` 7 admitted dry runs exceed 100 `Q`, by up to 1.6e-5
-  at `Q` from 4e-12 to 3.3e-9. In the two largest the fresh rebuild's
-  Laplace fit, with `G0` equal, stops at a mean 1.2e-5 and 1.7e-5 law SDs
-  from the carried one's (the fits run two damped Newton iterations whose
-  step halvings are decided by comparisons of the objective), and the
-  proposal densities move with it.
+  about 32,000 dry runs per fixture), in the dry runs the whole rule admits,
+  that change is up to 8e-12, a floor of rounding, and 58 `Q` on the default
+  fixture (99.9% within 5.8 `Q`), up to 3.4e-10 and 11 `Q` at `2 / 1e-3`, and
+  up to 3.3e-8 and 19 `Q` at `20 / 1e-4`; on relocated fixtures below the
+  skip (seed 4127) up to 2.5e-8 and 4.5 `Q`. With `size_i` taken at the base
+  point, 7 admitted dry runs at `2 / 1e-3` changed by up to 1.6e-5 (the fresh
+  rebuild's Laplace fit, with `G0` equal, stopping at a mean up to 1.7e-5 law
+  SDs from the carried one's: the fits run two damped Newton iterations
+  whose step halvings are decided by comparisons of the objective); each
+  was among its chain's first three dry runs, at the initial state far from
+  the data, where `Q` from the end's sizes is 1.8e-8 to 3.3e-8 and skips it.
   Stage 2 takes each proposal density from the base point of the end that
   draws it, `r = delta + log q'(x|x') - log q(x'|x)`, the exact
   Metropolis-Hastings ratio and the exact negative of the reverse move's
@@ -965,10 +988,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   given the working means, up to `swap_reciprocity_tolerance` in stage 1;
   the working means are carried through an update, and the swap runs only
   where `Q <= 1e-8` and elsewhere is the identity. The chain's own reverse
-  attempt, from re-read working means, agrees with the rebuilt end to an
-  amount of the order of `Q` in most attempts and by up to 1.6e-5 in a log
-  ratio in rare ones (the measurements above): that agreement is measured,
-  not guaranteed.
+  attempt, from re-read working means, agrees with the rebuilt end to within
+  58 `Q` and 3.3e-8 in a log ratio in the measurements above: that agreement
+  is measured, not guaranteed.
   The rebuild adds one base-point evaluation with one fit to every
   attempt that passes stage 1. On ordinary fixtures nothing is skipped; at
   `1000 / 1e-6` every attempt after adaptation is skipped at its base point

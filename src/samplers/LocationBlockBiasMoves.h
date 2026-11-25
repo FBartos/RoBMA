@@ -23,6 +23,7 @@
   Vec _label_score;                   // per label: its score (log prior + nested + children) relative to the current label
   Vec _label_nested;                  // per label: the nested node's term of the last label scores
   Vec _swap_terms;                    // scratch of swap_move: the children's terms before the move
+  Vec _swap_size;                     // scratch of swap_base: each row's size at the end's state (Q)
   std::vector<char> _step_children;   // per child: a step-switch row
   Vec _shift_mean;                    // scratch: a child's mean at another label
 
@@ -968,8 +969,8 @@
     // swap_unrepresentable)
     double magnitude = 0;
     // Q: the representability criterion of the working means at the base
-    // point, the order of what their rounding moves in the swap's log ratios
-    // (swap_working_criterion; swap_unrepresentable)
+    // point, with the rows' sizes at the end's state (swap_working_criterion;
+    // swap_unrepresentable)
     double working = 0;
     // the Gaussian plane in (t, theta_b): G(x) = G0 + eta'x - x'Pi x / 2
     double eta_t = 0, Pi_tt = 0, eta_b[2] = {0, 0}, Pi_bb[2] = {0, 0}, Pi_tb[2] = {0, 0};
@@ -1307,36 +1308,64 @@
     return static_cast<double>(total);
   }
 
-  // Q at the base point (the working state there): the swap's
-  // representability criterion for the working means, the size of their
-  // rounding in the rows' log densities. A working mean at the base point is
-  // the graph's mean at an update's entry carried there by the block's shifts
-  // (prepare(), move_means: the probed slopes times the coordinates' changes,
-  // summed in long double, rounded once and added in double). The
-  // tracked-mean comparison and the factory's column check allow a mean the
-  // graph computes 2 eps times the size of its terms, so a probed slope, the
+  // The size of each row's mean at the working state of an end, before its
+  // move to the base point (swap_working_criterion): the sum of the absolute
+  // terms that make the mean up there, the working mean, the design terms
+  // |X b| (the intercept's among them), the latent's term |d z| and the
+  // active slope's term |s_b theta_b|.
+  void swap_working_sizes(Vec &size) const
+  {
+    Shared const &S = s();
+    BiasSpec const &B = bspec();
+    const unsigned p = S.p;
+    size.assign(S.rows, 0.0);
+    for (ChildSpec const &child : S.children) {
+      for (unsigned i = 0; i < child.n; ++i) {
+        const unsigned row = child.row0 + i;
+        double v = std::fabs(_mean[row]);
+        for (unsigned k = 0; k < p; ++k) v += std::fabs(S.X[row * p + k] * _b[k]);
+        if (child.latent >= 0) v += std::fabs(_d[row] * _z[static_cast<unsigned>(child.latent)]);
+        for (int b = 0; b < 2; ++b) {
+          if (B.slope[b].source != nullptr) v += std::fabs(B.slope[b].column[row] * physical_at(_label, b));
+        }
+        size[row] = v;
+      }
+    }
+  }
+
+  // Q of an end (the working state at its base point, `size` the rows' sizes
+  // at the end's state, swap_working_sizes): the swap's representability
+  // criterion for the working means, the size of their rounding in the rows'
+  // log densities. A working mean at the base point is the graph's mean at
+  // an update's entry carried there by the block's shifts (prepare(),
+  // move_means: the probed slopes times the coordinates' changes, summed in
+  // long double, rounded once and added in double). The tracked-mean
+  // comparison and the factory's column check allow a mean the graph
+  // computes 2 eps times the size of its terms, so a probed slope, the
   // difference of two at a unit step, 4 eps (eps = 2^-52). The two ends of an
   // attempt, and an attempt that starts at the proposal in a later sweep,
   // reach the same base point from other graph means and other shifts: their
   // working means there are two computed means of the same terms, taken to
-  // differ by swap_working_rounding (4) eps size_i, size_i the sum of the
-  // absolute terms of row i's mean at the base point (the working mean, the
-  // design terms |X b| and the latent's term |d z|; the physical slopes are
-  // zero there), in units of the row's conditional SD
-  // delta_i = 4 eps size_i / sd_i (sd_i = W_ii^-1/2, as the tracked
-  // comparison). This moves the row's log density by about delta_i |z_i|,
-  // z_i = sd_i (W r)_i the standardized working residual, and the Laplace
-  // fits' centres, curvatures and normalizers by terms of order delta_i:
-  // Q = sum_i delta_i (1 + |z_i|) over every child's rows. It is a
-  // representability criterion, not a limit on what re-read working means
-  // change in the log ratios: the proposal densities and stage 1 enlarge
-  // such changes, and the fits' discrete step decisions can jump
-  // (label_swap). On ordinary data Q is at most about 6e-11; at a row of
-  // 1000 / 1e-6 one row alone exceeds swap_working_tolerance.
-  double swap_working_criterion() const
+  // differ by swap_working_rounding (4) eps size_i, in units of the row's
+  // conditional SD delta_i = 4 eps size_i / sd_i (sd_i = W_ii^-1/2, as the
+  // tracked comparison). size_i is the size of row i's mean at the end's
+  // state, not at the base point: the working means were read and carried
+  // where the intercept and the slopes hold their values, and their rounding
+  // scales with those terms, which the move to the base point removes from
+  // the mean but not from its rounding (data located far from zero, whose
+  // size the intercept carries, had Q of ordinary data at the base point;
+  // the probe's re-read means moved the rule's inputs by up to 3.3e-6).
+  // Rounding of delta_i moves the row's log density by about delta_i |z_i|,
+  // z_i = sd_i (W r)_i the standardized working residual at the base point,
+  // and the Laplace fits' centres, curvatures and normalizers by terms of
+  // order delta_i: Q = sum_i delta_i (1 + |z_i|) over every child's rows. It
+  // is a representability criterion, not a limit on what re-read working
+  // means change in the log ratios: the proposal densities and stage 1
+  // enlarge such changes, and the fits' discrete step decisions can jump
+  // (label_swap).
+  double swap_working_criterion(Vec const &size) const
   {
     Shared const &S = s();
-    const unsigned p = S.p;
     const double eps = std::numeric_limits<double>::epsilon();
     long double out = 0;
     for (ChildSpec const &child : S.children) {
@@ -1344,10 +1373,7 @@
       for (unsigned i = 0; i < child.n; ++i) {
         const unsigned row = child.row0 + i;
         const double sd = 1.0 / std::sqrt(W[i * child.n + i]);
-        double size = std::fabs(_mean[row]);
-        for (unsigned k = 0; k < p; ++k) size += std::fabs(S.X[row * p + k] * _b[k]);
-        if (child.latent >= 0) size += std::fabs(_d[row] * _z[static_cast<unsigned>(child.latent)]);
-        const double delta = swap_working_rounding * eps * size / sd;
+        const double delta = swap_working_rounding * eps * size[row] / sd;
         out += static_cast<long double>(delta) * (1.0 + std::fabs(_wr[row] * sd));
       }
     }
@@ -1359,9 +1385,10 @@
   // selection label's screen and the absolute evidences and Laplace laws of
   // the selection labels in `fits`, then restores the working state. Each
   // label's evaluation of the children also gives its sum of absolute terms
-  // (M_0 is the largest), and the working means there give Q; a base point
-  // whose G0 or Q is not representable returns false after G0, a fit that is
-  // not returns false after its terms.
+  // (M_0 is the largest), and the working means there, with the rows' sizes
+  // at the end's state, give Q; a base point whose G0 or Q is not
+  // representable returns false after G0, a fit that is not returns false
+  // after its terms.
   bool swap_base(SwapGeometry const &G, std::vector<int> const &fits, SwapBase &base)
   {
     Shared const &S = s();
@@ -1382,13 +1409,14 @@
     take(saved);
     bool ok = true;
     base.magnitude = 0.0;
+    swap_working_sizes(_swap_size);
     try {
       Shift to_base;
       swap_shift(G, -t, b_now, -th, dE, to_base);
       swap_move_state(to_base);
       for (unsigned c = 0; c < S.children.size(); ++c) _value_ok[c] = 0;
       rebuild_h();
-      base.working = swap_working_criterion();
+      base.working = swap_working_criterion(_swap_size);
       // the children's normal densities at the base point (a Gaussian label)
       int gaussian_label = 0;
       for (int l = 1; l <= levels && gaussian_label == 0; ++l) {
@@ -1754,10 +1782,13 @@
   // (swap_working_criterion) exceeds swap_working_tolerance: the reciprocity
   // rule of label_swap compares two ends that share their working means,
   // which the chain's own reverse attempt, starting at the proposal in a
-  // later sweep, does not, and their rounding moves the log ratios by an
-  // amount of the order of Q (label_swap). Q too is evaluated at the base
-  // point, equal up to rounding from both ends, and checked wherever M_0 is
-  // (mutant 24 leaves it out).
+  // later sweep, does not (label_swap). Q takes the rows' sizes at the end's
+  // state, so it is a function of that end, not of the base point alone:
+  // each attempt evaluates it at its own end (swap_start, counted as
+  // swap_unrepresentable) and at its rebuilt end (swap_back, counted as
+  // swap_irreproducible), the reverse attempt at the same two ends, so given
+  // the working means the pair is skipped from either end. It is checked
+  // wherever M_0 is (mutant 24 leaves it out).
   bool swap_unrepresentable_base(SwapBase const &base) const
   {
     return base.magnitude > likelihood_representable_limit ||
@@ -1918,15 +1949,15 @@
   // (1e-8; Q, swap_working_criterion, the working means' representability
   // criterion) and elsewhere is the identity (swap_unrepresentable_base).
   // Rebuilt from re-read working means (probe kind 7), the rule's inputs
-  // move by an amount of the order of Q in most admitted attempts, not in
-  // all: the selection labels' Laplace fits (two damped Newton iterations)
-  // can then stop at means up to 1.7e-5 law SDs apart, which moves the
-  // proposal densities by up to 1.6e-5 (a row of 2 / 1e-3: 7 of 31,977
-  // admitted dry runs above 100 Q, chain seeds 1-40). So the two ends
-  // reproduce each other to the tolerance from the same working means; that
-  // the chain's own reverse attempt agrees is measured, not guaranteed. A
-  // dry run (probe) records the frozen-state identities of the attempt and
-  // changes nothing.
+  // moved by at most 58 Q and 3.3e-8 in the admitted dry runs of chain seeds
+  // 1-40 on the tests' fixtures; with Q's sizes taken at the base point,
+  // the selection labels' Laplace fits (two damped Newton iterations) had
+  // stopped at means up to 1.7e-5 law SDs apart, moving the proposal
+  // densities by up to 1.6e-5, at chains' initial states far from the data,
+  // which Q now skips. So the two ends reproduce each other to the tolerance
+  // from the same working means; that the chain's own reverse attempt agrees
+  // is measured, not guaranteed. A dry run (probe) records the frozen-state
+  // identities of the attempt and changes nothing.
   void label_swap(RNG *rng, bool dry = false)
   {
     struct SwapScope {
