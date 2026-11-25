@@ -193,7 +193,8 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_identical(chain$counters[["swap_unrepresentable"]], 0, label = label)
     # nor any dry run at its base point (kind 8: M_0, Q, the working means'
     # representability criterion): Q stays far below its tolerance 1e-8 on
-    # ordinary data (measured at most 2.4e-13 on these fixtures)
+    # these fixtures (measured at most 4.6e-13 on the default fixture over
+    # chain seeds 1-40)
     expect_false(any(swap$kind == 8), label = label)
     expect_gt(chain$counters[["max_swap_working"]], 0, label = label)
     expect_lt(chain$counters[["max_swap_working"]], 1e-10, label = label)

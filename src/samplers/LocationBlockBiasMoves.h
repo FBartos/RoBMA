@@ -1673,9 +1673,10 @@
     to.gate = true;
     if (g0.gate != nullptr) {
       // the gate's two probabilities from one centered pair, as swap_log_q
-      // scores them; u < p with JAGS's 32-bit uniform (values k 2^-32)
-      // realizes p to within an absolute 2^-32, so only the relative error of
-      // a very small cell is large (below 2^-32 it is never drawn)
+      // scores them; u < p with JAGS's Mersenne-Twister uniform (values
+      // k 2^-32; its other generators are not on that grid) realizes p to
+      // within an absolute 2^-32, so only the relative error of a very small
+      // cell is large (below 2^-32 it is never drawn)
       double log_on, log_off;
       swap_gate_log_probabilities(base.log_e_off[it], base.log_e_on[it], &log_on, &log_off);
       to.gate = rng->uniform() < std::exp(log_on);
@@ -1974,10 +1975,14 @@
   // proposal with the forward sweep's latent slopes (probe kind 7, which
   // does not re-probe them), the rule's inputs moved by at most 58 Q and
   // 3.3e-8 in the admitted dry runs of chain seeds 1-40 on the tests'
-  // fixtures; with Q's sizes taken at the base point, the selection labels'
-  // Laplace fits (two damped Newton iterations) had stopped at means up to
-  // 1.7e-5 law SDs apart, moving the proposal densities by up to 1.6e-5, at
-  // chains' initial states far from the data, which Q now skips. So the two
+  // default, 2 / 1e-3 and 20 / 1e-4 fixtures. The selection labels' Laplace
+  // fits (two damped Newton iterations whose step halvings are decided by
+  // comparisons of the objective) can stop at other means and move the
+  // rule's inputs by up to about 1e-5 in rare admitted attempts, at initial
+  // and at ordinary states, whatever Q is: with a row at 1 / 1e-3, 6.9e-6 at
+  // a chain's initial state (Q 7.5e-9) and 2.2e-7 at an ordinary state
+  // (Q 7e-12); at 2 / 1e-3 the initial states' cases (up to 1.6e-5) have Q
+  // above the tolerance and are skipped. So the two
   // ends reproduce each other to the tolerance from the same working means;
   // that the chain's own reverse attempt agrees is measured in that sense
   // only, not guaranteed. A dry run (probe) records the frozen-state

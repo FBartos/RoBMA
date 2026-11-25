@@ -50,12 +50,13 @@ context("Random-effect rows without an original-scale value")
 
 # The same block under model averaging: the heterogeneity null puts a spike on
 # the total SD, so some draws have no correlation defined. The tests need draws
-# in both states in every chain, whatever the trajectory. These data favour
-# heterogeneity: at the default inclusion probability 0.5, about one draw in
-# ten has the block off, and the gate changes state only about once in 100
-# iterations, so a chain of 500 draws can have none. The null's prior
-# probability 0.9 puts about half of the posterior on each state, and thinning
-# by 10 gives each chain about 40 changes of state between its draws.
+# in both states among the pooled draws of the two chains, and the fixture puts
+# both states in every chain. These data favour heterogeneity: at the default
+# inclusion probability 0.5, about one draw in ten has the block off, and the
+# gate changes state only about once in 100 iterations, so a chain of 500 draws
+# can have none. The null's prior probability 0.9 puts about half of the
+# posterior on each state, and thinning by 10 gives each chain about 40 changes
+# of state between its draws.
 .random_na_rows_bma_fit <- function() {
 
   if (is.null(.random_na_rows_env[["bma"]])) {

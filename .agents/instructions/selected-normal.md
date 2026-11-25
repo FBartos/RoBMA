@@ -945,26 +945,45 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   function of each end, not of the base point alone: every attempt
   evaluates it at its own end wherever `M_0` is (`swap_unrepresentable`) and
   at its rebuilt end (`swap_irreproducible`), and the reverse attempt at the
-  same two ends; after adaptation the counters keep the largest `Q` of the
-  base points that pass the check, also in attempts that end before a
-  proposal (`max_swap_working`). `Q` is a criterion, not a bound.
-  It separates the regimes: ordinary data have `Q` from 1e-14 to 9e-11 (at
-  most 2.3e-11 on the real cases and 9.1e-11 on a 10,000-row fixture, at
-  least 110 times below the tolerance), a row at `2 / 1e-3` up to 4.7e-11,
-  at `20 / 1e-4` up to 4.1e-9, rows at `1000 / 1e-6` and `8000 / 1e-6` at
-  least 4e-6. Outcomes located far from zero relative to their standard
-  errors are skipped by `Q` (`swap_unrepresentable`), and the chain keeps
-  its other label moves: on the bias fixture with every estimate and the
+  same two ends; after adaptation the counters keep the largest `Q` over the
+  attempts' own base points that pass the check (also in attempts that end
+  before a proposal) and over the proposal ends that were rebuilt
+  successfully (`max_swap_working`). `Q` is a criterion, not a bound. It
+  adds one term per row, so it grows linearly with the number of rows; a
+  row's term grows with the row's size in units of its conditional SD,
+  `size_i / sd_i` (about `|y_i| / sd_i` for an outcome whose mean the
+  intercept carries), and with its standardized residual at the base point,
+  `1 + |z_i|` (the base point holds the intercept at zero, so for such an
+  outcome `|z_i|` is of the same order); for rows alike `Q` scales as
+  `n (|y| / SE)^2`. Measured as the largest `Q` after adaptation of one
+  chain: 2.3e-11 on the real cases (`gender_3lvl_dec_def_long`,
+  `assink_V_mods`, `che_int`); 9.1e-11 on a 10,000-row clustered SMD fixture
+  (`|y| / SE` 0 to 12, median 2); on clustered SMD fits with a two-level
+  moderator, 2.1e-10 with 1,000 rows at a median `|y| / SE` of 10, 6.9e-9
+  with 1,000 rows at 61 and 8.0e-9 with 10,000 rows at 20; 4.8e-10 on 1,000
+  clustered Fisher-z rows at a median of 43 and 3.9e-9 on 10,000 such rows;
+  on the 10-row bias fixture with one row at `2 / 1e-3` up to 4.7e-11 and
+  at `20 / 1e-4` up to 4.1e-9 (chain seeds 1-40), and at least 4e-6 at
+  `1000 / 1e-6` and `8000 / 1e-6`. Outcomes located far from zero relative
+  to their standard errors are skipped by `Q` (`swap_unrepresentable`), and
+  the chain keeps its other label moves; the skip starts at these medians of
+  `|y| / SE`: on the 10-row bias fixture with every estimate and the
   intercept's prior mean shifted and the SEs scaled by 10 or 100, every
-  attempt is skipped once the rows' median `|y| / SE` reaches 980 (none at
-  930); with the fixture's SEs of about 0.2, where its cluster latents take
-  up part of the location at the base point, some attempts are skipped from
-  a median of 1,210 and every one from 1,860 (none at 1,170). `Q` sums over
-  the rows, so with more rows the swap is skipped from smaller ratios. Just
-  below, the rule's residuals reach its tolerance instead: at a median of 700
-  to 930 (SEs times 10) 64 to 73% of the attempts that pass stage 1 are the
-  identity (`swap_irreproducible`), at 470 to 560 about 30%. `Q` costs 2 to
-  3% of a swap attempt. The probe rebuilds each
+  attempt from 980 (none at 930), and with the fixture's SEs of about 0.2,
+  where its cluster latents take up part of the location at the base point,
+  some attempts from 1,210 and every one from 1,860 (none at 1,170); on the
+  clustered SMD fits (L2 in every sweep), 196 to 198 of 200 sweeps,
+  adaptation included, with 1,000 rows from 81 (none at 61; at 121 the
+  skipped `Q` was 2.4e-8 to 2.7e-8) and with 10,000 rows at 30 (none at
+  20). Just below, the rule's residuals reach its tolerance instead on the
+  10-row fixture: at a median of 700 to 930 (SEs
+  times 10) 64 to 73% of the attempts that pass stage 1 are the identity
+  (`swap_irreproducible`), at 470 to 560 about 30%. `Q`'s two passes over
+  the rows (the sizes and the criterion) cost less than the run-to-run
+  variation of the timing: L2 took 0.116 to 0.117 ms per attempt with and
+  without them on the bias fixture (four alternating runs of 10,000
+  sweeps), and 10.5 to 10.7 ms on 1,000 Fisher-z rows (two alternating runs
+  each). The probe rebuilds each
   dry run's proposal end from working means read from the graph at the
   proposal, with the forward sweep's latent slopes (kind 7; a sweep that
   starts at the proposal probes the slopes again, which the probe does not
@@ -974,13 +993,22 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   that change is up to 8e-12, a floor of rounding, and 58 `Q` on the default
   fixture (99.9% within 5.8 `Q`), up to 3.4e-10 and 11 `Q` at `2 / 1e-3`, and
   up to 3.3e-8 and 19 `Q` at `20 / 1e-4`; on relocated fixtures below the
-  skip (seed 4127) up to 2.5e-8 and 4.5 `Q`. With `size_i` taken at the base
-  point, 7 admitted dry runs at `2 / 1e-3` changed by up to 1.6e-5 (the fresh
-  rebuild's Laplace fit, with `G0` equal, stopping at a mean up to 1.7e-5 law
-  SDs from the carried one's: the fits run two damped Newton iterations
-  whose step halvings are decided by comparisons of the objective); each
-  was among its chain's first three dry runs, at the initial state far from
-  the data, where `Q` from the end's sizes is 1.8e-8 to 3.3e-8 and skips it.
+  skip (seed 4127) up to 2.5e-8 and 4.5 `Q`. The selection labels' Laplace
+  fits can move the rule's inputs by up to about 1e-5 in rare admitted
+  attempts, at initial and at ordinary states, whatever `Q` is: the fits run
+  two damped Newton iterations whose step halvings are decided by
+  comparisons of the objective, and the fresh rebuild's fit, with `G0`
+  equal, can stop at another mean. With one row at `1 / 1e-3` (chain seeds
+  1-40, 100 draws, about 12,000 rule-admitted dry runs), 3 changed by more
+  than 1e-7: by 6.9e-6 at seed 17's first dry run, at the chain's initial
+  state (`M_0` 2.5e6, `Q` 7.5e-9, the Laplace means 8.8e-6 law SDs apart),
+  by 3.4e-6 at seed 11 (`Q` 7.6e-9), and by 2.2e-7 at an ordinary state
+  (seed 1, the 75th dry run: `M_0` 7.4, `Q` 7e-12, the means 4.6e-7 law SDs
+  apart); at `2 / 1.6e-3` by up to 9.5e-7 (seed 12, `Q` 6.1e-9). At
+  `2 / 1e-3` `Q` skips the initial states' cases: with `size_i` taken at
+  the base point, 7 admitted dry runs there changed by up to 1.6e-5, each
+  among its chain's first three dry runs, where `Q` from the end's sizes is
+  2.4e-8 to 3.1e-8.
   Stage 2 takes each proposal density from the base point of the end that
   draws it, `r = delta + log q'(x|x') - log q(x'|x)`, the exact
   Metropolis-Hastings ratio of the two evaluated ends and the exact negative
@@ -996,9 +1024,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   re-read at the proposal and from latent slopes probed again there; what is
   measured is a rebuild with re-read means and the forward sweep's latent
   slopes (kind 7), which agrees with the rebuilt end to within 58 `Q` and
-  3.3e-8 in a log ratio in the measurements above. That agreement is
-  measured, not guaranteed, and the effect of the re-probed slopes is not
-  measured.
+  3.3e-8 in a log ratio on the default, `2 / 1e-3` and `20 / 1e-4` fixtures
+  and by up to about 1e-5 in the rare admitted attempts above. That
+  agreement is measured, not guaranteed, and the effect of the re-probed
+  slopes is not measured.
   The rebuild adds one base-point evaluation with one fit to every
   attempt that passes stage 1. On ordinary fixtures nothing is skipped; at
   `1000 / 1e-6` every attempt after adaptation is skipped at its base point
@@ -1029,14 +1058,16 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `-log(1 + e^d)` of the difference `d` of the cell's two evidences
   (`swap_gate_log_probabilities`): normalized by their total, evidences of
   size 1e9 rounded the smaller cell's draw probability to zero while its
-  score kept 4.1e-8. The draw `u < p` with JAGS's 32-bit uniform (values
-  `k 2^-32`) realizes any probability to within an absolute `2^-32`
-  (2.3e-10), as any such draw does; the errors that are large are relative
-  errors of very small cells: at that pair (`d` = 17) the off cell's 4.14e-8
-  is drawn with probability 4.12e-8 (relative log error -4.6e-3), at `d` = 20
-  the relative log error is -0.10, and a cell below `2^-32` (`d` above 22.2)
-  is never drawn while its score stays `e^-d`; only events below about 1e-7
-  per attempt are affected.
+  score kept 4.1e-8. With JAGS's Mersenne-Twister generator, whose uniforms
+  lie on the grid `k 2^-32` (JAGS's other generators, Super-Duper and
+  RngStream, which the fits' initial values select, are not on that grid),
+  the draw `u < p` realizes any probability to within an absolute `2^-32`
+  (2.3e-10), as any such draw does; the relative error is large only for
+  very small cells: at that pair (`d` = 17) the off cell's 4.14e-8 is drawn
+  with probability 4.12e-8 (relative log error -4.6e-3), at `d` = 20 the
+  relative log error is -0.10, and a cell below `2^-32` (`d` above 22.2) is
+  never drawn while its score stays `e^-d`; large relative errors concern
+  only events below about 1e-7 per attempt.
   The swap's evaluations at its base point, at its rebuilt end and at a
   proposal it discards leave the sweep's evidence flag about the surrogate
   (`_not_exact`) as it was (the working state's snapshot restores it; the

@@ -86,13 +86,17 @@ constexpr double swap_reciprocity_tolerance = 1e-9;
 // rule above compares two ends that share their working means, while an
 // attempt that starts at the proposal in a later sweep reaches the base point
 // from other working means. Q is a representability criterion, not a bound
-// on what re-read working means change (label_swap): it separates the
-// regimes, at most 9.1e-11 on ordinary data (the real cases 2.3e-11, a
-// 10,000-row fixture 9.1e-11) and at least 4e-6 at a row of 1000 / 1e-6;
-// outcomes located far from zero relative to their SEs (from a median
-// |y| / SE of about 1,000 on the tests' 10-row fixture) are skipped. A
-// working mean's rounding is taken as swap_working_rounding eps
-// (eps = 2^-52) times the size of its terms at the end's state.
+// on what re-read working means change (label_swap). It adds one term per
+// row, growing with the row's size over its conditional SD and with its
+// residual at the base point, so for rows alike it scales as
+// n (|y| / SE)^2: measured 2.3e-11 on the real cases, 9.1e-11 on a
+// 10,000-row ordinary fixture, 3.9e-9 on 10,000 Fisher-z rows at a median
+// |y| / SE of 43 and at least 4e-6 at a row of 1000 / 1e-6. Outcomes
+// located far from zero relative to their SEs are skipped, from a median
+// |y| / SE of about 1,000 with 10 rows, between 61 and 81 with 1,000 rows
+// and between 20 and 30 with 10,000 (selected-normal.md). A working mean's
+// rounding is taken as swap_working_rounding eps (eps = 2^-52) times the
+// size of its terms at the end's state.
 constexpr double swap_working_tolerance = 1e-8;
 constexpr double swap_working_rounding = 4.0;
 // The refresh kernels of the active coefficients in selection labels (A3; see
@@ -145,9 +149,10 @@ struct Counters {
   // sweeps whose cross-family swap (L2) made no proposal because its base
   // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable:
   // M_0 or the working means' representability criterion Q), and after
-  // adaptation the largest Q of the base points that pass that check (also
-  // in attempts that end before a proposal; a Q above the tolerance at a
-  // rebuilt end counts as swap_irreproducible)
+  // adaptation the largest Q over the attempts' own base points that pass
+  // that check (also in attempts that end before a proposal) and over the
+  // proposal ends that were rebuilt successfully (a Q above the tolerance at
+  // a rebuilt end counts as swap_irreproducible)
   std::atomic<std::uint64_t> swap_unrepresentable{0};
   std::atomic<double> max_swap_working{0.0};
   // sweeps whose cross-family swap passed stage 1 and was then the identity

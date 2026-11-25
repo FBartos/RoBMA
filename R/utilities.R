@@ -48,14 +48,17 @@
 #' when an otherwise eligible automatic Gaussian fit exceeds the row limit.
 #' For the location block sampler, \code{$joint$counters} holds its per-fit
 #' counters (with a bias indicator owned by the block, \code{max_swap_working}
-#' is the largest representability criterion of the working means over the
-#' cross-family swap's base points that pass their representability check
-#' after adaptation, also in attempts that end before a proposal; a criterion
-#' above \code{1e-8} skips the swap and counts in \code{swap_unrepresentable}
-#' at the attempt's own end and in \code{swap_irreproducible} at its rebuilt
-#' proposal end; for outcomes located far from zero relative to their standard
-#' errors, from \code{|y| / SE} of about 1,000 on a 10-row test fixture and
-#' lower with more rows, every swap is skipped, while the chain keeps its other
+#' is the largest representability criterion of the working means after
+#' adaptation, over the cross-family swap's own base points that pass their
+#' representability check, also in attempts that end before a proposal, and
+#' over the proposal ends that were rebuilt successfully; a criterion above
+#' \code{1e-8} skips the swap and counts in \code{swap_unrepresentable} at the
+#' attempt's own end and in \code{swap_irreproducible} at its rebuilt proposal
+#' end; the criterion grows with the number of rows and with their
+#' \code{|y| / SE}, so for outcomes located far from zero relative to their
+#' standard errors every swap is skipped, measured from a median
+#' \code{|y| / SE} of about 1,000 with 10 rows, between 61 and 81 with 1,000
+#' rows and between 20 and 30 with 10,000 rows, while the chain keeps its other
 #' label moves) and
 #' \code{$joint$scale}, present when the block also owns the
 #' heterogeneity sources, the scale ownership decisions and the move's counters:
