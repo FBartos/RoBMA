@@ -416,6 +416,23 @@ double log1pexp(double x)
   return x > 0 ? x + std::log1p(std::exp(-x)) : std::log1p(std::exp(x));
 }
 
+// The largest difference of two vectors of graph values (the restoration
+// probe, LocationBlock::restoration_probe): equal values and two NaN count as
+// zero; a NaN or infinite value against another value, or vectors of
+// different lengths, as an infinite difference (finiteness first: std::max
+// would keep a NaN difference out).
+double endpoint_difference(Vec const &a, Vec const &b)
+{
+  const double infinite = std::numeric_limits<double>::infinity();
+  if (a.size() != b.size()) return infinite;
+  double out = 0.0;
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    if (a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i]))) continue;
+    out = std::isfinite(a[i]) && std::isfinite(b[i]) ? std::max(out, std::fabs(a[i] - b[i])) : infinite;
+  }
+  return out;
+}
+
 // The gate of the target cell of the cross-family swap L2: the log
 // probabilities of the slab (on) and of the spike (off) from the cell's two
 // log evidences, both from their difference d = on - off as -log(1 + e^-d)
@@ -3576,21 +3593,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   {
     Endpoints now;
     entry_endpoints(now);
-    // finiteness first: a NaN or infinite value against another value counts
-    // as an infinite difference (std::max would keep a NaN difference out)
-    auto difference = [](Vec const &a, Vec const &b) {
-      const double infinite = std::numeric_limits<double>::infinity();
-      if (a.size() != b.size()) return infinite;
-      double out = 0.0;
-      for (std::size_t i = 0; i < a.size(); ++i) {
-        if (a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i]))) continue;
-        out = std::isfinite(a[i]) && std::isfinite(b[i]) ? std::max(out, std::fabs(a[i] - b[i])) : infinite;
-      }
-      return out;
-    };
     Endpoints const &entry = _restoration_entry;
-    probe_raw(11, 1.0, difference(now.members, entry.members), difference(now.parents, entry.parents),
-              difference(now.densities, entry.densities),
+    probe_raw(11, 1.0, endpoint_difference(now.members, entry.members),
+              endpoint_difference(now.parents, entry.parents), endpoint_difference(now.densities, entry.densities),
               now.parents.size() == entry.parents.size() && now.densities.size() == entry.densities.size() ? 0.0 : 1.0);
   }
 
@@ -4732,6 +4737,11 @@ std::vector<double> location_block_test_swap_gate(double log_e_off, double log_e
   double log_on, log_off;
   swap_gate_log_probabilities(log_e_off, log_e_on, &log_on, &log_off);
   return {log_on, log_off};
+}
+
+double location_block_test_endpoint_difference(std::vector<double> const &a, std::vector<double> const &b)
+{
+  return endpoint_difference(a, b);
 }
 
 }

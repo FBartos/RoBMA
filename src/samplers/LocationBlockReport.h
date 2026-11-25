@@ -144,6 +144,9 @@ std::vector<double> location_block_test_take_sequence();
 // Test hook: the log probabilities (on, off) of the gate of L2's target cell
 // from its log evidences (LocationBlock.cc, swap_gate_log_probabilities).
 std::vector<double> location_block_test_swap_gate(double log_e_off, double log_e_on);
+// Test hook: the restoration probe's comparison of two vectors of graph
+// values (LocationBlock.cc, endpoint_difference).
+double location_block_test_endpoint_difference(std::vector<double> const &a, std::vector<double> const &b);
 
 }
 }

@@ -748,4 +748,21 @@ test_that("a forced rejection after a label change restores every member and des
     expect_length(unique(chain$draws[, "bias_indicator"]), 1L)
     expect_lt(chain$counters[["corrections_accepted"]], chain$counters[["sweeps"]], label = label)
   }
+  # the probe's comparison of two vectors of graph values: a value that is not
+  # finite against a different value, on either side, and vectors of different
+  # lengths count as infinitely different; equal values and two NaN as equal
+  difference <- function(a, b) .Call("RoBMA_location_block_test_numeric", "endpoint_difference", as.double(a),
+                                     as.double(b), PACKAGE = "RoBMA")
+  expect_identical(difference(c(1, 2), c(1, 2)), 0)
+  expect_identical(difference(c(1, 3), c(1, 2.5)), 0.5)
+  expect_identical(difference(c(1, 2), c(1, NaN)), Inf)
+  expect_identical(difference(c(NaN, 2), c(1, 2)), Inf)
+  expect_identical(difference(c(1, NaN, 2), c(1, NaN, 2)), 0)
+  expect_identical(difference(c(1, 2), c(1, Inf)), Inf)
+  expect_identical(difference(c(-Inf, 2), c(Inf, 2)), Inf)
+  expect_identical(difference(c(Inf, 2), c(Inf, 2)), 0)
+  expect_identical(difference(c(1, 2), 1), Inf)
+  # a NaN pair after a finite difference keeps it; a mismatch after it is infinite
+  expect_identical(difference(c(1, NaN), c(1.5, NaN)), 0.5)
+  expect_identical(difference(c(1, 2), c(1.5, NaN)), Inf)
 })

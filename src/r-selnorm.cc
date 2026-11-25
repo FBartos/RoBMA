@@ -1224,7 +1224,8 @@ extern "C" SEXP RoBMA_location_block_test_trace()
 // Test hook, not package interface: numeric helpers of the location block
 // sampler (LocationBlockReport.h). "swap_gate": `a` holds the target cell's
 // log evidences (gate off, gate on) and the result their gate's log
-// probabilities (on, off).
+// probabilities (on, off); "endpoint_difference": the restoration probe's
+// largest difference of `a` and `b`.
 extern "C" SEXP RoBMA_location_block_test_numeric(SEXP what, SEXP a, SEXP b)
 {
   ROBMA_NATIVE_BEGIN(what, a, b)
@@ -1237,6 +1238,9 @@ extern "C" SEXP RoBMA_location_block_test_numeric(SEXP what, SEXP a, SEXP b)
   if (name == "swap_gate") {
     if (XLENGTH(a) != 2) Rf_error("'a' must hold the two log evidences.");
     out = jags::RoBMA::location_block_test_swap_gate(REAL(a)[0], REAL(a)[1]);
+  } else if (name == "endpoint_difference") {
+    const std::vector<double> x(REAL(a), REAL(a) + XLENGTH(a)), y(REAL(b), REAL(b) + XLENGTH(b));
+    out = {jags::RoBMA::location_block_test_endpoint_difference(x, y)};
   } else {
     Rf_error("Unknown location block numeric test.");
   }

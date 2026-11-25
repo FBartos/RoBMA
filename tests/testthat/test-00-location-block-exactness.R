@@ -319,4 +319,13 @@ test_that("the location block keeps its sampler in parallel workers", {
                     members)
   }
   expect_identical(request(parallel)[["status"]], "active")
+  # both workers ran: one runtime report per worker process, each with the
+  # location block's sampler and sweeps (samplers_by_worker is recorded only
+  # when the workers' sampler tables differ, so it is NULL here)
+  processes <- attr(parallel[["fit"]], "runtime_report_values", exact = TRUE)[[1L]]
+  expect_length(processes, 2L)
+  for (process in processes) {
+    expect_gte(process[["location"]][["samplers"]], 1)
+    expect_gt(process[["location"]][["sweeps"]], 0)
+  }
 })
