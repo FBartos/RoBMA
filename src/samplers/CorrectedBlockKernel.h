@@ -126,6 +126,9 @@ private:
   // the current totals of the gamma groups
   std::vector<double> _totals;
   ::BayesTools::factor_slice::Axes _axes;
+  // whether a refresh of the axes has replaced their initial state (a refresh
+  // keeps the axes when an eigenvalue of the covariance is not positive)
+  bool _learned = false;
   std::vector<double> _x;  // scratch: member values of a point
   std::vector<SelectedChild> _selected;
   std::vector<int> _child_selected;
@@ -138,6 +141,7 @@ private:
   StepRowCache _rows;
 
   void density_failure(Node const *node, char const *where, char const *cause) const;
+  void adapt_axes(std::vector<double> const &u_start, std::vector<double> const &u);
   void check_sum(double out, char const *where) const;
   double member_terms(char const *where) const;
   double log_full(char const *where) const;

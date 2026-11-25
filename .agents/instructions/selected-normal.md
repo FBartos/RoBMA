@@ -626,7 +626,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   of the closed update restores the block-entry values and their
   deterministic descendants before it propagates. Gate open: one
   update of the shared block kernel, whose axes learn from these updates only;
-  until they are first refreshed (100 open adaptive updates) the coordinate
+  until a refresh first replaces them (from 100 open adaptive updates; a
+  refresh that keeps the axes because an eigenvalue of the covariance is not
+  positive keeps these widths too) the coordinate
   axes have widths of 2.5 prior SDs (trigamma of the shapes for gamma and beta
   members and log-ratio coordinates, 1 otherwise). `checkAdaptation()` is true
   after any update, so a branch never open while adapting does not hold up the

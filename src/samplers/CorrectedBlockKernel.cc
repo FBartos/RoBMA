@@ -282,12 +282,37 @@ void CorrectedBlockKernel::trace(int kind, double value) const
   store.records.push_back(value);
 }
 
-// The width of direction k: the learned one once the axes were refreshed, the
-// initial width of the coordinate axis before.
+// The width of direction k: the learned one once a refresh replaced the
+// axes, the initial width of the coordinate axis before (also after a first
+// refresh that kept the axes because an eigenvalue was not positive).
 double CorrectedBlockKernel::width(unsigned int k) const
 {
-  if (_axes.updates() >= kernel::first_refresh || _options.initial_widths.empty()) return _axes.width(k);
+  if (_learned || _options.initial_widths.empty()) return _axes.width(k);
   return _options.initial_widths[k];
+}
+
+// One adaptive update of the axes. At a refresh point before the axes are
+// learned, they are learned when the refresh changed their directions or
+// widths (a refresh that keeps them leaves the initial widths in use; one that
+// reproduces the initial axes exactly does too, which only defers the learned
+// widths to a later refresh).
+void CorrectedBlockKernel::adapt_axes(std::vector<double> const &u_start, std::vector<double> const &u)
+{
+  const unsigned int next = _axes.updates() + 1;
+  const bool refresh = !_learned && next >= kernel::first_refresh &&
+    (next - kernel::first_refresh) % kernel::refresh_interval == 0;
+  auto state = [this]() {
+    std::vector<double> out;
+    for (unsigned int k = 0; k < _du; ++k) {
+      out.push_back(_axes.width(k));
+      const std::vector<double> direction = _axes.direction(k);
+      out.insert(out.end(), direction.begin(), direction.end());
+    }
+    return out;
+  };
+  const std::vector<double> before = refresh ? state() : std::vector<double>();
+  _axes.adapt(u_start, u);
+  if (refresh) _learned = state() != before;
 }
 
 // Sets the node values to the point u (the gamma groups at their current
@@ -545,7 +570,7 @@ void CorrectedBlockKernel::corrected_update(RNG *rng, std::vector<double> const 
   }
   const bool adapting = _tally.adapting();
   _tally.count(accepted, _surrogate_not_exact || row_evidence);
-  if (adapting) _axes.adapt(u_start, u);
+  if (adapting) adapt_axes(u_start, u);
 }
 
 void CorrectedBlockKernel::update(RNG *rng)

@@ -39,6 +39,17 @@ test_that("selection weights get the gated block sampler and indicators the scre
   expect_identical(unname(het$samplers[c("h", "s", "e[1]", "e[2]")]),
                    c("RoBMA::ScreenedFinite", rep("RoBMA::CoarseCorrectedBlock", 3L)))
   expect_identical(.weights_block_widths()[[length(.weights_block_widths())]][["d"]], 2)
+
+  # the gated block keeps the prior widths until a refresh replaces its axes
+  # (an always open branch: the first refresh after 100 adaptive updates)
+  single <- .weights_build(.weights_setup(3L))
+  rjags::adapt(single$model, 99L, end.adaptation = FALSE)
+  prior_width <- 2.5 * sqrt(2 * trigamma(1))
+  widths <- .weights_block_widths()
+  expect_lt(max(abs(widths[[length(widths)]][["widths"]] - prior_width)), 1e-12)
+  rjags::adapt(single$model, 101L, end.adaptation = TRUE)
+  widths <- .weights_block_widths()
+  expect_gt(min(abs(widths[[length(widths)]][["widths"]] - prior_width)), 1e-6)
 })
 
 

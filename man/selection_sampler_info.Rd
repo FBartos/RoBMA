@@ -125,17 +125,22 @@ are updated by the corrected block sweep, whose directions adapt only on
 those updates.
 
 Indicators. The screened indicator sampler scores every level of the
-indicator with the surrogates of its selection children, draws a level from
-these scores (the current level included), and corrects a change of level
-with one Metropolis step against the exact scores of both levels, so the
-chain targets the exact posterior and a draw of the current level costs no
-exact evaluation.
+indicator with the surrogates of its selection children, each level's score
+computed from that level's model state alone. At each update it proposes a
+level from these scores by one of two moves, chosen at random independently
+of the state: with probability 3/4 a Metropolized Gibbs step (a level other
+than the current one, accepted on the scores), with probability 1/4 a draw
+from the scores with the current level included (which keeps a thinned
+chain from alternating between two equally likely levels). A change of
+level is corrected with one Metropolis step against the exact scores of
+both levels, so the chain targets the exact posterior, and an update that
+keeps the current level costs no exact evaluation.
 Vector-valued and unrelated updates, and updates whose selection
 children are all without a coarse rule (other than the step-selection rows
 above), retain ordinary JAGS samplers.
-Whatever the surrogate, the corrected chain targets the exact full
-conditional; a coarser rule changes the acceptance rate and the cost, not
-the posterior.
+For any surrogate computed from the model state it scores, the corrected
+chain targets the exact full conditional; a coarser rule changes the
+acceptance rate and the cost, not the posterior.
 
 Fallback. Each corrected sampler (one per parameter, block or indicator and
 chain) chooses its kernel once, at the end of adaptation, from its evidence

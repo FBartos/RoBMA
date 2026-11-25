@@ -143,7 +143,8 @@ test_that("the three-branch ensemble of step-selection rows is exact with a pert
   kinds <- attr(corrected, "kinds")
   expect_lt(kinds["finite", "accepted"] / kinds["finite", "proposed"], .9)
   expect_lt(kinds["gated", "accepted"] / kinds["gated", "proposed"], .99)
-  .weights_expect_exact(.rows_weights_z(setup, reference, draws, list(finite_proposal = 2), perturbed), "Liu proposal")
+  .weights_expect_exact(.rows_weights_z(setup, reference, draws, list(finite_proposal = 0), perturbed),
+                        "plain surrogate draw")
   .weights_expect_detected(.rows_weights_z(setup, reference, draws, list(finite_proposal = 1), perturbed),
                            "uncorrected indicator")
   .weights_expect_detected(.rows_weights_z(setup, reference, draws, list(drop_sum_jacobian = TRUE), perturbed),
