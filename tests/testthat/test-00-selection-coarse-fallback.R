@@ -409,8 +409,8 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
     message <- paste0("Error in node y[3]\n", sampler, " [RoBMA_likelihood_not_representable]: the log density ",
                       "of this likelihood node is -5e+25 at the chain's current state")
     expect_identical(.sampler_error_hint(message), paste0(
-      message, "\nThe likelihood of the chain's current state cannot be resolved in double precision: at that ",
-      "state an estimate lies tens of thousands of standard deviations from its mean. The ordinary samplers ",
+      message, "\nThe likelihood of the chain's current state cannot be resolved in double precision: estimates ",
+      "lie far from the values the model gives them at this state. The ordinary samplers ",
       "would return draws for such data without a warning. Check the estimates and their standard errors, their ",
       "units and the model. A chain can also reach such a state while other chains sample the same data; other ",
       "initial values or a longer adaptation may then avoid it."

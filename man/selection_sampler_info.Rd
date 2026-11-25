@@ -226,9 +226,9 @@ concerns the data or the chain's state instead: where a sampler evaluates
 the exact density of the state its chain is in and, after adaptation, the
 absolute log densities of the likelihood terms of that evaluation (the terms
 its move differences) sum to more than \eqn{10^9}, it stops with the class
-\code{RoBMA_likelihood_not_representable}. At that state an estimate lies
-tens of thousands of standard deviations from its mean, and double precision
-cannot resolve the differences that the acceptance ratios need. The ordinary
+\code{RoBMA_likelihood_not_representable}. At that state estimates lie far
+from the values the model gives them, and double precision cannot resolve
+the differences that the acceptance ratios need. The ordinary
 samplers return draws for such data without a warning; check the estimates
 and their standard errors, their units and the model. A chain can also
 reach such a state while other chains sample the same data; other initial

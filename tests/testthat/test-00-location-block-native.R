@@ -81,7 +81,7 @@ test_that("the location block stops when the likelihood of the state cannot be r
 Location block sampler ",
                                            "[RoBMA_likelihood_not_representable]: the log density of this ",
                                            "likelihood node is -5e+25")), info = x3)
-    expect_true(grepl("tens of thousands of standard deviations", message, fixed = TRUE), info = x3)
+    expect_true(grepl("far from the values the model gives them", message, fixed = TRUE), info = x3)
   }
 
   # the hand-written Gaussian fixture with its first estimate made extreme:

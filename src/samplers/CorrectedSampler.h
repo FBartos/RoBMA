@@ -183,9 +183,10 @@ void unregister_corrected_sampler(CorrectedSamplerWindow *sampler);
 // absolute values of the likelihood terms of that evaluation (the children's
 // log densities, priors excluded): the terms the move differences, at the
 // chain's state. Above the limit, double precision cannot resolve the
-// differences the sampler's acceptance ratios need (at that state an estimate
-// lies tens of thousands of standard deviations from its mean; another chain
-// may sample the same data): after adaptation that is the classed error
+// differences the sampler's acceptance ratios need (at that state estimates
+// lie far from the values the model gives them, one row by tens of thousands
+// of its SDs or many rows by hundreds; another chain may sample the same
+// data): after adaptation that is the classed error
 // RoBMA_likelihood_not_representable naming the node with the largest term.
 // While adapting nothing is raised (a chain may start far from the data), and
 // a proposed state is never checked (it is rejected or accepted as before).

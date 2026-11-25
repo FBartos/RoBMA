@@ -1095,11 +1095,16 @@
     _line.valid = false;
   }
 
-  // The working state, saved and restored around the base-point evaluations.
+  // The working state, saved and restored around the base-point evaluations
+  // and a discarded proposal, with the evidence flag _not_exact: a surrogate
+  // evaluated at L2's base point, at its rebuilt end or at a proposal it
+  // discards does not mark the sweep as evidence about the surrogate (the
+  // exact correction's ratio depends on the sweep's endpoints only), while
+  // an accepted proposal's evaluations keep it.
   struct Snapshot {
     Vec b, beta, z, mean, r, wr, h, value, fit_value;
     std::vector<char> g, value_ok, fit_ok, selected, dirty;
-    bool selection = false;
+    bool selection = false, not_exact = false;
     int label = 0;
   };
 
@@ -1108,6 +1113,7 @@
     x.b = _b; x.beta = _beta; x.z = _z; x.mean = _mean; x.r = _r; x.wr = _wr; x.h = _h;
     x.value = _value; x.fit_value = _fit_value; x.g = _g; x.value_ok = _value_ok; x.fit_ok = _fit_ok;
     x.selected = _selected; x.dirty = _dirty; x.selection = _selection; x.label = _label;
+    x.not_exact = _not_exact;
   }
 
   void put(Snapshot const &x)
@@ -1115,6 +1121,7 @@
     _b = x.b; _beta = x.beta; _z = x.z; _mean = x.mean; _r = x.r; _wr = x.wr; _h = x.h;
     _value = x.value; _fit_value = x.fit_value; _g = x.g; _value_ok = x.value_ok; _fit_ok = x.fit_ok;
     _selected = x.selected; _dirty = x.dirty; _selection = x.selection; _label = x.label;
+    _not_exact = x.not_exact;
     set_graph_label(_label);
     _line.valid = false;
   }
@@ -1827,8 +1834,12 @@
   // exact Metropolis-Hastings ratio, computed as the exact negative of the
   // reverse move's; with the reverse stage 1 the inverse of stage 1 up to
   // the tolerance, the kernel is exact for the inner target up to
-  // swap_reciprocity_tolerance in stage 1, for every input. A dry run (probe)
-  // records the frozen-state identities of the attempt and changes nothing.
+  // swap_reciprocity_tolerance in stage 1, for every input. The second
+  // condition, on the proposal densities, is a guard, not a requirement of
+  // exactness: with stage 2's exact ratio only stage 1's reciprocity enters
+  // detailed balance, and the guard only removes attempts whose two ends
+  // disagree. A dry run (probe) records the frozen-state identities of the
+  // attempt and changes nothing.
   void label_swap(RNG *rng, bool dry = false)
   {
     struct SwapScope {

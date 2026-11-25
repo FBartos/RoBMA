@@ -401,7 +401,7 @@ test_that("the block, gated and scalar samplers stop when the likelihood of the 
       })
       expect_true(startsWith(message, paste0("Error in node extreme\n", case$label, ": the log density of this ",
                                              "likelihood node is -5e+25")), info = label)
-      expect_true(grepl("tens of thousands of standard deviations", .sampler_error_hint(message), fixed = TRUE),
+      expect_true(grepl("far from the values the model gives them", .sampler_error_hint(message), fixed = TRUE),
                   info = label)
       expect_false(grepl("RoBMA.options", .sampler_error_hint(message), fixed = TRUE), info = label)
     }

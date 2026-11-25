@@ -3778,10 +3778,13 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
           // two probed means at a step of one (the design's and the bias
           // slopes' at the factory's baseline, the latent's at the update's
           // entry), so its error is at most 4 eps times the size of those
-          // means' terms (column_check's bound; for the latent the entry's
-          // terms, which can cancel: an intercept of 6,300 against a cluster
-          // effect of -6,300, then a latent change of 5e4, missed the
-          // tolerance above by twice it while adapting).
+          // means: for the design's and the bias slopes' columns the largest
+          // |mu| of the probes (X_size, column_size, column_check's bound,
+          // which does not cover a cancellation inside the graph's expression
+          // at the factory's baseline), for the latent the sum of the entry's
+          // absolute terms (_d_size), which can cancel: an intercept of 6,300
+          // against a cluster effect of -6,300, then a latent change of 5e4,
+          // missed the tolerance above by twice it while adapting.
           const double eps = std::numeric_limits<double>::epsilon();
           long double slopes = 0;
           for (unsigned k = 0; k < S.p; ++k) {

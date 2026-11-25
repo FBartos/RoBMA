@@ -397,7 +397,7 @@ test_that("fits whose bias samplers cannot resolve an admitted extreme estimate 
     backend <- fit(exempt)
     expect_length(backend$errors, 1L)
     expect_true(grepl("[RoBMA_likelihood_not_representable]", backend$errors, fixed = TRUE), info = exempt)
-    expect_true(grepl("tens of thousands of standard deviations", backend$errors, fixed = TRUE), info = exempt)
+    expect_true(grepl("far from the values the model gives them", backend$errors, fixed = TRUE), info = exempt)
   }
   # each sampler alone (the other's factory switched off: the weights on
   # BayesTools' gated slice sampler, the indicator on base::Finite)

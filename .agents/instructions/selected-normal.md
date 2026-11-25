@@ -742,10 +742,15 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   slope times its coordinate's change over the sweep, and each slope is a
   difference of two probed means at a step of one (the design's and the bias
   slopes' at the factory's baseline, the latent's at the update's entry), so
-  its error is at most `4 eps` times the size of those means' terms
-  (`column_check`'s bound; `X_size`, `column_size`, and per update `_d_size`,
-  the entry's terms, which can cancel), times the coordinate's absolute
-  change. Without it, rows at `3000`, `6000` and `8000 / 1e-6` (which the
+  its error is at most `4 eps` times the size of those means, times the
+  coordinate's absolute change. For the design's and the bias slopes' columns
+  the size is that of the probed means themselves, the largest `|mu|` of the
+  three probes (`X_size`, `column_size`, as `column_check` bounds a column);
+  it does not cover a cancellation inside the graph's expression at the
+  factory's baseline. For the latent it is the sum of the absolute terms of
+  the entry's means (`_d_size`: the entry mean, the design terms, the
+  latent's term and the bias slopes' terms at the entry label), since those
+  can cancel. Without it, rows at `3000`, `6000` and `8000 / 1e-6` (which the
   `GEN` measure admits) stopped some seeds in their first adapting sweeps: the
   latent, entering at a state where an intercept of about 6,300 and the
   cluster effect cancelled, jumped by 2e4 to 5e4 with a slope probed to
@@ -908,7 +913,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `swap_reciprocity_tolerance` (1e-9, about 1e4 times the residual of
   ordinary data; a missing Hastings term is at least 1e-3), or so does the
   sum of the two ends' log ratios of the proposal densities,
-  `log q(x|x') - log q(x'|x)` at each end's base point. Both ends evaluate
+  `log q(x|x') - log q(x'|x)` at each end's base point (a guard, not a
+  requirement of exactness: with stage 2's exact ratio below, only stage 1's
+  reciprocity enters detailed balance). Both ends evaluate
   the same two base points, so the rule decides the same from either end;
   after adaptation the counters keep the largest residuals of the attempts
   that went on to stage 2 (`max_swap_stage1_residual`,
@@ -934,7 +941,17 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `-log(1 + e^d)` of the difference `d` of the cell's two evidences
   (`swap_gate_log_probabilities`): normalized by their total, evidences of
   size 1e9 rounded the smaller cell's draw probability to zero while its
-  score kept 4.1e-8. The tilted fits of the location components (flips, refreshes and
+  score kept 4.1e-8. The draw `u < p` with JAGS's 32-bit uniform (values
+  `k 2^-32`) realizes the gate's probabilities on a grid of `2^-32`, as any
+  such draw does: at that pair (`d` = 17) the off cell's 4.14e-8 is drawn
+  with probability 4.12e-8 (log error -4.6e-3), at `d` = 20 the log error is
+  -0.10, and a cell below `2^-32` (`d` above 22.2) is never drawn while its
+  score stays `e^-d`; only events below about 1e-7 per attempt are affected.
+  The swap's evaluations at its base point, at its rebuilt end and at a
+  proposal it discards leave the sweep's evidence flag about the surrogate
+  (`_not_exact`) as it was (the working state's snapshot restores it; the
+  exact correction's ratio depends on the sweep's endpoints only); an
+  accepted proposal's evaluations keep it. The tilted fits of the location components (flips, refreshes and
   swaps, whose reverse fit is evaluated at inputs that differ from the
   forward ones by rounding) take their steps by the same rule, so they too
   agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
