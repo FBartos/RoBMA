@@ -220,7 +220,7 @@
 
 
 # The counters of a fit's retained runs, summed over runs and processes (the
-# 'max_' entries are maxima), or NULL when no report covers them.
+# 'max_' and '_max' entries are maxima), or NULL when no report covers them.
 .location_block_record <- function(values) {
 
   reports <- list()
@@ -231,7 +231,7 @@
   }
   if (length(reports) == 0L) return(NULL)
   counts <- do.call(rbind, reports)
-  maxima <- startsWith(colnames(counts), "max_")
+  maxima <- startsWith(colnames(counts), "max_") | endsWith(colnames(counts), "_max")
   record <- colSums(counts)
   record[maxima] <- apply(counts[, maxima, drop = FALSE], 2L, max)
   return(record)

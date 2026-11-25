@@ -733,12 +733,22 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   larger response (an offset of 32768 lost a row's entries while the column
   passed, corrections reached 141); and at run time the exact correction
   compares, after its write of the final state, every likelihood mean with
-  the block's: a mean the sweep did not move must be unchanged, a mean it
-  moved must equal the one the block tracked to within 1e-6 of the row's
+  the block's: a mean the sweep moved must equal the one the block tracked,
+  and a mean it did not move its entry mean, both to within 1e-6 of the row's
   conditional SD plus 1e-12 of the size of the means and design terms, so that
   an entry the probe missed is never hidden by another coefficient that moves
   the same child; either is the error `RoBMA_location_untracked_mean` naming
-  the child (the entry state restored; mutants 12 and 16 of the test hook).
+  the child (the entry state restored; mutants 12, 16 and 18 of the test
+  hook). An unmoved mean was once required to be bitwise unchanged, but the
+  graph's recomputation of it need not be (a Linux build with GCC 10.2.1 and
+  OpenBLAS 0.3.29 stopped `metafor-anova-rma-09` that way); the correction
+  does not re-evaluate the unmoved children's densities, so a change within
+  the tolerance alters the target by at most what the tracked comparison
+  accepts, while a dependence the probe missed changes the mean by far more.
+  After adaptation the block's counters record the unmoved comparisons that
+  were not bitwise equal (`unmoved_mean_inexact`) and their largest
+  discrepancy in the row's SDs (`unmoved_mean_max`; mutant 17 moves the entry
+  mean by one ulp); both are zero on the Windows build's fixtures.
   Each update rebuilds the Gaussian
   working model from the graph (block precisions from the children's own
   parameters, the latent column probed), runs the component list forward or

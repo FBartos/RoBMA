@@ -58,8 +58,10 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // bias label rejected by the exact correction, and with the probe a record
 // of the restored graph against the entry's, type 11; 16 the first
 // coordinate's entry dropped after the probe at the last row that another
-// coordinate also moves, a tracked mean the graph moves elsewhere). Returns
-// the previous value.
+// coordinate also moves, a tracked mean the graph moves elsewhere; 17 the
+// entry mean that the exact correction compares an unmoved mean with, one ulp
+// above it, within the tolerance; 18 that entry mean 1e-3 of the row's SD
+// above it, an untracked mean change). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.

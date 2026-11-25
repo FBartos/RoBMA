@@ -122,6 +122,11 @@ struct Counters {
   // sweeps whose cross-family swap (L2) made no proposal because its base
   // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable)
   std::atomic<std::uint64_t> swap_unrepresentable{0};
+  // after adaptation, the comparisons of an unmoved child's mean with its
+  // entry mean that were not bitwise equal (correct()), and the largest such
+  // discrepancy in the row's conditional SDs
+  std::atomic<std::uint64_t> unmoved_mean_inexact{0};
+  std::atomic<double> unmoved_mean_max{0.0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
@@ -3647,22 +3652,42 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // 1e-12 of the means' size (the rounding of the block's accumulated
     // changes and of the graph's expression), so that a design entry the probe
     // missed is not hidden by another coefficient that moves the same child.
+    // An unmoved mean is compared with its entry mean under the same
+    // tolerance: the graph's recomputation of a mean that nothing moved need
+    // not be bitwise identical on every platform (a Linux build with OpenBLAS
+    // changed one by rounding), and the correction does not re-evaluate the
+    // densities of the unmoved children, so a change within the tolerance
+    // alters the target by at most what the tracked comparison accepts; a
+    // dependence the probe missed changes the mean by far more. After
+    // adaptation the comparisons of unmoved means that are not bitwise equal
+    // are counted (unmoved_mean_inexact) with their largest discrepancy in
+    // the row's SDs (unmoved_mean_max).
     for (unsigned c = 0; c < S.children.size(); ++c) {
       ChildSpec const &child = S.children[c];
       double const *mean = child.node->parents()[0]->value(_chain);
+      const bool moved = _dirty[c] != 0;
       for (unsigned i = 0; i < child.n; ++i) {
         const unsigned row = child.row0 + i;
-        if (!_dirty[c]) {
-          if (mean[i] != _mean_entry[row]) throwNodeError(child.node, untracked_mean_message);
-          continue;
-        }
         const double sd = 1.0 / std::sqrt(_W[child.woff + i * child.n + i]);
+        double expected = moved ? _mean[row] : _mean_entry[row];
+        if (!moved) {
+          // mutants 17 and 18 (test hook): the entry mean an unmoved mean is
+          // compared with, one ulp above it or 1e-3 of the row's SD above it
+          if (S.mutant == 17) expected = std::nextafter(expected, std::numeric_limits<double>::infinity());
+          if (S.mutant == 18) expected += 1e-3 * sd;
+          if (mean[i] == expected) continue;
+        }
         // the size of the means and of the design's terms at the final state
-        double size = std::max(std::fabs(_mean_entry[row]), std::max(std::fabs(mean[i]), std::fabs(_mean[row])));
+        double size = std::max(std::fabs(_mean_entry[row]), std::max(std::fabs(mean[i]), std::fabs(expected)));
         for (unsigned k = 0; k < S.p; ++k) size += std::fabs(S.X[static_cast<std::size_t>(row) * S.p + k] * _b[k]);
         if (child.latent >= 0) size += std::fabs(_d[row] * _z[static_cast<unsigned>(child.latent)]);
-        if (!(std::fabs(mean[i] - _mean[row]) <= tracked_mean_tolerance * sd + tracked_mean_rounding * size)) {
-          throwNodeError(child.node, tracked_mean_message);
+        const double discrepancy = std::fabs(mean[i] - expected);
+        if (!moved && !_adapting) {
+          count(counters().unmoved_mean_inexact);
+          record_max(counters().unmoved_mean_max, discrepancy / sd);
+        }
+        if (!(discrepancy <= tracked_mean_tolerance * sd + tracked_mean_rounding * size)) {
+          throwNodeError(child.node, moved ? tracked_mean_message : untracked_mean_message);
         }
       }
     }
@@ -4340,8 +4365,8 @@ std::vector<char const *> const &location_block_report_names()
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
       "slice_refresh_groups", "slice_refresh_multi", "factorization_skips", "swap_unrepresentable",
-      "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
-      "max_stage2_gaussian"};
+      "unmoved_mean_inexact", "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
+      "max_stage2_gaussian", "unmoved_mean_max"};
     static std::vector<std::string> storage;
     for (int i = 0; i < component_count; ++i) {
       for (char const *stage : {"proposed", "stage0", "stage1", "accepted"}) {
@@ -4377,8 +4402,9 @@ std::vector<double> location_block_report(bool clear)
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
     take(c.slice_refresh_groups), take(c.slice_refresh_multi), take(c.factorization_skips),
-    take(c.swap_unrepresentable), take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
-    take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
+    take(c.swap_unrepresentable), take(c.unmoved_mean_inexact), take_max(c.max_correction),
+    take_max(c.max_correction_gaussian), take_max(c.max_endpoint), take_max(c.max_endpoint_change),
+    take_max(c.max_stage2_gaussian), take_max(c.unmoved_mean_max)};
   for (int i = 0; i < component_count; ++i) {
     out.push_back(take(c.proposed[i]));
     out.push_back(take(c.stage0[i]));

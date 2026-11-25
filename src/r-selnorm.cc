@@ -701,8 +701,8 @@ extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
 {
   ROBMA_NATIVE_BEGIN(mutant, probe)
   if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
-      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 16)) {
-    Rf_error("The location block mutant must be NULL or one integer between 0 and 16.");
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 18)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 18.");
   }
   if (probe != R_NilValue && (TYPEOF(probe) != LGLSXP || XLENGTH(probe) != 1 ||
       LOGICAL(probe)[0] == NA_LOGICAL)) {

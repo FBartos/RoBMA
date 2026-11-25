@@ -32,6 +32,7 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
                    c(0, 0, 0))
   expect_gt(counters[["flip_on_accepted"]], 1000)
   expect_identical(counters[["factorization_skips"]], 0)
+  expect_identical(unname(counters[c("unmoved_mean_inexact", "unmoved_mean_max")]), c(0, 0))
   # frozen-state identity: the collapsed odds and line laws equal the direct
   # Gaussian evaluation of priors, children and proposals
   expect_lt(max(abs(chain$probe$full - chain$probe$stage1)), 1e-10)
@@ -158,6 +159,59 @@ test_that("the factory verifies each design column against its baseline, and an 
   }
   expect_match(error, "RoBMA_location_untracked_mean", fixed = TRUE)
   expect_match(error, "node y", fixed = TRUE)
+  jags$sync()
+  expect_identical(jags$state()[[1L]], entry)
+})
+
+
+test_that("an unmoved mean may differ from its entry mean by rounding, not beyond the tracked tolerance", {
+
+  skip_if_not_installed("rjags")
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  # mu = offset + beta (the model of the previous test): a sweep that keeps the
+  # gate off draws the slab and moves no mean. The exact correction compares
+  # y's mean with its entry mean under the tolerance of a tracked mean (1e-6
+  # of the row's SD plus 1e-12 of the means' size): mutant 17 compares it
+  # with the entry mean one ulp above, which passes and is counted after
+  # adaptation; mutant 18 with the entry mean 1e-3 SD above, the classed
+  # error naming y. The comparison draws nothing, so the chains agree.
+  model <- list(syntax = paste(c(
+    "model {", "  g ~ dcat(p[])", "  slab ~ dnorm(0, 1)", "  offset ~ dnorm(0, 1)",
+    "  beta <- zero * (g == 1) + slab * (g == 2)", "  mu <- offset + beta", "  y ~ dnorm(mu, 1)",
+    "  t1 <- robma_location_group(g, slab, 2, beta, 1)", "  t2 <- robma_location_setup(g, 1, 0)", "}"),
+    collapse = "\n"), data = list(p = c(.5, .5), zero = 0, y = .8))
+  chain <- function(mutant) .location_hand_chain(model, c("g", "slab", "offset"), draws = 2000L, mutant = mutant)
+  exact <- chain(0L)
+  expect_identical(exact$decision, "claimed without latents")
+  expect_identical(unname(exact$counters[c("unmoved_mean_inexact", "unmoved_mean_max")]), c(0, 0))
+  ulp <- chain(17L)
+  expect_identical(ulp$draws, exact$draws)
+  # the gate is off in about half of the draws
+  expect_gt(ulp$counters[["unmoved_mean_inexact"]], 200)
+  expect_gt(ulp$counters[["unmoved_mean_max"]], 0)
+  expect_lt(ulp$counters[["unmoved_mean_max"]], 1e-12)
+
+  .location_hook(mutant = 18L)
+  on.exit(.location_hook(mutant = 0L), add = TRUE)
+  connection <- textConnection(model$syntax)
+  jags <- rjags::jags.model(connection, data = model$data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
+    inits = list(g = 1L, slab = 0.3, offset = 0, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 376L))
+  close(connection)
+  .location_hook(mutant = 0L)
+  expect_true("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)))
+  rjags::adapt(jags, 0L, end.adaptation = TRUE)
+  error <- NULL
+  for (iteration in 1:50) {
+    jags$sync()
+    entry <- jags$state()[[1L]]
+    error <- tryCatch({
+      stats::update(jags, n.iter = 1L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+    if (!is.null(error)) break
+  }
+  expect_match(error, paste0("Error in node y\nLocation block sampler [RoBMA_location_untracked_mean]: the mean of ",
+                             "this likelihood node changed in a sweep that did not move it"), fixed = TRUE)
   jags$sync()
   expect_identical(jags$state()[[1L]], entry)
 })
@@ -485,6 +539,7 @@ test_that("frozen-state identities of the line moves hold in selection and Gauss
   counters <- attr(gaussian[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]][["counters"]]
   expect_lt(counters[["max_correction_gaussian"]], 1e-10)
   expect_identical(unname(counters[c("surrogate_evaluations", "exact_evaluations")]), c(0, 0))
+  expect_identical(unname(counters[c("unmoved_mean_inexact", "unmoved_mean_max")]), c(0, 0))
 })
 
 
