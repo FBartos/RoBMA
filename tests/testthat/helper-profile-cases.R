@@ -176,7 +176,9 @@ standard_required_tests <- function() {
       "the scale owner claims the declared sources and embeds their ordinary samplers",
       "frozen states: the scale move keeps the children, the gamma total and its group law, and its density is Liu and Sabatti's",
       "the production slice leaves a broad bounded target invariant and a fixed cap per side does not",
-      "the invariance check declines a dependence on the sampled SD that only the open gate shows"
+      "a dependence on the sampled SD that only the open gate shows is an error at the first move",
+      "the move acts on weights within [2^-20, 1 - 2^-20] with a stable chart and is the identity beyond",
+      "ownership does not depend on initial values, and a move that changes the likelihood is an error"
     )),
     .required_tests("test-00-carrier-integration.R", c(
       "public no-intercept moderator means use the fitted contrast basis",
