@@ -455,7 +455,8 @@ certification_cases <- function() {
           "the scale move keeps the exact posterior of the heterogeneity and broken moves do not",
           "the location block over step-selection rows targets the exact posterior in both effect directions",
           "the location block over dense multivariate selection blocks targets the exact posterior",
-          "a two-coordinate slab, the forced slice refresh and the exact mode after the fallback are exact"
+          "a two-coordinate slab, the forced slice refresh and the exact mode after the fallback are exact",
+          "the location block keeps its sampler in parallel workers"
         )),
         .required_tests("test-00-sampler-declarations-fits.R", c(
           "declared nodes get the BayesTools samplers and the others keep theirs",

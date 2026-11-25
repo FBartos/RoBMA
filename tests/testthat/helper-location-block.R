@@ -226,6 +226,23 @@
 }
 
 
+# Data of the public location block fits: 8 studies of 3 estimates with
+# independent sampling errors (several likelihood blocks share each study
+# effect), a three-level factor, and a numeric moderator with overwhelming
+# evidence; no heterogeneity.
+.location_test_data <- function() {
+
+  data.frame(
+    study = rep(1:8, each = 3L),
+    group = factor(rep(c("a", "b", "c"), 8L)),
+    x     = rep(c(-1, 0, 1), 8L) + rep(seq(-0.2, 0.2, length.out = 8L), each = 3L),
+    yi    = 0.15 + 0.8 * (rep(c(-1, 0, 1), 8L) + rep(seq(-0.2, 0.2, length.out = 8L), each = 3L)) +
+      rep(c(0.03, -0.02, 0.05, -0.04, 0.01, 0.02, -0.03, 0.04), 3L),
+    vi    = rep(c(0.002, 0.003, 0.0025), 8L)
+  )
+}
+
+
 # ---------------------------------------------------------------------------- #
 # The selection fixture: three clusters of 4, 3 and 3 estimates with
 # strongly correlated sampling errors (rank-one cluster selection blocks,

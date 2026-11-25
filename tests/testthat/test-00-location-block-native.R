@@ -470,22 +470,6 @@ test_that("the closed-form tilt of a step-selection row has the derivatives of i
 })
 
 
-.location_test_data <- function() {
-
-  # 8 studies of 3 estimates with independent sampling errors (several
-  # likelihood blocks share each study effect), a three-level factor, and a
-  # numeric moderator with overwhelming evidence; no heterogeneity
-  data.frame(
-    study = rep(1:8, each = 3L),
-    group = factor(rep(c("a", "b", "c"), 8L)),
-    x     = rep(c(-1, 0, 1), 8L) + rep(seq(-0.2, 0.2, length.out = 8L), each = 3L),
-    yi    = 0.15 + 0.8 * (rep(c(-1, 0, 1), 8L) + rep(seq(-0.2, 0.2, length.out = 8L), each = 3L)) +
-      rep(c(0.03, -0.02, 0.05, -0.04, 0.01, 0.02, -0.03, 0.04), 3L),
-    vi    = rep(c(0.002, 0.003, 0.0025), 8L)
-  )
-}
-
-
 test_that("frozen-state identities of the line moves hold in selection and Gaussian labels", {
 
   skip_if_not_installed("rjags")
@@ -543,16 +527,16 @@ test_that("frozen-state identities of the line moves hold in selection and Gauss
 })
 
 
-test_that("the location block owns eligible fits, keeps its sampler on update() and in parallel, and declines otherwise", {
+test_that("the location block owns eligible fits, keeps its sampler on update() and declines otherwise", {
 
+  # in parallel: test-00-location-block-exactness.R (certification)
   skip_if_not_installed("rjags")
   options <- RoBMA.options()[c("sampler.joint", "selection.sampler", "sampler.probabilities")]
   on.exit(do.call(RoBMA.options, options), add = TRUE)
   dat <- .location_test_data()
-  fit_bma <- function(..., mods = ~ group, chains = 1L, parallel = FALSE) {
+  fit_bma <- function(..., mods = ~ group) {
     .location_one_chain(BMA.mv(yi = yi, V = vi, mods = mods, random = ~ 1 | study, data = dat, measure = "SMD",
-           adapt = 60L, burnin = 50L, sample = 100L, chains = chains, parallel = parallel, seed = 5L,
-           autofit = FALSE, silent = TRUE, ...))
+           adapt = 60L, burnin = 50L, sample = 100L, chains = 1L, seed = 5L, autofit = FALSE, silent = TRUE, ...))
   }
   owned <- function(fit) {
     table <- fit[["fit"]][["samplers"]]
@@ -574,15 +558,6 @@ test_that("the location block owns eligible fits, keeps its sampler on update() 
   extended <- .location_one_chain(update(eligible, sample_extend = 40L))
   expect_setequal(owned(extended), members)
   expect_identical(nrow(as.matrix(extended[["fit"]][["mcmc"]])), 140L)
-
-  parallel <- fit_bma(chains = 2L, parallel = TRUE)
-  workers <- parallel[["fit"]][["samplers_by_worker"]]
-  if (is.null(workers)) workers <- list(list(samplers = parallel[["fit"]][["samplers"]]))
-  for (worker in workers) {
-    expect_setequal(worker[["samplers"]][["Node"]][worker[["samplers"]][["Sampler"]] == "RoBMA::LocationBlock"],
-                    members)
-  }
-  expect_identical(request(parallel)[["status"]], "active")
 
   RoBMA.options(sampler.joint = "off")
   expect_length(owned(fit_bma()), 0L)

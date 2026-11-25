@@ -294,3 +294,29 @@ test_that("the scale move keeps the exact posterior of the heterogeneity and bro
   expect_false(attr(broken$comparison, "passes"),
                info = paste("mutant 1:", paste(round(broken$comparison$z, 2), collapse = " ")))
 })
+
+
+test_that("the location block keeps its sampler in parallel workers", {
+
+  skip_if_not_certification("This parallel fit runs in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # the standard profile loads the package with pkgload::load_all() while
+  # parallel workers load the installed build, which BayesTools refuses
+  dat <- .location_test_data()
+  request <- function(fit) attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]]
+  # with the study effects, the heterogeneity scale's source (LocationScale.cc)
+  members <- c("mu_intercept_indicator", "mu_intercept_component_2", "mu_group_indicator",
+               "mu_group_component_2", paste0("mu__xREx__study_xRE_Zx[", 1:8, ",1]"),
+               "mu__xRE_ALLOCx_heterogeneity__allocation_sd")
+
+  parallel <- .location_one_chain(BMA.mv(yi = yi, V = vi, mods = ~ group, random = ~ 1 | study, data = dat,
+    measure = "SMD", adapt = 60L, burnin = 50L, sample = 100L, chains = 2L, parallel = TRUE, seed = 5L,
+    autofit = FALSE, silent = TRUE))
+  workers <- parallel[["fit"]][["samplers_by_worker"]]
+  if (is.null(workers)) workers <- list(list(samplers = parallel[["fit"]][["samplers"]]))
+  for (worker in workers) {
+    expect_setequal(worker[["samplers"]][["Node"]][worker[["samplers"]][["Sampler"]] == "RoBMA::LocationBlock"],
+                    members)
+  }
+  expect_identical(request(parallel)[["status"]], "active")
+})
