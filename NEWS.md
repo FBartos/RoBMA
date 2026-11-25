@@ -24,6 +24,8 @@
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default, also for their jointly sampled parameter blocks; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
+- `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each automatic extension from the failed convergence check
+- automatic fitting stops once every diagnostic that can be assessed meets its criterion instead of extending until `max_time` or `max_extend` for parameters whose diagnostics cannot be assessed
 
 ### Fixes
 - JASP fits retain the requested draws per chain and report selection sampler acceptance across the full sampling run
