@@ -272,7 +272,8 @@ test_that("the automatic-fitting control has no allow_not_assessable", {
   # parameters that cannot be assessed; set_convergence_checks() keeps it
   expect_identical(names(set_autofit_control()), c(
     "max_Rhat", "min_ESS", "max_error", "max_SD_error", "max_time",
-    "sample_extend", "restarts", "max_extend", "check_indicators", "monitor"
+    "sample_extend", "restarts", "max_extend", "check_indicators", "monitor",
+    "burnin_max_Rhat", "burnin_extend", "burnin_max_extend"
   ))
   expect_false("allow_not_assessable" %in% names(formals(set_autofit_control)))
   expect_error(set_autofit_control(allow_not_assessable = TRUE), "unused argument")
