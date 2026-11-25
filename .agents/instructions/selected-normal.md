@@ -670,7 +670,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   than the plain draw. The exact
   kernel is base::Finite's enumeration, arithmetic and single uniform (tested
   draw for draw against base::Finite, and against quadrature with the gated
-  block's exact kernel after a forced fallback). The
+  block's exact kernel after a forced fallback); its evidence record sums the
+  other levels' masses directly (a difference of the cumulative total
+  recorded 0 for a leave probability of 1e-30). The
   `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
   Batch scoring of the six selection labels was not built.
 - Row cache of step-switch rows (`src/samplers/StepRowCache.{h,cc}`): the
@@ -842,10 +844,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `1e-10 (1 + |f|)` (`fit_tolerance`), so a step whose change is at the
   rounding level is taken at both ends and the two ends' fits take the same
   steps (accepting on `f(next) >= f0` let rounding decide the last step and
-  left residuals up to 8.1e-8). Measured: at most 1.6e-12 relative over 30
-  chain seeds of each fixture variant (126,000 records), the two
-  directions' probability flows at most 2.2e-11; the tests bound ten times
-  that. The tilted fits of the location components (flips, refreshes and
+  left residuals up to 8.1e-8). Measured on the Windows build: at most
+  9.4e-12 relative over chain seeds 101-130 of each fixture variant (40,500
+  records), the two directions' probability flows at most 3.5e-11; a
+  missing Hastings term is at least 1e-3, so the tests bound both by 1e-9,
+  which leaves room for other platforms' rounding (the residual grows with
+  the size of the terms: 1.6e-8 with one row of `y = 20`, `se = 1e-4`). The tilted fits of the location components (flips, refreshes and
   swaps, whose reverse fit is evaluated at inputs that differ from the
   forward ones by rounding) take their steps by the same rule, so they too
   agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;

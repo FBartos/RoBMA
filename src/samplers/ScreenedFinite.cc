@@ -279,19 +279,26 @@ double ScreenedFiniteKernel::enumerate(RNG *rng, std::function<void(double)> con
     }
     if (likelihood[i] > maximum) maximum = likelihood[i];
   }
+  // the masses summed as base::Finite sums them (the draw), and the other
+  // levels' masses summed directly for the record (a difference of the
+  // cumulative total would lose a small positive leave probability)
   double total = 0;
+  double stay = 0;
+  long double others = 0;
   for (unsigned int i = 0; i < _levels; ++i) {
-    total += std::exp(likelihood[i] - maximum);
+    const double mass = std::exp(likelihood[i] - maximum);
+    total += mass;
     likelihood[i] = total;
+    if (static_cast<long>(i) == current) stay = mass;
+    else others += mass;
   }
   if (!std::isfinite(total)) throwNodeError(_node, "Cannot normalize density");
   const double draw = rng->uniform() * total;
   const long index = std::upper_bound(likelihood.begin(), likelihood.end(), draw) - likelihood.begin();
   set_value(_lower + index);
-  // the exact probability of leaving the entry level (cumulative masses)
+  // the exact probability of leaving the entry level
   if (current < 0 || current >= static_cast<long>(_levels)) return 0.0;
-  const double stay = likelihood[current] - (current > 0 ? likelihood[current - 1] : 0.0);
-  return (total - stay) / total;
+  return static_cast<double>(others / (others + stay));
 }
 
 void ScreenedFiniteKernel::scores(std::function<void(double)> const &set_value, double restore,

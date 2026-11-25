@@ -296,6 +296,24 @@ test_that("the screened evidence records the move probability of the kernel that
   expect_lt(mixture[["leave_sum"]], updates)
   expect_true(mixture[["leave_sum"]] * 2 == round(mixture[["leave_sum"]] * 2))
   expect_lt(abs(mixture[["changes"]] - mixture[["leave_sum"]]), 4 * sqrt(updates / 4))
+
+  # a level of prior mass 1e-30 after a forced fallback: the exact
+  # enumeration records its leave probability from the other levels' masses
+  # summed directly (a difference of the cumulative total recorded 0)
+  tiny <- "model {\n  b ~ dcat(prior[1:2])\n  mode <- equals(b, 2)\n  y ~ dselnorm_step_switch(0, 1, 1, 1, w[1:2], lo[1:2], hi[1:2], 1, 1, mode, 1)\n}"
+  invisible(gc())
+  hand <- .with_corrected_flags(list(force_fallback = TRUE), {
+    hand <- .block_hand_model(tiny, list(prior = c(1, 1e-30), w = c(1, 1), y = .25, lo = c(0, -1e300),
+                                         hi = c(1e300, 0)), inits = list(b = 1L))
+    rjags::adapt(hand$model, 0L, end.adaptation = TRUE)
+    hand
+  })
+  exact <- utils::tail(.weights_screened_scores(), 1L)[[1L]]$exact
+  expect_identical(.selection_sampler_report_read()[["fallback_low_acceptance"]], 1)
+  stats::update(hand$model, n.iter = 6L, progress.bar = "none")
+  row <- .selection_sampler_report_read()$screened[1L, ]
+  expect_identical(unname(row[["updates"]]), 6)
+  expect_lt(abs(row[["leave_max"]] / stats::plogis(exact[[2L]] - exact[[1L]]) - 1), 1e-12)
 })
 
 

@@ -121,8 +121,9 @@ test_that("the factory verifies each design column against its baseline, and an 
     near <- run(0, gate)
     expect_identical(near$decision, "claimed without latents")
     far <- run(2^55, gate)
-    expect_identical(far$decision,
-                     "design probe: a coordinate's perturbation is not representable against the baseline means")
+    # the decline names a column that changes no mean
+    expect_identical(far$decision, paste0("design probe: a coordinate's perturbation changes no mean, against ",
+                                          "nonzero baseline means (its column is zero or lost to their rounding)"))
     expect_false("RoBMA::LocationBlock" %in% far$owners)
     # declined or correct, never frozen
     for (fit in list(near, far)) {

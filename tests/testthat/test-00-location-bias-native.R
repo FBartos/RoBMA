@@ -174,23 +174,25 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     # the rounding of the Laplace laws refitted at the other end: the base
     # point's functions rebuilt from either end agree to rounding (below), and
     # the damped Newton fits take every step whose change of the objective is
-    # at the rounding level, so both ends take the same steps. Measured maximum
-    # 1.6e-12 relative over 30 chain seeds of each variant (126,000 records);
-    # the bound is ten times that. From the forward move's base quantities the
-    # reverse is the inverse to rounding
-    expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-10, label = label)
-    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1.65e-11, label = label)
+    # at the rounding level, so both ends take the same steps. Measured maxima
+    # over chain seeds 101-130 of each variant (40,500 records, Windows build):
+    # 5.4e-12 relative for stage 1 and 9.4e-12 for the full ratio. A missing
+    # Hastings term is at least 1e-3, so the bounds are 1e-9, which leave room
+    # for the rounding of other platforms and compilers. From the forward
+    # move's base quantities the reverse is the inverse to rounding
+    expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-9, label = label)
+    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-9, label = label)
     expect_lt(max(abs(shared$stage1) / pmax(1, abs(reciprocal$stage1))), 1e-12, label = label)
     expect_lt(max(abs(shared$full) / pmax(1, abs(reciprocal$selection_part))), 1e-12, label = label)
     expect_lt(max(base_point$stage1, base_point$full), 1e-12, label = label)
     # E_0, the shears, the evidences and the label proposals agree; the
     # accepted flows of the two directions are equal up to the same rounding
-    # of the refitted laws (measured maximum 2.2e-11 over the same seeds; the
-    # bound is ten times that)
+    # of the refitted laws (measured maximum 3.5e-11 over the same seeds; the
+    # bound is 1e-9, as above)
     expect_lt(max(rebuilt$stage1), 1e-12, label = label)
     expect_lt(max(rebuilt$full), 1e-9, label = label)
     expect_lt(max(rebuilt$selection_part), 1e-12, label = label)
-    expect_lt(max(abs(rebuilt$log_odds)), 2.3e-10, label = label)
+    expect_lt(max(abs(rebuilt$log_odds)), 1e-9, label = label)
     expect_lt(max(plane$stage1 / plane$full), 1e-10, label = label)
     expect_gt(nrow(scores), 500L, label = label)
     expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
@@ -460,9 +462,9 @@ test_that("the bias swap's and the label update's identities hold with the coin 
     scores <- probe[probe$type == "label", ]
     label <- paste("coin", coin)
     expect_gt(nrow(reciprocal), 500L, label = label)
-    expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-10, label = label)
-    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1.65e-11, label = label)
-    expect_lt(max(abs(rebuilt$log_odds)), 2.3e-10, label = label)
+    expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-9, label = label)
+    expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-9, label = label)
+    expect_lt(max(abs(rebuilt$log_odds)), 1e-9, label = label)
     expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
     expect_gt(chain$counters[["bias_label_accepted"]], 0, label = label)
   }

@@ -3458,11 +3458,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   }
 
   // Test hook (mutant 15 with the probe): the graph's endpoints, read
-  // independently of the block's buffers: the members' values, every parent
-  // value of every stochastic child of the view (the likelihood children, the
-  // gate markers and the nested node: means, weights, kernel modes, rules and
-  // the nested node's parameters), and their densities (JAGS's own
-  // logDensity, PDF_LIKELIHOOD) with the members' prior densities.
+  // independently of the block's buffers: the members' values, the values of
+  // the view's deterministic descendants and every parent value of every
+  // stochastic child of the view (the likelihood children, the gate markers
+  // and the nested node: means, weights, kernel modes, rules and the nested
+  // node's parameters), and their densities (JAGS's own logDensity,
+  // PDF_LIKELIHOOD) with the members' prior densities.
   struct Endpoints {
     Vec members, parents, densities;
   };
@@ -3474,6 +3475,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     _view->getValue(out.members, _chain);
     out.parents.clear();
     out.densities.clear();
+    for (DeterministicNode const *node : _view->deterministicChildren()) {
+      double const *value = node->value(_chain);
+      out.parents.insert(out.parents.end(), value, value + node->length());
+    }
     for (StochasticNode const *child : _view->stochasticChildren()) {
       for (Node const *parent : child->parents()) {
         double const *value = parent->value(_chain);
@@ -3492,12 +3497,15 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   {
     Endpoints now;
     entry_endpoints(now);
+    // finiteness first: a NaN or infinite value against another value counts
+    // as an infinite difference (std::max would keep a NaN difference out)
     auto difference = [](Vec const &a, Vec const &b) {
-      if (a.size() != b.size()) return std::numeric_limits<double>::infinity();
+      const double infinite = std::numeric_limits<double>::infinity();
+      if (a.size() != b.size()) return infinite;
       double out = 0.0;
       for (std::size_t i = 0; i < a.size(); ++i) {
-        if (!(a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i])))) out = std::max(out, std::fabs(a[i] - b[i]));
-        if (std::isnan(out)) out = std::numeric_limits<double>::infinity();
+        if (a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i]))) continue;
+        out = std::isfinite(a[i]) && std::isfinite(b[i]) ? std::max(out, std::fabs(a[i] - b[i])) : infinite;
       }
       return out;
     };
@@ -4034,7 +4042,12 @@ bool probe_design(GraphView const &view, Shared &S)
         means(mu2);
         double scale = 0.0;
         const ColumnCheck check = column_check(mu0, mu1, mu2, 1.0, &scale);
-        if (check == column_unrepresentable) {
+        if (check == column_unrepresentable && scale == 0.0) {
+          // no mean responds at all: a zero column against baseline means
+          // whose rounding could hide a response
+          ok = fail("design probe: a coordinate's perturbation changes no mean, against nonzero baseline means "
+                    "(its column is zero or lost to their rounding)");
+        } else if (check == column_unrepresentable) {
           ok = fail("design probe: a coordinate's perturbation is not representable against the baseline means");
         } else if (check == column_nonlinear) {
           ok = fail("design probe: the means are not linear in a coordinate");
