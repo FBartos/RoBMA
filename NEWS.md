@@ -15,14 +15,16 @@
 - `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
 - Eligible independent selection and one-moderator Gaussian ensembles use joint updates by default, with automatic Gaussian updates limited to 800 estimates. `sampler.joint = "bias"` also supports additive selection meta-regressions.
-- `sampler.nested.weights` enables shared weights for nested selection models and `sampler.probabilities` records conditional indicator probabilities
+- `sampler.nested.weights` shares weights of nested selection models (on by default) and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
+- model-averaged fits with multilevel or clustered estimates, and fits with moderator inclusion indicators, update their location terms, publication-bias indicator and heterogeneity with the location block sampler; draws differ from earlier versions (option `sampler.joint`)
+- fits stop with an explanation when an estimate is too far from every value the model can give it for the likelihood to be computed accurately
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default, also for their jointly sampled parameter blocks; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
-- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
+- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance and how often its indicators switched (option `selection.coarse_min_acceptance`)
 
 ### Fixes
 - JASP fits retain the requested draws per chain and report selection sampler acceptance across the full sampling run
