@@ -12,8 +12,11 @@ skip_on_cran()
 #
 # Rule, fixed before the runs: each observable's z-score is its distance from
 # the reference over the standard error of 50 batch means (and the reference's
-# allowance); an exact kernel passes when every |z| <= 4, and a mutant of the
-# test hook (the gamma groups without the Jacobian of the proportions, the
+# allowance); an exact kernel passes when every required observable is
+# compared and every |z| is finite and at most 4 (a frozen chain, with no
+# variance, fails; only the predeclared structural constant of a fixture with
+# one label, its indicator, is compared by value), and a mutant of the test
+# hook (the gamma groups without the Jacobian of the proportions, the
 # screened indicator without its correction, a fixed sweep order) is detected
 # when some |z| >= 6. Certification case 'numerical-kernels'.
 
@@ -30,21 +33,43 @@ skip_on_cran()
   observables <- .weights_observables(chain$draws, setup)
   targets <- c(reference$estimate, if (3L %in% setup$branches) .weights_total_reference(setup))
   allowance <- c(reference$allowance, if (3L %in% setup$branches) c(T = 0, T2 = 0))
-  comparison <- .weights_compare(observables, targets[colnames(observables)], allowance[colnames(observables)])
-  # a single label has no indicator variance
-  comparison[is.finite(comparison$z), ]
+  # a single label's indicator is a structural constant
+  .weights_compare(observables, targets, allowance, constants = .weights_constants(setup))
 }
 
 .weights_expect_exact <- function(comparison, label) {
 
-  expect_true(all(abs(comparison$z) <= 4), info = paste(label, paste(sprintf("%s=%.2f", comparison$quantity,
-                                                                           comparison$z), collapse = " ")))
+  expect_true(.weights_is_exact(comparison),
+              info = paste(label, paste(sprintf("%s=%.2f", comparison$quantity, comparison$z), collapse = " ")))
 }
 
 .weights_expect_detected <- function(comparison, label) {
 
-  expect_gte(max(abs(comparison$z)), 6, label = paste(label, "largest |z|"))
+  expect_gte(max(abs(comparison$z), na.rm = TRUE), 6, label = paste(label, "largest |z|"))
 }
+
+
+test_that("the comparison fails a frozen chain and needs every observable", {
+
+  # a gamma total frozen at 7 against its reference 3 (no variance, no
+  # allowance) and a mixing indicator
+  observables <- cbind(T = rep(7, 100), I1 = rep(c(0, 1, 1, 1), 25))
+  frozen <- .weights_compare(observables, c(T = 3, I1 = .75))
+  expect_identical(frozen$z[frozen$quantity == "T"], Inf)
+  expect_false(.weights_is_exact(frozen))
+  # frozen at its reference value: undefined, not exact unless declared constant
+  observables[, "T"] <- 3
+  expect_false(.weights_is_exact(.weights_compare(observables, c(T = 3, I1 = .75))))
+  expect_true(.weights_is_exact(.weights_compare(observables, c(T = 3, I1 = .75), constants = "T")))
+  # a declared constant is checked against its reference value
+  constant <- .weights_compare(observables, c(T = 2, I1 = .75), constants = "T")
+  expect_identical(constant$z[constant$quantity == "T"], Inf)
+  expect_false(.weights_is_exact(constant))
+  # every required observable is compared, and every observable has a reference
+  expect_error(.weights_compare(observables, c(T = 3, I1 = .75, I2 = .1)), "needs a reference")
+  expect_error(.weights_compare(observables, c(T = 3)), "needs a reference")
+  expect_false(.weights_is_exact(frozen[0L, ]))
+})
 
 
 test_that("the three-branch ensemble is exact and its mutants are not", {

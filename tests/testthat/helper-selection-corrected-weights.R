@@ -237,6 +237,14 @@
 }
 
 
+# The predeclared structural constants of a weights fixture: the indicator of
+# its only label.
+.weights_constants <- function(setup) {
+
+  if (length(setup$branches) == 1L) paste0("I", setup$branches) else character()
+}
+
+
 # Reference values of the gamma total (its law is the prior's under every label).
 .weights_total_reference <- function(setup) {
 
@@ -247,9 +255,23 @@
 
 # Batch-means comparison of a chain's observables with a reference: the
 # estimate, its standard error from `batches` batch means and the z-score
-# (estimate - reference) / sqrt(se^2 + allowance^2).
-.weights_compare <- function(observables, reference, allowance = 0 * reference, batches = 50L) {
+# (estimate - reference) / sqrt(se^2 + allowance^2). The reference names the
+# required observables: each must be a column of `observables` with an
+# allowance, and each column must have a reference. `constants` names
+# predeclared structural constants (the indicator of a fixture's only label),
+# whose z-score is 0 when every draw equals the reference and Inf otherwise.
+# Every other z-score stays as computed, so a frozen chain (no variance, no
+# allowance) gives an infinite or undefined z that fails .weights_is_exact().
+.weights_compare <- function(observables, reference, allowance = 0 * reference, batches = 50L,
+                             constants = character()) {
 
+  required <- names(reference)
+  if (length(required) == 0L || anyNA(required) || anyNA(reference) ||
+      !setequal(required, colnames(observables)) || !setequal(names(allowance), required) ||
+      !all(constants %in% required)) {
+    stop("Every observable of the comparison needs a reference and an allowance.", call. = FALSE)
+  }
+  allowance <- allowance[required]
   n <- nrow(observables)
   size <- n %/% batches
   index <- rep(seq_len(batches), each = size)
@@ -257,10 +279,17 @@
   means <- apply(kept, 2L, function(column) tapply(column, index, mean))
   estimate <- colMeans(kept)
   se <- apply(means, 2L, stats::sd) / sqrt(batches)
-  names <- names(reference)
-  data.frame(quantity = names, estimate = estimate[names], reference = unname(reference),
-             se = se[names], z = (estimate[names] - reference) / sqrt(se[names]^2 + allowance[names]^2),
-             row.names = NULL)
+  z <- (estimate[required] - reference) / sqrt(se[required]^2 + allowance^2)
+  for (constant in constants) z[[constant]] <- if (all(observables[, constant] == reference[[constant]])) 0 else Inf
+  data.frame(quantity = required, estimate = estimate[required], reference = unname(reference),
+             se = se[required], z = unname(z), row.names = NULL)
+}
+
+# The exactness rule (fixed before the runs): a comparison of at least one
+# observable whose z-scores are all finite and at most 4 in absolute value.
+.weights_is_exact <- function(comparison) {
+
+  nrow(comparison) > 0L && all(is.finite(comparison$z)) && all(abs(comparison$z) <= 4)
 }
 
 

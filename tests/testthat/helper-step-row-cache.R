@@ -321,8 +321,7 @@
   chain <- .with_row_flags(row_flags, .with_corrected_flags(flags, .block_chain(
     .rows_nested_model(setup), c("b", "a", "v", "u", "pet"), draws, adapt = 500L, burnin = 500L)))
   observables <- .rows_nested_observables(chain$draws)
-  comparison <- .weights_compare(observables, reference$estimate[colnames(observables)],
-                                 reference$allowance[colnames(observables)])
+  comparison <- .weights_compare(observables, reference$estimate, reference$allowance)
   attr(comparison, "kinds") <- .corrected_test_hook(clear = TRUE)$kinds
   attr(comparison, "samplers") <- chain$samplers
   comparison
@@ -460,8 +459,8 @@
   observables <- .weights_observables(chain$draws, setup)
   targets <- c(reference$estimate, if (3L %in% setup$branches) .weights_total_reference(setup))
   allowance <- c(reference$allowance, if (3L %in% setup$branches) c(T = 0, T2 = 0))
-  comparison <- .weights_compare(observables, targets[colnames(observables)], allowance[colnames(observables)])
-  comparison <- comparison[is.finite(comparison$z), ]
+  # a single label's indicator is a structural constant
+  comparison <- .weights_compare(observables, targets, allowance, constants = .weights_constants(setup))
   # the corrected samplers' proposals and accepted corrections (adaptation included)
   attr(comparison, "kinds") <- .corrected_test_hook(clear = TRUE)$kinds
   comparison
