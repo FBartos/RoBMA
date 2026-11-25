@@ -1,4 +1,3 @@
-probe_state("test-00-review-draws-default.R")
 test_that("generic brma_samples draws preserve chains and iteration identity", {
 
   samples <- .new_brma_samples(matrix(c(1, 2, 10, 20, 3, 4, 30, 40), 4L,

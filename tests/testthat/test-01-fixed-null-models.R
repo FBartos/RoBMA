@@ -1,4 +1,3 @@
-probe_state("test-01-fixed-null-models.R")
 context("Fully fixed point-prior models")
 
 source(testthat::test_path("common-functions.R"))

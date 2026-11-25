@@ -1,4 +1,3 @@
-probe_state("test-00-indicator-traces.R")
 test_that("bias component plots and switching use the categorical monitor", {
   dat <- data.frame(yi = c(.2, .4, .1, .3), sei = rep(.1, 4))
   setup <- review_compile_object(RoBMA(

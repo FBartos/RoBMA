@@ -1,4 +1,3 @@
-probe_state("test-00-review-hypothesis-groups.R")
 context("Hypothesis statements on level expressions give the rows of the statements run alone")
 
 source(testthat::test_path("common-functions.R"))

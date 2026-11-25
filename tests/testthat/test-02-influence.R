@@ -1,4 +1,3 @@
-probe_state("test-02-influence.R")
 context("Influence diagnostics")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,4 +1,3 @@
-probe_state("test-00-selection-corrected-block.R")
 context("Corrected block sampler: assignment, kernel decision, rollback and record")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-selection-memory.R")
 .pr82_sampling_memory_setup <- function(S = 4L, K = 6L) {
 
   object <- bselmodel(

@@ -1,4 +1,3 @@
-probe_state("test-02-plot.R")
 context("Prior and posterior plots")
 
 # Load common test helpers

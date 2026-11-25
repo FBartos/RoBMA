@@ -1,4 +1,3 @@
-probe_state("test-02-glmm-conditional.R")
 context("Conditional GLMM log tails")
 
 

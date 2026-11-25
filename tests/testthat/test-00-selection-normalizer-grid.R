@@ -1,4 +1,3 @@
-probe_state("test-00-selection-normalizer-grid.R")
 # Deterministic posterior rows exercise the real compiled likelihood and priors;
 # constructing these objects does not fit or sample a model.
 .normalizer_grid_test_fixture <- function(sign = "positive", weights = c(1, .5),

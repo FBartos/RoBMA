@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-ordinate-failures.R")
 .pr82_failure_plan <- function(value = 0) {
 
   list(target = list(parameter = "mu", metadata = list(parameter = "mu")),

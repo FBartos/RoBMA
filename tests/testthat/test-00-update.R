@@ -1,4 +1,3 @@
-probe_state("test-00-update.R")
 context("update.brma")
 
 mock_update_object <- function() {

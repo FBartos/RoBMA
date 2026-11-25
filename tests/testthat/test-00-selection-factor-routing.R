@@ -1,4 +1,3 @@
-probe_state("test-00-selection-factor-routing.R")
 context("Joint selection certified factor routing")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

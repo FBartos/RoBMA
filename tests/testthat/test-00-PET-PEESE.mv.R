@@ -1,4 +1,3 @@
-probe_state("test-00-PET-PEESE.mv.R")
 context("Multivariate PET and PEESE constructors")
 
 

@@ -1,4 +1,3 @@
-probe_state("test-00-joint-bias-nested-native.R")
 skip_on_cran()
 
 .joint_bias_nested_graph <- function(direction = -1, beta_shape = "1 + equals(bias, 3)",

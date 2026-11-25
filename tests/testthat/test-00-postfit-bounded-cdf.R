@@ -1,4 +1,3 @@
-probe_state("test-00-postfit-bounded-cdf.R")
 .postfit_cdf_fixture <- function(weights = c(1, .2), direction = "positive",
                                  steps = if (length(weights) == 2L) .025 else c(.025, .17)) {
 

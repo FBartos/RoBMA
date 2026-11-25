@@ -1,4 +1,3 @@
-probe_state("test-00-predict-aliases.R")
 test_that("prediction abbreviations preserve their canonical conditioning target", {
 
   object <- brma(yi = c(-1, 2), sei = c(1, 1), measure = "GEN",

@@ -1,4 +1,3 @@
-probe_state("test-00-summary-layout.R")
 context("Multivariate summary layout")
 
 .summary_layout_estimates <- function(parameters, title, values,

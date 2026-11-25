@@ -1,4 +1,3 @@
-probe_state("test-01-iwmde-oracle-nested.R")
 context("Nested models for IWMDE numerical oracles")
 
 source(testthat::test_path("common-functions.R"))

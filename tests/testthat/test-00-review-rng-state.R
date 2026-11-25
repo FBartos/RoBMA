@@ -1,4 +1,3 @@
-probe_state("test-00-review-rng-state.R")
 context("Preserved R random-number state")
 
 # Every test restores its caller's public RNG state. No test promises to save

@@ -1,4 +1,3 @@
-probe_state("test-01-brma.mv-partial-scale.R")
 context("Live fit of a known-V brma.mv with a scale formula for one random component")
 
 source(testthat::test_path("common-functions.R"))

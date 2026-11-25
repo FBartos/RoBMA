@@ -1,4 +1,3 @@
-probe_state("test-00-review-multilevel-availability.R")
 test_that("multilevel sufficient-statistic underflow is unavailable rather than a zero effect", {
 
   expect_error(.evaluate.brma.multilevel_blup.norm(matrix(0, 1L, 1L),

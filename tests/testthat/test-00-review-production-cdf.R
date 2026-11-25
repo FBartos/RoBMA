@@ -1,4 +1,3 @@
-probe_state("test-00-review-production-cdf.R")
 test_that("normal LOO tails keep representable upper-tail probability", {
 
   yi         <- 10

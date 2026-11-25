@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-regularized.R")
 source(testthat::test_path("common-functions.R"))
 
 test_that("mixed-contrast interaction summaries use the fitted cell design and one term gate", {

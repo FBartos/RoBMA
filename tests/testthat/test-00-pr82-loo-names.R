@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-loo-names.R")
 test_that("LOO comparison retains model identities after ranking", {
 
   base_scores <- matrix(seq(-2, -1, length.out = 200L), 40L, 5L)

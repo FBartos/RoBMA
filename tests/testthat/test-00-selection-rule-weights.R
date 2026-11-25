@@ -1,4 +1,3 @@
-probe_state("test-00-selection-rule-weights.R")
 # The native probe compares against the original scalar double expression and
 # observes owner identity without retaining a process-wide test registry.
 .test_double_rule_weights <- function(nodes, log_weights, shift = 0, evict = 0L) {

@@ -1,4 +1,3 @@
-probe_state("test-00-certification-process.R")
 .review_certification_process <- function() {
 
   path <- testthat::test_path("..", "..", "tools", "test-profile.R")

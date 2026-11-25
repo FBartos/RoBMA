@@ -1,4 +1,3 @@
-probe_state("test-00-selection-estimate-evidence.R")
 .estimate_selection_evidence_fixture <- function(mode, rule = "product",
                                                  direction = "positive") {
 

@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-draws-regressions.R")
 test_that("conditioning preserves the row dimension for one draw", {
 
   samples <- matrix(c(1, 0), 1L, dimnames = list(NULL, c("a", "b")))

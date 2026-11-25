@@ -1,4 +1,3 @@
-probe_state("test-00-selection-corrected-weights.R")
 context("Corrected samplers of selection weights and indicators")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

@@ -1,4 +1,3 @@
-probe_state("test-00-scenario-cleanup.R")
 context("Scenario cleanup regressions")
 
 source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))

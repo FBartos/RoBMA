@@ -1,4 +1,3 @@
-probe_state("test-00-weighted-diagnostics.R")
 context("Weighted diagnostics")
 
 skip_on_cran()

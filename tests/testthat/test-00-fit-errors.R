@@ -1,4 +1,3 @@
-probe_state("test-00-fit-errors.R")
 context("Fitting errors")
 
 

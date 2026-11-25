@@ -1,4 +1,3 @@
-probe_state("test-00-bias-exempt-postfit.R")
 test_that("an all-FALSE bias flag preserves the complete univariate and multivariate JAGS graphs", {
 
   dat <- data.frame(yi = c(.1, .4, -.2, .3), sei = c(.4, .3, .5, .4),

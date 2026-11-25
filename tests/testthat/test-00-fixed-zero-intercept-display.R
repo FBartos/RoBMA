@@ -1,4 +1,3 @@
-probe_state("test-00-fixed-zero-intercept-display.R")
 context("Fixed-zero meta-regression intercept display")
 
 

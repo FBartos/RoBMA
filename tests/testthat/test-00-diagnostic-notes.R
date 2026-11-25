@@ -1,4 +1,3 @@
-probe_state("test-00-diagnostic-notes.R")
 context("Diagnostic notes")
 
 test_that("DFBETAS note objects print and preserve data-frame contract", {

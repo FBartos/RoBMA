@@ -1,4 +1,3 @@
-probe_state("test-00-loo-deterministic-columns.R")
 context("Exact LOO for deterministic columns")
 
 

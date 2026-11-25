@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-joint-factors.R")
 test_that("the shared context fallback preserves block weighting", {
 
   z <- c(-2, 0, 2)

@@ -1,4 +1,3 @@
-probe_state("test-01-vif-parity.R")
 context("Model fitting for VIF parity")
 
 source(testthat::test_path("common-functions.R"))

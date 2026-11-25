@@ -1,4 +1,3 @@
-probe_state("test-00-evaluate-direct-arithmetic.R")
 context("Direct arithmetic of the multilevel and true-effect evaluators")
 skip_on_cran()
 

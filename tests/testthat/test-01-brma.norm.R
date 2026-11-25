@@ -1,4 +1,3 @@
-probe_state("test-01-brma.norm.R")
 context("Model fitting for brma.norm")
 
 # Load common test helpers

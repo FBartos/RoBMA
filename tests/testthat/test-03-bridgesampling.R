@@ -1,4 +1,3 @@
-probe_state("test-03-bridgesampling.R")
 # ============================================================================ #
 #
 # Test bridge sampling marginal likelihood computation for brma objects.

@@ -1,4 +1,3 @@
-probe_state("test-00-released-surface.R")
 # Argument order, defaults, and entry points of RoBMA 4.0.0 that later
 # development must keep. New arguments follow the released ones, except
 # 'bias_exempt', which the maintainer placed after 'cluster'.

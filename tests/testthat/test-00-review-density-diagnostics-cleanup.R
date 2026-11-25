@@ -1,4 +1,3 @@
-probe_state("test-00-review-density-diagnostics-cleanup.R")
 test_that("density warnings name their observed thresholds and sample control", {
 
   diagnostic <- list(estimator = "iwmde", relative_mcse = .05,

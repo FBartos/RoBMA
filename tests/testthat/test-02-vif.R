@@ -1,4 +1,3 @@
-probe_state("test-02-vif.R")
 context("VIF")
 
 source(testthat::test_path("common-functions.R"))

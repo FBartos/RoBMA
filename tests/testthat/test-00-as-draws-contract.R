@@ -1,4 +1,3 @@
-probe_state("test-00-as-draws-contract.R")
 context("BayesTools draw materialization contract")
 
 

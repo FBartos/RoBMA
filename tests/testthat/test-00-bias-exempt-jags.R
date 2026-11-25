@@ -1,4 +1,3 @@
-probe_state("test-00-bias-exempt-jags.R")
 test_that("JAGS selection blocks preserve the full Gaussian law of exempt outcomes", {
 
   skip_if_not_installed("rjags")

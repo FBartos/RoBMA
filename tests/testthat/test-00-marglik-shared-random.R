@@ -1,4 +1,3 @@
-probe_state("test-00-marglik-shared-random.R")
 # Assemble native inputs from the compact algebra fixtures below.
 covariance_factor_fixture_plan <- function(factor) {
 

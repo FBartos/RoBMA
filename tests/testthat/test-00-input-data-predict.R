@@ -1,4 +1,3 @@
-probe_state("test-00-input-data-predict.R")
 context("Input handling for predict")
 
 source(testthat::test_path("helper-contracts.R"))

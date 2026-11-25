@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-test-infrastructure.R")
 test_that("fit source fingerprints retain changed assertions", {
 
   source(testthat::test_path("common-functions.R"), local = TRUE)

@@ -1,4 +1,3 @@
-probe_state("test-00-review-input-metadata.R")
 test_that("synthetic clusters do not overwrite a moderator column", {
 
   original <- data.frame(yi = c(.1, .2, .3), sei = rep(.1, 3),

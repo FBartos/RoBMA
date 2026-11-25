@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-threshold-partition.R")
 source(testthat::test_path("helper-selection-kernel.R"))
 
 

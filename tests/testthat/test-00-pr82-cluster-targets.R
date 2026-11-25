@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-cluster-targets.R")
 test_that("cluster comparison keys preserve ordered row membership", {
 
   make_score <- function(blocks) {

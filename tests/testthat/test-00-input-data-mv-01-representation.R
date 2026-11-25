@@ -1,4 +1,3 @@
-probe_state("test-00-input-data-mv-01-representation.R")
 context("brma.mv known-V representation and validation")
 
 test_that("declared known-V factors preserve provenance through data paths", {

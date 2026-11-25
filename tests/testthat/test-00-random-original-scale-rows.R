@@ -1,4 +1,3 @@
-probe_state("test-00-random-original-scale-rows.R")
 context("Random-effect rows without an original-scale value")
 
 # A scaled predictor in factor-specific slopes of an unstructured block,
@@ -63,6 +62,7 @@ context("Random-effect rows without an original-scale value")
 
   probe_fit("in-test us() BMA.mv fit", .random_na_rows_env[["bma"]])
   return(.random_na_rows_env[["bma"]])
+  probe_state("after the in-test us() BMA.mv fit")
 }
 
 # The unavailable rows as the table of all draws gives them (the rule before the

@@ -1,4 +1,3 @@
-probe_state("test-00-rank-one-log-density.R")
 # test-00-rank-one-log-density.R
 
 .aligned_rank_one_oracle <- function(diagonal, rank_one, residual_scale) {

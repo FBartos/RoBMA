@@ -1,4 +1,3 @@
-probe_state("test-00-review-plot-cleanup.R")
 test_that("posterior aggregate bias and composite density requests refuse at admission", {
 
   object <- bselmodel(yi = c(-.1, 0, .1), sei = rep(.1, 3), measure = "GEN",

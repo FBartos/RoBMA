@@ -1,4 +1,3 @@
-probe_state("test-03-zplot.R")
 context("zplot")
 
 # Load common test helpers

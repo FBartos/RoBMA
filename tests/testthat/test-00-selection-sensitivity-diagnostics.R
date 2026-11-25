@@ -1,4 +1,3 @@
-probe_state("test-00-selection-sensitivity-diagnostics.R")
 test_that("selection conditioning comparisons are requested explicitly", {
 
   calls <- list()

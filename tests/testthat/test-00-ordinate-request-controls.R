@@ -1,4 +1,3 @@
-probe_state("test-00-ordinate-request-controls.R")
 .ordinate_control_test_object <- function(n_rows) {
 
   object <- brma(yi = c(.1, .2), sei = c(.2, .3), measure = "GEN",

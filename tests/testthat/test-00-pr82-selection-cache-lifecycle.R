@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-selection-cache-lifecycle.R")
 .pr82_cache_restore <- function() {
 
   options <- RoBMA.options()

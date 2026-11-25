@@ -1,4 +1,3 @@
-probe_state("test-00-selection-certificate-axis-counts.R")
 context("Selection refinement counts per axis")
 skip_on_cran()
 

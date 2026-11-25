@@ -1,4 +1,3 @@
-probe_state("test-01-load.R")
 context("JAGS module functionality")
 skip_on_cran()
 

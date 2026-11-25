@@ -1,4 +1,3 @@
-probe_state("test-02-effect-transformations.R")
 context("Effect-size transformations")
 
 source(testthat::test_path("common-functions.R"))

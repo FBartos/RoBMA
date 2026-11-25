@@ -1,4 +1,3 @@
-probe_state("test-00-selection-recovered-equivalence.R")
 # A recovered factor is a representation of the supplied covariance, so the
 # selected law it produces must match the dense route it replaces within the
 # integration diagnostics both routes report. The block evaluators are compared

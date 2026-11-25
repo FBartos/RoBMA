@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-conditioned-streaming.R")
 .pr82_global_conditioned_setup <- function(S = 5L, K = 4L) {
 
   object <- bselmodel(

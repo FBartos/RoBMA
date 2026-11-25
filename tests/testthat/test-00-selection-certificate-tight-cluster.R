@@ -1,4 +1,3 @@
-probe_state("test-00-selection-certificate-tight-cluster.R")
 context("Selection cluster refinement at tight tolerances")
 skip_on_cran()
 

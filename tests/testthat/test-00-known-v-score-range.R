@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-score-range.R")
 .known_v_score_range_values <- function(y, covariance, blocks) {
 
   for (symbol in c("RoBMA_known_v_covariance_plan_create",

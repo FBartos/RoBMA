@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-residual-bias-offset.R")
 # Attach a synthetic posterior to a constructor-only object: compile its
 # formulas, then finalize the fit through the BayesTools fit contract.
 .replay_object <- function(object, samples) {

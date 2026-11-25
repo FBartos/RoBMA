@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-weightfunction-axis.R")
 test_that("observed weightfunction p-values follow the displayed axis", {
 
   make_object <- function(prior, direction = "positive") {

@@ -1,4 +1,3 @@
-probe_state("test-00-input-priors-BMA.R")
 context("Prior input handling for BMA product-space constructors")
 
 test_that("sole ordered term components retain their total-owned mixture and bind", {

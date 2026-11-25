@@ -1,4 +1,3 @@
-probe_state("test-01-iwmde-multilevel-selection.R")
 context("Multilevel selection model for the IWMDE dispatcher")
 
 source(testthat::test_path("common-functions.R"))

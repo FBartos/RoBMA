@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-provenance.R")
 context("IWMDE provenance")
 
 source(testthat::test_path("common-functions.R"))

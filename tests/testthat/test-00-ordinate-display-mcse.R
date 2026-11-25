@@ -1,4 +1,3 @@
-probe_state("test-00-ordinate-display-mcse.R")
 test_that("display Jacobians scale every absolute mixture density MCSE component", {
 
   # The partial mixed-chain aggregation fixture from the estimator tests:

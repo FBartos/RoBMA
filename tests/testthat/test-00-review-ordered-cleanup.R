@@ -1,4 +1,3 @@
-probe_state("test-00-review-ordered-cleanup.R")
 test_that("ordered Gaussian sums retain finite supplied log weights", {
 
   testthat::local_mocked_bindings(

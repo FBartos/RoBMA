@@ -1,4 +1,3 @@
-probe_state("test-00-input-priors-glmm.R")
 context("Prior input handling for brma.glmm")
 
 skip_on_cran()

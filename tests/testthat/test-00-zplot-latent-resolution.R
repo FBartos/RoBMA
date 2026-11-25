@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-latent-resolution.R")
 .zplot_latent_resolution_reference <- function(nodes, mean, sd, latent_sd, sei, selection) {
 
   vapply(seq_len(nrow(mean)), function(row) {

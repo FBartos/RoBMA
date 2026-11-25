@@ -1,4 +1,3 @@
-probe_state("test-00-review-density-construction-error.R")
 context("Density construction failures on public density-only routes")
 
 test_that("density-only routes signal a public class with the KDE remedy", {

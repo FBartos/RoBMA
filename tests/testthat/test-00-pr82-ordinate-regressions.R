@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-ordinate-regressions.R")
 test_that("mixed-state uncertainty accepts the plan's logical active mass", {
 
   rows <- seq_len(3000L)

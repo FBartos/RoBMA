@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-hypothesis-regressions.R")
 test_that("cross-level hypotheses keep all rows and build one shared context", {
 
   calls    <- 0L

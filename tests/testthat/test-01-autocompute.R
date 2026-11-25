@@ -1,4 +1,3 @@
-probe_state("test-01-autocompute.R")
 context("Autocompute options")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,4 +1,3 @@
-probe_state("test-00-native-cleanup-jags.R")
 test_that("JAGS selected distributions refuse unsupported unobserved sampling", {
 
   skip_if_not_installed("rjags")

@@ -1,4 +1,3 @@
-probe_state("test-02-RoBMA.mv.R")
 source(testthat::test_path("common-functions.R"))
 
 skip_if_missing_fits("RoBMA.mv_marg_product_space")

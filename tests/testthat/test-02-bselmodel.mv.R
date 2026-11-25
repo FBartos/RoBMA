@@ -1,4 +1,3 @@
-probe_state("test-02-bselmodel.mv.R")
 source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-contracts.R"))
 

@@ -1,4 +1,3 @@
-probe_state("test-00-review-native-hash.R")
 context("Persisted outcome fingerprint compatibility")
 
 test_that("native outcome hash preserves the exact persisted byte recurrence", {

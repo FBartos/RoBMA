@@ -1,4 +1,3 @@
-probe_state("test-02-qqnorm.R")
 context("Q-Q normal plot")
 
 # Load common test helpers

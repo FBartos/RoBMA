@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-likelihood-regressions.R")
 .cluster_norm_dispatch_setup <- function(yi, sei, tau_within, tau_between,
                                          weights = NULL, mu = 0,
                                          effect_direction = "positive") {

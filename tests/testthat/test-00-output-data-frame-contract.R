@@ -1,4 +1,3 @@
-probe_state("test-00-output-data-frame-contract.R")
 context("User-facing output data-frame contract")
 
 .output_contract_table <- function(parameters = c("alpha", "beta")) {

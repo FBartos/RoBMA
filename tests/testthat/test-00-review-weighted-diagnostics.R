@@ -1,4 +1,3 @@
-probe_state("test-00-review-weighted-diagnostics.R")
 .weighted_diagnostic_fixture <- function(multilevel = FALSE) {
 
   yi <- c(-0.5, 0.3, 0.2, 0.8, -0.1, 0.4)

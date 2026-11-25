@@ -1,4 +1,3 @@
-probe_state("test-00-hypothesis-discovery-contract.R")
 test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability", {
 
   # A point plan whose targets are eligible: every method is available up to

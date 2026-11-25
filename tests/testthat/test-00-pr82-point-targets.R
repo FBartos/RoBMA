@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-point-targets.R")
 test_that("all-point linear targets use one declared-metadata arithmetic path", {
 
   samples <- matrix(c(.1, .2), ncol = 1L, dimnames = list(NULL, "other"))

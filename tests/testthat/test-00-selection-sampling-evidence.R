@@ -1,4 +1,3 @@
-probe_state("test-00-selection-sampling-evidence.R")
 .sampling_selection_evidence_fixture <- function(estimate = "integrate", yi = c(.4, -.2),
                                                 units = 1, rule = "product") {
 

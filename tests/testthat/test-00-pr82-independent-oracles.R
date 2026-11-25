@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-independent-oracles.R")
 test_that("known-V BLUP matches direct Gaussian conditioning with heterogeneous scales", {
 
   V <- matrix(c(.09, .018, -.006, .018, .16, .012, -.006, .012, .04), 3L)

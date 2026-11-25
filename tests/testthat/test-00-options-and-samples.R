@@ -1,4 +1,3 @@
-probe_state("test-00-options-and-samples.R")
 context("Options and brma_samples metadata")
 
 test_that("RoBMA options expose only public options", {

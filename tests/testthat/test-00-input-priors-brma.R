@@ -1,4 +1,3 @@
-probe_state("test-00-input-priors-brma.R")
 context("Prior input handling for brma.norm")
 
 test_that("complete and structural-zero intercepts do not build unused effect defaults", {

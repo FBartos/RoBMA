@@ -1,4 +1,3 @@
-probe_state("test-00-ordered-prior-forwarding.R")
 context("Ordered prior style forwarding")
 
 

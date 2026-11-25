@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-scalar-mixture.R")
 test_that("paired scalar z integration preserves fitted, extrapolated and inactive laws", {
 
   cutoff <- stats::qnorm(.025, lower.tail = FALSE)

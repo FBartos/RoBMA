@@ -1,4 +1,3 @@
-probe_state("test-00-review-selection-known-r.R")
 test_that("F2-1 joint selection evaluates the compiled known-R diagonal law", {
 
   dat <- data.frame(yi = c(.35, -.1, .6, .2), esid = factor(paste0("e", 1:4)))

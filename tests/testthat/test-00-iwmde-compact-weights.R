@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-compact-weights.R")
 .compact_fixture <- function(lower = 0, upper = Inf, conditioner = TRUE) {
   i <- seq_len(80L)
   u <- seq(-2, 2, length.out = 80L)

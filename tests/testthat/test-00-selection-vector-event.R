@@ -1,4 +1,3 @@
-probe_state("test-00-selection-vector-event.R")
 context("Conditional Gaussian vector selection events")
 
 .vector_event_fixture <- function(two_sided = FALSE, weights = c(2, 0, .7)) {

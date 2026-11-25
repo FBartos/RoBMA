@@ -1,4 +1,3 @@
-probe_state("test-00-review-native-plan.R")
 context("Native covariance plan ownership")
 
 test_that("partially initialized covariance plans can be finalized after rejection", {

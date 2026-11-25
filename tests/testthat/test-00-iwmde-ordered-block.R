@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-ordered-block.R")
 .ordered_block_fixture <- function(prior = BayesTools::prior("normal", list(0, 1)),
                                    alpha = 3, beta = 1) {
 

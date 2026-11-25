@@ -1,4 +1,3 @@
-probe_state("test-00-review-input-formula-args.R")
 test_that("formula prior arguments keep named NULL slots", {
 
   object <- brma(yi = c(.1, .2, .3), sei = rep(.1, 3),

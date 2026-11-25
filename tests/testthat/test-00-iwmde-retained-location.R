@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-retained-location.R")
 .retained_location_test_states <- function(prior, current, coefficients, sd) {
 
   change <- .iwmde_retained_location_statistics(coefficients, sd)

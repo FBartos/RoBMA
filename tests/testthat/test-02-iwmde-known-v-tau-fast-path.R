@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-known-v-tau-fast-path.R")
 source(testthat::test_path("common-functions.R"))
 
 

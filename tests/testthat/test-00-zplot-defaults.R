@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-defaults.R")
 test_that("zplot density defaults follow the model class and preserve explicit budgets", {
 
   grid <- sort(unique(c(seq(-6, 6, .05), stats::qnorm(.975))))

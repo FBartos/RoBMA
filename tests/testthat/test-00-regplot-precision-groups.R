@@ -1,4 +1,3 @@
-probe_state("test-00-regplot-precision-groups.R")
 .regplot_precision_replay <- function(mods = ~ x * sei + vi, binomial = FALSE) {
 
   dat <- data.frame(

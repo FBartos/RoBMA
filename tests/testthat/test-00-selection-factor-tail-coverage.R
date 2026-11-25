@@ -1,4 +1,3 @@
-probe_state("test-00-selection-factor-tail-coverage.R")
 test_that("factor quadrature agreement cannot hide an uncovered selection tail", {
 
   # Y_i = -10 + Z + E_i, with independent standard normals. Expanding

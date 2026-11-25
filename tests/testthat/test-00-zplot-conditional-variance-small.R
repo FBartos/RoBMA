@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-conditional-variance-small.R")
 test_that("conditional Gaussian variances preserve the scalar harmonic law", {
 
   for (variances in list(c(1, 1e-20), c(1e-20, 1), c(1, 1), c(1e-20, 1e-20))) {

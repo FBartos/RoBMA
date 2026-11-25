@@ -1,4 +1,3 @@
-probe_state("test-00-ordered-source-verifier.R")
 .ordered_verifier_tool_path <- function() {
 
   path <- testthat::test_path("..", "..", "tools", "ordered-source-verification.R")

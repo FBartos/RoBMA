@@ -1,4 +1,3 @@
-probe_state("test-00-review-input-selection.R")
 test_that("sensitivity rejects partitions that split normalization events", {
 
   expect_error(.selection_sensitivity_run(

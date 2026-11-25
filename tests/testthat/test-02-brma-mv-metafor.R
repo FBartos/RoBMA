@@ -1,4 +1,3 @@
-probe_state("test-02-brma-mv-metafor.R")
 context("brma.mv metafor references")
 
 source(testthat::test_path("common-functions.R"))

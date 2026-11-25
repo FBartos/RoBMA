@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-compute.R")
 test_that("Gaussian z densities retain scaled mixtures and extreme tail mass", {
 
   z    <- c(-Inf, -10, -1, 0, 1, 10, Inf)

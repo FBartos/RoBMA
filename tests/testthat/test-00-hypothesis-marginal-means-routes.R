@@ -1,4 +1,3 @@
-probe_state("test-00-hypothesis-marginal-means-routes.R")
 .marginal_means_route_test_parameter <- function(a, b, condition_keys = NULL,
                                                  parameter = "mu_alloc") {
 

@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-nullspace-cover.R")
 context("(00) structural null-space coverage of singular known-V blocks")
 
 # The integrated variation of a singular sampling covariance V is given by

@@ -1,4 +1,3 @@
-probe_state("test-00-mean-parameterization.R")
 test_that("automatic estimate marginalization honors sampled mean-centered requests", {
 
   for (repeated in c(FALSE, TRUE)) {

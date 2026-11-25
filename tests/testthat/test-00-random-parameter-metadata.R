@@ -1,4 +1,3 @@
-probe_state("test-00-random-parameter-metadata.R")
 make_random_metadata_prior <- function(
     quantity, label, parameter = "mu", block = NA_character_,
     grouping = NA_character_, allocation = NA_character_,

@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-funnel-robustness.R")
 test_that("common funnel heterogeneity tolerates only double roundoff", {
 
   tau <- matrix(c(1, 2, 1 + .Machine$double.eps, 2), nrow = 2L)

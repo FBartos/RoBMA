@@ -1,4 +1,3 @@
-probe_state("test-00-selection-corrected-sampler.R")
 .selection_corrected_sampler_regression <- function(
     sampler_stats = function() RoBMA::selection_sampler_info(), draws = 5000L) {
 

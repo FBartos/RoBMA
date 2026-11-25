@@ -1,4 +1,3 @@
-probe_state("test-00-selection-completion.R")
 test_that("fitting warns when all applicable selection sources are conditioned", {
 
   make <- function(estimate = "condition", sampling = "condition",

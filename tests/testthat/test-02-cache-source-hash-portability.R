@@ -1,4 +1,3 @@
-probe_state("test-02-cache-source-hash-portability.R")
 context("fit cache source hash portability")
 
 source(testthat::test_path("common-functions.R"))

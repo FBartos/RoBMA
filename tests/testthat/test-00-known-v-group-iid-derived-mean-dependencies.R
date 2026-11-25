@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-group-iid-derived-mean-dependencies.R")
 test_that("allocated SD updates carry declared fixed-mean dependencies", {
 
   r <- function(name) get(name, envir = asNamespace("RoBMA"), inherits = FALSE)

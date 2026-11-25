@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-qcmde-normalization.R")
 context("qCMDE normalization on fitted models")
 
 source(testthat::test_path("common-functions.R"))

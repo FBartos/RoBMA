@@ -1,4 +1,3 @@
-probe_state("test-00-review-selection-routing.R")
 test_that("F3-4 sole bias branches use complete backend monitors without an indicator", {
 
   wf <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .5)))

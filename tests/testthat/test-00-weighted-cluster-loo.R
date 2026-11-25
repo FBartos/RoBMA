@@ -1,4 +1,3 @@
-probe_state("test-00-weighted-cluster-loo.R")
 test_that("cached weighted criteria track their integration source", {
 
   expect_true("R/log-lik-weighted-cluster.R" %in% .fit_cache_required_source_files())

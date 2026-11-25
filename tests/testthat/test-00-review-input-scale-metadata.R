@@ -1,4 +1,3 @@
-probe_state("test-00-review-input-scale-metadata.R")
 test_that("missing random scale-block metadata has a targeted error", {
 
   object <- brma.mv(yi = c(.1, .2, .3), vi = rep(.01, 3),

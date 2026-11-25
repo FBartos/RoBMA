@@ -1,4 +1,3 @@
-probe_state("test-03-selection-recovery-cond.R")
 context("Conditional selection simulation recovery")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

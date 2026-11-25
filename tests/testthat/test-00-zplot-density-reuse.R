@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-density-reuse.R")
 .zplot_density_reuse_context <- function(use_normal, sei) {
 
   prior <- BayesTools::prior_weightfunction("one-sided", .025,

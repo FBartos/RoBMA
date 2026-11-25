@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-indicator-roles.R")
 context("qCMDE/IWMDE classify inclusion indicators by their declared role")
 
 # A normal meta-regression on one continuous predictor 'predictor' with 400

@@ -1,4 +1,3 @@
-probe_state("test-00-selection-kernel-native.R")
 context("Selection kernel")
 skip_on_cran()
 

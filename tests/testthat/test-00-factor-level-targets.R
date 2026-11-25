@@ -1,4 +1,3 @@
-probe_state("test-00-factor-level-targets.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Factor-level hypothesis targets and plots")

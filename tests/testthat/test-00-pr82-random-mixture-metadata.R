@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-random-mixture-metadata.R")
 .pr82_random_mixture_metadata <- function(external = FALSE, fixed_component = FALSE) {
 
   mixture <- BayesTools::prior_mixture(list(

@@ -1,4 +1,3 @@
-probe_state("test-00-selection-certificate-refinement.R")
 context("Selection certificate refinement tier")
 skip_on_cran()
 

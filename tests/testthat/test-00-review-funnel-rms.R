@@ -1,4 +1,3 @@
-probe_state("test-00-review-funnel-rms.R")
 test_that("plug-in RMS spread is stable at zero and extreme finite scales", {
 
   local_mocked_bindings(

@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-fallbacks.R")
 context("IWMDE conditional-weight fallbacks")
 
 source(testthat::test_path("common-functions.R"))

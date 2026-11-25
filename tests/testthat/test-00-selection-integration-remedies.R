@@ -1,4 +1,3 @@
-probe_state("test-00-selection-integration-remedies.R")
 test_that("integration rejections name fitting and supported post-fit remedies", {
 
   selection <- .selection_spec(

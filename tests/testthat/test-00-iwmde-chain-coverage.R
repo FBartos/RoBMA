@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-chain-coverage.R")
 context("qCMDE/IWMDE refuse a fitted chain without eligible rows with a typed condition")
 
 # A model-averaged effect (a normal slab or a spike at zero) replayed with two

@@ -1,4 +1,3 @@
-probe_state("test-02-random-parameters.R")
 context("Semantic random-effect parameters")
 
 source(testthat::test_path("common-functions.R"))
@@ -371,6 +370,7 @@ test_that("random-effect variances are tested through their standard deviations"
   fit <- load_fit("BMA.mv_random_components", validate = FALSE)
   probe_fit("cached BMA.mv_random_components at the hypothesis test", fit)
   # 'tau2 = v^2' is 'tau = v' with the prior and posterior densities divided
+  probe_state("at the hypothesis test of the cached BMA.mv_random_components")
   # by the derivative 2 * v of the square map, so every density method gives
   # the same Bayes factor for the gated SD and its variance.
   value <- 0.06

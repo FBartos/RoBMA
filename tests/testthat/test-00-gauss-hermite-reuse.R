@@ -1,4 +1,3 @@
-probe_state("test-00-gauss-hermite-reuse.R")
 context("Gauss-Hermite rule reuse")
 
 

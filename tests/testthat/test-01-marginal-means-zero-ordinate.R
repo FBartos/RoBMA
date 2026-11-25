@@ -1,4 +1,3 @@
-probe_state("test-01-marginal-means-zero-ordinate.R")
 context("Cached zero-ordinate marginal-means fit")
 
 source(testthat::test_path("common-functions.R"))

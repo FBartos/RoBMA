@@ -1,4 +1,3 @@
-probe_state("test-02-summary.R")
 context("Summary")
 
 source(testthat::test_path("common-functions.R"))

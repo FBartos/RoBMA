@@ -1,4 +1,3 @@
-probe_state("test-00-selection-kernel-fit.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Selection kernel")

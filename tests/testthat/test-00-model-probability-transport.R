@@ -1,4 +1,3 @@
-probe_state("test-00-model-probability-transport.R")
 test_that("replacement draws retain declared measure refusals", {
   draws <- structure(seq_len(5) / 5, class = c("mixed_posteriors.simple", "numeric"))
   unavailable <- data.frame(column = "theta", measure = "support",

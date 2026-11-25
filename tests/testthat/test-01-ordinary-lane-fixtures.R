@@ -1,4 +1,3 @@
-probe_state("test-01-ordinary-lane-fixtures.R")
 context("Cached ordinary-lane regression fits")
 
 source(testthat::test_path("common-functions.R"))

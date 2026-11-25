@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-adaptive.R")
 context("IWMDE fixed-budget ordinates and public diagnostics")
 
 source(testthat::test_path("common-functions.R"))

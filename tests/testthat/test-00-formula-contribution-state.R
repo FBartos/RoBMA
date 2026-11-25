@@ -1,4 +1,3 @@
-probe_state("test-00-formula-contribution-state.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Compiled coefficient and contribution state adapters")

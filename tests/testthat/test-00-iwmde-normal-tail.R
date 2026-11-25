@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-normal-tail.R")
 test_that("scalar Normal intervals use the appropriate shared tail", {
 
   reference <- readRDS(testthat::test_path("fixtures", "normal-tail-reference.rds"))

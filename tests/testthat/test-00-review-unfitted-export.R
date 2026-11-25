@@ -1,4 +1,3 @@
-probe_state("test-00-review-unfitted-export.R")
 context("Data-frame export of unfitted constructor objects")
 
 test_that("as.data.frame refuses objects without a fitted model", {

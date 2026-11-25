@@ -1,4 +1,3 @@
-probe_state("test-00-review-density-cleanup.R")
 test_that("density aggregation refuses an undersized denominator", {
 
   expect_error(.iwmde_density_aggregate(matrix(0, 1L, 2L), 1, 1L),

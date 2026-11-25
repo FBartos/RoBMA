@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-diagonal-comparison.R")
 context("A diagonal known V is the ordinary data of its standard errors")
 
 test_that("an ordinary fit and an identical diagonal known-V fit compare", {

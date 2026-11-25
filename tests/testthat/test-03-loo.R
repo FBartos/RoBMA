@@ -1,4 +1,3 @@
-probe_state("test-03-loo.R")
 # ============================================================================ #
 #
 # Test LOO-PSIS functionality for brma objects

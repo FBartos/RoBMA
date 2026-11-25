@@ -1,4 +1,3 @@
-probe_state("test-00-predict-conditioning-depth.R")
 context("Prediction conditioning depth")
 
 

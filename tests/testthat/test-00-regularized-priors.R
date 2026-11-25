@@ -1,4 +1,3 @@
-probe_state("test-00-regularized-priors.R")
 test_that("moderator and scale groups survive both passes of formula binding", {
   dat <- data.frame(y = c(0.1, -0.3, 0.4, 0.2, 0.5, -0.2), se = 0.2,
                     x = 1:6, z = c(1, 3, 2, 6, 5, 4), w = c(1, 0, 1, 0, 0, 1))

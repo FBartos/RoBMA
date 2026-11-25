@@ -1,4 +1,3 @@
-probe_state("test-00-finite-likelihood-weights.R")
 test_that("shared outcome inputs reject infinite weights and preserve fractional weights", {
 
   constructors <- list(

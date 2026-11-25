@@ -1,4 +1,3 @@
-probe_state("test-00-selection-qmc-tail-coverage.R")
 context("Selection QMC tail coverage")
 skip_on_cran()
 

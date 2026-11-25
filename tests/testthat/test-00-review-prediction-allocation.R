@@ -1,4 +1,3 @@
-probe_state("test-00-review-prediction-allocation.R")
 test_that("singleton prediction pricing uses exact cells and ordered partitions", {
 
   # The budget that admits chunks of `size` draws beyond the reserve. It inverts

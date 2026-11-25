@@ -1,4 +1,3 @@
-probe_state("test-00-selection-certificate-shift.R")
 context("Selection certificate shifted rules")
 skip_on_cran()
 

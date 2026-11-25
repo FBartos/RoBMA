@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-diagonal-selection.R")
 .diagonal_product_reference <- function(z, mean, integrated, retained, sei,
                                          omega = .3, probability = FALSE) {
 

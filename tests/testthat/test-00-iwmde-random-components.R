@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-random-components.R")
 test_that("shared random inclusion preserves SD atoms and defined proportions", {
 
   object  <- shared_gate_random_object()

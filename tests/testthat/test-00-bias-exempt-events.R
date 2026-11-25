@@ -1,4 +1,3 @@
-probe_state("test-00-bias-exempt-events.R")
 context("Publication-bias exemptions in Gaussian selection events")
 
 .bias_exempt_half_space <- function(rule, draws = 1L) {

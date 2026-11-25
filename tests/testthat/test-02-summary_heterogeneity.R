@@ -1,4 +1,3 @@
-probe_state("test-02-summary_heterogeneity.R")
 context("Summary heterogeneity")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,4 +1,3 @@
-probe_state("test-01-BMA.norm.R")
 context("Model fitting for BMA.norm")
 
 # Load common test helpers

@@ -1,4 +1,3 @@
-probe_state("test-00-selection-normalizer-grid-vectorized.R")
 # ============================================================================ #
 # test-00-selection-normalizer-grid-vectorized.R
 # ============================================================================ #

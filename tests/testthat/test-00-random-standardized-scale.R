@@ -1,4 +1,3 @@
-probe_state("test-00-random-standardized-scale.R")
 context("Random-effect quantities of standardized coefficients")
 
 # The values of the predictor of the stand-in models below: with

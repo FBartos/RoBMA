@@ -1,4 +1,3 @@
-probe_state("test-02-nobs-coef.R")
 context("nobs and coef methods")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-integer-loading.R")
 test_that("integer sampling factors share double identity and native precision solves", {
 
   integer_loading <- matrix(1L, 2L, 1L, dimnames = list(c("a", "b"), "factor"))

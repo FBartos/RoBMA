@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-bound-rows.R")
 context("(02) qCMDE bound rows at a finite support boundary")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,4 +1,3 @@
-probe_state("test-00-zplot-context-workspace.R")
 test_that("repeated context-rule probabilities retain their finite-rule density", {
 
   # Repeated nodes deliberately make every row probability identical within

@@ -1,4 +1,3 @@
-probe_state("test-cran-smoke.R")
 context("CRAN smoke test")
 
 # The only tests CRAN runs (tests/testthat.R): the package and its native code

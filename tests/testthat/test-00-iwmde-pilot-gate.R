@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-pilot-gate.R")
 context("(00) qCMDE pilot acceptance gate")
 
 # The qCMDE pilot gate stopped the old refinement sequence of widening grids

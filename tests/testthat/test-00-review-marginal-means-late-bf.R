@@ -1,4 +1,3 @@
-probe_state("test-00-review-marginal-means-late-bf.R")
 context("Late Bayes factor requests on qCMDE/IWMDE marginal means")
 
 test_that("marginal means built without Bayes factors name the missing ordinates", {

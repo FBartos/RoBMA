@@ -1,4 +1,3 @@
-probe_state("test-00-sampler-declarations.R")
 context("Sampler declarations passed to BayesTools")
 
 # .fit() passes 'sampler_gates' and 'sampler_blocks' to BayesTools::JAGS_fit():

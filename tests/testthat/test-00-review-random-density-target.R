@@ -1,4 +1,3 @@
-probe_state("test-00-review-random-density-target.R")
 context("Random-effect density targets follow the requested coefficient scale")
 
 test_that("scaled allocation SDs refuse original component targets by declared capability", {

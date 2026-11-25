@@ -1,4 +1,3 @@
-probe_state("test-00-hypothesis-plan.R")
 context("Hypothesis plans: one eligibility source for hypothesis() and hypothesis_quantities()")
 
 source(testthat::test_path("common-functions.R"))

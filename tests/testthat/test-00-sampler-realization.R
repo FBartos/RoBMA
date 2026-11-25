@@ -1,4 +1,3 @@
-probe_state("test-00-sampler-realization.R")
 test_that("a replayed sampler report resolves singleton aliases on each worker", {
 
   owner <- "RoBMA::GaussianJoint"

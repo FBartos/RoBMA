@@ -1,4 +1,3 @@
-probe_state("test-00-iwmde-qcmde-resolution.R")
 .resolution_seed_fit <- function(divisor, prior_effect, offset_fraction = .25, tau_broad = 1) {
   control <- .density_control_normalize("qCMDE")
   control <- .hypothesis_density_control_fill(control)

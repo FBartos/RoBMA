@@ -1,4 +1,3 @@
-probe_state("test-01-hypothesis-plan.R")
 context("Cached hypothesis-plan fits")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,4 +1,3 @@
-probe_state("test-00-review-selection-deletion-context.R")
 .review_sampling_deletion_setup <- function(retained = TRUE, cluster = FALSE, weight = 1) {
 
   args <- list(yi = c(.4, -.25), sei = c(1, 1), measure = "GEN",

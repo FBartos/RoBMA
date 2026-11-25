@@ -1,4 +1,3 @@
-probe_state("test-00-review-selection-variance.R")
 test_that("selected scalar and matrix moments return centered variance directly", {
 
   prior <- prior_weightfunction("one-sided", pnorm(-1), wf_fixed(c(1, .5)))

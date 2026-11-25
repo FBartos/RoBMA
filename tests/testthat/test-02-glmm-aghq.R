@@ -1,4 +1,3 @@
-probe_state("test-02-glmm-aghq.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Adaptive GLMM quadrature")

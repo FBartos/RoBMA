@@ -1,4 +1,3 @@
-probe_state("test-01-RoBMA.R")
 context("Model fitting for RoBMA")
 
 # Load common test helpers

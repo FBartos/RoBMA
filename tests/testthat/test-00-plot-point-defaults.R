@@ -1,4 +1,3 @@
-probe_state("test-00-plot-point-defaults.R")
 context("Plot point defaults")
 
 test_that("regplot point sizes use relative precision without an offset", {

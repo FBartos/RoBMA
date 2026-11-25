@@ -1,4 +1,3 @@
-probe_state("test-00-input-data-mv-02-random-formulas.R")
 context("brma.mv random-formula input contracts")
 
 test_that("plain random slopes compile identically to explicit US blocks", {

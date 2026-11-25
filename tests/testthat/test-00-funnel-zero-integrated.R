@@ -1,4 +1,3 @@
-probe_state("test-00-funnel-zero-integrated.R")
 context("(00) funnel contours of cells with no integrated variance")
 
 # A conditioned source keeps its population law outside the selection

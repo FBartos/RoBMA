@@ -1,4 +1,3 @@
-probe_state("test-00-review-c3-cleanup.R")
 test_that("prediction validates probabilities and explicit row admission", {
 
   object <- brma(yi = c(.1, -.2), sei = c(.3, .4), measure = "GEN",

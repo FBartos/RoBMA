@@ -1,4 +1,3 @@
-probe_state("test-00-bayestools-forward-api.R")
 context("BayesTools integration")
 
 if (!exists("fit_cache_paths", mode = "function")) {

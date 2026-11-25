@@ -1,4 +1,3 @@
-probe_state("test-00-formula-point-ownership.R")
 context("Formula declaration ownership through selected draws")
 
 test_that("selected formula draw carriers preserve owned declarations", {

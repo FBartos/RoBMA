@@ -1,4 +1,3 @@
-probe_state("test-00-review-gls-availability.R")
 test_that("estimate projections use the existing precision availability owner", {
 
   withr::local_options(scipen = 0)

@@ -1,4 +1,3 @@
-probe_state("test-00-review-input-fixed-omega.R")
 test_that("fixed selection weights use the complete mixed-prior p-value grid", {
 
   one <- BayesTools::prior_weightfunction(

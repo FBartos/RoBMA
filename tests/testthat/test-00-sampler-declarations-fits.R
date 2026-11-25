@@ -1,4 +1,3 @@
-probe_state("test-00-sampler-declarations-fits.R")
 context("Sampler declarations in fitted models")
 
 # Fits with and without the sampler declarations RoBMA passes to

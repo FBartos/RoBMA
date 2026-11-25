@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-affine.R")
 test_that("draw-specific affine covariance chunks match dense block likelihoods", {
 
   reference <- 0.3

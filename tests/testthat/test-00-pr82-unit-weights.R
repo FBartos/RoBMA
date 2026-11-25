@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-unit-weights.R")
 .unit_weights_selection_object <- function(weights = NULL) {
 
   dat <- data.frame(yi = c(.1, .2, .3, .4), sei = rep(.2, 4L),

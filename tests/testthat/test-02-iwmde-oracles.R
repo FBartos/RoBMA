@@ -1,4 +1,3 @@
-probe_state("test-02-iwmde-oracles.R")
 context("IWMDE numerical oracles")
 
 source(testthat::test_path("common-functions.R"))

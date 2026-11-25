@@ -1,4 +1,3 @@
-probe_state("test-00-review-hypothesis-summary.R")
 # Genuine compiler/fit-contract supplied-row replays; these are transport and
 # declared-target regressions, not MCMC or posterior calibration fixtures.
 .review_h_contribution <- function(multiplier = 2) {

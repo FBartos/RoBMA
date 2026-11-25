@@ -1,4 +1,3 @@
-probe_state("test-00-consumer-log-prior-overlay.R")
 .consumer_log_scale_replay <- function() {
 
   dat <- data.frame(yi = c(-.1, .2, .3, .1), sei = rep(.2, 4L))

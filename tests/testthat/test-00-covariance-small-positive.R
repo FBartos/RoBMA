@@ -1,4 +1,3 @@
-probe_state("test-00-covariance-small-positive.R")
 test_that("small positive covariance directions survive structural singularity", {
 
   small <- 1e-20

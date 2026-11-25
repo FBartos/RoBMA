@@ -1,4 +1,3 @@
-probe_state("test-00-review-covratio-simplex.R")
 .review_ordered_influence <- function(kind = "mods", fixed = FALSE) {
 
   dat <- data.frame(yi = seq(.1, .6, .1), sei = 1, x = rep(c(-1, 0, 1), 2),

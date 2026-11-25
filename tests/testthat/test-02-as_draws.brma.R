@@ -1,4 +1,3 @@
-probe_state("test-02-as_draws.brma.R")
 context("as_draws methods for brma objects")
 
 # Load common test helpers

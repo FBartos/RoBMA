@@ -1,4 +1,3 @@
-probe_state("test-00-selection-certificate-cluster-refinement.R")
 context("Rank-one cluster certificate refinement")
 skip_on_cran()
 

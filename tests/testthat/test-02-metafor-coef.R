@@ -1,4 +1,3 @@
-probe_state("test-02-metafor-coef.R")
 context("Metafor coefficient references")
 
 source(testthat::test_path("common-functions.R"))

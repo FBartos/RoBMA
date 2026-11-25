@@ -1,4 +1,3 @@
-probe_state("test-00-random-hypothesis-eligibility.R")
 test_that("random hypothesis eligibility uses structural rather than sampled constancy", {
 
   for (fixed in c(FALSE, TRUE)) {

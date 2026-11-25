@@ -1,4 +1,3 @@
-probe_state("test-02-bias-branch-design.R")
 context("Bias-member design classes of cached ensembles")
 
 # Product-space ensembles hold null, weight-function, PET, and PEESE members.

@@ -1,4 +1,3 @@
-probe_state("test-00-pr82-regplot-rendering.R")
 test_that("regplot clips bands without discarding vertices", {
 
   testthat::skip_if_not_installed("ggplot2")

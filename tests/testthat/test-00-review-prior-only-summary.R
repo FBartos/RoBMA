@@ -1,4 +1,3 @@
-probe_state("test-00-review-prior-only-summary.R")
 test_that("single named prior-only allocation summaries retain declared owners", {
 
   for (name in list(NULL, "named")) {

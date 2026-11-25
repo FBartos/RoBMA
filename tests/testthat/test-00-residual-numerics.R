@@ -1,4 +1,3 @@
-probe_state("test-00-residual-numerics.R")
 test_that("residual standard deviations retain small variances", {
 
   expect_identical(

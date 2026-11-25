@@ -1,4 +1,3 @@
-probe_state("test-00-known-v-block-export.R")
 context("(00) known-V block export keeps interleaved rows")
 
 # The sampling covariance of four estimates in two dependent pairs whose rows

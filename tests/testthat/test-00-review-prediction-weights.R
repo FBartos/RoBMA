@@ -1,4 +1,3 @@
-probe_state("test-00-review-prediction-weights.R")
 .prediction_weight_fixture <- function(weights = c(.25, 1.5, 4),
                                        selection = BayesTools::selection_model()) {
 

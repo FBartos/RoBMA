@@ -1,4 +1,3 @@
-probe_state("test-00-review-selection-grid-diagnostics.R")
 .review_grid_diagnostic_transport <- function(method, mcse, change, kind, consumer = "grid",
     cache_change = NULL) {
 

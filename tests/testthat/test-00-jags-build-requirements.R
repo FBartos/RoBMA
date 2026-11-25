@@ -1,4 +1,3 @@
-probe_state("test-00-jags-build-requirements.R")
 context("JAGS module build and runtime requirements")
 
 test_that("the compiled RoBMA module matches the linked JAGS runtime", {
