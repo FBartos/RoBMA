@@ -370,3 +370,31 @@ test_that("the heterogeneity block keeps its corrected record under the scale ow
   expect_identical(record(owned)[["samplers"]], record(declined)[["samplers"]])
   expect_identical(record(owned)[["fallback_samplers"]], record(declined)[["fallback_samplers"]])
 })
+
+
+test_that("a fit's scale record starts empty although an earlier report was not read", {
+
+  skip_if_not_installed("rjags")
+  # an unrelated live scale owner leaves decisions and moves in the process store
+  unrelated <- .scale_compile(.scale_clustered_model(.scale_allocation_setup()),
+                              list(tau_indicator = 2, tau_component_2 = 0.3, rho_component_1 = 0.4))
+  rjags::adapt(unrelated$jags, 0L, end.adaptation = TRUE)
+  stats::update(unrelated$jags, n.iter = 20L, progress.bar = "none")
+  pending <- .Call("RoBMA_location_scale_report", FALSE, PACKAGE = "RoBMA")
+  expect_gt(pending$counters[["moves"]], 0)
+  dat <- data.frame(study = rep(1:8, each = 3L), esid = seq_len(24L),
+                    yi = 0.25 + rep(c(0.21, -0.18, 0.32, -0.27, 0.05, 0.24, -0.15, 0.08), each = 3L) +
+                      rep(c(0.06, -0.04, 0.02), 8L),
+                    vi = rep(c(0.010, 0.014, 0.012), 8L))
+  fit <- function() RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+                             adapt = 60L, burnin = 50L, sample = 100L, chains = 2L, seed = 3L,
+                             autofit = FALSE, silent = TRUE)
+  record <- function(fit) attr(fit$fit, "sampler_declarations")[["robma"]][["joint"]][["scale"]]
+  first  <- fit()
+  second <- fit()
+  expect_false("clustered" %in% record(first)$decisions$layout)
+  expect_identical(record(first)$decisions, record(second)$decisions)
+  expect_identical(record(first)$counters[c("owners", "moves", "identity", "outside")],
+                   record(second)$counters[c("owners", "moves", "identity", "outside")])
+  expect_identical(first$fit$mcmc, second$fit$mcmc)
+})

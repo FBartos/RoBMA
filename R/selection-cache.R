@@ -615,6 +615,7 @@ selection_sampler_info <- function(clear = FALSE, fit = NULL) {
     .location_block_report_read()
     .location_block_evidence_read()
     .location_bias_evidence_read()
+    .location_scale_report_read()
   }
   RoBMA.private[["selection_runtime_initialized"]] <- TRUE
   invisible(NULL)
