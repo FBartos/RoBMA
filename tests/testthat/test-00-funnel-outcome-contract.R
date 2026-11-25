@@ -1,3 +1,4 @@
+probe_state("test-00-funnel-outcome-contract.R")
 test_that("outcome-mode funnels reject study-specific fitted quantities", {
 
   make_object <- function(mods = FALSE, scale = FALSE,

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-boundary-sentinel.R")
 context("Selection boundary sentinels")
 
 source(testthat::test_path("common-functions.R"))

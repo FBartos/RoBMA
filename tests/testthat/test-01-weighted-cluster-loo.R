@@ -1,3 +1,4 @@
+probe_state("test-01-weighted-cluster-loo.R")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 skip_refit_if_cached("weighted-cluster-loo")

@@ -1,3 +1,4 @@
+probe_state("test-00-input-data-mv-04-likelihood.R")
 source(testthat::test_path("common-functions.R"))
 
 context("brma.mv known-V likelihood contracts")

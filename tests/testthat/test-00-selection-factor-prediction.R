@@ -1,3 +1,4 @@
+probe_state("test-00-selection-factor-prediction.R")
 test_that("factor proposals retain the complete Gaussian product-selection law", {
 
   S <- 600L

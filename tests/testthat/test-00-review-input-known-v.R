@@ -1,3 +1,4 @@
+probe_state("test-00-review-input-known-v.R")
 test_that("zero-rank latent blocks preserve later sampling-factor columns", {
 
   covariance <- matrix(0, 3L, 3L)

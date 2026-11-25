@@ -1,3 +1,4 @@
+probe_state("test-00-selection-product-groups.R")
 .product_group_data <- function() {
 
   data.frame(

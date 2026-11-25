@@ -1,3 +1,4 @@
+probe_state("test-00-parameter-catalog-contract.R")
 context("BayesTools parameter catalog contract")
 
 

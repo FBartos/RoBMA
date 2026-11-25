@@ -1,3 +1,4 @@
+probe_state("test-02-evaluate-product-space.R")
 context("Evaluate product-space posterior structure")
 
 source(testthat::test_path("common-functions.R"))

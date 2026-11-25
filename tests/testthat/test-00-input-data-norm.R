@@ -1,3 +1,4 @@
+probe_state("test-00-input-data-norm.R")
 context("Input handling for brma.norm")
 
 source(testthat::test_path("helper-contracts.R"))

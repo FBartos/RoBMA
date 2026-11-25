@@ -1,3 +1,4 @@
+probe_state("test-00-native-unwind.R")
 context("Native C++ unwinding across R conditions")
 
 .native_unwind_probe <- function(action, callback = NULL, threads = 1L) {

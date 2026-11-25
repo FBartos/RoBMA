@@ -1,3 +1,4 @@
+probe_state("test-00-review-input-missing.R")
 test_that("normal inputs complete missing standard errors from variances", {
 
   input <- data.frame(yi = c(0.1, 0.2, 0.3),

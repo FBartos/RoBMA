@@ -1,3 +1,4 @@
+probe_state("test-00-review-draw-summary.R")
 test_that("finite component SDs reject an overflowing total variance", {
 
   component <- matrix(sqrt(.75 * .Machine$double.xmax), 2L, 1L)

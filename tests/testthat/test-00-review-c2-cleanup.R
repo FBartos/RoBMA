@@ -1,3 +1,4 @@
+probe_state("test-00-review-c2-cleanup.R")
 test_that("single-cluster pseudo-BMA retains its target dimension with unequal draws", {
 
   # Original C2 probes A/C: compatible synthetic stored LOO scores, not MCMC fits.

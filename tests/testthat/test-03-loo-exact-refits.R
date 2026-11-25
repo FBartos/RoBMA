@@ -1,3 +1,4 @@
+probe_state("test-03-loo-exact-refits.R")
 context("Exact observation-deletion refits for LOO")
 
 source(testthat::test_path("common-functions.R"))

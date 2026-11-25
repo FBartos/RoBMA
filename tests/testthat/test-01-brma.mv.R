@@ -1,3 +1,4 @@
+probe_state("test-01-brma.mv.R")
 context("Model fitting for brma.mv")
 
 source(testthat::test_path("common-functions.R"))

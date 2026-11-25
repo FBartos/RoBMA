@@ -1,3 +1,4 @@
+probe_state("test-00-review-native-events.R")
 context("Native selection event regressions")
 
 test_that("rank-one two-sided best events split both threshold crossings", {

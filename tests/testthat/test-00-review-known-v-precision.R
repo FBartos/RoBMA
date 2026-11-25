@@ -1,3 +1,4 @@
+probe_state("test-00-review-known-v-precision.R")
 test_that("fixed-group precision is refined while location shortcuts decline", {
 
   groups <- c(1L, 1L, 2L, 2L)

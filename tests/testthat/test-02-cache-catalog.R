@@ -1,3 +1,4 @@
+probe_state("test-02-cache-catalog.R")
 context("Cached fit catalog")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,3 +1,4 @@
+probe_state("test-00-review-input-allocation.R")
 test_that("empty allocation priors give their validation error without warnings", {
 
   expect_warning(expect_error(

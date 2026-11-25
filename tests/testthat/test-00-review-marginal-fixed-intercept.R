@@ -1,3 +1,4 @@
+probe_state("test-00-review-marginal-fixed-intercept.R")
 context("Marginal means of factors with a fixed-zero intercept")
 
 # The draws of the fitted slope coordinates of the replay.

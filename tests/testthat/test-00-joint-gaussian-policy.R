@@ -1,3 +1,4 @@
+probe_state("test-00-joint-gaussian-policy.R")
 test_that("automatic Gaussian sampling uses the compiled standardized moderator", {
 
   skip_on_cran()

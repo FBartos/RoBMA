@@ -1,3 +1,4 @@
+probe_state("test-00-selection-step-row-cache.R")
 context("Row cache of singleton step-selection rows in the corrected samplers")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

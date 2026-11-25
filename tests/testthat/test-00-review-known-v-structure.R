@@ -1,3 +1,4 @@
+probe_state("test-00-review-known-v-structure.R")
 test_that("Gaussian construction avoids selection-only exact factor recovery", {
 
   K <- 80L

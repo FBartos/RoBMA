@@ -1,3 +1,4 @@
+probe_state("test-00-scenario-helpers.R")
 context("Maintainer scenario helpers")
 
 source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))

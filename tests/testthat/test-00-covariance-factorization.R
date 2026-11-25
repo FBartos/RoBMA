@@ -1,3 +1,4 @@
+probe_state("test-00-covariance-factorization.R")
 test_that("covariance policy classifies positive semidefinite matrices", {
 
   positive_definite <- .covariance_factorization(

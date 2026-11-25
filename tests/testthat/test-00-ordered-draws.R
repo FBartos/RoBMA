@@ -1,3 +1,4 @@
+probe_state("test-00-ordered-draws.R")
 context("Ordered fitted-source draw exports")
 
 

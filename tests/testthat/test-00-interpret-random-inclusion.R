@@ -1,3 +1,4 @@
+probe_state("test-00-interpret-random-inclusion.R")
 test_that("interpret includes multivariate heterogeneity inclusion evidence", {
 
   inclusion <- function(parameters, BF, bounds = rep(NA_character_, length(BF))) {

@@ -1,3 +1,4 @@
+probe_state("test-00-scenario-safety.R")
 context("Scenario artifact and run safety")
 
 source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))

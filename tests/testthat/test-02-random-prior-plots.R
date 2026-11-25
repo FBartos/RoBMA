@@ -1,3 +1,4 @@
+probe_state("test-02-random-prior-plots.R")
 source(testthat::test_path("common-functions.R"))
 
 # plot_prior() and print_prior() of the random-effect selectors of two fitted

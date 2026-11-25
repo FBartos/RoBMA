@@ -1,3 +1,4 @@
+probe_state("test-02-predict.R")
 context("Predict and wrappers")
 
 source(testthat::test_path("common-functions.R"))

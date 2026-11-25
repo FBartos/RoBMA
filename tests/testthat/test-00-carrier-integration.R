@@ -1,3 +1,4 @@
+probe_state("test-00-carrier-integration.R")
 source(testthat::test_path("common-functions.R"))
 
 .carrier_integration_fits <- function(){

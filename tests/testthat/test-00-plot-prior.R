@@ -1,3 +1,4 @@
+probe_state("test-00-plot-prior.R")
 context("Prior plotting")
 
 source(testthat::test_path("helper-visuals.R"))

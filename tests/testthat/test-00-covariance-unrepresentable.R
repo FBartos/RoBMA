@@ -1,3 +1,4 @@
+probe_state("test-00-covariance-unrepresentable.R")
 .covariance_underflow_fixture <- function() {
 
   smallest <- .Machine$double.xmin * .Machine$double.eps

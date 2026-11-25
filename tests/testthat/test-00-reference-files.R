@@ -1,3 +1,4 @@
+probe_state("test-00-reference-files.R")
 context("Human-reviewed text and table references")
 
 source(testthat::test_path("common-functions.R"))

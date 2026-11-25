@@ -1,3 +1,4 @@
+probe_state("test-00-plot-models.R")
 .plot_models_replay <- function(contrast = "treatment", interaction = FALSE,
                                 bias_names = "PET", null_bias_name = "None") {
 

@@ -1,3 +1,4 @@
+probe_state("test-00-known-v-precision-application.R")
 # The precision application B^-1 (r - U c) of a tight known covariance and the
 # GLS residual variance M_ii - x_i' G^-1 x_i subtract nearly equal numbers. The
 # references below are 80-digit mpmath solutions of the dense systems.

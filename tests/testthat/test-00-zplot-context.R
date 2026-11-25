@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-context.R")
 .zplot_context_test_selection <- function(sei, cutoff = 1.96, weights = c(1, .2),
                                           direction = "positive") {
 

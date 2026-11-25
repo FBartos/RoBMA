@@ -1,3 +1,4 @@
+probe_state("test-00-selection-certificate-sharpness.R")
 context("Selection certificate sharpness gate")
 skip_on_cran()
 

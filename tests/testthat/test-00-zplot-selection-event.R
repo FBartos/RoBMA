@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-selection-event.R")
 .zplot_event_context <- function(rule, two_sided = FALSE, weights = c(1, .2), S = 1L,
                                  sei = c(.8, 1.2),
                                  p_cut = if (two_sided) 2 * stats::pnorm(-1) else .5) {

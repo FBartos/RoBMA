@@ -1,3 +1,4 @@
+probe_state("test-00-review-input-empty-design.R")
 test_that("bias terms extend an empty fixed design with finite assignments", {
 
   object <- bPET(yi ~ 0, sei = sei,

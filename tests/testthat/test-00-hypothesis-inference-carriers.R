@@ -1,3 +1,4 @@
+probe_state("test-00-hypothesis-inference-carriers.R")
 test_that("variance point-region identities retain canonical logs and row diagnostics", {
 
   object <- gated_random_object()

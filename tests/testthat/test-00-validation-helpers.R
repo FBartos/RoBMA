@@ -1,3 +1,4 @@
+probe_state("test-00-validation-helpers.R")
 .expect_random_prior_rejected <- function(expr) {
 
   reporter <- testthat::ListReporter$new()

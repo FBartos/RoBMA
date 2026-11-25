@@ -1,3 +1,4 @@
+probe_state("test-00-random-hypothesis-atoms.R")
 # Fixture: gated_random_object() (helper-contracts.R), a gated total-variance
 # allocation of a half-normal SD over 'study' (inclusion gate with prior
 # probability 0.5) and 'esid' (ungated), Dirichlet(1, 1) shares, and

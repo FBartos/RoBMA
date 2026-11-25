@@ -1,3 +1,4 @@
+probe_state("test-00-brma-mv-known-r.R")
 known_r_data <- function() {
 
   data.frame(

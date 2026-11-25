@@ -1,3 +1,4 @@
+probe_state("test-02-radial.R")
 context("Radial (Galbraith) plot")
 
 # Load common test helpers

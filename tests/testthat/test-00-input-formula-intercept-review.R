@@ -1,3 +1,4 @@
+probe_state("test-00-input-formula-intercept-review.R")
 context("Response formulas preserve structural zero intercepts")
 
 test_that("response-only formulas preserve omitted intercepts in model constructors", {

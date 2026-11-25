@@ -1,3 +1,4 @@
+probe_state("test-02-marginal_means.R")
 context("Estimated marginal means")
 
 # Load common test helpers

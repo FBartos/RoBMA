@@ -1,3 +1,4 @@
+probe_state("test-00-bias-branch-design.R")
 context("Bias-member design classes")
 
 # A RoBMA() ensemble mixes members with different bias terms: no member holds

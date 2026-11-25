@@ -1,3 +1,4 @@
+probe_state("test-00-gaussian-joint-native.R")
 test_that("Gaussian joint ownership requires the entire independent likelihood graph", {
 
   skip_on_cran()

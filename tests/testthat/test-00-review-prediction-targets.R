@@ -1,3 +1,4 @@
+probe_state("test-00-review-prediction-targets.R")
 test_that("fitted Gaussian uncertainty is equivariant to effect-size units", {
 
   S <- 20L

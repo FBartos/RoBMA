@@ -1,3 +1,4 @@
+probe_state("test-01-bPEESE.R")
 context("Model fitting for bPEESE")
 
 # Load common test helpers

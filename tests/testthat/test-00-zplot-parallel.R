@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-parallel.R")
 test_that("parallel density chunks preserve rows, budgets, and cleanup", {
 
   object <- list(marker = "complete fitted object", fit = list(draws = 1))

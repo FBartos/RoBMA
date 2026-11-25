@@ -1,3 +1,4 @@
+probe_state("test-00-covariance-minimum-rank.R")
 # Exact minimum-rank recovery. Covariance from overlapping samples or shared
 # arms is `diag(d) + U U'` with few columns without being block constant, and a
 # representation is accepted only when it reproduces every supplied entry.

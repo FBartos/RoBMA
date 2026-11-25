@@ -1,3 +1,4 @@
+probe_state("test-00-input-data-glmm.R")
 context("Input handling for brma.glmm")
 
 skip_on_cran()

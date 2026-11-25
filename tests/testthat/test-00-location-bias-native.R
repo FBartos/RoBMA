@@ -1,3 +1,4 @@
+probe_state("test-00-location-bias-native.R")
 context("Location block sampler: the bias label")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

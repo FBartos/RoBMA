@@ -1,3 +1,4 @@
+probe_state("test-00-input-explicit-slab-review.R")
 context("Multivariate model averaging retains explicitly supplied slabs")
 
 test_that("explicit multivariate mixture priors do not require an unused UISD", {

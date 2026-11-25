@@ -1,3 +1,4 @@
+probe_state("test-00-joint-bias-native.R")
 skip_on_cran()
 
 .joint_bias_native_fit <- function(extra = "", slopes = "c(pet, 0, 0)", power = 1,

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-probability-numerics.R")
 context("Selection probability numerics")
 
 source(testthat::test_path("common-functions.R"))

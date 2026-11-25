@@ -1,3 +1,4 @@
+probe_state("test-00-moderated-bias-policy.R")
 test_that("selection meta-regression binds the exact additive moderator offset on request", {
 
   skip_on_cran()

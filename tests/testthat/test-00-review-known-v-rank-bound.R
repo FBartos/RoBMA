@@ -1,3 +1,4 @@
+probe_state("test-00-review-known-v-rank-bound.R")
 test_that("exact recovery excludes the integer Ledermann boundary", {
 
   expect_identical(vapply(c(3L, 6L, 10L), .covariance_ledermann_rank, integer(1)),

@@ -1,3 +1,4 @@
+probe_state("test-00-review-native-validation.R")
 context("Native input validation regressions")
 
 test_that("native GLMM outcomes are validated before likelihood arithmetic", {

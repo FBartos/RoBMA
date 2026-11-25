@@ -1,3 +1,4 @@
+probe_state("test-00-selection-cache.R")
 test_that("selection cache inspection initializes its configured budget", {
 
   old <- RoBMA.options()

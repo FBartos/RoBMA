@@ -1,3 +1,4 @@
+probe_state("test-00-selection-sampling-native.R")
 context("Whole sampling-error selection native kernels")
 
 .sampling_native_arguments <- function(mean, diagonal, loading = matrix(0, length(mean), 0),

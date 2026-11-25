@@ -1,3 +1,4 @@
+probe_state("test-00-review-known-v-whitening.R")
 .review_whitened_known_v <- function(mixed = FALSE) {
 
   L <- rbind(c(1, 0), c(0, 1), c(1, 1))

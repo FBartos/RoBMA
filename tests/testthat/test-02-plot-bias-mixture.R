@@ -1,3 +1,4 @@
+probe_state("test-02-plot-bias-mixture.R")
 context("Publication-bias mixture plots")
 
 mock_bias_mixture_fit <- function() {

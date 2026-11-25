@@ -1,3 +1,4 @@
+probe_state("test-02-residuals.R")
 context("Residuals")
 
 source(testthat::test_path("common-functions.R"))

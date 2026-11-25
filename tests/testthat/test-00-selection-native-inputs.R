@@ -1,3 +1,4 @@
+probe_state("test-00-selection-native-inputs.R")
 
 
 test_that("inactive multivariate selection ignores a zero weight vector", {

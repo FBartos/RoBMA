@@ -1,3 +1,4 @@
+probe_state("test-00-loo-weights-arguments.R")
 test_that("loo_weights rejects additional models with an actionable error", {
 
   fit_1 <- structure(list(), class = "brma")

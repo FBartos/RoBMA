@@ -1,3 +1,4 @@
+probe_state("test-00-clustered-joint-native.R")
 skip_on_cran()
 
 test_that("clustered opt-in owns the gate, full Gaussian slab and all study effects", {

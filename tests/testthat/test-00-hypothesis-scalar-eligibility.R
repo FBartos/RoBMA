@@ -1,3 +1,4 @@
+probe_state("test-00-hypothesis-scalar-eligibility.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Point-test eligibility of scalar formula coefficients")

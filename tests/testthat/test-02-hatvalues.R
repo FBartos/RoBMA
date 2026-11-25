@@ -1,3 +1,4 @@
+probe_state("test-02-hatvalues.R")
 context("Hatvalues")
 
 source(testthat::test_path("common-functions.R"))

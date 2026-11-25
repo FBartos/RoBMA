@@ -1,3 +1,4 @@
+probe_state("test-00-review-input-predict-groups.R")
 test_that("marginalized new-effect draws preserve supplied group dependence", {
 
   withr::local_seed(82)

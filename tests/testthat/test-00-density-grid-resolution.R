@@ -1,3 +1,4 @@
+probe_state("test-00-density-grid-resolution.R")
 test_that("adaptive density grids stop at the floating-point resolution limit", {
 
   bounds <- c(1, 1 + 4 * .Machine$double.eps)

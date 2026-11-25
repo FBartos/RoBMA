@@ -1,3 +1,4 @@
+probe_state("test-00-review-scalar-source-summary.R")
 .review_scalar_source_wide_replay <- function() {
 
   dat <- data.frame(yi = c(.1, .2), x = c(1, 0), y = c(0, 1), study = c("a", "a"))

@@ -1,3 +1,4 @@
+probe_state("test-00-bayestools-fit-contract.R")
 context("BayesTools fitted metadata contract")
 
 

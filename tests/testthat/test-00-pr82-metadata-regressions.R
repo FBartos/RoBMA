@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-metadata-regressions.R")
 test_that("invalid covariance blocks fail before zero-status classification", {
 
   for (value in c(NA_real_, NaN, Inf)) {

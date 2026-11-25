@@ -1,3 +1,4 @@
+probe_state("test-00-influence-tau-deletion.R")
 test_that("heterogeneity deletion preserves small remaining scale rows", {
 
   tau <- rbind(c(1, 1e-10, 2e-10), c(2, 3e-10, 4e-10))

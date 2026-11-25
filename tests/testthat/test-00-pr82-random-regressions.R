@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-random-regressions.R")
 test_that("gate-only allocations remain independently addressable", {
 
   first <- list(label = "first", weight_name = NULL, n_targets = 2L)

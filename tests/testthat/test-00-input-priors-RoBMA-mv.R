@@ -1,3 +1,4 @@
+probe_state("test-00-input-priors-RoBMA-mv.R")
 skip_on_cran()
 
 .robma_mv_input_data <- function() {

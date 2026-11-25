@@ -1,3 +1,4 @@
+probe_state("test-01-bselmodel.R")
 context("Model fitting for bselmodel")
 
 # Load common test helpers

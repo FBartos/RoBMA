@@ -1,3 +1,4 @@
+probe_state("test-00-selection-postfit-targets.R")
 .postfit_selection_context <- function(side, rule, S = 2L) {
 
   prior <- BayesTools::prior_weightfunction(

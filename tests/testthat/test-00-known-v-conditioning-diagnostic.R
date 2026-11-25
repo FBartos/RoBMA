@@ -1,3 +1,4 @@
+probe_state("test-00-known-v-conditioning-diagnostic.R")
 test_that("known-V collinearity diagnostics are separate from physical variance scale", {
 
   for (covariance in list(diag(c(1, 1e-20)),

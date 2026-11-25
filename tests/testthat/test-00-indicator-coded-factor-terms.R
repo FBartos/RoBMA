@@ -1,3 +1,4 @@
+probe_state("test-00-indicator-coded-factor-terms.R")
 context("Indicator-coded factor terms under mean-difference contrasts")
 
 # An interaction without one of its lower-order terms (`g:x` in `~ g + g:x` or

@@ -1,3 +1,4 @@
+probe_state("test-00-marginal-means-inference.R")
 context("Marginal-means inference")
 
 source(testthat::test_path("common-functions.R"))

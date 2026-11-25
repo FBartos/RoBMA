@@ -1,3 +1,4 @@
+probe_state("test-02-heterogeneity-mv.R")
 context("brma.mv heterogeneity")
 
 source(testthat::test_path("common-functions.R"))

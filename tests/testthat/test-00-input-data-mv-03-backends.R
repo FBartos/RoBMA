@@ -1,3 +1,4 @@
+probe_state("test-00-input-data-mv-03-backends.R")
 context("brma.mv known-V backend preparation")
 
 test_that("brma.mv honors forced known-V backend requests", {

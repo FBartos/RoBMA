@@ -1,3 +1,4 @@
+probe_state("test-01-bselmodel.mv.R")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 skip_refit_if_cached("bselmodel.mv")

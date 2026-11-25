@@ -1,3 +1,4 @@
+probe_state("test-00-selection-sampling-postfit.R")
 test_that("sampling endpoints retain the whole covariance independently of its representation", {
 
   variances <- c(.4, .9, 1.2)

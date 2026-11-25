@@ -1,3 +1,4 @@
+probe_state("test-00-postfit-selection-control.R")
 test_that("post-fit selection controls are explicit and validated", {
 
   control <- set_selection_likelihood_control(max_points_per_scramble = 32768)

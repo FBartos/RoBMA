@@ -1,3 +1,4 @@
+probe_state("test-00-review-native-rng.R")
 context("Native selection random-number ordering")
 
 test_that("native RNG bin choices retain remote lower-tail mass", {

@@ -1,3 +1,4 @@
+probe_state("test-00-forest-row-limits.R")
 test_that("forest automatic limits retain custom study and summary rows", {
 
   for (rows in list(c(-10, -12, -14), -10)) {

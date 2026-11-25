@@ -1,3 +1,4 @@
+probe_state("test-02-plot-conditional.R")
 context("Conditional posterior plots")
 
 mock_plot_fit <- function(class = c("BMA.norm", "RoBMA", "brma")) {

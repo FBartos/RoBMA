@@ -1,3 +1,4 @@
+probe_state("test-00-selection-corrected-block-exactness.R")
 context("Exactness of the corrected block sampler")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

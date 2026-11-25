@@ -1,3 +1,4 @@
+probe_state("test-00-covariance-block-constant.R")
 # Exact recovery of diagonal-plus-block-constant structure from a plain
 # covariance block. Acceptance is an algebraic identity certified by
 # reconstruction, never a numerical-rank decision, so every case below states

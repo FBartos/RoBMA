@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-significance-level.R")
 test_that("as_zplot requires a positive z threshold", {
 
   # a replay of a plain meta-analysis: 12 estimates with fixed posterior draws

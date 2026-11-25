@@ -1,3 +1,4 @@
+probe_state("test-03-bridge-conjugate-oracles.R")
 # Independent conjugate posterior rows; these replays are not MCMC samples.
 .cleanup_bridge_conjugate_fixture <- function(family) {
 

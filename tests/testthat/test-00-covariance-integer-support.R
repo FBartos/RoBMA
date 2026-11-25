@@ -1,3 +1,4 @@
+probe_state("test-00-covariance-integer-support.R")
 test_that("integer Gram support does not depend on rounded Cholesky pivots", {
 
   # C = U U' has exact integer entries and rank two: U's two columns are

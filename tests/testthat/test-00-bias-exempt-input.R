@@ -1,3 +1,4 @@
+probe_state("test-00-bias-exempt-input.R")
 context("Row-level publication bias exemptions")
 
 test_that("native selection bins require a logical exemption mask", {

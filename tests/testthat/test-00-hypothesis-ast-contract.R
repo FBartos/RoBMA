@@ -1,3 +1,4 @@
+probe_state("test-00-hypothesis-ast-contract.R")
 context("BayesTools hypothesis AST contract")
 
 

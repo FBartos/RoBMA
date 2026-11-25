@@ -1,3 +1,4 @@
+probe_state("test-01-bias-branch-design.R")
 context("Cached fits for the bias-member design tests")
 
 source(testthat::test_path("common-functions.R"))

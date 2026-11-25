@@ -1,3 +1,4 @@
+probe_state("test-00-random-correlation-routes.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Random-slope correlation routes")

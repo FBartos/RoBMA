@@ -1,3 +1,4 @@
+probe_state("test-00-location-scale-native.R")
 context("Heterogeneity scale move of the location block sampler")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

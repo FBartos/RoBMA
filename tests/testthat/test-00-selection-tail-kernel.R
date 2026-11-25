@@ -1,3 +1,4 @@
+probe_state("test-00-selection-tail-kernel.R")
 context("(00) Standard-normal tail kernel")
 
 # The selection kernels evaluate the standard-normal upper tail millions of

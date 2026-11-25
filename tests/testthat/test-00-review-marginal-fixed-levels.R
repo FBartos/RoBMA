@@ -1,3 +1,4 @@
+probe_state("test-00-review-marginal-fixed-levels.R")
 context("Marginal-means hypotheses compare variable levels with a fixed level")
 
 # A three-level treatment factor with a fixed-zero intercept: the reference

@@ -1,3 +1,4 @@
+probe_state("test-00-known-v-joint-loglik.R")
 # test-00-known-v-joint-loglik.R
 
 test_that("known-V joint log-likelihood uses block MVN density", {

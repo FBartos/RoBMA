@@ -1,3 +1,4 @@
+probe_state("test-00-known-v-low-rank-numerics.R")
 .low_rank_known_v_test_matrix <- function() {
 
   factor <- matrix(

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-lean-arithmetic.R")
 context("Selection double-precision node products")
 skip_on_cran()
 

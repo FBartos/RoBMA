@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-gaussian-reference.R")
 test_that("Gaussian zplot reference matches dense parts for all source choices", {
 
   data <- data.frame(yi = c(.1, -.2), paper = c("a", "a"))

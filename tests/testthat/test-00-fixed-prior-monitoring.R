@@ -1,3 +1,4 @@
+probe_state("test-00-fixed-prior-monitoring.R")
 context("Fixed point-prior monitoring")
 
 .fixed_prior_monitors <- function(object) {

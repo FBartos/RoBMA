@@ -1,3 +1,4 @@
+probe_state("test-02-iwmde-target-weights.R")
 context("IWMDE linear target weights")
 
 

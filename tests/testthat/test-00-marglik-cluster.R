@@ -1,3 +1,4 @@
+probe_state("test-00-marglik-cluster.R")
 test_that("cluster bridge likelihood equals independent Gaussian integration", {
 
   yi          <- c(0.15, -0.10, 0.40, 0.05, 0.30)

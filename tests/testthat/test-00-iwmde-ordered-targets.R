@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-ordered-targets.R")
 context("Ordered primitive conditional density targets")
 
 source(testthat::test_path("common-functions.R"))

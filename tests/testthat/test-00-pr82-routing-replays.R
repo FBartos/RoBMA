@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-routing-replays.R")
 # Attach a synthetic posterior to a constructor-only object: compile its
 # formulas, then finalize the fit through the BayesTools fit contract. The
 # draws are the matrix 'samples', or the result of calling 'samples' on the

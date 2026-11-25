@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-context-native.R")
 # The native batch (src/selnorm/zplot-context.cc) ports the R controller
 # .zplot_context_projection() statement by statement; these tests pin the two
 # to identical results, errors and refusals, and the batch to thread-count

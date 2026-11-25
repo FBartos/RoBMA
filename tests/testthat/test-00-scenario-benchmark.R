@@ -1,3 +1,4 @@
+probe_state("test-00-scenario-benchmark.R")
 context("Scenario benchmark preparation")
 
 source(testthat::test_path("common-functions.R"))

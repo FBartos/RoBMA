@@ -1,3 +1,4 @@
+probe_state("test-00-poisson-conditional-boundaries.R")
 test_that("conditional Poisson sums preserve zero and infinite rate limits", {
 
   skip_if_not(.has_native_glmm_row_sum("pois", conditional = TRUE))

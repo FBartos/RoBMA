@@ -1,3 +1,4 @@
+probe_state("test-02-iwmde-chen-boundary-preflight.R")
 testthat::test_that("finite declared omega conditioners retain endpoints and raw interior values", {
   context <- list(flat_prior_list = list(bias = BayesTools::prior_weightfunction(
     side = "one-sided", steps = .05, weights = BayesTools::wf_cumulative(c(1, 1)))),

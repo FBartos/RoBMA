@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-preparation.R")
 .zplot_preparation_object <- function(kind = "normal") {
 
   dat <- data.frame(yi = rep(c(-.3, .1, .7), 4L), sei = rep(c(.2, .3, .4), 4L),

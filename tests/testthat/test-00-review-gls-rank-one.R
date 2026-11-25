@@ -1,3 +1,4 @@
+probe_state("test-00-review-gls-rank-one.R")
 .review_rank_one_gls <- function(X, y, u, D, full = TRUE) {
 
   known <- .known_v_prepare(known_v_factor(rep(0, length(u)), matrix(u, ncol = 1)),

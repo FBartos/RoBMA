@@ -1,3 +1,4 @@
+probe_state("test-00-review-gls-zero-rows.R")
 .review_gls_replay <- function(V, y, x, sd = NULL, saturated = FALSE,
                                 sd_values = NULL) {
 

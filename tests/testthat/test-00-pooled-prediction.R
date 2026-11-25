@@ -1,3 +1,4 @@
+probe_state("test-00-pooled-prediction.R")
 context("Pooled prediction targets")
 
 

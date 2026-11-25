@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-diagnostic-axes.R")
 test_that("QQ limits contain one-sided residual ranges and reject missing residuals", {
 
   z <- c(0.5, 1, 2)

@@ -1,3 +1,4 @@
+probe_state("test-00-review-wrapper-cleanup.R")
 test_that("fitted and ranef warn about unsupported and method-controlled dots", {
 
   object <- .review_cleanup_plain_replay()

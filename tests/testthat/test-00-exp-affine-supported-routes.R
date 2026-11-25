@@ -1,3 +1,4 @@
+probe_state("test-00-exp-affine-supported-routes.R")
 source(testthat::test_path("common-functions.R"))
 
 test_that("exp-affine coefficients refuse qCMDE/IWMDE with the original-scale classes", {

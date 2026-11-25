@@ -1,3 +1,4 @@
+probe_state("test-00-review-guarded-prediction.R")
 .guarded_prediction_fixture <- function(variable = FALSE, single = FALSE, copies = 1L) {
 
   blocks <- list(c(1L, 4L), c(2L, 3L, 5L))

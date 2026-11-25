@@ -1,3 +1,4 @@
+probe_state("test-00-jags-extension-contract.R")
 context("JAGS extension contract")
 
 

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-sampling-metadata.R")
 test_that("ordinary vcalc covariance follows retained data rows and explicit publication groups", {
 
   skip_if_not_installed("metafor")

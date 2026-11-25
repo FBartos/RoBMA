@@ -1,3 +1,4 @@
+probe_state("test-00-selection-coarse-fallback.R")
 context("Fallback and per-fit record of the corrected selection sampler")
 source(testthat::test_path("common-functions.R"))
 

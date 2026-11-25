@@ -1,3 +1,4 @@
+probe_state("test-00-correlation-plot-support.R")
 test_that("correlation plot transformations declare support without weakening input validation", {
 
   transformation <- .effect_plot_transformation(.effect_output_setup_measure(

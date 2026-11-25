@@ -1,3 +1,4 @@
+probe_state("test-00-review-influence-cleanup.R")
 context("Influence cleanup preserves declared targets and draw populations")
 
 test_that("known-V public influence diagnostics use canonical accurate target metadata", {

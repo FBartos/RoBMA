@@ -1,3 +1,4 @@
+probe_state("test-00-bridge-repetitions.R")
 # a BayesTools fit carrying only the current fitted-object contract
 .bridge_repetition_test_bt_fit <- function() {
 

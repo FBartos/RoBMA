@@ -1,3 +1,4 @@
+probe_state("test-00-bounded-cdf-tails.R")
 .bounded_cdf_tail_call <- function(means, omega = c(1, .3), bounded = TRUE,
                                    sign = 1L, denominator = NULL, collect = FALSE,
                                    z = c(-9, -8, 0, 8, 9), cache = NULL, budget = 0) {

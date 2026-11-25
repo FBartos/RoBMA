@@ -1,3 +1,4 @@
+probe_state("test-02-summary_models.R")
 source(testthat::test_path("common-functions.R"))
 
 skip_if_no_fits()

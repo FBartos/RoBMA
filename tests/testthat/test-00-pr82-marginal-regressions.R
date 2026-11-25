@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-marginal-regressions.R")
 test_that("marginal means retain rejected ordinate diagnostics", {
 
   ordinate <- BayesTools::posterior_ordinate_attribute(

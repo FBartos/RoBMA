@@ -87,3 +87,11 @@ jobs:
           TESTTHAT_MAX_FAILS: Inf
         run: |
           Rscript tools/test-profile.R standard
+
+      - name: TEMPORARY upload of the state probe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-state-probe
+          path: ci-diagnostic
+          retention-days: 3

@@ -1,3 +1,4 @@
+probe_state("test-02-pr82-ordinate-failures.R")
 source(testthat::test_path("common-functions.R"))
 
 test_that("public point underflow retains log evidence and diagnostic rows", {

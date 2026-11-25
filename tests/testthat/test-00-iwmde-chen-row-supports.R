@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-chen-row-supports.R")
 context("(00) IWMDE Chen proposals for row-varying bounded supports")
 
 # The linear route's support is the interval along which the other coordinates

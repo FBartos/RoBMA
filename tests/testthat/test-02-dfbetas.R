@@ -1,3 +1,4 @@
+probe_state("test-02-dfbetas.R")
 context("DFBETAS")
 
 source(testthat::test_path("common-functions.R"))

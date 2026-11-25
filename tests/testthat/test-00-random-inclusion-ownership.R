@@ -1,3 +1,4 @@
+probe_state("test-00-random-inclusion-ownership.R")
 test_that("a random inclusion gate belongs only to its declared block", {
 
   result <- BayesTools::JAGS_formula(

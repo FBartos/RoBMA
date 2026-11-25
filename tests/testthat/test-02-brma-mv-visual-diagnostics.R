@@ -1,3 +1,4 @@
+probe_state("test-02-brma-mv-visual-diagnostics.R")
 context("brma.mv visual diagnostics")
 
 source(testthat::test_path("common-functions.R"))

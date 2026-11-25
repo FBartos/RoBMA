@@ -1,3 +1,4 @@
+probe_state("test-01-bPET.R")
 context("Model fitting for bPET")
 
 # Load common test helpers

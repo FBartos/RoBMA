@@ -1,3 +1,4 @@
+probe_state("test-02-BMA.mv.R")
 source(testthat::test_path("common-functions.R"))
 
 skip_if_missing_fits("BMA.mv_random_components")

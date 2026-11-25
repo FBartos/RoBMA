@@ -1,3 +1,4 @@
+probe_state("test-00-selection-node-memo.R")
 context("Selection node memo")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

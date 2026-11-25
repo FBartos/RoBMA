@@ -1,3 +1,4 @@
+probe_state("test-00-formula-coefficient-density-contract.R")
 context("BayesTools formula coefficient density contract")
 
 test_that("conditional-normal ordinates retain exact structural classification", {

@@ -1,3 +1,4 @@
+probe_state("test-00-bias-exempt-zplot.R")
 test_that("univariate zplot density and EDR mix eligible and exempt outcomes", {
 
   yi <- c(.1, .4)

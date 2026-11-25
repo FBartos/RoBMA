@@ -1,3 +1,4 @@
+probe_state("test-00-selection-dense-triple.R")
 test_that("the rejected Assink triple is recovered within its reported radius", {
 
   # The first rejected JAGS state from issue 115. Preserve the full supplied

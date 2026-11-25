@@ -1,3 +1,4 @@
+probe_state("test-00-review-tau-structure.R")
 .review_tau_random_formula_fit <- function() {
 
   data <- data.frame(yi = c(.1, .2, -.1, .3), vi = rep(.04, 4L),

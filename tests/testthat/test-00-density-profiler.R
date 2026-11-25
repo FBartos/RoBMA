@@ -1,3 +1,4 @@
+probe_state("test-00-density-profiler.R")
 context("Density profiler controls")
 
 

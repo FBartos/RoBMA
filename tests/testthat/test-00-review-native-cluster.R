@@ -1,3 +1,4 @@
+probe_state("test-00-review-native-cluster.R")
 context("Native cluster input validation")
 
 test_that("cluster selection batches reject invalid observed values and bins", {

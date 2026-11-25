@@ -1,3 +1,4 @@
+probe_state("test-00-selection-certificate-acceptance.R")
 context("Selection certificate acceptance")
 skip_on_cran()
 

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-coarse-exactness.R")
 context("Exactness of the corrected sampler on cluster and factor selection blocks")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

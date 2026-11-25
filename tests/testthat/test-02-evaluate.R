@@ -1,3 +1,4 @@
+probe_state("test-02-evaluate.R")
 context("Evaluate posterior samples")
 # ============================================================================ #
 # test-02-evaluate.R

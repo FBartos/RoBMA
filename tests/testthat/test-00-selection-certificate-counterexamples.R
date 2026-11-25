@@ -1,3 +1,4 @@
+probe_state("test-00-selection-certificate-counterexamples.R")
 context("Selection certificate counterexamples")
 skip_on_cran()
 

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-qmc-stopping.R")
 context("Selection QMC stopping multiplier")
 skip_on_cran()
 

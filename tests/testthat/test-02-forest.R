@@ -1,3 +1,4 @@
+probe_state("test-02-forest.R")
 context("Forest plot")
 
 # Load common test helpers

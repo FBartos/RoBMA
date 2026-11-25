@@ -1,3 +1,4 @@
+probe_state("test-00-selection-sampling-cutoff.R")
 test_that("sampling-conditioned deletion keeps an observed cutoff only while that outcome is fixed", {
 
   p_cut <- .49

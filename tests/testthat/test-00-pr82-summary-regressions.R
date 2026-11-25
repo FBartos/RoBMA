@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-summary-regressions.R")
 test_that("unpaired random inclusion gates retain usable labels", {
 
   quantities <- data.frame(

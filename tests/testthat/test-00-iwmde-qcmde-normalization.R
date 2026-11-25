@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-qcmde-normalization.R")
 context("qCMDE normalization pass: call structure and grid requests")
 
 # The joint density is replaced by analytic rows so that the calls the pass

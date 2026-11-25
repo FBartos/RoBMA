@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-context-reuse.R")
 .zplot_context_reuse_selection <- function(sei, weights = c(1, .2), cutoff = 0) {
 
   prior <- BayesTools::prior_weightfunction("one-sided", stats::pnorm(cutoff, lower.tail = FALSE),

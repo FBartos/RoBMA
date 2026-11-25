@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-threshold-batch.R")
 .zplot_threshold_batch_context <- function(S, sei, direction = "positive", normal = FALSE) {
 
   prior <- BayesTools::prior_weightfunction("one-sided", c(.025, .05),

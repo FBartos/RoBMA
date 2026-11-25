@@ -1,3 +1,4 @@
+probe_state("test-00-random-nested-total-prior.R")
 source(testthat::test_path("common-functions.R"))
 
 # The total SD of a nested random structure under BMA.mv (random = ~ 1 | study

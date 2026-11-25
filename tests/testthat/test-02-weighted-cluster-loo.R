@@ -1,3 +1,4 @@
+probe_state("test-02-weighted-cluster-loo.R")
 source(testthat::test_path("common-functions.R"))
 
 test_that("cached weighted cluster LOO agrees with exact Gaussian deletion posteriors", {

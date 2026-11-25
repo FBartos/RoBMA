@@ -1,3 +1,4 @@
+probe_state("test-01-plot-prior-random.R")
 context("Cached fits for the random-effect prior plots")
 
 source(testthat::test_path("common-functions.R"))

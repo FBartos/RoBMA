@@ -1,3 +1,4 @@
+probe_state("test-00-review-input-fixed-design.R")
 test_that("point-fixed formulas map columns without an intercept", {
 
   point <- function(value) BayesTools::prior("point", list(location = value))

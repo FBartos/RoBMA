@@ -1,3 +1,4 @@
+probe_state("test-00-review-tooling-guards.R")
 test_that("review metadata helpers preserve named fields and reject discarded fields", {
 
   valid <- with_draw_metadata(1:2, linear_weights = c(mu = 1))

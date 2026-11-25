@@ -1,3 +1,4 @@
+probe_state("test-00-review-output-cleanup.R")
 test_that("native thread option failures name NA and preserve atomic updates", {
 
   previous <- RoBMA.options()

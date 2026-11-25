@@ -1,3 +1,4 @@
+probe_state("test-00-review-known-v-full-support.R")
 test_that("declared singleton generators certify full-row support before null projection", {
 
   V <- tcrossprod(cbind(1, 3500 + 0:2)) / 3500^2

@@ -1,3 +1,4 @@
+probe_state("test-00-review-known-v-cleanup.R")
 test_that("null-space coverage refuses an indefinite covariance factorization", {
 
   indefinite <- .covariance_factorization(matrix(c(1, 2, 2, 1), 2L))

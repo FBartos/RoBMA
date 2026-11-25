@@ -1,3 +1,4 @@
+probe_state("test-02-predict-mv.R")
 context("Predict brma.mv")
 
 source(testthat::test_path("common-functions.R"))

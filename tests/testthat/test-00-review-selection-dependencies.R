@@ -1,3 +1,4 @@
+probe_state("test-00-review-selection-dependencies.R")
 test_that("F2-2 dependency components preserve sampling and random coefficient support", {
 
   data <- list(outcome = list(sei = rep(1, 4L)))

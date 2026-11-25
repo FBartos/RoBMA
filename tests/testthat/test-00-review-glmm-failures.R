@@ -1,3 +1,4 @@
+probe_state("test-00-review-glmm-failures.R")
 test_that("AGHQ recovery preserves unrelated conditions even when their text matches", {
 
   unrelated <- structure(list(message = "Binomial AGHQ mode failed at sample 1, observation 1.",

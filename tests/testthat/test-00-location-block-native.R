@@ -1,3 +1,4 @@
+probe_state("test-00-location-block-native.R")
 context("Location block sampler of model-averaged .mv fits")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()

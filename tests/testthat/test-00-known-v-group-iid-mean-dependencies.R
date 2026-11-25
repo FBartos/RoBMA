@@ -1,3 +1,4 @@
+probe_state("test-00-known-v-group-iid-mean-dependencies.R")
 test_that("group-IID q shortcuts require declared fixed-mean invariance", {
 
   r <- function(name) get(name, envir = asNamespace("RoBMA"), inherits = FALSE)

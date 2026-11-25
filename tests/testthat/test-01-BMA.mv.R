@@ -1,3 +1,4 @@
+probe_state("test-01-BMA.mv.R")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 skip_refit_if_cached("BMA.mv")
@@ -50,6 +51,7 @@ test_that("BMA.mv fits a product space over fixed and random components", {
       min_ESS  = NULL
     )
   )
+  probe_fit("BMA.mv_random_components as fitted in test-01", fit)
   fit <- suppressWarnings(add_loo(fit))
   save_fit(
     "BMA.mv_random_components",

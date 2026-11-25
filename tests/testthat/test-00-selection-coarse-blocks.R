@@ -1,3 +1,4 @@
+probe_state("test-00-selection-coarse-blocks.R")
 context("Coarse surrogates of cluster and factor selection blocks")
 source(testthat::test_path("common-functions.R"))
 

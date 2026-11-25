@@ -1,3 +1,4 @@
+probe_state("test-02-interpret.R")
 context("Interpret")
 
 source(testthat::test_path("common-functions.R"))

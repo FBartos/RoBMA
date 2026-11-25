@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-ranef-routing.R")
 test_that("two-level total random effects keep the estimate names", {
 
   object <- brma(

@@ -1,3 +1,4 @@
+probe_state("test-00-known-v-factor-grid.R")
 .factor_grid_dense_loglik <- function(outcome, mean, covariance) {
 
   root <- chol(covariance)

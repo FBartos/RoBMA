@@ -1,3 +1,4 @@
+probe_state("test-00-selection-factor-tree-rule.R")
 # The nested factor quadrature integrates a forest of supports, not only a
 # chain. Every case is checked against an independent oracle: the selected
 # block normalizer is the expected product of step weights under the block

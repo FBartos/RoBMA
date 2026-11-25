@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-linear-directions.R")
 test_that("fixed linear directions retain Gaussian conditional and marginal laws", {
 
   row <- c(a = 0.2, b = -0.3, c = 0.4)

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-certificate-proposals.R")
 context("Selection certificate QMC proposals")
 skip_on_cran()
 

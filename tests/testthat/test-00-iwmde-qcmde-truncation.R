@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-qcmde-truncation.R")
 context("(00) qCMDE truncation reporting")
 
 # Rows whose Gaussian likelihood kernel meets a normal prior are truncated

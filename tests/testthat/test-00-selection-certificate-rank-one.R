@@ -1,3 +1,4 @@
+probe_state("test-00-selection-certificate-rank-one.R")
 context("Rank-one product interval refinement")
 skip_on_cran()
 source(testthat::test_path("helper-selection-kernel.R"))

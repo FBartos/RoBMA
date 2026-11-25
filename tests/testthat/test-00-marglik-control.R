@@ -1,3 +1,4 @@
+probe_state("test-00-marglik-control.R")
 test_that("marginal-likelihood parallel settings inherit and respect max_cores", {
 
   old_max_cores <- RoBMA.get_option("max_cores")

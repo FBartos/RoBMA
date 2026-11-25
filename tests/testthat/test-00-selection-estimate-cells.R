@@ -1,3 +1,4 @@
+probe_state("test-00-selection-estimate-cells.R")
 source(testthat::test_path("common-functions.R"))
 
 .selection_estimate_cell_fixture <- function(

@@ -1,3 +1,4 @@
+probe_state("test-00-review-selection-sensitivity.R")
 .review_sampling_sensitivity_replay <- function(case, direction = "positive") {
 
   model <- if (case == "A") BayesTools::selection_model(weight_rule = "best", group = "paper",

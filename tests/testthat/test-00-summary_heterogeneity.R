@@ -1,3 +1,4 @@
+probe_state("test-00-summary_heterogeneity.R")
 source(testthat::test_path("common-functions.R"))
 
 context("Summary heterogeneity helpers")

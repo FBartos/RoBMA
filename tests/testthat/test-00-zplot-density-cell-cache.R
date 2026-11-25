@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-density-cell-cache.R")
 .density_cell_cache_inputs <- function() {
 
   # Unequal multiplicities and nonadjacent repeats exercise the original K

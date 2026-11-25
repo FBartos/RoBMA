@@ -1,3 +1,4 @@
+probe_state("test-02-correlation-plot-range.R")
 source(testthat::test_path("common-functions.R"))
 
 test_that("public correlation posterior plots retain wider ranges and bounded layers", {

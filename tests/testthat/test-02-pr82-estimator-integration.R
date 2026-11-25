@@ -1,3 +1,4 @@
+probe_state("test-02-pr82-estimator-integration.R")
 context("Public likelihood-aware density integration")
 
 source(testthat::test_path("common-functions.R"))

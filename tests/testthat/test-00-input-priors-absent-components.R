@@ -1,3 +1,4 @@
+probe_state("test-00-input-priors-absent-components.R")
 context("Prior inputs for absent model components")
 
 yi  <- c(-0.2, 0.1, 0.3, 0.0)

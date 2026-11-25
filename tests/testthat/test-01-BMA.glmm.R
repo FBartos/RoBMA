@@ -1,3 +1,4 @@
+probe_state("test-01-BMA.glmm.R")
 context("Model fitting for BMA.glmm")
 
 # Load common test helpers

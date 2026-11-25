@@ -1,3 +1,4 @@
+probe_state("test-02-pr82-random-mixture-ordinates.R")
 source(testthat::test_path("common-functions.R"))
 
 .pr82_random_mixture_oracle <- function(object, input, samples) {

@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-qcmde-closed-form.R")
 context("(00) qCMDE closed-form normalization of exact Normal rows")
 
 # References: the log normalizers of the unit rows and the seed ordinate were

@@ -1,3 +1,4 @@
+probe_state("test-00-glmm-response-measure.R")
 context("GLMM response measure prediction")
 
 

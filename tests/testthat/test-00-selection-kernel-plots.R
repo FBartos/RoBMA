@@ -1,3 +1,4 @@
+probe_state("test-00-selection-kernel-plots.R")
 context("Selection kernel")
 skip_on_cran()
 

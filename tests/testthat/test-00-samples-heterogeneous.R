@@ -1,3 +1,4 @@
+probe_state("test-00-samples-heterogeneous.R")
 test_that("nested sample exports retain heterogeneous prediction intervals", {
 
   draws <- matrix(seq_len(40L), 20L, dimnames = list(NULL, c("a", "b")))

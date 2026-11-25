@@ -1,3 +1,4 @@
+probe_state("test-00-plot-prior-random.R")
 source(testthat::test_path("common-functions.R"))
 
 test_that("spike-and-slab plotting preserves the parent probability measure", {

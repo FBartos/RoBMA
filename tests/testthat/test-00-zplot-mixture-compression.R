@@ -1,3 +1,4 @@
+probe_state("test-00-zplot-mixture-compression.R")
 test_that("compressed mixed-sign moments retain the finite-rule selected density", {
 
   sei <- c(.7, 1.3)

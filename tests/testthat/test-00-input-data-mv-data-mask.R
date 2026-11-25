@@ -1,3 +1,4 @@
+probe_state("test-00-input-data-mv-data-mask.R")
 test_that("brma.mv evaluates diagonal sampling inputs in data", {
 
   data <- data.frame(

@@ -1,3 +1,4 @@
+probe_state("test-00-review-influence-coordinates.R")
 context("Influence diagnostics use the fitted coordinates of factor levels")
 
 .review_influence_mixture <- function(scale = FALSE) {

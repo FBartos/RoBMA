@@ -1,3 +1,4 @@
+probe_state("test-00-input-priors-RoBMA.R")
 context("Prior input handling for RoBMA (mixture priors)")
 
 test_that("complete scale intercepts preserve support and reject unconsumed globals", {

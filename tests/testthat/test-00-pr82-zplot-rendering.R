@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-zplot-rendering.R")
 test_that("zplot respects explicit vertical limits in both renderers", {
 
   object <- list(zplot = list(data = list(z = rep(0.1, 10))), priors = NULL)

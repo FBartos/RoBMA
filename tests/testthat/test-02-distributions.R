@@ -1,3 +1,4 @@
+probe_state("test-02-distributions.R")
 context("Distribution helpers")
 skip_on_cran()
 

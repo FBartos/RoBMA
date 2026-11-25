@@ -1,3 +1,4 @@
+probe_state("test-00-input-priors-BMA-mv.R")
 skip_on_cran()
 
 test_that("component scale overrides retain real global SD and inclusion consumers", {

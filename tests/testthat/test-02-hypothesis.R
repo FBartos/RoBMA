@@ -1,3 +1,4 @@
+probe_state("test-02-hypothesis.R")
 context("Hypothesis Bayes factors")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,3 +1,4 @@
+probe_state("test-00-selection-cache-retention.R")
 test_that("cache retention is opt-in and removal only drops the object's reference", {
 
   old_options <- RoBMA.options()

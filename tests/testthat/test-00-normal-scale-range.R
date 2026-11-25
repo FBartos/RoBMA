@@ -1,3 +1,4 @@
+probe_state("test-00-normal-scale-range.R")
 .normal_scale_range_symbols <- function() {
 
   for (symbol in c("RoBMA_norm_loglik_row_sum", "RoBMA_norm_predictor_grid_loglik",

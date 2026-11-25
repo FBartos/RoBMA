@@ -1,3 +1,4 @@
+probe_state("test-00-review-c1-cleanup.R")
 test_that("bridge extraction distinguishes a missing raw upstream result", {
 
   # A supplied scalar is a real standardized result with no raw bridge object.

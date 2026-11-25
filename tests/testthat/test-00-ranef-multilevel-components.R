@@ -1,3 +1,4 @@
+probe_state("test-00-ranef-multilevel-components.R")
 context("Multilevel random-effect components")
 
 test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {

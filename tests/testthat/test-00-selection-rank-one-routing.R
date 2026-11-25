@@ -1,3 +1,4 @@
+probe_state("test-00-selection-rank-one-routing.R")
 context("Joint selection rank-one routing")
 skip_on_cran()
 

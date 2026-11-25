@@ -1,3 +1,4 @@
+probe_state("test-00-iwmde-qcmde-range.R")
 context("(00) qCMDE per-row normalization range")
 
 # References: the truncated-normal quantiles and interval masses, and the

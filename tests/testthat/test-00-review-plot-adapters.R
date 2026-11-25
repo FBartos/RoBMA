@@ -1,3 +1,4 @@
+probe_state("test-00-review-plot-adapters.R")
 .review_plot_adapter_replay <- function(selected = FALSE) {
 
   args <- list(yi = c(.1, .2, .3, .4), sei = rep(.2, 4L), measure = "GEN",

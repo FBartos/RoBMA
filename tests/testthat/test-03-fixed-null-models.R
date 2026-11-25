@@ -1,3 +1,4 @@
+probe_state("test-03-fixed-null-models.R")
 context("Downstream methods for fully fixed models")
 
 source(testthat::test_path("common-functions.R"))

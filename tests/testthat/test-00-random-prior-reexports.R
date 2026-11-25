@@ -1,3 +1,4 @@
+probe_state("test-00-random-prior-reexports.R")
 test_that("random-effect prior constructors are exact BayesTools re-exports", {
 
   constructors <- c(

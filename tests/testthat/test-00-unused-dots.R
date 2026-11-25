@@ -1,3 +1,4 @@
+probe_state("test-00-unused-dots.R")
 test_that("brma.norm is exported alias for brma", {
 
   expect_true("brma.norm" %in% getNamespaceExports("RoBMA"))

@@ -1,3 +1,4 @@
+probe_state("test-00-pr82-weighted-selection-routes.R")
 .weighted_selection_fixture <- function(mode, weights = NULL, direction = "positive",
                                         weight_rule = "product",
                                         known_sampling_variance = "integrate",

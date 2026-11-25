@@ -1,3 +1,4 @@
+probe_state("test-00-selection-postfit-factors.R")
 test_that("post-fit factors preserve the selected law independently of fitted covariance syntax", {
 
   dat <- data.frame(yi = c(-.2, .1, .25), study = "a", esid = 1:3)

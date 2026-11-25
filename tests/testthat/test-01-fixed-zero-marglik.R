@@ -1,3 +1,4 @@
+probe_state("test-01-fixed-zero-marglik.R")
 context("Exact marginal likelihood for fixed-zero random effects")
 
 skip_on_cran()

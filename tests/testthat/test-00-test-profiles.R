@@ -1,3 +1,4 @@
+probe_state("test-00-test-profiles.R")
 context("Test profiles")
 
 source(testthat::test_path("common-functions.R"))

@@ -1,3 +1,4 @@
+probe_state("test-02-funnel.R")
 context("Funnel plot")
 
 # Load common test helpers

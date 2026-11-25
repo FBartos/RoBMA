@@ -1,3 +1,4 @@
+probe_state("test-00-selection-tail-lanes.R")
 .test_tail_lanes <- function(locations, offset = 0, inverse_sd = -1,
                              last = 0.1, step = 0.9) {
   .Call("RoBMA_selnorm_tail_lanes_check", as.double(locations), as.double(offset),

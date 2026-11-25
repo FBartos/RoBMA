@@ -1,3 +1,4 @@
+probe_state("test-00-predict-multilevel-targets.R")
 context("Multilevel prediction targets")
 
 test_that("location conditioning is separate from predictive type", {
