@@ -43,7 +43,12 @@ test_that("BMA.mv fits a product space over fixed and random components", {
       "spike", parameters = list(location = 0), prior_weights = 5
     ),
     prior_unit_information_sd = 1,
-    chains = 2, sample = 300, burnin = 150, adapt = 500,
+    # The IWMDE ordinates of the study SD (test-02-random-parameters.R) are
+    # estimated on the census of draws with that component active (about 35%).
+    # Their normalization-mass error is Monte Carlo error that shrinks only
+    # with more such draws: with 300 draws per chain it exceeds the 10%
+    # rejection threshold for 8 of 20 seeds; with 10000 it stays below 4%.
+    chains = 2, sample = 10000, burnin = 150, adapt = 500,
     seed = 193, silent = TRUE,
     convergence_checks = set_convergence_checks(
       max_Rhat = NULL,

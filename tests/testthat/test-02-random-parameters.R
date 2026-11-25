@@ -374,7 +374,9 @@ test_that("random-effect variances are tested through their standard deviations"
   value <- 0.06
   for (method in c("KDE", "qCMDE", "IWMDE")) {
     # Compare the IWMDE change of variables on its full eligible-row census;
-    # a 50-row subsample can fail the active-mass diagnostic before the test.
+    # a 50-row subsample can fail the active-mass diagnostic before the test,
+    # and so can the census of a short fit (the fit's draws are set for it in
+    # test-01-BMA.mv.R).
     control <- switch(method, IWMDE = list(n_points = 20L, samples = Inf),
       qCMDE = list(n_points = 20L, samples = 50L))
     run <- function(statement) {
