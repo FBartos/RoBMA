@@ -99,8 +99,10 @@ struct Counters {
   std::atomic<std::uint64_t> correction_evaluations{0};
   std::atomic<std::uint64_t> fit_rule_fallback{0};
   std::atomic<std::uint64_t> ellipse_shrinks{0};
-  // groups of two or more coordinates whose refresh became the slice update
-  // (a composite component that reverses its coordinates in reversed sweeps)
+  // groups (per chain) whose refresh became the slice update, and of them those
+  // of two or more coordinates (a composite component that reverses its
+  // coordinates in reversed sweeps)
+  std::atomic<std::uint64_t> slice_refresh_groups{0};
   std::atomic<std::uint64_t> slice_refresh_multi{0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
@@ -165,7 +167,7 @@ std::atomic<int> test_fit_rule(0);
 std::atomic<bool> test_timing(false);
 // the schedule of L2 (0 the default, k: probability 1 / k) and its per-attempt trace
 std::atomic<int> test_swap(0);
-std::atomic<bool> test_trace(false);
+std::atomic<int> test_trace(0);
 // The probability of attempting the bias label's cross-family swap L2 in a sweep
 // (wp3-spec.md, schedule): one unless L2 costs more than 5% of the sampling
 // sweep on the Assink full-V moderator fit or the 18-moderator tutorial fit,
@@ -230,6 +232,13 @@ ProbeStore &probe_store()
 
 // The per-attempt record of L2 (test switch trace), never destroyed either.
 ProbeStore &trace_store()
+{
+  static ProbeStore *store = new ProbeStore();
+  return *store;
+}
+
+// The sweep sequences (test switch trace, bit 2), never destroyed either.
+ProbeStore &sequence_store()
 {
   static ProbeStore *store = new ProbeStore();
   return *store;
@@ -574,7 +583,7 @@ struct Shared {
   int refresh = 0;                         // test hook: the refresh variant (0 the default)
   bool timing = false;                     // test hook: wall time of the update's parts
   double swap_probability = 1.0;            // the schedule of L2
-  bool trace = false;                      // test hook: per-attempt record of L2
+  int trace = 0;                           // test hook: 1 per-attempt record of L2, 2 sweep sequences (bits)
   std::shared_ptr<BiasSpec> bias;          // the bias indicator and slope sources, or null
 };
 
@@ -948,6 +957,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   bool _adapting = true;
   bool _exact = false;
   bool _registered = false;
+  bool _injected = false;          // mutant 14 has thrown
   CorrectedTally _tally{corrected_kind_location};
   // the refresh kernel of each group in selection labels: the tilted
   // independence proposal, or (acceptance below 0.4 while adapting) the slice
@@ -2041,7 +2051,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     std::vector<unsigned> prior_coords(L.partners);
     prior_coords.push_back(g.coord0);
     for (std::size_t step = 0; step < nm; ++step) {
-      const std::size_t i = _backward ? nm - 1 - step : step;
+      // mutant 13: the coordinates in the forward order in both directions
+      const std::size_t i = (_backward && s().mutant != 13) ? nm - 1 - step : step;
+      sequence_step(slot_coordinate, j, static_cast<unsigned>(i));
       count(counters().proposed[refresh]);
       Vec db(nm, 0.0);
       db[i] = 1.0;
@@ -3271,9 +3283,35 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   enum Kind { kind_flip, kind_refresh, kind_swap, kind_joint, kind_ellipse, kind_latent, kind_bias };
   struct Step { Kind kind; unsigned a, b; };
 
+  // Test hook (trace bit 2): the sequence of one sweep, the slots in the order
+  // they run (kind, a, b) and within a composite slice refresh its
+  // coordinates (slot_coordinate, group, coordinate); written to the sequence
+  // store before the exact correction, after a header (-1, chain, reversed,
+  // entry label is a selection label, entries).
+  static constexpr unsigned slot_coordinate = 100;
+  Vec _sequence;
+
+  void sequence_step(unsigned kind, unsigned a, unsigned b)
+  {
+    if ((s().trace & 2) == 0) return;
+    _sequence.insert(_sequence.end(), {static_cast<double>(kind), static_cast<double>(a), static_cast<double>(b)});
+  }
+
+  void sequence_flush()
+  {
+    if ((s().trace & 2) == 0) return;
+    ProbeStore &store = sequence_store();
+    const std::lock_guard<std::mutex> lock(store.mutex);
+    store.records.insert(store.records.end(), {-1.0, static_cast<double>(_chain), _backward ? 1.0 : 0.0,
+                                               _selection_entry ? 1.0 : 0.0, static_cast<double>(_sequence.size() / 3)});
+    store.records.insert(store.records.end(), _sequence.begin(), _sequence.end());
+    _sequence.clear();
+  }
+
   // The refresh kernels of the active coefficients in selection labels (test
   // switch, 0 the default): 1 the per-group refreshes R_j, 2 one elliptical
-  // slice step E, 3 two E steps, 4 E and the R_j.
+  // slice step E, 3 two E steps, 4 E and the R_j, 5 the per-group refreshes
+  // with every group's slice update forced from the first adaptOff() on.
   int refresh_variant() const { return s().refresh == 0 ? default_refresh : s().refresh; }
 
   void sweep(RNG *rng)
@@ -3323,8 +3361,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     // one coin per update: the whole list forward or reversed
     _backward = rng->uniform() < 0.5;
+    _sequence.clear();
     for (std::size_t i = 0; i < steps.size(); ++i) {
       Step const &step = steps[_backward ? steps.size() - 1 - i : i];
+      sequence_step(step.kind, step.a, step.b);
       // The line of a group serves its F_j and R_j, adjacent in either order;
       // any other component changes it.
       if ((step.kind != kind_flip && step.kind != kind_refresh) || _line.group != step.a) _line.valid = false;
@@ -3361,6 +3401,7 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         break;
       }
     }
+    sequence_flush();
     if (selection_endpoint()) count(counters().sweeps_selection);
     enter(cat_correction);
     correct(rng);
@@ -3459,6 +3500,12 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     }
     if (label_changed) entry_term(bspec().nested, nested_term());
     _view->setValue(_final, _chain);
+    // mutant 14: one error after this write, in the first sweep after adaptation
+    // that changes the state (update() restores the entry)
+    if (S.mutant == 14 && !_adapting && !_injected) {
+      _injected = true;
+      throw std::runtime_error("Location block sampler: an error injected after the final graph write (mutant 14)");
+    }
     long double exact_change = 0;
     bool zero_density = false;
     std::size_t term = 0;
@@ -3622,10 +3669,13 @@ public:
     if (!_adapting) return;
     _adapting = false;
     // the refresh kernel of each group, from its adaptive independence proposals
+    // (refresh variant 5, a test switch: the slice update for every group)
     for (std::size_t j = 0; j < _slice_refresh.size(); ++j) {
-      _slice_refresh[j] = _refresh_proposed[j] > 0 &&
-        static_cast<double>(_refresh_accepted[j]) < 0.4 * static_cast<double>(_refresh_proposed[j]);
-      if (_slice_refresh[j] && s().groups[j].d > 1) count(counters().slice_refresh_multi);
+      _slice_refresh[j] = s().refresh == 5 || (_refresh_proposed[j] > 0 &&
+        static_cast<double>(_refresh_accepted[j]) < 0.4 * static_cast<double>(_refresh_proposed[j]));
+      if (!_slice_refresh[j]) continue;
+      count(counters().slice_refresh_groups);
+      if (s().groups[j].d > 1) count(counters().slice_refresh_multi);
     }
     // the coarse rung of the Newton fits, from the stage-2 acceptance of the
     // tilted flips and swaps that passed stage 1 while adapting (A1)
@@ -4125,7 +4175,7 @@ std::vector<char const *> const &location_block_report_names()
       "samplers", "sweeps", "sweeps_selection", "sweeps_evidence", "corrections_accepted",
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
-      "slice_refresh_multi",
+      "slice_refresh_groups", "slice_refresh_multi",
       "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
       "max_stage2_gaussian"};
     static std::vector<std::string> storage;
@@ -4162,7 +4212,7 @@ std::vector<double> location_block_report(bool clear)
     take(c.corrections_accepted), take(c.corrections_selection_accepted),
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
-    take(c.slice_refresh_multi),
+    take(c.slice_refresh_groups), take(c.slice_refresh_multi),
     take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian)};
   for (int i = 0; i < component_count; ++i) {
@@ -4284,18 +4334,27 @@ std::vector<int> location_block_test_config(int refresh, int fit_rule, int timin
                                test_fit_rule.load(std::memory_order_relaxed),
                                test_timing.load(std::memory_order_relaxed) ? 1 : 0,
                                test_swap.load(std::memory_order_relaxed),
-                               test_trace.load(std::memory_order_relaxed) ? 1 : 0};
+                               test_trace.load(std::memory_order_relaxed)};
   if (refresh >= 0) test_refresh.store(refresh, std::memory_order_relaxed);
   if (fit_rule >= 0) test_fit_rule.store(fit_rule, std::memory_order_relaxed);
   if (timing >= 0) test_timing.store(timing != 0, std::memory_order_relaxed);
   if (swap >= 0) test_swap.store(swap, std::memory_order_relaxed);
-  if (trace >= 0) test_trace.store(trace != 0, std::memory_order_relaxed);
+  if (trace >= 0) test_trace.store(trace, std::memory_order_relaxed);
   return previous;
 }
 
 std::vector<double> location_block_test_take_trace()
 {
   ProbeStore &store = trace_store();
+  const std::lock_guard<std::mutex> lock(store.mutex);
+  std::vector<double> out;
+  out.swap(store.records);
+  return out;
+}
+
+std::vector<double> location_block_test_take_sequence()
+{
+  ProbeStore &store = sequence_store();
   const std::lock_guard<std::mutex> lock(store.mutex);
   std::vector<double> out;
   out.swap(store.records);

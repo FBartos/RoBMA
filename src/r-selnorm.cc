@@ -701,8 +701,8 @@ extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
 {
   ROBMA_NATIVE_BEGIN(mutant, probe)
   if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
-      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 12)) {
-    Rf_error("The location block mutant must be NULL or one integer between 0 and 12.");
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 14)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 14.");
   }
   if (probe != R_NilValue && (TYPEOF(probe) != LGLSXP || XLENGTH(probe) != 1 ||
       LOGICAL(probe)[0] == NA_LOGICAL)) {
@@ -822,7 +822,7 @@ extern "C" SEXP RoBMA_location_block_test_config(SEXP config)
     if (TYPEOF(config) != INTSXP || (XLENGTH(config) != 3 && XLENGTH(config) != 5)) {
       Rf_error("The location block configuration must be NULL or three or five integers.");
     }
-    const int upper[5] = {4, 2, 1, 64, 1};
+    const int upper[5] = {5, 2, 1, 64, 3};
     for (int i = 0; i < static_cast<int>(XLENGTH(config)); ++i) {
       const int value = INTEGER(config)[i];
       if (value == NA_INTEGER || value > upper[i]) Rf_error("The location block configuration is out of range.");
@@ -1203,6 +1203,20 @@ extern "C" SEXP RoBMA_location_block_test_trace()
     "chain", "from", "target", "stage1_passed", "stage1", "stage2", "accepted", "sd",
     "omega1", "omega2", "omega3", "omega4", "omega5", "omega6"};
   return evidence_matrix(jags::RoBMA::location_block_test_take_trace(), names);
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the location block's sweep sequences
+// since the last call (trace switch, bit 2; LocationBlockReport.h), as one
+// numeric vector of headers and entries.
+extern "C" SEXP RoBMA_location_block_test_sequence()
+{
+  ROBMA_NATIVE_BEGIN()
+  const std::vector<double> records = jags::RoBMA::location_block_test_take_sequence();
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
+  for (std::size_t i = 0; i < records.size(); ++i) REAL(out)[i] = records[i];
+  UNPROTECT(1);
+  return out;
   ROBMA_NATIVE_END
 }
 

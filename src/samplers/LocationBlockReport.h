@@ -51,8 +51,10 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // inner-target change keeps it), 10 the within-label contrast instead of the
 // absolute evidence of a selection label; 11 the joint refresh's slot taken
 // from the entry label; 12 the design column of the last coordinate dropped
-// after the factory's probe, an untracked mean change). Returns the previous
-// value.
+// after the factory's probe, an untracked mean change; 13 the slice refresh's
+// coordinates in the forward order in reversed sweeps; 14 one error thrown
+// after the exact correction's write of the final state, in the first sweep
+// after adaptation that changes the state). Returns the previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -86,13 +88,15 @@ std::vector<double> location_block_test_take_probe();
 // Test hook: switches frozen into the samplers built from now on; a negative
 // argument keeps a setting. refresh: the kernels that refresh the active
 // coefficients in selection labels (0 the default, 1 the per-group refreshes
-// R_j only, 2 one elliptical slice step E, 3 two E steps, 4 E and the R_j);
+// R_j only, 2 one elliptical slice step E, 3 two E steps, 4 E and the R_j,
+// 5 the R_j with every group's slice update forced from the first adaptOff());
 // fit_rule: the rule of the Newton-Laplace fits (0 the coarsest rung with the
 // acceptance safeguard, 1 the coarsest rung always, 2 the sampler's rule);
 // timing: 1 accumulates the wall time of the update's parts in the report;
 // swap: the schedule of the bias label's cross-family swap L2 (0 the
-// default, k >= 1 attempted with probability 1 / k per sweep); trace: 1
-// records every L2 attempt (location_block_test_take_trace).
+// default, k >= 1 attempted with probability 1 / k per sweep); trace (bits):
+// 1 records every L2 attempt (location_block_test_take_trace), 2 every
+// sweep's sequence (location_block_test_take_sequence).
 // Returns the previous five settings.
 std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap = -1, int trace = -1);
 // The per-attempt record of L2 since the last call (trace switch): per
@@ -100,6 +104,13 @@ std::vector<int> location_block_test_config(int refresh, int fit_rule, int timin
 // ratio, gate drawn, stage-2 log ratio, accepted, the first latent column
 // entry (the random-effect SD) and the target label's first six weights.
 std::vector<double> location_block_test_take_trace();
+// The sweep sequences since the last call (trace switch, bit 2): per sweep a
+// header (-1, chain, reversed, entry label is a selection label, entries) and
+// its entries (kind, a, b) in the order they ran: the slots (kind 0 flip,
+// 1 refresh, 2 swap, 3 joint, 4 ellipse, 5 latent, 6 bias component; a and b
+// the group, pair, latent or bias component) and within a composite slice
+// refresh its coordinates (kind 100, group, coordinate).
+std::vector<double> location_block_test_take_sequence();
 
 }
 }

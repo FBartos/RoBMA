@@ -186,6 +186,30 @@
 }
 
 
+# Compiles a hand-written location model (one chain, no adaptation run) with
+# the mutant and switches frozen into its sampler and the selection options of
+# .location_hand_chain.
+.location_compile <- function(model, inits = list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = 4127L),
+                              mutant = 0L, config = NULL, min_acceptance = 0) {
+
+  BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
+  old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules",
+                                  "selection.coarse_min_acceptance")]
+  on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
+  RoBMA::RoBMA.options(selection.sampler = "slice.coarse", selection.coarse_max_rules = 3L,
+                       selection.coarse_min_acceptance = min_acceptance)
+  .location_hook(mutant = mutant)
+  on.exit(.location_hook(mutant = 0L), add = TRUE)
+  if (!is.null(config)) {
+    previous <- .location_config(config)
+    on.exit(.location_config(previous), add = TRUE)
+  }
+  connection <- textConnection(model$syntax)
+  on.exit(close(connection), add = TRUE)
+  rjags::jags.model(connection, data = model$data, n.chains = 1L, n.adapt = 0L, quiet = TRUE, inits = inits)
+}
+
+
 .location_gaussian_observables <- function(draws) {
 
   cbind(g1 = draws[, "g[1]"] == 2, g2 = draws[, "g[2]"] == 2, g3 = draws[, "g[3]"] == 2,
@@ -297,14 +321,15 @@
 # The reference: per gate pattern, the active coefficients integrated on a
 # Gauss-Hermite product grid adapted to the mode and curvature of their
 # marginal density, the cluster effects by Gauss-Hermite rules against their
-# N(0, 1) priors; the gate probabilities and the first two moments of the
-# physical coefficients.
+# N(0, 1) priors; the gate probabilities, the first two moments of the
+# physical coefficients, and the mean of the first cluster's effect Z[1] and
+# of its product with the intercept (a joint latent and coefficient moment).
 .location_selection_reference <- function(setup, model, coefficient_nodes = 16L, latent_nodes = 32L) {
 
   latent <- .coarse_reference_rule(latent_nodes)
   X <- cbind(1, setup$x1, setup$x2)
   # log of the likelihood integrated over the cluster effects, at coefficient
-  # points (rows of B, three columns)
+  # points (rows of B, three columns), with the conditional mean of Z[1]
   log_marginal <- function(B) {
     total <- numeric(nrow(B))
     for (s in 1:3) {
@@ -314,8 +339,11 @@
         setup$scale * latent$nodes[rep(seq_len(latent_nodes), nrow(B))]
       ll  <- matrix(.location_selection_cluster_loglik(setup, model, s, means), nrow = latent_nodes)
       top <- apply(ll, 2L, max)
-      total <- total + top + log(colSums(latent$weights * exp(sweep(ll, 2L, top))))
+      weights <- latent$weights * exp(sweep(ll, 2L, top))
+      total <- total + top + log(colSums(weights))
+      if (s == 1L) z1 <- colSums(latent$nodes * weights) / colSums(weights)
     }
+    attr(total, "z1") <- z1
     total
   }
   patterns <- as.matrix(expand.grid(g1 = 0:1, g2 = 0:1, g3 = 0:1))
@@ -324,7 +352,9 @@
     on <- which(patterns[k, ] == 1)
     log_prior_gate <- sum(log_gate[patterns[k, ] + 1])
     if (length(on) == 0L) {
-      return(list(log_mass = log_prior_gate + log_marginal(matrix(0, 1, 3)), m1 = rep(0, 3), m2 = rep(0, 3)))
+      none <- log_marginal(matrix(0, 1, 3))
+      return(list(log_mass = log_prior_gate + as.numeric(none), m1 = rep(0, 3), m2 = rep(0, 3),
+                  z1 = attr(none, "z1"), b1z1 = 0))
     }
     full <- function(beta) {
       beta <- matrix(beta, ncol = length(on))
@@ -335,7 +365,10 @@
         prior <- prior + stats::dnorm(beta[, i], setup$prior_mean[on[i]], 1 / sqrt(setup$prior_precision[on[i]]),
                                       log = TRUE)
       }
-      log_marginal(B) + prior
+      value <- log_marginal(B)
+      out <- as.numeric(value) + prior
+      attr(out, "z1") <- attr(value, "z1")
+      out
     }
     fit <- stats::optim(setup$prior_mean[on], function(beta) -full(beta), method = "BFGS", hessian = TRUE)
     L <- t(chol(solve(fit$hessian)))
@@ -345,15 +378,18 @@
     w <- apply(matrix(rule$weights[grid], ncol = length(on)), 1L, prod)
     beta <- sweep(x %*% t(L), 2L, fit$par, `+`)
     # the N(0, I) weight of the rule is divided out
-    log_f <- full(beta) + 0.5 * rowSums(x^2)
+    value <- full(beta)
+    log_f <- as.numeric(value) + 0.5 * rowSums(x^2)
     top <- max(log_f)
     weight <- w * exp(log_f - top)
     mass <- sum(weight)
     m1 <- m2 <- rep(0, 3)
     m1[on] <- colSums(weight * beta) / mass
     m2[on] <- colSums(weight * beta^2) / mass
+    intercept <- if (1L %in% on) beta[, match(1L, on)] else 0
     list(log_mass = log_prior_gate + top + log(mass) + sum(log(diag(L))) + 0.5 * length(on) * log(2 * pi),
-         m1 = m1, m2 = m2)
+         m1 = m1, m2 = m2, z1 = sum(weight * attr(value, "z1")) / mass,
+         b1z1 = sum(weight * intercept * attr(value, "z1")) / mass)
   })
   log_mass <- vapply(results, `[[`, numeric(1), "log_mass")
   p  <- exp(log_mass - max(log_mass))
@@ -361,13 +397,423 @@
   m1 <- colSums(p * t(vapply(results, `[[`, numeric(3), "m1")))
   m2 <- colSums(p * t(vapply(results, `[[`, numeric(3), "m2")))
   c(g1 = sum(p * patterns[, 1]), g2 = sum(p * patterns[, 2]), g3 = sum(p * patterns[, 3]),
-    b1 = m1[[1]], b2 = m1[[2]], b3 = m1[[3]], b1_2 = m2[[1]], b2_2 = m2[[2]], b3_2 = m2[[3]])
+    b1 = m1[[1]], b2 = m1[[2]], b3 = m1[[3]], b1_2 = m2[[1]], b2_2 = m2[[2]], b3_2 = m2[[3]],
+    z1 = sum(p * vapply(results, `[[`, numeric(1), "z1")), b1z1 = sum(p * vapply(results, `[[`, numeric(1), "b1z1")))
 }
 
 
+# The observables of the selection fixture; with the cluster effects
+# monitored also Z[1] and its product with the intercept.
 .location_selection_observables <- function(draws) {
 
   b <- draws[, c("b[1]", "b[2]", "b[3]")]
-  cbind(g1 = draws[, "g[1]"] == 2, g2 = draws[, "g[2]"] == 2, g3 = draws[, "g[3]"] == 2,
-        b1 = b[, 1], b2 = b[, 2], b3 = b[, 3], b1_2 = b[, 1]^2, b2_2 = b[, 2]^2, b3_2 = b[, 3]^2) * 1
+  out <- cbind(g1 = draws[, "g[1]"] == 2, g2 = draws[, "g[2]"] == 2, g3 = draws[, "g[3]"] == 2,
+               b1 = b[, 1], b2 = b[, 2], b3 = b[, 3], b1_2 = b[, 1]^2, b2_2 = b[, 2]^2, b3_2 = b[, 3]^2) * 1
+  if ("Z[1]" %in% colnames(draws)) out <- cbind(out, z1 = draws[, "Z[1]"], b1z1 = b[, 1] * draws[, "Z[1]"])
+  out
+}
+
+
+# ---------------------------------------------------------------------------- #
+# The step-switch fixture: 14 independent dselnorm_step_switch rows (the
+# children of RoBMA() meta-regressions), a one-sided step selection, row
+# observation weights, one bias-exempt row (bin 0), three gates (one collinear
+# with the intercept); `direction` -1 mirrors the effects, the slab means and
+# the selection (effect sign -1), so that the posterior of the physical
+# coefficients is mirrored. Its reference writes the row density in R.
+# ---------------------------------------------------------------------------- #
+
+.location_step_setup <- function(direction = 1) {
+
+  se <- c(.20, .22, .25, .21, .18, .24, .19, .23, .20, .22, .26, .17, .21, .24)
+  y  <- c(.45, .52, .10, .61, .70, .48, .05, .44, .58, .02, .66, .49, .30, .75)
+  bin <- ifelse(y / se > 1.96, 1L, 2L)
+  bin[13] <- 0L
+  list(direction = direction, y = direction * y, se = se, sd = sqrt(se^2 + .1^2),
+       x1 = c(-1, -.6, -.2, .2, .6, 1, -1, -.5, 0, .5, 1, -.8, .3, .9),
+       x2 = c(1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1),
+       power = c(1, 1, .5, 1, 1.5, 1, 1, 1, 2, 1, 1, .7, 1, 1),
+       omega = c(1, .3), z_lower = c(1.96, -1e300), z_upper = c(1e300, 1.96), bin = bin,
+       prior_mean = direction * c(.2, 0, 0))
+}
+
+
+.location_step_model <- function(setup) {
+
+  syntax <- c(
+    "model {",
+    "  for (j in 1:3) {",
+    "    g[j] ~ dcat(gate_weights)",
+    "    slab[j] ~ dnorm(prior_mean[j], 4)",
+    "    b[j] <- 0 * (g[j] == 1) + slab[j] * (g[j] == 2)",
+    "  }",
+    "  for (i in 1:n) {",
+    "    mu[i] <- b[1] + b[2] * x1[i] + b[3] * x2[i]",
+    "    y[i] ~ dselnorm_step_switch(mu[i], sd[i], se[i], power[i], omega[1:2], z_lower[1:2], z_upper[1:2], bin[i], direction, 1, 1)",
+    "  }",
+    paste0("  tag_group_", 1:3, " <- robma_location_group(g[", 1:3, "], slab[", 1:3, "], 2, b[", 1:3, "], ", 1:3, ")"),
+    "  tag_setup <- robma_location_setup(g[1], 3, 0)",
+    "}")
+  data <- setup[c("y", "sd", "se", "power", "omega", "z_lower", "z_upper", "bin", "x1", "x2", "prior_mean",
+                  "direction")]
+  data$n <- length(setup$y)
+  data$gate_weights <- c(1, 1)
+  list(syntax = paste(syntax, collapse = "\n"), data = data)
+}
+
+
+# The row log density written independently: power * [log N(y; mu, sd) +
+# log omega_bin - log A(mu)], A(mu) = sum_b omega_b P(lower_b < s Y / se <
+# upper_b), Y ~ N(mu, sd^2), s the effect direction; an exempt row power *
+# log N. The reference as .location_selection_reference without latents.
+.location_step_reference <- function(setup, nodes = 30L) {
+
+  s  <- setup$direction
+  lo <- ifelse(setup$z_lower <= -1e299, -Inf, setup$z_lower)
+  up <- ifelse(setup$z_upper >= 1e299, Inf, setup$z_upper)
+  loglik <- function(B) {
+    mu <- B %*% t(cbind(1, setup$x1, setup$x2))
+    total <- numeric(nrow(B))
+    for (i in seq_along(setup$y)) {
+      m <- mu[, i]
+      v <- stats::dnorm(setup$y[i], m, setup$sd[i], log = TRUE)
+      if (setup$bin[i] > 0) {
+        A <- 0
+        for (b in seq_along(setup$omega)) {
+          # P(lo < s Y / se < up) for the sign s
+          bounds <- sort(s * c(lo[b], up[b]) * setup$se[i])
+          A <- A + setup$omega[b] * (stats::pnorm(bounds[2], m, setup$sd[i]) - stats::pnorm(bounds[1], m, setup$sd[i]))
+        }
+        v <- v + log(setup$omega[setup$bin[i]]) - log(A)
+      }
+      total <- total + setup$power[i] * v
+    }
+    total
+  }
+  patterns <- as.matrix(expand.grid(g1 = 0:1, g2 = 0:1, g3 = 0:1))
+  results <- lapply(seq_len(nrow(patterns)), function(k) {
+    on <- which(patterns[k, ] == 1)
+    lp <- 3 * log(0.5)
+    if (length(on) == 0L) return(list(log_mass = lp + loglik(matrix(0, 1, 3)), m1 = rep(0, 3), m2 = rep(0, 3)))
+    full <- function(beta) {
+      beta <- matrix(beta, ncol = length(on))
+      B <- matrix(0, nrow(beta), 3)
+      B[, on] <- beta
+      prior <- rep(0, nrow(beta))
+      for (i in seq_along(on)) prior <- prior + stats::dnorm(beta[, i], setup$prior_mean[on[i]], 0.5, log = TRUE)
+      loglik(B) + prior
+    }
+    fit <- stats::optim(setup$prior_mean[on], function(beta) -full(beta), method = "BFGS", hessian = TRUE)
+    L <- t(chol(solve(fit$hessian)))
+    rule <- .coarse_reference_rule(nodes)
+    grid <- as.matrix(expand.grid(rep(list(seq_len(nodes)), length(on))))
+    x <- matrix(rule$nodes[grid], ncol = length(on))
+    w <- apply(matrix(rule$weights[grid], ncol = length(on)), 1L, prod)
+    beta <- sweep(x %*% t(L), 2L, fit$par, `+`)
+    log_f <- full(beta) + 0.5 * rowSums(x^2)
+    top <- max(log_f)
+    weight <- w * exp(log_f - top)
+    mass <- sum(weight)
+    m1 <- m2 <- rep(0, 3)
+    m1[on] <- colSums(weight * beta) / mass
+    m2[on] <- colSums(weight * beta^2) / mass
+    list(log_mass = lp + top + log(mass) + sum(log(diag(L))) + 0.5 * length(on) * log(2 * pi), m1 = m1, m2 = m2)
+  })
+  log_mass <- vapply(results, `[[`, numeric(1), "log_mass")
+  p <- exp(log_mass - max(log_mass))
+  p <- p / sum(p)
+  M1 <- colSums(p * t(vapply(results, `[[`, numeric(3), "m1")))
+  M2 <- colSums(p * t(vapply(results, `[[`, numeric(3), "m2")))
+  c(g1 = sum(p * patterns[, 1]), g2 = sum(p * patterns[, 2]), g3 = sum(p * patterns[, 3]),
+    b1 = M1[[1]], b2 = M1[[2]], b3 = M1[[3]], b1_2 = M2[[1]], b2_2 = M2[[2]], b3_2 = M2[[3]])
+}
+
+
+# ---------------------------------------------------------------------------- #
+# The two-coordinate slab fixture: the selection fixture's clusters with a
+# gated intercept and one gated group of two coordinates (dmnorm slab with a
+# correlated prior precision) for the two moderators.
+# ---------------------------------------------------------------------------- #
+
+.location_factor_model <- function(setup, slab_mean = c(.1, -.1), slab_precision = matrix(c(4, 1.5, 1.5, 4), 2L)) {
+
+  clusters <- split(seq_along(setup$y), setup$cluster)
+  child <- function(s) {
+    n <- length(clusters[[s]])
+    paste0("  y", s, "[1:", n, "] ~ dselnorm_cluster_step(m", s, "[1:", n, "], rsd", s, "[1:", n, "], ld", s,
+           "[1:", n, "], se", s, "[1:", n, "], omega[1:2], z_lower[1:2], z_upper[1:2], bin", s, "[1:", n,
+           "], 1, 1, 1, nodes[1:nq], log_weights[1:nq], orders[1:nr], qmc[1:nqmc], 64, 512, 8, 0.005, 0)")
+  }
+  means <- unlist(lapply(seq_along(clusters), function(s) {
+    rows <- clusters[[s]]
+    paste0("  m", s, "[", seq_along(rows), "] <- b1 + b2[1] * x1[", rows, "] + b2[2] * x2[", rows,
+           "] + scale * Z[", s, "]")
+  }))
+  syntax <- c(
+    "model {",
+    "  g1 ~ dcat(gate_weights)",
+    "  slab1 ~ dnorm(0.2, 4)",
+    "  b1 <- 0 * (g1 == 1) + slab1 * (g1 == 2)",
+    "  g2 ~ dcat(gate_weights)",
+    "  slab2[1:2] ~ dmnorm(slab_mean[1:2], slab_precision[1:2, 1:2])",
+    "  b2[1:2] <- zero2[1:2] * (g2 == 1) + slab2[1:2] * (g2 == 2)",
+    "  for (s in 1:3) { Z[s] ~ dnorm(0, 1) }",
+    means,
+    vapply(seq_along(clusters), child, character(1)),
+    "  tag_group_1 <- robma_location_group(g1, slab1, 2, b1, 1)",
+    "  tag_group_2 <- robma_location_group(g2, slab2[1:2], 2, b2[1:2], 2)",
+    paste0("  tag_latent_", 1:3, " <- robma_location_latent(Z[", 1:3, "], ", 1:3, ")"),
+    "  tag_setup <- robma_location_setup(g1, 2, 3)",
+    "}")
+  design <- BayesTools::selection_qmc_design(2L, 512L, 8L, 9049L)
+  data <- list(x1 = setup$x1, x2 = setup$x2, scale = setup$scale, slab_mean = slab_mean,
+               slab_precision = slab_precision, zero2 = c(0, 0), gate_weights = setup$weights, omega = setup$omega,
+               z_lower = c(0, -1e300), z_upper = c(1e300, 0), qmc = as.numeric(design), nqmc = length(design),
+               nodes = setup$rules$nodes, log_weights = setup$rules$log_weights, orders = setup$rules$orders,
+               nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
+  for (s in seq_along(clusters)) {
+    rows <- clusters[[s]]
+    data[[paste0("y", s)]]   <- setup$y[rows]
+    data[[paste0("rsd", s)]] <- setup$residual_sd[rows]
+    data[[paste0("ld", s)]]  <- setup$loading[rows]
+    data[[paste0("se", s)]]  <- setup$se[rows]
+    data[[paste0("bin", s)]] <- ifelse(setup$y[rows] > 0, 1L, 2L)
+  }
+  list(syntax = paste(syntax, collapse = "\n"), data = data, qmc = design, slab_mean = slab_mean,
+       slab_precision = slab_precision)
+}
+
+
+# Per gate pattern the active physical coefficients (b1; b2[1:2]) on a
+# Laplace-adapted Gauss-Hermite grid, the cluster effects by Gauss-Hermite
+# against N(0, 1), the package's exact cluster likelihood.
+.location_factor_reference <- function(setup, model, coefficient_nodes = 16L, latent_nodes = 32L) {
+
+  latent <- .coarse_reference_rule(latent_nodes)
+  X <- cbind(1, setup$x1, setup$x2)
+  m2 <- model$slab_mean
+  P2 <- model$slab_precision
+  log_marginal <- function(B) {
+    total <- numeric(nrow(B))
+    for (s in 1:3) {
+      rows <- which(setup$cluster == s)
+      base <- B %*% t(X[rows, , drop = FALSE])
+      mm <- base[rep(seq_len(nrow(B)), each = latent_nodes), , drop = FALSE] +
+        setup$scale * latent$nodes[rep(seq_len(latent_nodes), nrow(B))]
+      ll  <- matrix(.location_selection_cluster_loglik(setup, model, s, mm), nrow = latent_nodes)
+      top <- apply(ll, 2L, max)
+      total <- total + top + log(colSums(latent$weights * exp(sweep(ll, 2L, top))))
+    }
+    total
+  }
+  log_mvn <- function(x, m, P) {
+    x <- sweep(matrix(x, ncol = 2L), 2L, m)
+    0.5 * as.numeric(determinant(P)$modulus) - log(2 * pi) - 0.5 * rowSums((x %*% P) * x)
+  }
+  patterns <- as.matrix(expand.grid(g1 = 0:1, g2 = 0:1))
+  log_gate <- log(setup$weights / sum(setup$weights))
+  results <- lapply(seq_len(nrow(patterns)), function(k) {
+    on <- c(if (patterns[k, 1] == 1) 1L, if (patterns[k, 2] == 1) 2:3)
+    log_prior_gate <- sum(log_gate[patterns[k, ] + 1])
+    if (length(on) == 0L) {
+      return(list(log_mass = log_prior_gate + log_marginal(matrix(0, 1, 3)), m1 = rep(0, 3), m2 = rep(0, 3), m23 = 0))
+    }
+    full <- function(beta) {
+      beta <- matrix(beta, ncol = length(on))
+      B <- matrix(0, nrow(beta), 3)
+      B[, on] <- beta
+      prior <- rep(0, nrow(beta))
+      if (1L %in% on) prior <- prior + stats::dnorm(B[, 1], 0.2, 0.5, log = TRUE)
+      if (2L %in% on) prior <- prior + log_mvn(B[, 2:3, drop = FALSE], m2, P2)
+      log_marginal(B) + prior
+    }
+    start <- c(if (1L %in% on) 0.2, if (2L %in% on) m2)
+    fit <- stats::optim(start, function(beta) -full(beta), method = "BFGS", hessian = TRUE)
+    L <- t(chol(solve(fit$hessian)))
+    rule <- .coarse_reference_rule(coefficient_nodes)
+    grid <- as.matrix(expand.grid(rep(list(seq_len(coefficient_nodes)), length(on))))
+    x <- matrix(rule$nodes[grid], ncol = length(on))
+    w <- apply(matrix(rule$weights[grid], ncol = length(on)), 1L, prod)
+    beta <- sweep(x %*% t(L), 2L, fit$par, `+`)
+    log_f <- full(beta) + 0.5 * rowSums(x^2)
+    top <- max(log_f)
+    weight <- w * exp(log_f - top)
+    mass <- sum(weight)
+    m1 <- mm2 <- rep(0, 3)
+    m1[on] <- colSums(weight * beta) / mass
+    mm2[on] <- colSums(weight * beta^2) / mass
+    m23 <- if (2L %in% on) sum(weight * beta[, match(2L, on)] * beta[, match(3L, on)]) / mass else 0
+    list(log_mass = log_prior_gate + top + log(mass) + sum(log(diag(L))) + 0.5 * length(on) * log(2 * pi),
+         m1 = m1, m2 = mm2, m23 = m23)
+  })
+  log_mass <- vapply(results, `[[`, numeric(1), "log_mass")
+  p  <- exp(log_mass - max(log_mass))
+  p  <- p / sum(p)
+  M1 <- colSums(p * t(vapply(results, `[[`, numeric(3), "m1")))
+  M2 <- colSums(p * t(vapply(results, `[[`, numeric(3), "m2")))
+  c(g1 = sum(p * patterns[, 1]), g2 = sum(p * patterns[, 2]), b1 = M1[[1]], b21 = M1[[2]], b22 = M1[[3]],
+    b1_2 = M2[[1]], b21_2 = M2[[2]], b22_2 = M2[[3]], b21b22 = sum(p * vapply(results, `[[`, numeric(1), "m23")))
+}
+
+
+.location_factor_observables <- function(draws) {
+
+  cbind(g1 = draws[, "g1"] == 2, g2 = draws[, "g2"] == 2, b1 = draws[, "b1"], b21 = draws[, "b2[1]"],
+        b22 = draws[, "b2[2]"], b1_2 = draws[, "b1"]^2, b21_2 = draws[, "b2[1]"]^2, b22_2 = draws[, "b2[2]"]^2,
+        b21b22 = draws[, "b2[1]"] * draws[, "b2[2]"]) * 1
+}
+
+
+# The sweep sequences of the trace switch (bit 2; LocationBlockReport.h): a
+# list of sweeps, each with its chain, direction (reversed), entry label
+# (selection), the slots in the order they ran (kind, a, b) and the
+# coordinates of composite slice refreshes (group, coordinate) in that order.
+.location_sequences <- function(records = .Call("RoBMA_location_block_test_sequence", PACKAGE = "RoBMA")) {
+
+  out <- list()
+  i <- 1L
+  while (i <= length(records)) {
+    stopifnot(records[[i]] == -1)
+    n <- records[[i + 4L]]
+    entries <- matrix(records[i + 4L + seq_len(3L * n)], ncol = 3L, byrow = TRUE)
+    coordinate <- entries[, 1L] == 100
+    out[[length(out) + 1L]] <- list(chain = records[[i + 1L]], reversed = records[[i + 2L]] == 1,
+                                    selection = records[[i + 3L]] == 1,
+                                    slots = entries[!coordinate, , drop = FALSE],
+                                    coordinates = entries[coordinate, 2:3, drop = FALSE])
+    i <- i + 5L + 3L * n
+  }
+  out
+}
+
+
+# ---------------------------------------------------------------------------- #
+# The dense fixture: three dselnorm_mnorm_step blocks of three equicorrelated
+# rows (unit variances and SEs, correlation rho; the children of known-V fits
+# that the automatic policy gives the block), a one-sided step selection with
+# weight omega below zero, a gated intercept and a gated moderator that varies
+# within the blocks. Its reference writes the block density in R: the
+# multivariate normal density times the observed bins' weights over
+# A(m) = int phi(z) prod_i (omega + (1 - omega) Phi((m_i + sqrt(rho) z) /
+# sqrt(1 - rho))) dz.
+# ---------------------------------------------------------------------------- #
+
+.location_dense_setup <- function() {
+
+  list(y = c(.30, .55, .10, .65, .20, .45, -.10, .35, .60),
+       x = c(-1, 0, 1, -.5, .5, 1, -1, -.2, .8),
+       block = rep(1:3, each = 3L), rho = .4, omega = .2, prior_mean = c(.2, 0),
+       rules = .coarse_rules(c(7L, 15L, 31L, 63L, 127L, 255L, 511L, 1023L)))
+}
+
+
+.location_dense_model <- function(setup) {
+
+  covariance <- matrix(setup$rho, 3L, 3L)
+  diag(covariance) <- 1
+  design <- BayesTools::selection_qmc_design(6L, 512L, 8L, 9049L)
+  child <- function(s) {
+    paste0("  y", s, "[1:3] ~ dselnorm_mnorm_step(m", s, "[1:3], covariance[1:6], sei[1:3], omega[1:2], ",
+           "z_lower[1:2], z_upper[1:2], bin", s, "[1:3], 1, 1, 1, qmc[1:nqmc], 512, 8, 0.005, 0, nodes[1:nq], ",
+           "log_weights[1:nq], orders[1:nr])")
+  }
+  means <- unlist(lapply(1:3, function(s) {
+    rows <- which(setup$block == s)
+    paste0("  m", s, "[", seq_along(rows), "] <- b[1] + b[2] * x[", rows, "]")
+  }))
+  syntax <- c(
+    "model {",
+    "  for (j in 1:2) {",
+    "    g[j] ~ dcat(gate_weights)",
+    "    slab[j] ~ dnorm(prior_mean[j], 4)",
+    "    b[j] <- 0 * (g[j] == 1) + slab[j] * (g[j] == 2)",
+    "  }",
+    means,
+    vapply(1:3, child, character(1)),
+    paste0("  tag_group_", 1:2, " <- robma_location_group(g[", 1:2, "], slab[", 1:2, "], 2, b[", 1:2, "], ", 1:2, ")"),
+    "  tag_setup <- robma_location_setup(g[1], 2, 0)",
+    "}")
+  data <- list(x = setup$x, prior_mean = setup$prior_mean, gate_weights = c(1, 1),
+               covariance = covariance[lower.tri(covariance, diag = TRUE)], sei = rep(1, 3L),
+               omega = c(1, setup$omega), z_lower = c(0, -1e300), z_upper = c(1e300, 0),
+               qmc = as.numeric(design), nqmc = length(design), nodes = setup$rules$nodes,
+               log_weights = setup$rules$log_weights, orders = setup$rules$orders,
+               nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
+  for (s in 1:3) {
+    rows <- which(setup$block == s)
+    data[[paste0("y", s)]]   <- setup$y[rows]
+    data[[paste0("bin", s)]] <- ifelse(setup$y[rows] > 0, 1L, 2L)
+  }
+  list(syntax = paste(syntax, collapse = "\n"), data = data)
+}
+
+
+.location_dense_reference <- function(setup, nodes = 20L) {
+
+  Sigma <- matrix(setup$rho, 3L, 3L)
+  diag(Sigma) <- 1
+  R <- chol(Sigma)
+  log_block <- function(y, m) {
+    residual <- backsolve(R, y - m, transpose = TRUE)
+    weight <- ifelse(y > 0, 1, setup$omega)
+    A <- stats::integrate(function(z) {
+      vapply(z, function(zz) {
+        stats::dnorm(zz) * prod(setup$omega + (1 - setup$omega) *
+                                  stats::pnorm((m + sqrt(setup$rho) * zz) / sqrt(1 - setup$rho)))
+      }, numeric(1))
+    }, -Inf, Inf, rel.tol = 1e-10)$value
+    -sum(log(diag(R))) - 1.5 * log(2 * pi) - 0.5 * sum(residual^2) + sum(log(weight)) - log(A)
+  }
+  loglik <- function(B) {
+    vapply(seq_len(nrow(B)), function(k) {
+      m <- B[k, 1] + B[k, 2] * setup$x
+      sum(vapply(1:3, function(s) {
+        rows <- which(setup$block == s)
+        log_block(setup$y[rows], m[rows])
+      }, numeric(1)))
+    }, numeric(1))
+  }
+  patterns <- as.matrix(expand.grid(g1 = 0:1, g2 = 0:1))
+  results <- lapply(seq_len(nrow(patterns)), function(k) {
+    on <- which(patterns[k, ] == 1)
+    lp <- 2 * log(0.5)
+    if (length(on) == 0L) return(list(log_mass = lp + loglik(matrix(0, 1, 2)), m1 = rep(0, 2), m2 = rep(0, 2)))
+    full <- function(beta) {
+      beta <- matrix(beta, ncol = length(on))
+      B <- matrix(0, nrow(beta), 2)
+      B[, on] <- beta
+      prior <- rep(0, nrow(beta))
+      for (i in seq_along(on)) prior <- prior + stats::dnorm(beta[, i], setup$prior_mean[on[i]], 0.5, log = TRUE)
+      loglik(B) + prior
+    }
+    fit <- stats::optim(setup$prior_mean[on], function(beta) -full(beta), method = "BFGS", hessian = TRUE)
+    L <- t(chol(solve(fit$hessian)))
+    rule <- .coarse_reference_rule(nodes)
+    grid <- as.matrix(expand.grid(rep(list(seq_len(nodes)), length(on))))
+    x <- matrix(rule$nodes[grid], ncol = length(on))
+    w <- apply(matrix(rule$weights[grid], ncol = length(on)), 1L, prod)
+    beta <- sweep(x %*% t(L), 2L, fit$par, `+`)
+    log_f <- full(beta) + 0.5 * rowSums(x^2)
+    top <- max(log_f)
+    weight <- w * exp(log_f - top)
+    mass <- sum(weight)
+    m1 <- m2 <- rep(0, 2)
+    m1[on] <- colSums(weight * beta) / mass
+    m2[on] <- colSums(weight * beta^2) / mass
+    list(log_mass = lp + top + log(mass) + sum(log(diag(L))) + 0.5 * length(on) * log(2 * pi), m1 = m1, m2 = m2)
+  })
+  log_mass <- vapply(results, `[[`, numeric(1), "log_mass")
+  p <- exp(log_mass - max(log_mass))
+  p <- p / sum(p)
+  M1 <- colSums(p * t(vapply(results, `[[`, numeric(2), "m1")))
+  M2 <- colSums(p * t(vapply(results, `[[`, numeric(2), "m2")))
+  c(g1 = sum(p * patterns[, 1]), g2 = sum(p * patterns[, 2]), b1 = M1[[1]], b2 = M1[[2]],
+    b1_2 = M2[[1]], b2_2 = M2[[2]])
+}
+
+
+.location_dense_observables <- function(draws) {
+
+  cbind(g1 = draws[, "g[1]"] == 2, g2 = draws[, "g[2]"] == 2, b1 = draws[, "b[1]"], b2 = draws[, "b[2]"],
+        b1_2 = draws[, "b[1]"]^2, b2_2 = draws[, "b[2]"]^2) * 1
 }

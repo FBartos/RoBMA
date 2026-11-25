@@ -28,7 +28,7 @@ test_that("the location block chain targets the exact posterior and broken kerne
 
   draws <- 100000L
   run <- function(mutant, config = NULL) {
-    chain <- .location_hand_chain(model, c("g", "b"), draws = draws, burnin = 1000L, adapt = 500L,
+    chain <- .location_hand_chain(model, c("g", "b", "Z"), draws = draws, burnin = 1000L, adapt = 500L,
                                   mutant = mutant, config = config)
     list(chain = chain, comparison = .location_compare(.location_selection_observables(chain$draws), reference))
   }
@@ -60,9 +60,115 @@ test_that("the location block chain targets the exact posterior and broken kerne
   expect_identical(ellipse$chain$counters[["refresh_proposed"]], 0)
   expect_gt(ellipse$chain$counters[["ellipse_proposed"]], 0.5 * draws)
   expect_gte(ellipse$chain$counters[["ellipse_accepted"]], 0.99 * ellipse$chain$counters[["ellipse_proposed"]])
-  broken <- run(4L, ellipse_only)
+  # an ellipse around the slab prior means, and one without the latent shear
+  # (the joint moment of the intercept and the first cluster effect), are not
+  for (mutant in 4:5) {
+    broken <- run(mutant, ellipse_only)
+    expect_false(attr(broken$comparison, "passes"),
+                 info = paste("ellipse mutant", mutant, ":", paste(round(broken$comparison$z, 2), collapse = " ")))
+  }
+})
+
+
+test_that("the location block over step-selection rows targets the exact posterior in both effect directions", {
+
+  skip_if_not_certification("The step-switch fixtures (about 1 min) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # Independent dselnorm_step_switch rows (the children of RoBMA()
+  # meta-regressions, which the automatic policy gives the block): the
+  # closed-form tilt, the screen's step branch and the block's own row density
+  # in the inner target and the exact correction, with row observation weights
+  # and a bias-exempt row; the reference writes the row density in R.
+  draws <- 100000L
+  for (direction in c(1, -1)) {
+    setup <- .location_step_setup(direction)
+    model <- .location_step_model(setup)
+    reference <- .location_step_reference(setup, 30L)
+    expect_lt(max(abs(reference - .location_step_reference(setup, 20L))), 1e-6)
+    run <- function(mutant) {
+      chain <- .location_hand_chain(model, c("g", "b"), draws = draws, burnin = 1000L, adapt = 500L, mutant = mutant)
+      list(chain = chain, comparison = .location_compare(.location_selection_observables(chain$draws), reference))
+    }
+    exact <- run(0L)
+    label <- paste("direction", direction)
+    expect_identical(exact$chain$decision, "claimed without latents", label = label)
+    expect_true(attr(exact$comparison, "passes"), info = paste(label, ":", paste(round(exact$comparison$z, 2), collapse = " ")))
+    counters <- exact$chain$counters
+    expect_gt(counters[["swap_accepted"]], 0.05 * draws, label = label)
+    expect_gt(counters[["flip_on_accepted"]] + counters[["flip_off_accepted"]], 0.2 * draws, label = label)
+    if (direction == 1) {
+      # power: flips without their reverse proposal density
+      broken <- run(2L)
+      expect_false(attr(broken$comparison, "passes"),
+                   info = paste("mutant 2:", paste(round(broken$comparison$z, 2), collapse = " ")))
+    }
+  }
+})
+
+
+test_that("the location block over dense multivariate selection blocks targets the exact posterior", {
+
+  skip_if_not_certification("The dense fixture (about 1 min) runs in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  # dselnorm_mnorm_step children (known-V fits), whose density the reference
+  # writes in R with a one-dimensional normalizer per block
+  setup <- .location_dense_setup()
+  model <- .location_dense_model(setup)
+  reference <- .location_dense_reference(setup, 20L)
+  expect_lt(max(abs(reference - .location_dense_reference(setup, 14L))), 1e-6)
+  run <- function(mutant) {
+    chain <- .location_hand_chain(model, c("g", "b"), draws = 100000L, burnin = 1000L, adapt = 500L, mutant = mutant)
+    list(chain = chain, comparison = .location_compare(.location_dense_observables(chain$draws), reference))
+  }
+  exact <- run(0L)
+  expect_identical(exact$chain$decision, "claimed without latents")
+  expect_true(attr(exact$comparison, "passes"), info = paste(round(exact$comparison$z, 2), collapse = " "))
+  expect_gt(exact$chain$counters[["surrogate_evaluations"]], 0)
+  broken <- run(2L)
   expect_false(attr(broken$comparison, "passes"),
-               info = paste("ellipse mutant:", paste(round(broken$comparison$z, 2), collapse = " ")))
+               info = paste("mutant 2:", paste(round(broken$comparison$z, 2), collapse = " ")))
+})
+
+
+test_that("a two-coordinate slab, the forced slice refresh and the exact mode after the fallback are exact", {
+
+  skip_if_not_certification("The slab, slice and fallback fixtures (about 3 min) run in the numerical-kernels case.")
+  skip_if_not_installed("rjags")
+  draws <- 100000L
+  # A gated group of two coordinates (correlated dmnorm slab) in selection
+  # labels: the multivariate Newton fits, the floored precision's eigen path,
+  # the multivariate proposal densities and swaps between groups of different
+  # sizes; with refresh variant 5 every group's refresh is the slice update,
+  # a composite of two coordinate updates that reverses in reversed sweeps.
+  setup <- .location_selection_setup()
+  model <- .location_factor_model(setup)
+  reference <- .location_factor_reference(setup, model, coefficient_nodes = 20L, latent_nodes = 40L)
+  expect_lt(max(abs(reference - .location_factor_reference(setup, model))), 1e-4)
+  run <- function(config = NULL, mutant = 0L) {
+    chain <- .location_hand_chain(model, c("g1", "g2", "b1", "b2"), draws = draws, burnin = 1000L, adapt = 500L,
+                                  mutant = mutant, config = config)
+    list(chain = chain, comparison = .location_compare(.location_factor_observables(chain$draws), reference))
+  }
+  for (variant in list(NULL, c(refresh = 5L, fit_rule = -1L, timing = -1L))) {
+    exact <- run(variant)
+    label <- if (is.null(variant)) "default refresh" else "forced slice refresh"
+    expect_identical(exact$chain$decision, "claimed", label = label)
+    expect_true(attr(exact$comparison, "passes"), info = paste(label, ":", paste(round(exact$comparison$z, 2), collapse = " ")))
+    expect_gt(exact$chain$counters[["swap_accepted"]], 0.05 * draws, label = label)
+  }
+
+  # The selection fixture after the fallback to exact mode (the corrected
+  # samplers' test flag): no surrogate is evaluated and every correction is
+  # one up to rounding.
+  model <- .location_selection_model(setup)
+  reference <- .location_selection_reference(setup, model, coefficient_nodes = 20L, latent_nodes = 40L)
+  chain <- .with_corrected_flags(list(force_fallback = TRUE),
+    .location_hand_chain(model, c("g", "b", "Z"), draws = 50000L, burnin = 1000L, adapt = 500L))
+  comparison <- .location_compare(.location_selection_observables(chain$draws), reference)
+  expect_true(attr(comparison, "passes"), info = paste(round(comparison$z, 2), collapse = " "))
+  expect_identical(chain$counters[["surrogate_evaluations"]], 0)
+  expect_identical(chain$counters[["sweeps_evidence"]], 0)
+  expect_lt(chain$counters[["max_correction"]], 1e-10)
 })
 
 

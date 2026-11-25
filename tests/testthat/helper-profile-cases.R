@@ -450,7 +450,10 @@ certification_cases <- function() {
         .required_tests("test-00-location-block-exactness.R", c(
           "the location block chain targets the exact posterior and broken kernels do not",
           "the location block's bias-label moves target the exact posterior and broken swaps do not",
-          "the scale move keeps the exact posterior of the heterogeneity and broken moves do not"
+          "the scale move keeps the exact posterior of the heterogeneity and broken moves do not",
+          "the location block over step-selection rows targets the exact posterior in both effect directions",
+          "the location block over dense multivariate selection blocks targets the exact posterior",
+          "a two-coordinate slab, the forced slice refresh and the exact mode after the fallback are exact"
         )),
         .required_tests("test-00-sampler-declarations-fits.R", c(
           "declared nodes get the BayesTools samplers and the others keep theirs",

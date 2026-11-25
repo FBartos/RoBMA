@@ -154,6 +154,134 @@ test_that("the factory verifies each design column against its baseline, and an 
 })
 
 
+test_that("each sweep runs the fit's fixed slot list, exactly reversed in a reversed sweep", {
+
+  skip_if_not_installed("rjags")
+  trace <- c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = 2L)
+  run <- function(model, mutant = 0L, config = trace, sweeps = 300L) {
+    .location_sequences()
+    jags <- .location_compile(model, mutant = mutant, config = config)
+    RoBMA:::.location_block_report_read()
+    rjags::adapt(jags, 100L, end.adaptation = TRUE)
+    counters <- RoBMA:::.location_block_report_read()
+    stats::update(jags, n.iter = sweeps, progress.bar = "none")
+    list(sequences = .location_sequences(), counters = counters)
+  }
+  # the slot lists of the forward sweeps, and those of the reversed sweeps
+  # mirrored, by entry label
+  slot_lists <- function(sequences) {
+    unique(lapply(sequences, function(x) {
+      slots <- if (x$reversed) x$slots[rev(seq_len(nrow(x$slots))), , drop = FALSE] else x$slots
+      slots
+    }))
+  }
+
+  # The bias fixture: its label changes inside sweeps, so sweeps are entered
+  # in selection and in Gaussian labels (sweep conditions 1 and 3).
+  model <- .bias_model(.bias_setup())
+  exact <- run(model)$sequences
+  expect_gt(length(exact), 300L)
+  expect_true(any(vapply(exact, `[[`, logical(1), "selection")) && any(!vapply(exact, `[[`, logical(1), "selection")))
+  expect_true(any(vapply(exact, `[[`, logical(1), "reversed")) && any(!vapply(exact, `[[`, logical(1), "reversed")))
+  expect_length(slot_lists(exact), 1L)
+  # mutant 11 takes the joint refresh's slot from the entry label
+  expect_gt(length(slot_lists(run(model, mutant = 11L)$sequences)), 1L)
+
+  # The two-coordinate slab with every group's refresh the slice update
+  # (refresh variant 5): the composite's coordinates run in reverse order in
+  # reversed sweeps; mutant 13 keeps their forward order.
+  forced <- trace
+  forced[["refresh"]] <- 5L
+  model <- .location_factor_model(.location_selection_setup())
+  coordinate_orders <- function(sequences) {
+    out <- lapply(sequences, function(x) {
+      own <- x$coordinates[x$coordinates[, 1L] == 1, 2L]
+      if (length(own) == 0L) return(NULL)
+      list(reversed = x$reversed, order = own)
+    })
+    Filter(Negate(is.null), out)
+  }
+  reversing <- function(orders) {
+    all(vapply(orders, function(x) identical(x$order, if (x$reversed) c(1, 0) else c(0, 1)), logical(1)))
+  }
+  slice <- run(model, config = forced)
+  orders <- coordinate_orders(slice$sequences)
+  expect_true(any(vapply(orders, `[[`, logical(1), "reversed")) && any(!vapply(orders, `[[`, logical(1), "reversed")))
+  expect_true(reversing(orders))
+  expect_length(slot_lists(slice$sequences), 1L)
+  # the record counts every group whose refresh became the slice update
+  expect_identical(unname(slice$counters[c("slice_refresh_groups", "slice_refresh_multi")]), c(2, 1))
+  expect_false(reversing(coordinate_orders(run(model, mutant = 13L, config = forced)$sequences)))
+})
+
+
+test_that("an error after the correction's graph write restores every member and descendant", {
+
+  skip_if_not_installed("rjags")
+  # Mutant 14 throws once after the exact correction writes the final state
+  # (bias fixture: label nodes, slopes, gates, slabs and latents written).
+  # The members are restored, and a model compiled from the restored state
+  # (with the RNG state) takes the same steps, so no descendant is stale.
+  model <- .bias_model(.bias_setup())
+  state <- function(jags, internal = FALSE) {
+    jags$sync()
+    jags$state(internal = internal)[[1L]]
+  }
+  step <- function(jags) {
+    tryCatch({
+      stats::update(jags, n.iter = 1L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+  }
+  live <- .location_compile(model, mutant = 14L)
+  rjags::adapt(live, 0L, end.adaptation = TRUE)
+  error <- NULL
+  for (iteration in 1:20) {
+    entry <- state(live)
+    error <- step(live)
+    if (!is.null(error)) break
+  }
+  expect_match(error, "injected after the final graph write", fixed = TRUE)
+  expect_identical(state(live), entry)
+  replay <- .location_compile(model, inits = state(live, internal = TRUE))
+  rjags::adapt(replay, 0L, end.adaptation = TRUE)
+  for (iteration in 1:5) {
+    expect_null(step(live))
+    expect_null(step(replay))
+    expect_identical(state(live, internal = TRUE), state(replay, internal = TRUE))
+  }
+})
+
+
+test_that("the location block falls back to exact mode at the end of adaptation below its threshold", {
+
+  skip_if_not_installed("rjags")
+  # The selection fixture's crude surrogate: about 90% of the evidence sweeps
+  # kept while adapting. Below a threshold of 0.99 the block falls back at the
+  # first adaptOff() and evaluates no surrogate evidence afterwards; at 0 it
+  # stays corrected.
+  model <- .location_selection_model(.location_selection_setup())
+  capture <- function(min_acceptance) {
+    jags <- .location_compile(model, min_acceptance = min_acceptance)
+    RoBMA:::.location_block_report_read()
+    rjags::adapt(jags, 200L, end.adaptation = TRUE)
+    warm <- RoBMA:::.location_block_report_read()
+    stats::update(jags, n.iter = 100L, progress.bar = "none")
+    list(warm = warm, sample = RoBMA:::.location_block_report_read())
+  }
+  strict <- capture(0.99)
+  expect_gte(strict$warm[["sweeps_evidence"]], 50)
+  expect_lt(strict$warm[["corrections_evidence_accepted"]], 0.99 * strict$warm[["sweeps_evidence"]])
+  expect_identical(strict$warm[["fallback_exact"]], 1)
+  expect_identical(strict$sample[["fallback_exact"]], 0)
+  expect_identical(strict$sample[["sweeps_evidence"]], 0)
+  expect_lt(strict$sample[["max_correction"]], 1e-10)
+  lenient <- capture(0)
+  expect_identical(lenient$warm[["fallback_exact"]], 0)
+  expect_gt(lenient$sample[["sweeps_evidence"]], 0)
+})
+
+
 test_that("the closed-form tilt of a step-selection row has the derivatives of its density", {
 
   # The analytic Newton path of the location block (StepRowNormalizer.h): the

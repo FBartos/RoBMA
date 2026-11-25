@@ -1906,7 +1906,7 @@
   // label's first six weights at the attempt.
   void swap_trace(int from, int target, bool passed, double stage1, double stage2, bool accepted)
   {
-    if (!s().trace) return;
+    if ((s().trace & 1) == 0) return;
     Shared const &S = s();
     double sd = 0.0;
     for (unsigned c = 0; c < S.children.size() && sd == 0.0; ++c) {
