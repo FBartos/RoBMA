@@ -915,9 +915,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   sum of the two ends' log ratios of the proposal densities,
   `log q(x|x') - log q(x'|x)` at each end's base point (a guard, not a
   requirement of exactness: with stage 2's exact ratio below, only stage 1's
-  reciprocity enters detailed balance). Both ends evaluate
-  the same two base points, so the rule decides the same from either end;
-  after adaptation the counters keep the largest residuals of the attempts
+  reciprocity enters detailed balance). Given the working means, both ends
+  evaluate the same two base points, so the rule decides the same from
+  either end of the evaluated pair; after adaptation the counters keep the largest residuals of the attempts
   that went on to stage 2 (`max_swap_stage1_residual`,
   `max_swap_full_residual`).
   The rebuilt end shares the forward end's working means (moved by the
@@ -945,8 +945,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   function of each end, not of the base point alone: every attempt
   evaluates it at its own end wherever `M_0` is (`swap_unrepresentable`) and
   at its rebuilt end (`swap_irreproducible`), and the reverse attempt at the
-  same two ends; after adaptation the counters keep the largest admitted `Q`
-  (`max_swap_working`). `Q` is a criterion, not a bound.
+  same two ends; after adaptation the counters keep the largest `Q` of the
+  base points that pass the check, also in attempts that end before a
+  proposal (`max_swap_working`). `Q` is a criterion, not a bound.
   It separates the regimes: ordinary data have `Q` from 1e-14 to 9e-11 (at
   most 2.3e-11 on the real cases and 9.1e-11 on a 10,000-row fixture, at
   least 110 times below the tolerance), a row at `2 / 1e-3` up to 4.7e-11,
@@ -965,7 +966,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   identity (`swap_irreproducible`), at 470 to 560 about 30%. `Q` costs 2 to
   3% of a swap attempt. The probe rebuilds each
   dry run's proposal end from working means read from the graph at the
-  proposal (kind 7) and records the change of the rule's inputs against the
+  proposal, with the forward sweep's latent slopes (kind 7; a sweep that
+  starts at the proposal probes the slopes again, which the probe does not
+  reproduce), and records the change of the rule's inputs against the
   rebuild from the carried means. Over chain seeds 1-40 (L2 in every sweep,
   about 32,000 dry runs per fixture), in the dry runs the whole rule admits,
   that change is up to 8e-12, a floor of rounding, and 58 `Q` on the default
@@ -980,17 +983,22 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the data, where `Q` from the end's sizes is 1.8e-8 to 3.3e-8 and skips it.
   Stage 2 takes each proposal density from the base point of the end that
   draws it, `r = delta + log q'(x|x') - log q(x'|x)`, the exact
-  Metropolis-Hastings ratio and the exact negative of the reverse move's
+  Metropolis-Hastings ratio of the two evaluated ends and the exact negative
+  of the reverse move's evaluated at the same two ends
   (a symmetrized ratio of the two ends' own-base ratios, `(full - full') / 2`,
   is off by half the sum of the two ends' discrepancies of the proposal
   densities, up to 3.4e-4 on that fixture, which the rule bounds only when
   one end's discrepancy dominates). The swap is exact for the inner target
-  given the working means, up to `swap_reciprocity_tolerance` in stage 1;
-  the working means are carried through an update, and the swap runs only
-  where `Q <= 1e-8` and elsewhere is the identity. The chain's own reverse
-  attempt, from re-read working means, agrees with the rebuilt end to within
-  58 `Q` and 3.3e-8 in a log ratio in the measurements above: that agreement
-  is measured, not guaranteed.
+  given the working means, up to `swap_reciprocity_tolerance` in stage 1,
+  for the two ends it evaluates; the working means are carried through an
+  update, and the swap runs only where `Q <= 1e-8` at both ends and elsewhere
+  is the identity. The chain's own reverse attempt starts from working means
+  re-read at the proposal and from latent slopes probed again there; what is
+  measured is a rebuild with re-read means and the forward sweep's latent
+  slopes (kind 7), which agrees with the rebuilt end to within 58 `Q` and
+  3.3e-8 in a log ratio in the measurements above. That agreement is
+  measured, not guaranteed, and the effect of the re-probed slopes is not
+  measured.
   The rebuild adds one base-point evaluation with one fit to every
   attempt that passes stage 1. On ordinary fixtures nothing is skipped; at
   `1000 / 1e-6` every attempt after adaptation is skipped at its base point
@@ -1011,16 +1019,23 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   (`swap_gate_log_probabilities`): normalized by their total, evidences of
   size 1e9 rounded the smaller cell's draw probability to zero while its
   score kept 4.1e-8. The draw `u < p` with JAGS's 32-bit uniform (values
-  `k 2^-32`) realizes the gate's probabilities on a grid of `2^-32`, as any
-  such draw does: at that pair (`d` = 17) the off cell's 4.14e-8 is drawn
-  with probability 4.12e-8 (log error -4.6e-3), at `d` = 20 the log error is
-  -0.10, and a cell below `2^-32` (`d` above 22.2) is never drawn while its
-  score stays `e^-d`; only events below about 1e-7 per attempt are affected.
+  `k 2^-32`) realizes any probability to within an absolute `2^-32`
+  (2.3e-10), as any such draw does; the errors that are large are relative
+  errors of very small cells: at that pair (`d` = 17) the off cell's 4.14e-8
+  is drawn with probability 4.12e-8 (relative log error -4.6e-3), at `d` = 20
+  the relative log error is -0.10, and a cell below `2^-32` (`d` above 22.2)
+  is never drawn while its score stays `e^-d`; only events below about 1e-7
+  per attempt are affected.
   The swap's evaluations at its base point, at its rebuilt end and at a
   proposal it discards leave the sweep's evidence flag about the surrogate
   (`_not_exact`) as it was (the working state's snapshot restores it; the
   exact correction's ratio depends on the sweep's endpoints only); an
-  accepted proposal's evaluations keep it. The tilted fits of the location components (flips, refreshes and
+  accepted proposal's evaluations keep it. Only the swap resets the flag at
+  a discarded proposal: the other moves' discarded proposals still mark the
+  sweep. The flag enters no acceptance ratio: it decides which sweeps count
+  as evidence about the surrogate, in the counters and, while adapting, in
+  the acceptance rate that can switch the sampler to its exact kernel at the
+  end of adaptation (`selection.coarse_min_acceptance`). The tilted fits of the location components (flips, refreshes and
   swaps, whose reverse fit is evaluated at inputs that differ from the
   forward ones by rounding) take their steps by the same rule, so they too
   agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
@@ -1230,9 +1245,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   (a chain may start far from the data), and a proposed state is never checked
   (a huge term rejects it as before). Below the limit a sum of `n` terms
   accumulated in double precision loses up to about `(n - 1) u M` (`u =
-  2^-53`; measured up to 9e-6 at `M = 1e9`, `n = 10,000`), which bounds the
-  error of a difference of two such totals that the bias-side samplers
-  keep. At the R boundary `.stop_fit_errors()` signals a fitting error whose
+  2^-53`; measured up to 9e-6 at `M = 1e9`, `n = 10,000`): the error of one
+  total. A difference of two totals, as the bias-side samplers keep, carries
+  the sum of both totals' allowances plus the rounding of the subtraction
+  (the two totals can round in opposite directions: with two terms per total
+  near `M = 8e8`, 1.17e-7 against the one-total 8.9e-8). The guard evaluates
+  the terms of the current state, not those of the proposed total. At the R
+  boundary `.stop_fit_errors()` signals a fitting error whose
   message carries a bracketed name of RoBMA's samplers with that name as its
   condition class and the parent class `RoBMA_sampler_error`
   (`RoBMA_likelihood_not_representable`, `RoBMA_location_untracked_mean`,

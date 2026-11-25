@@ -1105,7 +1105,10 @@
   // evaluated at L2's base point, at its rebuilt end or at a proposal it
   // discards does not mark the sweep as evidence about the surrogate (the
   // exact correction's ratio depends on the sweep's endpoints only), while
-  // an accepted proposal's evaluations keep it.
+  // an accepted proposal's evaluations keep it. Only the swap resets the
+  // flag at a discarded proposal: the other moves' discarded proposals still
+  // mark the sweep. The flag enters no acceptance ratio, only the evidence
+  // record and, while adapting, the switch to the exact kernel.
   struct Snapshot {
     Vec b, beta, z, mean, r, wr, h, value, fit_value;
     std::vector<char> g, value_ok, fit_ok, selected, dirty;
@@ -1662,7 +1665,10 @@
     to.label = target;
     to.gate = true;
     if (g0.gate != nullptr) {
-      // the gate's two probabilities from one centered pair, as swap_log_q scores them
+      // the gate's two probabilities from one centered pair, as swap_log_q
+      // scores them; u < p with JAGS's 32-bit uniform (values k 2^-32)
+      // realizes p to within an absolute 2^-32, so only the relative error of
+      // a very small cell is large (below 2^-32 it is never drawn)
       double log_on, log_off;
       swap_gate_log_probabilities(base.log_e_off[it], base.log_e_on[it], &log_on, &log_off);
       to.gate = rng->uniform() < std::exp(log_on);
@@ -1932,31 +1938,36 @@
   // else is recorded) when that fails, when the two stage-1 log ratios are
   // not inverses to swap_reciprocity_tolerance, or when the two ends' log
   // ratios of the proposal densities, log q(x|x') - log q(x'|x) at each end's
-  // base point, do not cancel to it: a rule of the two base points, which
-  // both ends evaluate, so the decision is the same from either end. Stage 2
-  // takes each proposal density from the base point of the end that draws
-  // it, r = delta + log q'(x | x') - log q(x' | x) (q' at the proposal), the
-  // exact Metropolis-Hastings ratio, computed as the exact negative of the
-  // reverse move's. The second condition, on the proposal densities, is a
-  // guard, not a requirement of exactness: with stage 2's exact ratio only
-  // stage 1's reciprocity enters detailed balance, and the guard only removes
-  // attempts whose two ends disagree. The swap is exact for the inner target
-  // given the working means, up to swap_reciprocity_tolerance in stage 1. The
-  // working means are carried through an update (the rebuilt end shares the
-  // forward end's, moved by the swap's shift, while an attempt that starts at
-  // the proposal in a later sweep reads the graph's means and moves them by
-  // its own shifts). The swap runs only where Q <= swap_working_tolerance
-  // (1e-8; Q, swap_working_criterion, the working means' representability
-  // criterion) and elsewhere is the identity (swap_unrepresentable_base).
-  // Rebuilt from re-read working means (probe kind 7), the rule's inputs
-  // moved by at most 58 Q and 3.3e-8 in the admitted dry runs of chain seeds
-  // 1-40 on the tests' fixtures; with Q's sizes taken at the base point,
-  // the selection labels' Laplace fits (two damped Newton iterations) had
-  // stopped at means up to 1.7e-5 law SDs apart, moving the proposal
-  // densities by up to 1.6e-5, at chains' initial states far from the data,
-  // which Q now skips. So the two ends reproduce each other to the tolerance
-  // from the same working means; that the chain's own reverse attempt agrees
-  // is measured, not guaranteed. A dry run (probe) records the frozen-state
+  // base point, do not cancel to it: a rule of the two base points, which,
+  // given the working means, both ends evaluate, so the decision is the same
+  // from either end of the evaluated pair. Stage 2 takes each proposal
+  // density from the base point of the end that draws it,
+  // r = delta + log q'(x | x') - log q(x' | x) (q' at the proposal), the exact
+  // Metropolis-Hastings ratio of the two evaluated ends, computed as the
+  // exact negative of the reverse move's at the same two ends. The second
+  // condition, on the proposal densities, is a guard, not a requirement of
+  // exactness: with stage 2's exact ratio only stage 1's reciprocity enters
+  // detailed balance, and the guard only removes attempts whose two ends
+  // disagree. The swap is exact for the inner target given the working
+  // means, up to swap_reciprocity_tolerance in stage 1, for the two ends it
+  // evaluates. The working means are carried through an update (the rebuilt
+  // end shares the forward end's, moved by the swap's shift, while an
+  // attempt that starts at the proposal in a later sweep reads the graph's
+  // means, probes the latent slopes again and moves the means by its own
+  // shifts). The swap runs only where Q <= swap_working_tolerance at both
+  // ends (1e-8; Q, swap_working_criterion, the working means'
+  // representability criterion) and elsewhere is the identity
+  // (swap_unrepresentable_base). Rebuilt from working means re-read at the
+  // proposal with the forward sweep's latent slopes (probe kind 7, which
+  // does not re-probe them), the rule's inputs moved by at most 58 Q and
+  // 3.3e-8 in the admitted dry runs of chain seeds 1-40 on the tests'
+  // fixtures; with Q's sizes taken at the base point, the selection labels'
+  // Laplace fits (two damped Newton iterations) had stopped at means up to
+  // 1.7e-5 law SDs apart, moving the proposal densities by up to 1.6e-5, at
+  // chains' initial states far from the data, which Q now skips. So the two
+  // ends reproduce each other to the tolerance from the same working means;
+  // that the chain's own reverse attempt agrees is measured in that sense
+  // only, not guaranteed. A dry run (probe) records the frozen-state
   // identities of the attempt and changes nothing.
   void label_swap(RNG *rng, bool dry = false)
   {

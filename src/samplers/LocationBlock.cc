@@ -145,7 +145,9 @@ struct Counters {
   // sweeps whose cross-family swap (L2) made no proposal because its base
   // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable:
   // M_0 or the working means' representability criterion Q), and after
-  // adaptation the largest Q of the base points the rule admitted
+  // adaptation the largest Q of the base points that pass that check (also
+  // in attempts that end before a proposal; a Q above the tolerance at a
+  // rebuilt end counts as swap_irreproducible)
   std::atomic<std::uint64_t> swap_unrepresentable{0};
   std::atomic<double> max_swap_working{0.0};
   // sweeps whose cross-family swap passed stage 1 and was then the identity

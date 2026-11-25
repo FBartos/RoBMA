@@ -192,8 +192,12 @@ void unregister_corrected_sampler(CorrectedSamplerWindow *sampler);
 // a proposed state is never checked (it is rejected or accepted as before).
 // Below the limit, a sum of n terms accumulated in double precision loses up
 // to about (n - 1) u M (u = 2^-53, M the sum of their absolute values: 1.1e-7
-// per term at M = 1e9; measured up to 9e-6 for n = 10,000), which bounds the
-// error of a difference of two such totals.
+// per term at M = 1e9; measured up to 9e-6 for n = 10,000): the error of one
+// total. A difference of two totals carries the sum of both totals'
+// allowances plus the rounding of the subtraction, as the two totals can
+// round in opposite directions (two terms per total near M = 8e8: 1.17e-7
+// against the one-total 8.9e-8). The guard evaluates the current state's
+// terms, not the proposed total.
 constexpr double likelihood_representable_limit = 1e9;
 
 // The sites of the guard, for the record of the largest sum seen after
