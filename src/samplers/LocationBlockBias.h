@@ -527,6 +527,7 @@ struct BiasEvidence {
   std::vector<double> label_sweeps;
   double proposed[4] = {0, 0, 0, 0}, stage1[4] = {0, 0, 0, 0}, accepted[4] = {0, 0, 0, 0};
   double swap_unrepresentable = 0;    // L2 skipped: its base point was not representable
+  double swap_irreproducible = 0;     // L2 the identity after stage 1: its proposal end did not reproduce it
   double attempts[2] = {0, 0}, attempt_sum[2] = {0, 0}, pass_sum[2] = {0, 0};
   double attempt_max[2] = {-std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
   double kept[2] = {0, 0}, kept_sum[2] = {0, 0};
@@ -544,6 +545,7 @@ struct BiasEvidence {
       accepted[i] += other.accepted[i];
     }
     swap_unrepresentable += other.swap_unrepresentable;
+    swap_irreproducible += other.swap_irreproducible;
     for (int d = 0; d < 2; ++d) {
       attempts[d] += other.attempts[d];
       attempt_sum[d] += other.attempt_sum[d];

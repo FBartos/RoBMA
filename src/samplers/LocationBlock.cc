@@ -72,6 +72,13 @@ constexpr double slice_width = 2.5;
 // at the rounding level is always taken, so that the fits at the two ends of
 // a move, whose inputs differ by rounding, take the same steps.
 constexpr double fit_tolerance = 1e-10;
+// The cross-family swap L2 (LocationBlockBiasMoves.h) rebuilds at its
+// proposal what an attempt that starts there computes for the move back and
+// is the identity when the two ends' stage-1 log ratios, or their log ratios
+// of the proposal densities, are not inverses to this tolerance (log units):
+// the bound of the frozen-state tests, about 1e4 times the residual of
+// ordinary data (1e-13) and far below a missing Hastings term (at least 1e-3).
+constexpr double swap_reciprocity_tolerance = 1e-9;
 // The refresh kernels of the active coefficients in selection labels (A3; see
 // LocationBlock::refresh_variant): chosen by measurement.
 constexpr int default_refresh = 1;
@@ -122,6 +129,14 @@ struct Counters {
   // sweeps whose cross-family swap (L2) made no proposal because its base
   // point was not representable (LocationBlockBiasMoves.h, swap_unrepresentable)
   std::atomic<std::uint64_t> swap_unrepresentable{0};
+  // sweeps whose cross-family swap passed stage 1 and was then the identity
+  // because its proposal end did not reproduce it (swap_irreproducible), and
+  // after adaptation the largest reciprocity residuals of the attempts that
+  // went on to stage 2: |stage 1 + reverse stage 1| and the sum of the two
+  // ends' log ratios of the proposal densities
+  std::atomic<std::uint64_t> swap_irreproducible{0};
+  std::atomic<double> max_swap_stage1_residual{0.0};
+  std::atomic<double> max_swap_full_residual{0.0};
   // after adaptation, the comparisons of an unmoved child's mean with its
   // entry mean that were not bitwise equal (correct()), and the largest such
   // discrepancy in the row's conditional SDs
@@ -394,6 +409,27 @@ void draw_precision(Vec const &m, Vec const &Pchol, RNG *rng, double *out)
 double log1pexp(double x)
 {
   return x > 0 ? x + std::log1p(std::exp(-x)) : std::log1p(std::exp(x));
+}
+
+// The gate of the target cell of the cross-family swap L2: the log
+// probabilities of the slab (on) and of the spike (off) from the cell's two
+// log evidences, both from their difference d = on - off as -log(1 + e^-d)
+// and -log(1 + e^d) (stable for either sign). No total of the two is formed:
+// at evidences of size 1e9 its rounding drops the smaller cell, which the
+// draw then never takes while a score from the total still gives it mass. A
+// side with evidence -Inf (or none) has probability zero. The draw and the
+// proposal density use these same two numbers.
+void swap_gate_log_probabilities(double log_e_off, double log_e_on, double *log_on, double *log_off)
+{
+  const bool on_mass = log_e_on > negative_infinity, off_mass = log_e_off > negative_infinity;
+  if (!on_mass || !off_mass) {
+    *log_on = on_mass ? 0.0 : negative_infinity;
+    *log_off = off_mass ? 0.0 : negative_infinity;
+    return;
+  }
+  const double d = log_e_on - log_e_off;
+  *log_on = -log1pexp(-d);
+  *log_off = -log1pexp(d);
 }
 
 // Eigen-decomposition of a small symmetric n x n matrix by cyclic Jacobi
@@ -4365,8 +4401,9 @@ std::vector<char const *> const &location_block_report_names()
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
       "slice_refresh_groups", "slice_refresh_multi", "factorization_skips", "swap_unrepresentable",
-      "unmoved_mean_inexact", "max_correction", "max_correction_gaussian", "max_endpoint", "max_endpoint_change",
-      "max_stage2_gaussian", "unmoved_mean_max"};
+      "swap_irreproducible", "unmoved_mean_inexact", "max_correction", "max_correction_gaussian", "max_endpoint",
+      "max_endpoint_change", "max_stage2_gaussian", "max_swap_stage1_residual", "max_swap_full_residual",
+      "unmoved_mean_max"};
     static std::vector<std::string> storage;
     for (int i = 0; i < component_count; ++i) {
       for (char const *stage : {"proposed", "stage0", "stage1", "accepted"}) {
@@ -4402,9 +4439,10 @@ std::vector<double> location_block_report(bool clear)
     take(c.corrections_evidence_accepted), take(c.fallback_exact), take(c.surrogate_evaluations),
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
     take(c.slice_refresh_groups), take(c.slice_refresh_multi), take(c.factorization_skips),
-    take(c.swap_unrepresentable), take(c.unmoved_mean_inexact), take_max(c.max_correction),
-    take_max(c.max_correction_gaussian), take_max(c.max_endpoint), take_max(c.max_endpoint_change),
-    take_max(c.max_stage2_gaussian), take_max(c.unmoved_mean_max)};
+    take(c.swap_unrepresentable), take(c.swap_irreproducible), take(c.unmoved_mean_inexact),
+    take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
+    take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian), take_max(c.max_swap_stage1_residual),
+    take_max(c.max_swap_full_residual), take_max(c.unmoved_mean_max)};
   for (int i = 0; i < component_count; ++i) {
     out.push_back(take(c.proposed[i]));
     out.push_back(take(c.stage0[i]));
@@ -4476,7 +4514,7 @@ std::vector<char const *> const &location_bias_evidence_names()
 {
   static const std::vector<char const *> names = {
     "chain", "label_proposed", "label_accepted", "family_proposed", "family_accepted", "slope_proposed",
-    "slope_accepted", "swap_proposed", "swap_stage1", "swap_accepted", "swap_unrepresentable",
+    "slope_accepted", "swap_proposed", "swap_stage1", "swap_accepted", "swap_unrepresentable", "swap_irreproducible",
     "leave_selection_attempts", "leave_selection_log_ratio_sum", "leave_selection_log_ratio_max",
     "leave_selection_pass_probability_sum",
     "leave_gaussian_attempts", "leave_gaussian_log_ratio_sum", "leave_gaussian_log_ratio_max",
@@ -4506,6 +4544,7 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
       out.push_back(e.accepted[i]);
     }
     out.push_back(e.swap_unrepresentable);
+    out.push_back(e.swap_irreproducible);
     for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.attempts[d], e.attempt_sum[d], e.attempt_max[d], e.pass_sum[d]});
     for (int d = 0; d < 2; ++d) out.insert(out.end(), {e.kept[d], e.kept_sum[d], e.kept_max[d]});
     for (int d = 0; d < 2; ++d) {
@@ -4552,6 +4591,13 @@ std::vector<double> location_block_test_take_sequence()
   std::vector<double> out;
   out.swap(store.records);
   return out;
+}
+
+std::vector<double> location_block_test_swap_gate(double log_e_off, double log_e_on)
+{
+  double log_on, log_off;
+  swap_gate_log_probabilities(log_e_off, log_e_on, &log_on, &log_off);
+  return {log_on, log_off};
 }
 
 }

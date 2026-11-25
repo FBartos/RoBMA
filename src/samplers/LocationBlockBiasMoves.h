@@ -27,7 +27,7 @@
   Vec _shift_mean;                    // scratch: a child's mean at another label
 
   // probe record types of the bias components (LocationBlockReport.h)
-  static constexpr int probe_family = 7, probe_slope = 8, probe_swap = 9, probe_label = 10;
+  static constexpr int probe_family = 7, probe_slope = 8, probe_swap = 9, probe_label = 10, probe_label_record = 12;
 
   bool bias() const { return s().bias != nullptr; }
   // An endpoint of the sweep is in a selection label: the exact correction
@@ -1545,7 +1545,9 @@
     long double out = 0;
     if (S.mutant != 6) out += (B.gaussian(from.label) ? log_qS : log_qG)[it];
     if (g0.gate != nullptr && S.mutant != 7) {
-      out += (to.gate ? base.log_e_on[it] : base.log_e_off[it]) - log_sum(base.log_e_off[it], base.log_e_on[it]);
+      double log_on, log_off;
+      swap_gate_log_probabilities(base.log_e_off[it], base.log_e_on[it], &log_on, &log_off);
+      out += to.gate ? log_on : log_off;
     }
     if (B.gaussian(to.label)) {
       const int b = B.slope_of[it];
@@ -1572,7 +1574,10 @@
     to.label = target;
     to.gate = true;
     if (g0.gate != nullptr) {
-      to.gate = rng->uniform() < std::exp(base.log_e_on[it] - log_sum(base.log_e_off[it], base.log_e_on[it]));
+      // the gate's two probabilities from one centered pair, as swap_log_q scores them
+      double log_on, log_off;
+      swap_gate_log_probabilities(base.log_e_off[it], base.log_e_on[it], &log_on, &log_off);
+      to.gate = rng->uniform() < std::exp(log_on);
     }
     const int slope_in = B.slope_of[it];
     const int slope_out = B.slope_of[static_cast<std::size_t>(from.label - 1)];
@@ -1702,13 +1707,128 @@
     return true;
   }
 
+  // The quantities of one end of an attempt, from that end's state: its
+  // geometry, base point and label proposals, the stage-1 log ratio of the
+  // move to the other end, and the log proposal densities of that move
+  // (forward) and of its reverse (reverse) from its base point.
+  struct SwapEnd {
+    SwapGeometry G;
+    SwapBase base;
+    Vec qG, qS;
+    double stage1 = 0, forward = 0, reverse = 0;
+  };
+
+  // How an attempt starts: skipped (no proposal and no tally: a singular law,
+  // or a base point that is not representable, swap_unrepresentable), without
+  // a proposal (a failed fit, no target), or proposing.
+  enum SwapStart { swap_skipped, swap_none, swap_proposing };
+
+  // The start of an attempt at the working state: the geometry, the base
+  // point (leaving a selection label, with that label's Laplace evidence;
+  // entering one, without fits and, after the target label's draw, again
+  // with the target's), the label proposals, and the target label, drawn or
+  // `forced` (test hook: no draw, rng unused). The live attempt, its dry run
+  // and the reproduction test hook all start here.
+  SwapStart swap_start(RNG *rng, bool dry, int forced, int &target, SwapEnd &end)
+  {
+    BiasSpec const &B = bspec();
+    const bool from_selection = !B.gaussian(_label);
+    target = 0;
+    if (!swap_geometry(end.G)) {
+      skipped_factorization();
+      return swap_skipped;
+    }
+    // the base point: the Gaussian labels' evidences, the selection labels'
+    // screens and, leaving a selection label, its own Laplace evidence
+    std::vector<int> fits;
+    if (from_selection) fits.push_back(_label);
+    bool proposing = swap_base(end.G, fits, end.base);
+    if (swap_skip_unrepresentable(end.base, dry)) return swap_skipped;
+    if (proposing) {
+      swap_label_proposals(end.base, end.qG, end.qS);
+      if (forced > 0) {
+        target = forced;
+      } else {
+        Vec const &forward_q = from_selection ? end.qG : end.qS;
+        double u = rng->uniform();
+        for (int l = 1; l <= B.levels; ++l) {
+          const double q = forward_q[static_cast<std::size_t>(l - 1)];
+          if (!(q > negative_infinity)) continue;
+          target = l;
+          const double p = std::exp(q);
+          if (u < p) break;
+          u -= p;
+        }
+      }
+      proposing = target != 0;
+    }
+    // entering a selection label: its Laplace evidence at the base point (its
+    // terms enter M_0 only here, after the target label's draw; the reverse
+    // move, from the target, checks the same terms before its draw)
+    if (proposing && !from_selection) {
+      proposing = swap_base(end.G, {target}, end.base);
+      if (swap_skip_unrepresentable(end.base, dry)) return swap_skipped;
+    }
+    return proposing ? swap_proposing : swap_none;
+  }
+
+  // The proposal end of an attempt, rebuilt at the working state after
+  // swap_move (`here` the proposal, `there` the attempt's current state):
+  // what an attempt that starts at `here` computes for the move back to
+  // `there` (swap_start's quantities with the target's fit), from the working
+  // state alone: _h rebuilt as an accepted swap rebuilds it, the line, the
+  // fits (each from its rebuilt base point's law, no warm start) and every
+  // cached child value rebuilt. False when the geometry or a fit fails or the
+  // base point is not representable: the attempt from `here` would make no
+  // proposal of `there`.
+  bool swap_back(SwapState const &here, SwapState const &there, SwapEnd &end)
+  {
+    BiasSpec const &B = bspec();
+    rebuild_h();
+    if (!swap_geometry(end.G)) return false;
+    const int selection = B.gaussian(here.label) ? there.label : here.label;
+    if (!swap_base(end.G, {selection}, end.base) || swap_unrepresentable_base(end.base)) return false;
+    swap_label_proposals(end.base, end.qG, end.qS);
+    end.stage1 = swap_stage1(end.base, end.qG, end.qS, here.label, there.label);
+    end.forward = swap_log_q(end.base, end.qG, end.qS, here, there);
+    end.reverse = swap_log_q(end.base, end.qG, end.qS, there, here);
+    return true;
+  }
+
+  // An attempt that passed stage 1 and is the identity because its proposal
+  // end does not reproduce it (swap_irreproducible).
+  void swap_skip_irreproducible()
+  {
+    count(counters().swap_irreproducible);
+    if (_adapting) return;
+    _bias_evidence.swap_irreproducible += 1;
+    _bias_dirty = true;
+  }
+
   // One attempt of L2: propose a label of the other family, a gate, the
   // intercept and the entering slope from the target cell's law at the base
   // point (the leaving slope from its prior), E = E_0 + K_t t + K_b theta;
-  // stage 1 on the evidences and the label Hastings factor, stage 2 on the
-  // inner target with the complete proposal densities of both directions. A
-  // dry run (probe) records the frozen-state identities of the attempt and
-  // changes nothing.
+  // stage 1 on the evidences and the label Hastings factor (Metropolis's),
+  // stage 2 on the inner target with the proposal densities of both
+  // directions. The two directions evaluate their laws at different base
+  // points, each rebuilt from its own end's state: equal in exact arithmetic,
+  // but at extreme rows their fits amplify the rounding of the working means
+  // (log ratios 1e-4 apart at a row of 1000 / 1e-6 with M_0 of 1.2e7). So
+  // after stage 1 and the move, the proposal end is rebuilt as an attempt
+  // that starts there computes it (swap_back), and the move is the identity
+  // (swap_irreproducible; the stage-1 records of the attempt stay, nothing
+  // else is recorded) when that fails, when the two stage-1 log ratios are
+  // not inverses to swap_reciprocity_tolerance, or when the two ends' log
+  // ratios of the proposal densities, log q(x|x') - log q(x'|x) at each end's
+  // base point, do not cancel to it: a rule of the two base points, which
+  // both ends evaluate, so the decision is the same from either end. Stage 2
+  // takes each proposal density from the base point of the end that draws
+  // it, r = delta + log q'(x | x') - log q(x' | x) (q' at the proposal), the
+  // exact Metropolis-Hastings ratio, computed as the exact negative of the
+  // reverse move's; with the reverse stage 1 the inverse of stage 1 up to
+  // the tolerance, the kernel is exact for the inner target up to
+  // swap_reciprocity_tolerance in stage 1, for every input. A dry run (probe)
+  // records the frozen-state identities of the attempt and changes nothing.
   void label_swap(RNG *rng, bool dry = false)
   {
     struct SwapScope {
@@ -1725,113 +1845,176 @@
     if (n_selection == 0 || n_gaussian == 0) return;
     const int from = _label;
     const bool from_selection = !B.gaussian(from);
-    SwapGeometry G;
-    if (!swap_geometry(G)) { skipped_factorization(); return; }
-    // the base point: the Gaussian labels' evidences, the selection labels'
-    // screens and, leaving a selection label, its own Laplace evidence
-    SwapBase base;
-    std::vector<int> fits;
-    if (from_selection) fits.push_back(from);
-    bool proposing = swap_base(G, fits, base);
-    if (swap_skip_unrepresentable(base, dry)) return;
-    Vec log_qG, log_qS;
+    SwapEnd own;
     int target = 0;
-    if (proposing) {
-      swap_label_proposals(base, log_qG, log_qS);
-      Vec const &forward_q = from_selection ? log_qG : log_qS;
-      double u = rng->uniform();
-      for (int l = 1; l <= B.levels; ++l) {
-        const double q = forward_q[static_cast<std::size_t>(l - 1)];
-        if (!(q > negative_infinity)) continue;
-        target = l;
-        const double p = std::exp(q);
-        if (u < p) break;
-        u -= p;
-      }
-      proposing = target != 0;
-    }
-    // entering a selection label: its Laplace evidence at the base point (its
-    // terms enter M_0 only here, after the target label's draw; the reverse
-    // move, from the target, checks the same terms before its draw)
-    if (proposing && !from_selection) {
-      proposing = swap_base(G, {target}, base);
-      if (swap_skip_unrepresentable(base, dry)) return;
-    }
+    const SwapStart start = swap_start(rng, dry, 0, target, own);
+    if (start == swap_skipped) return;
     if (!dry) bias_tally(bias_swap, 0);
-    if (!proposing) return;
-    const double stage1 = swap_stage1(base, log_qG, log_qS, from, target);
+    if (start != swap_proposing) return;
+    const double stage1 = swap_stage1(own.base, own.qG, own.qS, from, target);
     if (!std::isfinite(stage1)) return;
+    own.stage1 = stage1;
     if (!dry) {
       swap_record_attempt(from_selection, stage1);
       // a plain Metropolis first stage: L2 runs on a state-independent quarter
-      // of the sweeps, so it cannot alternate deterministically
-      if (!metropolis(rng, stage1)) {
+      // of the sweeps, so it cannot alternate deterministically (mutant 20:
+      // Barker's after the coin of the two-state moves, whose pass
+      // probabilities differ from the recorded ones)
+      const bool passed = s().mutant == 20 ? first_stage(rng, stage1) : metropolis(rng, stage1);
+      if (!passed) {
         swap_trace(from, target, false, stage1, 0.0, false);
         return;
       }
       bias_tally(bias_swap, 1);
     }
-    const SwapState current = swap_current(G);
+    const SwapState current = swap_current(own.G);
     SwapState proposal;
-    if (!swap_draw(G, base, current, target, rng, proposal)) return;
+    if (!swap_draw(own.G, own.base, current, target, rng, proposal)) return;
     Snapshot saved;
     take(saved);
     bool accepted = false;
-    double full = negative_infinity;
-    long double delta = 0;
+    double ratio = negative_infinity;
     try {
-      delta = swap_move(G, current, proposal);
-      const double forward = swap_log_q(base, log_qG, log_qS, current, proposal);
-      const double reverse = swap_log_q(base, log_qG, log_qS, proposal, current);
-      full = static_cast<double>(delta + reverse - forward);
-      // mutant 9: the nested node's density left out of the acceptance ratio
-      // while the inner target's change recorded below keeps it (left out of
-      // both, the sweep's exact correction would restore it)
-      if (s().mutant == 9) full -= _swap_nested;
+      const long double delta = swap_move(own.G, current, proposal);
+      own.forward = swap_log_q(own.base, own.qG, own.qS, current, proposal);
+      own.reverse = swap_log_q(own.base, own.qG, own.qS, proposal, current);
       if (dry) {
-        swap_probe(G, base, log_qG, log_qS, current, proposal, stage1, full, delta, forward);
+        swap_probe(own, current, proposal, delta);
       } else {
-        accepted = std::isfinite(full) && metropolis(rng, full - stage1);
-      }
-      if (accepted) {
-        rebuild_h();
-        _repr_delta += delta;
-        bias_tally(bias_swap, 2);
-        swap_record_accepted(from_selection, stage1);
+        SwapEnd back;
+        bool rebuilt = true;
+        if (s().mutant == 19) {
+          // mutant 19: the reverse move scored with the forward end's base point
+          back.stage1 = swap_stage1(own.base, own.qG, own.qS, target, from);
+          back.forward = own.reverse;
+          back.reverse = own.forward;
+        } else {
+          rebuilt = swap_back(proposal, current, back);
+        }
+        const double stage1_residual = rebuilt ? stage1 + back.stage1 : std::numeric_limits<double>::quiet_NaN();
+        const double full_residual = rebuilt ? (own.reverse - own.forward) + (back.reverse - back.forward) :
+          std::numeric_limits<double>::quiet_NaN();
+        if (!(std::fabs(stage1_residual) <= swap_reciprocity_tolerance) ||
+            !(std::fabs(full_residual) <= swap_reciprocity_tolerance)) {
+          swap_restore(saved, current);
+          swap_skip_irreproducible();
+          swap_trace(from, target, true, stage1, std::numeric_limits<double>::quiet_NaN(), false);
+          return;
+        }
+        if (!_adapting) {
+          record_max(counters().max_swap_stage1_residual, std::fabs(stage1_residual));
+          record_max(counters().max_swap_full_residual, std::fabs(full_residual));
+        }
+        // each proposal density from its own end's base point
+        ratio = static_cast<double>(delta + static_cast<long double>(back.forward - own.forward));
+        // mutant 9: the nested node's density left out of the acceptance ratio
+        // while the inner target's change recorded below keeps it (left out of
+        // both, the sweep's exact correction would restore it)
+        if (s().mutant == 9) ratio -= _swap_nested;
+        accepted = std::isfinite(ratio) && metropolis(rng, ratio - stage1);
+        if (accepted) {
+          rebuild_h();
+          _repr_delta += delta;
+          bias_tally(bias_swap, 2);
+          swap_record_accepted(from_selection, stage1);
+          if (s().probe && s().mutant != 19) swap_reproduction(current, back, delta);
+        }
       }
     } catch (...) {
       swap_restore(saved, current);
       throw;
     }
     if (!accepted) swap_restore(saved, current);
-    if (!dry) swap_trace(from, target, true, stage1, full - stage1, accepted);
+    if (!dry) swap_trace(from, target, true, stage1, ratio - stage1, accepted);
   }
 
-  // Test hook (probe) of L2 at a proposal (the working state at it): the
-  // geometry, E_0, every label's evidences and the label proposals rebuilt
-  // from the proposal agree with those from the current state; the reverse
-  // move's stage-1 ratio and full ratio are the inverses; and the accepted
-  // probability flows of the two directions, from the target values and the
-  // proposal densities computed at each end, are equal.
-  void swap_probe(SwapGeometry const &G, SwapBase const &base, Vec const &log_qG, Vec const &log_qS,
-                  SwapState const &current, SwapState const &proposal, double stage1, double full,
-                  long double delta, double forward)
+  // Test hook (probe), after an accepted swap: an attempt that starts at the
+  // accepted proposal (the working state), with the previous state forced as
+  // its target and proposal, computes its own end by the attempt's code
+  // (swap_start), and that end must equal bitwise the one the swap rebuilt
+  // there (swap_back). Kind 6: the largest differences of the geometry and
+  // base point, of the label proposals, and of the stage-1 log ratio and the
+  // two log proposal densities (all zero; infinite when the attempt makes no
+  // proposal), and the sum of the two moves' inner-target changes (rounding
+  // of the working means, not compared). Draws nothing; the state is kept.
+  void swap_reproduction(SwapState const &previous, SwapEnd const &back, long double delta)
+  {
+    const double infinite = std::numeric_limits<double>::infinity();
+    SwapEnd start;
+    int target = 0;
+    if (swap_start(nullptr, true, previous.label, target, start) != swap_proposing) {
+      probe_raw(probe_swap, 6.0, infinite, infinite, infinite, std::numeric_limits<double>::quiet_NaN());
+      return;
+    }
+    const SwapState here = swap_current(start.G);
+    start.stage1 = swap_stage1(start.base, start.qG, start.qS, here.label, target);
+    start.forward = swap_log_q(start.base, start.qG, start.qS, here, previous);
+    start.reverse = swap_log_q(start.base, start.qG, start.qS, previous, here);
+    Snapshot saved;
+    take(saved);
+    long double returning = 0;
+    try {
+      returning = swap_move(start.G, here, previous);
+    } catch (...) {
+      swap_restore(saved, here);
+      throw;
+    }
+    swap_restore(saved, here);
+    auto diff = [infinite](double a, double b) {
+      if (a == b || (std::isnan(a) && std::isnan(b))) return 0.0;
+      return std::isfinite(a) && std::isfinite(b) ? std::fabs(a - b) : infinite;
+    };
+    auto diff_vec = [&](Vec const &a, Vec const &b) {
+      if (a.size() != b.size()) return infinite;
+      double out = 0.0;
+      for (std::size_t i = 0; i < a.size(); ++i) out = std::max(out, diff(a[i], b[i]));
+      return out;
+    };
+    SwapBase const &x = start.base, &y = back.base;
+    double base_diff = std::max(diff_vec(start.G.Kt, back.G.Kt),
+                                std::max(diff_vec(start.G.Kb[0], back.G.Kb[0]), diff_vec(start.G.Kb[1], back.G.Kb[1])));
+    base_diff = std::max(base_diff, std::max(diff_vec(x.E0, y.E0), std::max(diff(x.G0, y.G0), diff(x.magnitude, y.magnitude))));
+    base_diff = std::max(base_diff, std::max(diff(x.eta_t, y.eta_t), diff(x.Pi_tt, y.Pi_tt)));
+    for (int b = 0; b < 2; ++b) {
+      base_diff = std::max(base_diff, std::max(diff(x.eta_b[b], y.eta_b[b]),
+                                               std::max(diff(x.Pi_bb[b], y.Pi_bb[b]), diff(x.Pi_tb[b], y.Pi_tb[b]))));
+    }
+    base_diff = std::max(base_diff, std::max(diff_vec(x.log_e_off, y.log_e_off), diff_vec(x.log_e_on, y.log_e_on)));
+    base_diff = std::max(base_diff, std::max(diff_vec(x.screen, y.screen), diff_vec(x.fit_mean, y.fit_mean)));
+    base_diff = std::max(base_diff, diff_vec(x.fit_precision, y.fit_precision));
+    base_diff = std::max(base_diff, x.fit_ok == y.fit_ok ? 0.0 : infinite);
+    const double q_diff = std::max(diff_vec(start.qG, back.qG), diff_vec(start.qS, back.qS));
+    const double ratio_diff = std::max(diff(start.stage1, back.stage1),
+                                       std::max(diff(start.forward, back.forward), diff(start.reverse, back.reverse)));
+    probe_raw(probe_swap, 6.0, base_diff, q_diff, ratio_diff, static_cast<double>(delta + returning));
+  }
+
+  // Test hook (probe) of L2 at a proposal (the working state at it), with
+  // the proposal end rebuilt as the live attempt rebuilds it (swap_back):
+  // the geometry, E_0, every label's evidences and the label proposals
+  // rebuilt from the proposal agree with those from the current state; the
+  // reverse move's stage-1 ratio and full ratio (each end's own, from its
+  // base point) are the inverses; the accepted probability flows of the two
+  // directions under the live rule are equal; and the skip rule's quantities.
+  // A proposal end that cannot be rebuilt records kind 5 only.
+  void swap_probe(SwapEnd const &own, SwapState const &current, SwapState const &proposal, long double delta)
   {
     BiasSpec const &B = bspec();
-    SwapGeometry G2;
-    if (!swap_geometry(G2)) return;
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    SwapEnd back;
+    if (!swap_back(proposal, current, back)) {
+      probe_raw(probe_swap, 5.0, 0.0, nan, nan, nan);
+      return;
+    }
+    SwapGeometry const &G = own.G, &G2 = back.G;
+    SwapBase const &base = own.base, &base2 = back.base;
+    Vec const &log_qG = own.qG, &log_qS = own.qS, &qG2 = back.qG, &qS2 = back.qS;
+    const double stage1 = own.stage1, forward = own.forward, forward2 = back.forward;
     double k_diff = 0.0;
     for (std::size_t e = 0; e < G.Kt.size(); ++e) {
       k_diff = std::max(k_diff, std::fabs(G2.Kt[e] - G.Kt[e]));
       for (int b = 0; b < 2; ++b) k_diff = std::max(k_diff, std::fabs(G2.Kb[b][e] - G.Kb[b][e]));
     }
-    std::vector<int> fits;
-    if (!B.gaussian(current.label)) fits.push_back(current.label);
-    if (!B.gaussian(proposal.label)) fits.push_back(proposal.label);
-    SwapBase base2;
-    if (!swap_base(G2, fits, base2)) return;
-    Vec qG2, qS2;
-    swap_label_proposals(base2, qG2, qS2);
     double e_diff = 0.0, q_diff = 0.0, e0_diff = 0.0;
     for (std::size_t e = 0; e < base.E0.size(); ++e) e0_diff = std::max(e0_diff, std::fabs(base2.E0[e] - base.E0[e]));
     for (int l = 1; l <= B.levels; ++l) {
@@ -1840,23 +2023,33 @@
       e_diff = std::max(e_diff, std::max(diff(base.log_e_off[i], base2.log_e_off[i]), diff(base.log_e_on[i], base2.log_e_on[i])));
       q_diff = std::max(q_diff, std::max(diff(log_qG[i], qG2[i]), diff(log_qS[i], qS2[i])));
     }
-    const double stage1_reverse = swap_stage1(base2, qG2, qS2, proposal.label, current.label);
-    const double forward2 = swap_log_q(base2, qG2, qS2, proposal, current);   // the reverse move's proposal
-    const double reverse2 = swap_log_q(base2, qG2, qS2, current, proposal);
-    const double full_reverse = static_cast<double>(-delta + reverse2 - forward2);
-    // accepted flows: pi(x) q(x'|x) a(x, x') against pi(x') q(x|x') a(x', x)
+    // each end's own full ratio (mutant 9: the forward's without the nested
+    // node's density), and the live rule's ratio from both ends
+    double full = static_cast<double>(delta + own.reverse - own.forward);
+    if (s().mutant == 9) full -= _swap_nested;
+    const double stage1_reverse = back.stage1;
+    const double full_reverse = static_cast<double>(-delta + back.reverse - back.forward);
+    const double ratio = static_cast<double>(delta + static_cast<long double>(forward2 - forward));
+    const double ratio_reverse = static_cast<double>(-delta + static_cast<long double>(forward - forward2));
+    // accepted flows: pi(x) q(x'|x) a(x, x') against pi(x') q'(x|x') a(x', x)
     auto log_accept = [](double s1, double total) { return std::min(0.0, s1) + std::min(0.0, total - s1); };
-    const double flow_forward = forward + log_accept(stage1, full);
-    const double flow_reverse = static_cast<double>(delta) + forward2 + log_accept(stage1_reverse, full_reverse);
+    const double flow_forward = forward + log_accept(stage1, ratio);
+    const double flow_reverse = static_cast<double>(delta) + forward2 + log_accept(stage1_reverse, ratio_reverse);
     probe_raw(probe_swap, 0.0, stage1, stage1 + stage1_reverse, full, full + full_reverse);
     probe_raw(probe_swap, 1.0, e0_diff, std::max(e_diff, q_diff), k_diff, flow_forward - flow_reverse);
+    // kind 5: the skip rule's residuals (|stage 1 + reverse stage 1| and the
+    // sum of the two ends' log ratios of the proposal densities) and how far
+    // the symmetrized own-base ratio (full - full_reverse) / 2 is from the
+    // live ratio
+    probe_raw(probe_swap, 5.0, 1.0, std::fabs(stage1 + stage1_reverse),
+              std::fabs((own.reverse - own.forward) + (back.reverse - back.forward)),
+              0.5 * (full - full_reverse) - ratio);
     // the reverse move's stage-1 and full ratios plus the forward's, from the
     // forward move's base quantities (the proposal densities are functions
     // of the base quantities and the two states only), and M_0 of both ends
     // (the skip rule, swap_unrepresentable)
     const double stage1_shared = stage1 + swap_stage1(base, log_qG, log_qS, proposal.label, current.label);
-    const double full_shared = full + static_cast<double>(-delta + swap_log_q(base, log_qG, log_qS, current, proposal) -
-                                                          swap_log_q(base, log_qG, log_qS, proposal, current));
+    const double full_shared = full + static_cast<double>(-delta + own.forward - own.reverse);
     probe_raw(probe_swap, 3.0, stage1_shared, full_shared, base.magnitude, base2.magnitude);
     // the base point's functions rebuilt from the two ends (relative
     // differences of G0 and of the Gaussian plane) against the refitted
@@ -1929,15 +2122,45 @@
   // draw, p_j), as the screened indicator's record holds, and
   // log P(other family) - log P(own family) of the surrogate full
   // conditional, from the scores (log-sum-exp).
+  long double label_cross(int k, std::vector<long double> const &mass, bool gibbs) const
+  {
+    BiasSpec const &B = bspec();
+    const bool gaussian = B.gaussian(k);
+    const long double others = other_mass(mass, k);
+    const long double all = others + mass[static_cast<std::size_t>(k - 1)];
+    long double cross = 0;
+    for (int l = 1; l <= B.levels; ++l) {
+      if (B.gaussian(l) == gaussian) continue;
+      const long double m = mass[static_cast<std::size_t>(l - 1)];
+      if (m > 0) cross += gibbs ? m / all : m / std::max(others, other_mass(mass, l));
+    }
+    return cross;
+  }
+
+  // Test hook (probe) of L0's record at the frozen state of each update (type
+  // 12): kind 1 (the kernel that runs, 1 the Gibbs draw; the probability of
+  // moving to the other family that the record adds; the current label; the
+  // labels), then per label kind 2 (the label, its mass exp(score - max), 1
+  // for a Gaussian label).
+  void label_probe_record(int k, std::vector<long double> const &mass, bool gibbs)
+  {
+    BiasSpec const &B = bspec();
+    probe_raw(probe_label_record, 1.0, gibbs ? 1.0 : 0.0, static_cast<double>(label_cross(k, mass, gibbs)),
+              static_cast<double>(k), static_cast<double>(B.levels));
+    for (int l = 1; l <= B.levels; ++l) {
+      probe_raw(probe_label_record, 2.0, static_cast<double>(l), static_cast<double>(mass[static_cast<std::size_t>(l - 1)]),
+                B.gaussian(l) ? 1.0 : 0.0, 0.0);
+    }
+  }
+
   void label_record(int k, std::vector<long double> const &mass, bool gibbs)
   {
+    if (s().probe) label_probe_record(k, mass, gibbs);
     if (_adapting) return;
     BiasSpec const &B = bspec();
     const bool gaussian = B.gaussian(k);
     const int d = gaussian ? 1 : 0;
-    const long double others = other_mass(mass, k);
-    const long double all = others + mass[static_cast<std::size_t>(k - 1)];
-    long double cross = 0;
+    const long double cross = label_cross(k, mass, gibbs);
     double own_max = negative_infinity, other_max = negative_infinity;
     for (int l = 1; l <= B.levels; ++l) {
       const double v = _label_score[static_cast<std::size_t>(l - 1)];
@@ -1946,8 +2169,6 @@
         continue;
       }
       other_max = std::max(other_max, v);
-      const long double m = mass[static_cast<std::size_t>(l - 1)];
-      if (m > 0) cross += gibbs ? m / all : m / std::max(others, other_mass(mass, l));
     }
     auto log_sum_exp = [&](bool family_gaussian, double top) {
       if (!(top > negative_infinity)) return negative_infinity;

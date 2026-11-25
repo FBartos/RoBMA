@@ -36,6 +36,7 @@ extern SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe);
 extern SEXP RoBMA_location_block_test_config(SEXP config);
 extern SEXP RoBMA_location_block_test_trace(void);
 extern SEXP RoBMA_location_block_test_sequence(void);
+extern SEXP RoBMA_location_block_test_numeric(SEXP what, SEXP a, SEXP b);
 extern SEXP RoBMA_location_bias_evidence(SEXP clear);
 extern SEXP RoBMA_location_scale_report(SEXP clear);
 extern SEXP RoBMA_location_scale_test_config(SEXP config);
@@ -459,6 +460,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_location_block_test_config", (DL_FUNC) &RoBMA_location_block_test_config, 1},
     {"RoBMA_location_block_test_trace", (DL_FUNC) &RoBMA_location_block_test_trace, 0},
     {"RoBMA_location_block_test_sequence", (DL_FUNC) &RoBMA_location_block_test_sequence, 0},
+    {"RoBMA_location_block_test_numeric", (DL_FUNC) &RoBMA_location_block_test_numeric, 3},
     {"RoBMA_location_bias_evidence", (DL_FUNC) &RoBMA_location_bias_evidence, 1},
     {"RoBMA_location_scale_report", (DL_FUNC) &RoBMA_location_scale_report, 1},
     {"RoBMA_location_scale_test_config", (DL_FUNC) &RoBMA_location_scale_test_config, 1},

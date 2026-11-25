@@ -60,7 +60,8 @@
 #' log odds as \code{inner_*}; with a bias indicator owned by the block,
 #' \code{bias} per chain the proposals and acceptances of its label, Gaussian
 #' family, slope and swap moves, the swaps skipped because their base point
-#' was not representable (\code{swap_unrepresentable}) and their cross-family
+#' was not representable (\code{swap_unrepresentable}) or because their proposal
+#' did not reproduce them (\code{swap_irreproducible}), and their cross-family
 #' evidence over the updates after adaptation, \code{bias_labels} the tally of those updates by the label
 #' they end in, and \code{bias_sojourns} per chain the runs of the retained
 #' draws of the indicator in the step-selection and the Gaussian families

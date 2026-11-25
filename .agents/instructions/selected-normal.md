@@ -860,20 +860,54 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   both ends' `M_0`), so the pair is skipped from either end and the kernel
   stays exact; entering a selection label, its terms join `M_0` after the
   target label's draw, and the reverse move checks them before its own. The
-  full ratio of the reverse move equals the inverse of the
-  forward ratio up to the rounding of the refitted Laplace laws: the base
-  point rebuilt from either end agrees to rounding, and the damped Newton
-  fits reject a step only when it lowers their objective by more than
-  `1e-10 (1 + |f|)` (`fit_tolerance`), so a step whose change is at the
-  rounding level is taken at both ends and the two ends' fits take the same
-  steps (accepting on `f(next) >= f0` let rounding decide the last step and
-  left residuals up to 8.1e-8). Measured on the Windows build: at most
-  9.4e-12 relative over chain seeds 101-130 of each fixture variant (40,500
-  records), the two directions' probability flows at most 3.5e-11; a
-  missing Hastings term is at least 1e-3, so the tests bound both by 1e-9,
-  which leaves room for other platforms' rounding (the residual grows with
-  the size of the terms: 3e-9 to 1.6e-8 with one row of `y = 20`,
-  `se = 1e-4`). The tilted fits of the location components (flips, refreshes and
+  two directions evaluate their evidences and laws at base points rebuilt
+  from their own ends, equal in exact arithmetic; the damped Newton fits
+  reject a step only when it lowers their objective by more than
+  `1e-10 (1 + |f|)` (`fit_tolerance`), so on ordinary data both ends' fits
+  take the same steps and the reverse ratios are the inverses to about
+  1e-13 (accepting on `f(next) >= f0` let rounding decide the last step and
+  left residuals up to 8.1e-8). At extreme rows the fits amplify the
+  rounding of the working means instead: with one row at `1000 / 1e-6`
+  (`M_0` 1.2e7, the Laplace means up to 7e-4 SD apart) the two ends' log
+  ratios differed by up to 6.5e-4. So after stage 1 and the move, L2
+  rebuilds its proposal end as an attempt that starts there computes it
+  (`swap_back`, the same `swap_base` with the pair's selection fit, label
+  proposals, stage 1 and proposal densities, from the working state alone:
+  `_h`, the line, the fits and every cached child value rebuilt), and the
+  move is the identity (`swap_irreproducible`, in the block's counters and,
+  after adaptation, `evidence$bias`; the attempt's stage-1 records stay and
+  nothing else is recorded) when the geometry or a fit fails there, the base
+  point there is not representable, `|stage 1 + reverse stage 1|` exceeds
+  `swap_reciprocity_tolerance` (1e-9, about 1e4 times the residual of
+  ordinary data; a missing Hastings term is at least 1e-3), or so does the
+  sum of the two ends' log ratios of the proposal densities,
+  `log q(x|x') - log q(x'|x)` at each end's base point. Both ends evaluate
+  the same two base points, so the rule decides the same from either end;
+  after adaptation the counters keep the largest residuals of the attempts
+  that went on to stage 2 (`max_swap_stage1_residual`,
+  `max_swap_full_residual`).
+  Stage 2 takes each proposal density from the base point of the end that
+  draws it, `r = delta + log q'(x|x') - log q(x'|x)`, the exact
+  Metropolis-Hastings ratio and the exact negative of the reverse move's
+  (a symmetrized ratio of the two ends' own-base ratios, `(full - full') / 2`,
+  is off by half the sum of the two ends' discrepancies of the proposal
+  densities, up to 3.4e-4 on that fixture, which the rule bounds only when
+  one end's discrepancy dominates). The kernel is therefore exact for the
+  inner target up to `swap_reciprocity_tolerance` in stage 1, for every
+  input. The rebuild adds one base-point evaluation with one fit to every
+  attempt that passes stage 1. On ordinary fixtures nothing is skipped; at
+  `1000 / 1e-6` most attempts after adaptation are (the swaps that reach
+  stage 2 have residuals below 2e-13), at `20 / 1e-4` a few. The probe
+  records the rule's residuals of each dry run, and after each accepted
+  live swap an attempt started at its state, forced back, whose end must
+  equal the rebuilt one bitwise (mutant 19 scores the reverse with the
+  forward end's base point, as the swap did before, and skips nothing; mutant
+  20 runs Barker's first stage). The gate of the target cell is drawn and
+  scored with the same two log probabilities, `-log(1 + e^-d)` and
+  `-log(1 + e^d)` of the difference `d` of the cell's two evidences
+  (`swap_gate_log_probabilities`): normalized by their total, evidences of
+  size 1e9 rounded the smaller cell's draw probability to zero while its
+  score kept 4.1e-8. The tilted fits of the location components (flips, refreshes and
   swaps, whose reverse fit is evaluated at inputs that differ from the
   forward ones by rounding) take their steps by the same rule, so they too
   agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
@@ -891,7 +925,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the trace switch records every
   L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
   `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
-  L2 and the sweeps L2 skipped, `swap_unrepresentable`; by source family,
+  L2 and the sweeps L2 skipped, `swap_unrepresentable` and
+  `swap_irreproducible`; by source family,
   `leave_selection_*` and `leave_gaussian_*`, for L2 the count, sum and maximum of the stage-1 log ratio and the sum of
   `min(1, exp(stage 1))` of all attempts and the count, sum and maximum of
   the stage-1 log ratio of the swaps the exact correction kept, and for L0,
@@ -1072,9 +1107,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   cluster latent absorbs, has base-point sums of about 5e17 in the first
   adapting sweeps (the relative reciprocity residual 1.17 before the rule)
   and is skipped there; after adaptation the state (`M` = 1.3e7) and the base
-  point (`M_0` = 1.2e7) are representable and swaps run, with relative
-  residuals up to about 5e-4 from the Laplace laws refitted at the other end
-  (their means differ by up to 7e-4 SD).
+  point (`M_0` = 1.2e7) are representable, and L2 is exact there up to
+  `swap_reciprocity_tolerance` in stage 1: the attempts whose proposal end,
+  rebuilt with Laplace laws up to 7e-4 SD from the forward end's, does not
+  reproduce them to that tolerance are the identity (`swap_irreproducible`,
+  the L2 paragraph above).
   The test hook `RoBMA_corrected_sampler_test` reports the largest `M` per site
   after adaptation (`likelihood_magnitude`); tests in
   `test-00-selection-corrected-block.R` (block, gated, scalar, both kernels,

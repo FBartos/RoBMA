@@ -701,8 +701,8 @@ extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
 {
   ROBMA_NATIVE_BEGIN(mutant, probe)
   if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
-      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 18)) {
-    Rf_error("The location block mutant must be NULL or one integer between 0 and 18.");
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 20)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 20.");
   }
   if (probe != R_NilValue && (TYPEOF(probe) != LGLSXP || XLENGTH(probe) != 1 ||
       LOGICAL(probe)[0] == NA_LOGICAL)) {
@@ -1218,6 +1218,32 @@ extern "C" SEXP RoBMA_location_block_test_trace()
     "chain", "from", "target", "stage1_passed", "stage1", "stage2", "accepted", "sd",
     "omega1", "omega2", "omega3", "omega4", "omega5", "omega6"};
   return evidence_matrix(jags::RoBMA::location_block_test_take_trace(), names);
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: numeric helpers of the location block
+// sampler (LocationBlockReport.h). "swap_gate": `a` holds the target cell's
+// log evidences (gate off, gate on) and the result their gate's log
+// probabilities (on, off).
+extern "C" SEXP RoBMA_location_block_test_numeric(SEXP what, SEXP a, SEXP b)
+{
+  ROBMA_NATIVE_BEGIN(what, a, b)
+  if (TYPEOF(what) != STRSXP || XLENGTH(what) != 1 || STRING_ELT(what, 0) == NA_STRING) {
+    Rf_error("'what' must be one string.");
+  }
+  if (TYPEOF(a) != REALSXP || TYPEOF(b) != REALSXP) Rf_error("'a' and 'b' must be numeric vectors.");
+  const std::string name = CHAR(STRING_ELT(what, 0));
+  std::vector<double> out;
+  if (name == "swap_gate") {
+    if (XLENGTH(a) != 2) Rf_error("'a' must hold the two log evidences.");
+    out = jags::RoBMA::location_block_test_swap_gate(REAL(a)[0], REAL(a)[1]);
+  } else {
+    Rf_error("Unknown location block numeric test.");
+  }
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(out.size())));
+  for (std::size_t i = 0; i < out.size(); ++i) REAL(result)[i] = out[i];
+  UNPROTECT(1);
+  return result;
   ROBMA_NATIVE_END
 }
 

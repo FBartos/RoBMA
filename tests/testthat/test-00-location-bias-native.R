@@ -203,6 +203,19 @@ test_that("frozen-state identities of the cross-family swap and of the label sco
     expect_gt(nrow(scores), 500L, label = label)
     expect_lt(max(scores$stage1 / scores$full), 1e-12, label = label)
     expect_gt(chain$counters[["bias_label_swap_accepted"]], 100, label = label)
+    # the live swap rebuilds its proposal end as an attempt that starts there
+    # computes it, from that state alone: after every accepted swap an
+    # attempt started at the new state, forced back, reproduces the rebuilt
+    # geometry, base point, label proposals, stage 1 and proposal densities
+    # bitwise (kind 6); the skip rule's residuals stay below its tolerance in
+    # every dry run (kind 5), and no live swap is skipped
+    reproduced <- swap[swap$kind == 6, ]
+    rule       <- swap[swap$kind == 5, ]
+    expect_gte(nrow(reproduced), chain$counters[["bias_label_swap_accepted"]], label = label)
+    expect_true(all(reproduced$stage1 == 0 & reproduced$full == 0 & reproduced$selection_part == 0), label = label)
+    expect_true(all(rule$stage1 == 1), label = label)
+    expect_lt(max(rule$full, rule$selection_part), 1e-9, label = label)
+    expect_identical(chain$counters[["swap_irreproducible"]], 0, label = label)
   }
 })
 
@@ -249,25 +262,64 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   expect_gt(adapting[["bias_gaussian_family_proposed"]], 0)
   expect_gt(adapting[["corrections_accepted"]], 0)
   # after adaptation the base point is representable: no skip in the counters
-  # or the evidence record, and swaps run
-  rjags::adapt(jags, 0L, end.adaptation = TRUE)
-  RoBMA:::.location_bias_evidence_read()
-  invisible(rjags::coda.samples(jags, "bias_indicator", n.iter = 200L, progress.bar = "none"))
-  sampling <- RoBMA:::.location_block_report_read()
-  record   <- RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ]
-  invisible(trace())
-  expect_identical(sampling[["swap_unrepresentable"]], 0)
+  # or the evidence record. The proposal end's Laplace laws, refitted from
+  # working means whose rounding the row's term amplifies (M_0 about 1.2e7),
+  # reproduce the forward end's to 1e-4, not to the tolerance 1e-9, in most
+  # attempts: those swaps are the identity after stage 1
+  # (swap_irreproducible, in the counters and the evidence record; the trace
+  # holds them as passed attempts without a stage-2 ratio), and every swap
+  # that went on to stage 2 had both residuals within the tolerance
+  sampled_after <- function(mutant) {
+    invisible(trace())
+    RoBMA:::.location_block_report_read()
+    jags <- .location_compile(.bias_model(extreme(1000, 1e-6)), mutant = mutant,
+                              config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = 1L, coin = -1L))
+    rjags::adapt(jags, 100L, end.adaptation = TRUE)
+    RoBMA:::.location_block_report_read()
+    RoBMA:::.location_bias_evidence_read()
+    invisible(trace())
+    invisible(rjags::coda.samples(jags, "bias_indicator", n.iter = 200L, progress.bar = "none"))
+    list(counters = RoBMA:::.location_block_report_read(),
+         record = RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ], attempts = trace())
+  }
+  sampling <- sampled_after(0L)
+  record   <- sampling$record
+  expect_identical(sampling$counters[["swap_unrepresentable"]], 0)
   expect_identical(unname(record[["swap_unrepresentable"]]), 0)
-  expect_identical(unname(record[["swap_proposed"]]), sampling[["sweeps"]])
-  expect_gt(sampling[["bias_label_swap_accepted"]], 0)
+  expect_identical(unname(record[["swap_proposed"]]), sampling$counters[["sweeps"]])
+  expect_gt(sampling$counters[["swap_irreproducible"]], 0)
+  expect_identical(unname(record[["swap_irreproducible"]]), sampling$counters[["swap_irreproducible"]])
+  expect_lte(sampling$counters[["max_swap_stage1_residual"]], 1e-9)
+  expect_lte(sampling$counters[["max_swap_full_residual"]], 1e-9)
+  passed <- sampling$attempts[, "stage1_passed"] == 1
+  expect_identical(as.numeric(sum(passed & is.nan(sampling$attempts[, "stage2"]))),
+                   sampling$counters[["swap_irreproducible"]])
+  expect_true(all(is.finite(sampling$attempts[sampling$attempts[, "accepted"] == 1, "stage2"])))
+  # mutant 19 scores the reverse move with the forward end's base point, as
+  # the swap did before: its residuals vanish, nothing is skipped, and the
+  # expectation of skips above fails
+  expect_identical(sampled_after(19L)$counters[["swap_irreproducible"]], 0)
+  # with the probe: the dry runs' rule skips most attempts, the residuals
+  # being far above the tolerance, and an attempt started at an accepted
+  # swap's state reproduces its rebuilt end bitwise here too
+  chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 600L,
+                                burnin = 100L, adapt = 100L, probe = TRUE)
+  swap <- chain$probe[chain$probe$type == "label_swap", ]
+  rule <- swap[swap$kind == 5 & swap$stage1 == 1, ]
+  expect_gt(mean(rule$full > 1e-9 | rule$selection_part > 1e-9), 0.5)
+  expect_gt(max(rule$full, rule$selection_part), 1e-6)
+  reproduced <- swap[swap$kind == 6, ]
+  expect_true(all(reproduced$stage1 == 0 & reproduced$full == 0 & reproduced$selection_part == 0))
+  expect_gt(chain$counters[["swap_irreproducible"]], 0)
+  expect_lte(chain$counters[["max_swap_full_residual"]], 1e-9)
 
-  # moderately extreme rows: nothing is skipped, swaps run, and L2's
+  # moderately extreme rows: nothing is unrepresentable, swaps run, and L2's
   # reciprocity keeps the bound of the ordinary fixtures (1e-9) at 2 / 1e-3
   # (M_0 about 31; measured 1.2e-10 for the full ratio, 4.5e-11 for stage 1).
   # At 20 / 1e-4 (M_0 about 4.6e3) the residual, from the Laplace laws
-  # refitted at the other end, is 3.3e-9 (full ratio) and 2.2e-9 (stage 1)
-  # with this seed: above that bound, so it is a measurement, not an
-  # expectation.
+  # refitted at the other end, reaches 5e-9 (the full ratio's) and 2e-9
+  # (stage 1's) with this seed: those attempts are skipped, and the swaps
+  # that went on to stage 2 keep the bound.
   for (row in list(c(2, 1e-3), c(20, 1e-4))) {
     label <- paste(row, collapse = " / ")
     chain <- .location_hand_chain(.bias_model(extreme(row[1], row[2])), "bias_indicator", draws = 600L,
@@ -280,11 +332,43 @@ test_that("the cross-family swap makes no proposal while its base point is not r
     expect_gt(nrow(reciprocal), 500L, label = label)
     expect_lt(max(shared$selection_part, shared$log_odds), 1e4, label = label)
     expect_lt(max(abs(shared$selection_part - shared$log_odds) / shared$selection_part), 1e-12, label = label)
+    expect_lte(max(chain$counters[c("max_swap_stage1_residual", "max_swap_full_residual")]), 1e-9, label = label)
     if (row[1] == 2) {
+      expect_identical(chain$counters[["swap_irreproducible"]], 0, label = label)
       expect_lt(max(abs(reciprocal$full) / pmax(1, abs(reciprocal$stage1))), 1e-9, label = label)
       expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-9, label = label)
     }
   }
+})
+
+
+test_that("the swap's gate probabilities come from one centered pair of evidences", {
+
+  # The gate of L2's target cell: log P(on) = -log(1 + e^-d) and log P(off) =
+  # -log(1 + e^d) from d = log e_on - log e_off, for the draw and the score
+  # alike. At evidences of size 1e9 (the reviewer's pair) the difference d =
+  # 17 is exact, so the reference values below are exact up to the rounding
+  # of log1p and exp; a total log(e_on + e_off) would round to the larger
+  # evidence, and the draw from on - total would never take the smaller cell
+  # while a score from off - total gave it 4.1e-8.
+  gate <- function(off, on) .Call("RoBMA_location_block_test_numeric", "swap_gate", c(off, on), numeric(),
+                                  PACKAGE = "RoBMA")
+  on  <- -999000000
+  off <- -999000017
+  reference <- c(on = -log1p(exp(-17)), off = -17 - log1p(exp(-17)))
+  value <- gate(off, on)
+  expect_lt(max(abs(value - reference)), 1e-15 * 17)
+  expect_gt(exp(value[2L]), 4.1e-8)
+  expect_lt(abs(sum(exp(value)) - 1), 1e-15)
+  # the reversed pair, a pair of size one, and cells without mass on a side
+  expect_lt(max(abs(gate(on, off) - rev(reference))), 1e-15 * 17)
+  expect_lt(max(abs(gate(log(.3), log(.7)) - log(c(.7, .3)))), 1e-15)
+  expect_identical(gate(-Inf, -5), c(0, -Inf))
+  expect_identical(gate(-5, -Inf), c(-Inf, 0))
+  expect_identical(gate(-Inf, -Inf), c(-Inf, -Inf))
+  # the normalization by a total, as the swap drew the gate before
+  total <- max(on, off) + log(exp(on - max(on, off)) + exp(off - max(on, off)))
+  expect_identical(exp(on - total), 1)
 })
 
 
@@ -387,6 +471,91 @@ test_that("the bias label's family record agrees with the moves of the label upd
             1e-9 * n)
   expect_lt(abs(sum(exp(pmin(rows[!selection, "stage1"], 0))) - record[["leave_gaussian_pass_probability_sum"]]),
             1e-9 * n)
+})
+
+
+test_that("the swap's first stage passes with the recorded Metropolis probabilities", {
+
+  skip_if_not_installed("rjags")
+  # L2 in every sweep and the coin of the two-state moves forced to Barker's
+  # (which L2 does not use): the stage-1 passes after adaptation are
+  # Bernoulli draws with the recorded probabilities min(1, exp(stage 1))
+  # given the past, so |passes - their sum| < 4 sqrt(sum) as above. Mutant
+  # 20 runs Barker's first stage, exp(s) / (1 + exp(s)), well below the
+  # recorded probability for the favourable attempts that make up most of
+  # this fixture's: it fails the bound.
+  passes <- function(mutant) {
+    RoBMA:::.location_bias_evidence_read()
+    .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 2000L, burnin = 0L, adapt = 100L,
+                         mutant = mutant,
+                         config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = -1L, coin = 1L))
+    record <- as.list(RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ])
+    c(attempts = record[["leave_selection_attempts"]] + record[["leave_gaussian_attempts"]],
+      passed = record[["swap_stage1"]],
+      expected = record[["leave_selection_pass_probability_sum"]] + record[["leave_gaussian_pass_probability_sum"]])
+  }
+  exact <- passes(0L)
+  expect_gt(exact[["attempts"]], 1500)
+  expect_lt(abs(exact[["passed"]] - exact[["expected"]]), 4 * sqrt(exact[["expected"]]))
+  barker <- passes(20L)
+  expect_gt(abs(barker[["passed"]] - barker[["expected"]]), 4 * sqrt(barker[["expected"]]))
+})
+
+
+test_that("the label update's record holds the move probability of the kernel that ran", {
+
+  skip_if_not_installed("rjags")
+  # At each L0 update the probe records the frozen state's label masses
+  # exp(score - max), the kernel that ran and the probability of moving to
+  # the other family that the evidence record adds. Recomputed here from the
+  # masses: the Gibbs draw's sum of p_l over the other family, and Liu's
+  # step's sum of p_l / max(1 - p_k, 1 - p_l). With the coin forced each way
+  # the record follows the forced kernel, under the default coin the kernel
+  # that ran; the coin's mixture (1/8 Gibbs, 7/8 Liu) differs from both.
+  # Without adaptation every update enters the evidence record, whose sums
+  # equal the probe's.
+  updates <- function(coin) {
+    RoBMA:::.location_bias_evidence_read()
+    chain <- .location_hand_chain(.bias_model(.bias_setup()), "bias_indicator", draws = 300L, burnin = 0L,
+                                  adapt = 0L, probe = TRUE,
+                                  config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = -1L, trace = -1L,
+                                             coin = coin))
+    record <- as.list(RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ])
+    rows  <- chain$probe[chain$probe$type == "label_record", ]
+    heads <- which(rows$kind == 1)
+    out <- do.call(rbind, lapply(heads, function(h) {
+      k      <- rows$selection_part[h]
+      labels <- rows[h + seq_len(rows$log_odds[h]), ]
+      m      <- labels$full
+      gaussian <- labels$selection_part == 1
+      other  <- which(gaussian != gaussian[k])
+      others <- function(j) sum(m[-j])
+      data.frame(gibbs = rows$stage1[h] == 1, recorded = rows$full[h], from_gaussian = gaussian[k],
+                 proposes = others(k) > 0, gibbs_cross = sum(m[other]) / sum(m),
+                 liu_cross = sum(vapply(other, function(l) if (m[l] > 0) m[l] / max(others(k), others(l)) else 0, 0)))
+    }))
+    expect_identical(nrow(out), 300L)
+    for (family in c("gaussian", "selection")) {
+      own <- out$from_gaussian == (family == "gaussian")
+      expect_identical(sum(own), as.integer(record[[paste0("leave_", family, "_label_updates")]]), label = family)
+      expect_lt(abs(sum(out$recorded[own]) - record[[paste0("leave_", family, "_label_probability_sum")]]),
+                1e-12 * max(1, sum(out$recorded[own])), label = family)
+    }
+    out
+  }
+  relative <- function(a, b) max(abs(a - b) / pmax(abs(b), 1e-300))
+  gibbs <- updates(1L)
+  expect_true(all(gibbs$gibbs[gibbs$proposes]))
+  expect_lt(relative(gibbs$recorded[gibbs$proposes], gibbs$gibbs_cross[gibbs$proposes]), 1e-12)
+  liu <- updates(2L)
+  expect_false(any(liu$gibbs))
+  expect_lt(relative(liu$recorded, liu$liu_cross), 1e-12)
+  mixed <- updates(0L)
+  ran <- mixed[mixed$proposes, ]
+  expect_gt(sum(ran$gibbs), 10)
+  expect_gt(sum(!ran$gibbs), 100)
+  expect_lt(relative(ran$recorded, ifelse(ran$gibbs, ran$gibbs_cross, ran$liu_cross)), 1e-12)
+  expect_gt(max(abs(ran$recorded - (ran$gibbs_cross / 8 + 7 * ran$liu_cross / 8))), 1e-3)
 })
 
 

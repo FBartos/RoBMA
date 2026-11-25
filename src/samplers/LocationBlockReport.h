@@ -61,7 +61,11 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // coordinate also moves, a tracked mean the graph moves elsewhere; 17 the
 // entry mean that the exact correction compares an unmoved mean with, one ulp
 // above it, within the tolerance; 18 that entry mean 1e-3 of the row's SD
-// above it, an untracked mean change). Returns the previous value.
+// above it, an untracked mean change; with an owned bias label, of its swap
+// L2: 19 the reverse move scored with the forward end's base point instead of
+// the base point rebuilt at the proposal, 20 Barker's first stage after the
+// coin of the two-state moves instead of Metropolis's). Returns the previous
+// value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
@@ -86,9 +90,20 @@ std::string location_block_test_decision();
 // full ratio plus their reverses from the forward move's base quantities;
 // kind 4: relative differences of G0 and of the plane rebuilt from the
 // proposal, the largest difference of the refitted Laplace means in SDs and
-// of their precisions, relative) and type 10 L0 (the
+// of their precisions, relative; kind 5: 1 when the proposal end was rebuilt
+// (0 and nothing else recorded otherwise), the skip rule's residuals
+// |stage 1 + reverse stage 1| and |sum of the two ends' log ratios of the
+// proposal densities|, and the symmetrized own-base full ratio minus the live
+// ratio; kind 6, after each accepted live swap: the largest differences
+// between the proposal end the swap rebuilt and the one an attempt started
+// there computes (geometry and base point, label proposals, stage 1 and the
+// two log proposal densities; all zero) and the sum of the two moves'
+// inner-target changes), type 10 L0 (the
 // largest difference of a label's buffered exact score from the graph's and
-// the scale).
+// the scale) and type 12 L0's record at each update (kind 1: the kernel, 1
+// the Gibbs draw, the probability of moving to the other family that the
+// evidence record adds, the current label, the labels; then per label kind 2:
+// the label, its mass exp(score - max), 1 for a Gaussian label).
 // probe < 0 reads the flag; otherwise sets it and returns the previous one.
 bool location_block_test_probe(int probe);
 std::vector<double> location_block_test_take_probe();
@@ -123,6 +138,9 @@ std::vector<double> location_block_test_take_trace();
 // the group, pair, latent or bias component) and within a composite slice
 // refresh its coordinates (kind 100, group, coordinate).
 std::vector<double> location_block_test_take_sequence();
+// Test hook: the log probabilities (on, off) of the gate of L2's target cell
+// from its log evidences (LocationBlock.cc, swap_gate_log_probabilities).
+std::vector<double> location_block_test_swap_gate(double log_e_off, double log_e_on);
 
 }
 }
