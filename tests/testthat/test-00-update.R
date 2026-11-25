@@ -621,3 +621,33 @@ test_that("update.brma sizes an 'auto' extension from the convergence check of t
   # a number extends by that number
   expect_identical(vapply(.draws_by_chain(update(fit, sample_extend = 20)), nrow, integer(1)), c(120L, 120L))
 })
+
+test_that("a fit that stops automatically stores the message of a component that no chain visits", {
+
+  # PET has prior weight 1e-12 against no bias, so no chain visits it: its
+  # draws stay 0 and its diagnostics are not assessable. Automatic fitting
+  # stops after the initial sampling, as does the extension of update(), and
+  # the convergence check of the model stores the message of PET unless
+  # allow_not_assessable = TRUE (and no termination warning)
+  data("Bem2011", package = "RoBMA", envir = environment())
+  fit_with <- function(allow) RoBMA(
+    yi = d, sei = se, measure = "SMD", data = Bem2011,
+    prior_bias = prior_PET("Cauchy", list(0, 1), truncation = list(0, Inf), prior_weights = 1e-12),
+    chains = 2, adapt = 200, burnin = 200, sample = 1000, seed = 1, autofit = TRUE,
+    autofit_control = set_autofit_control(max_extend = 1),
+    convergence_checks = set_convergence_checks(allow_not_assessable = allow)
+  )
+  stored <- "R-hat, ESS diagnostics are not assessable for 'PET'."
+  for (allow in c(FALSE, TRUE)) {
+    fit     <- fit_with(allow)
+    updated <- update(fit, sample_extend = 1000)
+    expect_identical(nrow(attr(fit[["fit"]], "adaptation")$extensions), 0L, info = allow)
+    expect_identical(vapply(fit[["fit"]][["mcmc"]], nrow, integer(1)), c(1000L, 1000L), info = allow)
+    expect_identical(vapply(updated[["fit"]][["mcmc"]], nrow, integer(1)), c(2000L, 2000L), info = allow)
+    for (object in list(fit, updated)) {
+      PET <- unlist(lapply(object[["fit"]][["mcmc"]], function(chain) as.numeric(chain[, "PET"])))
+      expect_identical(unique(PET), 0, info = allow)
+      expect_identical(object[["fit"]][["warnings"]], if (!allow) stored, info = allow)
+    }
+  }
+})

@@ -90,9 +90,12 @@ convergence checks. A base name selects all indexed elements. Defaults to
 \item{allow_not_assessable}{whether requested sampled parameters with
 undefined diagnostics may be ignored by the convergence checks. Defaults to
 \code{FALSE}, with which the fitted model reports the parameters whose
-diagnostics are not assessable. More samples do not make them assessable,
-so automatic fitting never extends a model for them: it stops once every
-parameter that can be assessed meets the criteria.}
+diagnostics are not assessable. Automatic fitting does not extend a model
+for diagnostics that cannot be assessed from the samples available at a
+check (a mixture component or indicator state that no chain has visited,
+samples that are constant), so a parameter that only more samples would
+reveal is not waited for; every diagnostic that can be assessed still
+extends the model.}
 }
 \value{
 \code{set_autofit_control} returns a list of autofit control settings
@@ -116,11 +119,12 @@ for determining whether a model has converged adequately.
 
 The autofit control manages computational resources by setting maximum time limits and
 determining how many additional samples to draw if convergence criteria are not met.
-Automatic fitting stops once every parameter whose diagnostics can be
-assessed meets its criteria, also when the diagnostics of other parameters
-are not assessable, or at \code{max_time} or \code{max_extend};
-\code{set_convergence_checks(allow_not_assessable = )} decides whether the
-fitted model reports those parameters.
+Automatic fitting stops once every diagnostic that can be assessed from the
+samples available at a check meets its criterion, also when other
+diagnostics are not assessable then, or at \code{max_time} or
+\code{max_extend}; \code{set_convergence_checks(allow_not_assessable = )}
+decides whether the fitted model reports the parameters whose diagnostics
+are not assessable.
 The convergence checks determine the quality standards that fitted models must meet.
 Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{restarts}, and
