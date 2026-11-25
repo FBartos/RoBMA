@@ -898,7 +898,20 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   write can change is compared with its value before (`1e-6 (1 + |value|)`);
   a change restores the entry and raises the error `RoBMA_location_scale_
   invariance` naming the child (measured cost: 0.12 ms per sweep, 0.3%, on
-  `gender`; 0.004 ms, 0.07%, on `assink_V_mods`). The factory declines
+  `gender`; 0.004 ms, 0.07%, on `assink_V_mods`). A relative tolerance on
+  parent values has no unit-free meaning (in units of 1e-5 a mean term
+  `0.5 sigma` changed the rows' log density by -0.63 within it), so at the
+  first active move after adaptation and at every 64th after it
+  (`likelihood_check_period`) the children's log densities are also compared
+  before and after the write, each paired with its own value: a change of
+  their sum above `max(1e-6, 1e-9 M)` (`M` the sum of their absolute values
+  before the write, which carries the precision guard below) restores the
+  entry and raises the same error naming the child whose log density changed
+  most (measured cost: 0.018 ms per sweep, 0.04%, on `gender`; 0.004 ms,
+  0.05%, on `assink_V_mods`; the counters `likelihood_checks` and, with the
+  timing switch, `seconds_likelihood`; the test switch `check` of
+  `RoBMA_location_scale_test_config` checks every k-th move). While adapting
+  only the parent values are compared. The factory declines
   (everything as before; draws identical) unless
   the sources are free, unobserved, fixed-parameter scalars with the declared
   supports (a gamma group recognized by `find_gamma_groups` behind the
@@ -991,7 +1004,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   entry's changed children, the block kernels' entry density in both kernels,
   the scalar corrected slice's entry density and the exact slicer's first
   evaluation, the screened indicator's exact score of the current level and
-  its enumeration's) it sums the absolute values of the
+  its enumeration's, the scale move's check in log-likelihood units) it sums
+  the absolute values of the
   likelihood terms of that evaluation (`M`, the children's log densities,
   priors excluded); after adaptation `M > 1e9` raises
   `[RoBMA_likelihood_not_representable]` naming the node with the largest term
@@ -1008,8 +1022,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   The test hook `RoBMA_corrected_sampler_test` reports the largest `M` per site
   after adaptation (`likelihood_magnitude`); tests in
   `test-00-selection-corrected-block.R` (block, gated, scalar, both kernels,
-  the limit's boundary pair), `test-00-selection-corrected-weights.R`
-  and `test-00-location-block-native.R`.
+  the limit's boundary pair), `test-00-selection-corrected-weights.R`,
+  `test-00-location-block-native.R` and `test-00-location-scale-native.R`.
 - BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
   `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
   marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`

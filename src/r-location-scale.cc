@@ -99,29 +99,31 @@ extern "C" SEXP RoBMA_location_scale_report(SEXP clear)
   ROBMA_NATIVE_END
 }
 
-// Test hook, not package interface: the mutant, decline and timing switches
-// (LocationScaleReport.h) for scale owners built from now on; NULL or negative
-// values keep a setting. Returns the previous three.
+// Test hook, not package interface: the mutant, decline, timing and check
+// switches (LocationScaleReport.h) for scale owners built from now on (three
+// integers keep the check); NULL or negative values keep a setting. Returns the
+// previous four.
 extern "C" SEXP RoBMA_location_scale_test_config(SEXP config)
 {
   ROBMA_NATIVE_BEGIN(config)
-  std::vector<int> wanted = {-1, -1, -1};
+  std::vector<int> wanted = {-1, -1, -1, -1};
   if (config != R_NilValue) {
-    if (TYPEOF(config) != INTSXP || XLENGTH(config) != 3) {
-      Rf_error("The location scale configuration must be NULL or three integers.");
+    if (TYPEOF(config) != INTSXP || (XLENGTH(config) != 3 && XLENGTH(config) != 4)) {
+      Rf_error("The location scale configuration must be NULL or three or four integers.");
     }
-    const int upper[3] = {4, 1, 1};
-    for (int i = 0; i < 3; ++i) {
+    const int upper[4] = {4, 1, 1, 1000000};
+    for (R_xlen_t i = 0; i < XLENGTH(config); ++i) {
       const int value = INTEGER(config)[i];
       if (value == NA_INTEGER || value > upper[i]) Rf_error("The location scale configuration is out of range.");
       wanted[static_cast<std::size_t>(i)] = value;
     }
   }
-  const std::vector<int> previous = jags::RoBMA::location_scale_test_config(wanted[0], wanted[1], wanted[2]);
-  SEXP out = PROTECT(Rf_allocVector(INTSXP, 3));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 3));
-  const char *names[] = {"mutant", "decline", "timing"};
-  for (int i = 0; i < 3; ++i) {
+  const std::vector<int> previous =
+    jags::RoBMA::location_scale_test_config(wanted[0], wanted[1], wanted[2], wanted[3]);
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 4));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
+  const char *names[] = {"mutant", "decline", "timing", "check"};
+  for (int i = 0; i < 4; ++i) {
     INTEGER(out)[i] = previous[static_cast<std::size_t>(i)];
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }

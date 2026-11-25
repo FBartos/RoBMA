@@ -1,5 +1,6 @@
 #include "LocationScale.h"
 #include "LocationScaleReport.h"
+#include "CorrectedSampler.h"
 #include "GammaGroup.h"
 
 #include <BayesTools/sampler_declarations.h>
@@ -40,20 +41,32 @@ constexpr unsigned long tag_arity = 9;
 constexpr double slice_width = 0.5;
 constexpr int slice_budget = 40;
 constexpr double probe_tolerance = 1e-9;
+// The check in log-likelihood units runs at the first active move after
+// adaptation and at every 64th after it; it admits a change of the children's
+// summed log density up to max(1e-6, 1e-9 M), M the sum of their absolute
+// log densities before the write (the precision guard's sum).
+constexpr std::uint64_t likelihood_check_period = 64;
+constexpr double likelihood_tolerance = 1e-6;
+constexpr double likelihood_relative_tolerance = 1e-9;
 const double negative_infinity = -std::numeric_limits<double>::infinity();
 
 // ---- counters, switches, decisions
 
 struct Counters {
   std::atomic<std::uint64_t> owners{0}, declined{0}, moves{0}, identity{0}, outside{0}, skipped{0}, exhausted{0},
-    evaluations{0};
-  std::atomic<double> jump2{0.0}, seconds_embedded{0.0}, seconds_move{0.0}, seconds_check{0.0};
+    evaluations{0}, likelihood_checks{0};
+  std::atomic<double> jump2{0.0}, seconds_embedded{0.0}, seconds_move{0.0}, seconds_check{0.0},
+    seconds_likelihood{0.0};
 };
 
 // The error of a move that changed a child's parent value (ScaleOwner::commit);
 // its bracketed identifier is the condition's stable class name.
 constexpr char invariance_message[] =
   "Location scale move [RoBMA_location_scale_invariance]: a parent value of this likelihood node changed under the "
+  "heterogeneity scale move, which must leave every child unchanged; the move was undone";
+// The same error from the check in log-likelihood units (ScaleOwner::commit).
+constexpr char likelihood_invariance_message[] =
+  "Location scale move [RoBMA_location_scale_invariance]: the log density of this likelihood node changed under the "
   "heterogeneity scale move, which must leave every child unchanged; the move was undone";
 
 Counters &counters()
@@ -76,6 +89,8 @@ void add(std::atomic<double> &target, double value)
 std::atomic<int> test_mutant(0);
 std::atomic<int> test_decline(0);
 std::atomic<int> test_timing(0);
+// the period of the check in log-likelihood units (0: likelihood_check_period)
+std::atomic<int> test_check(0);
 
 struct DecisionStore {
   std::mutex mutex;
@@ -120,6 +135,7 @@ struct Spec {
   std::vector<std::vector<Node const *>> watched;  // per child: its parents that a write of the view can change
   int mutant = 0;
   bool timing = false;
+  std::uint64_t check_period = likelihood_check_period;
   std::string layout;
 
   unsigned coordinates() const { return K + 1 + static_cast<unsigned>(weights.size()); }
@@ -326,14 +342,19 @@ class ScaleOwner : public Sampler {
   std::unique_ptr<Sampler> _location;
   std::vector<std::unique_ptr<Sampler>> _embedded;
   std::shared_ptr<Spec const> _spec;
-  std::vector<Vec> _entry, _trial, _before, _after;
+  std::vector<Vec> _entry, _trial, _before, _after, _density;
   std::vector<Point> _point;
+  // adaptation (the check in log-likelihood units and the precision guard run
+  // after it) and, per chain, the active moves (writes) after adaptation
+  bool _adapting = true;
+  std::vector<std::uint64_t> _active;
 
 public:
   ScaleOwner(GraphView *view, std::unique_ptr<Sampler> location, std::vector<std::unique_ptr<Sampler>> embedded,
              std::shared_ptr<Spec const> spec, unsigned int nchain)
     : Sampler(view), _location(std::move(location)), _embedded(std::move(embedded)), _spec(std::move(spec)),
-      _entry(nchain), _trial(nchain), _before(nchain), _after(nchain), _point(nchain)
+      _entry(nchain), _trial(nchain), _before(nchain), _after(nchain), _density(nchain), _point(nchain),
+      _active(nchain, 0)
   {
     OwnerRegistry &registry = owner_registry();
     const std::lock_guard<std::mutex> lock(registry.mutex);
@@ -377,6 +398,7 @@ public:
 
   void adaptOff() override
   {
+    _adapting = false;
     _location->adaptOff();
     for (auto &sampler : _embedded) sampler->adaptOff();
   }
@@ -450,7 +472,14 @@ public:
   // is compared with its value before the write (relative 1e-6, as the
   // factory's check compares). On a change the entry coordinates are written
   // back and the classed error names the child: the move never continues on a
-  // graph whose likelihood it changes.
+  // graph whose likelihood it changes. A relative tolerance on parent values
+  // has no unit-free meaning (in small units a material change of a mean
+  // passes it), so at the first active move after adaptation and at every
+  // 64th after it the children's log densities are compared too, in
+  // log-likelihood units: a change of their sum above max(1e-6, 1e-9 M)
+  // restores the entry and raises the same error naming the child whose log
+  // density changed most. M, the sum of their absolute log densities at the
+  // chain's state, carries the precision guard (CorrectedSampler.h).
   void commit(unsigned int chain, Vec const &entry, Vec const &moved)
   {
     Spec const &S = *_spec;
@@ -466,6 +495,19 @@ public:
         }
       }
     };
+    const bool check_likelihood = !_adapting && _active[chain]++ % S.check_period == 0;
+    Vec &density = _density[chain];
+    LikelihoodMagnitude magnitude;
+    if (check_likelihood) {
+      count(counters().likelihood_checks);
+      density.resize(S.children.size());
+      for (std::size_t c = 0; c < S.children.size(); ++c) {
+        density[c] = S.children[c]->logDensity(chain, PDF_LIKELIHOOD);
+        magnitude.add(S.children[c], density[c]);
+      }
+      check_likelihood_magnitude(magnitude, false, likelihood_site_scale, "Location scale move");
+    }
+    const auto likelihood_start = std::chrono::steady_clock::now();
     values(before);
     write(chain, moved);
     values(after);
@@ -479,6 +521,33 @@ public:
           write(chain, entry);
           throwNodeError(child, invariance_message);
         }
+      }
+    }
+    if (check_likelihood) {
+      const auto likelihood_after = std::chrono::steady_clock::now();
+      // the change of each child, paired with its own value before the write
+      long double change = 0;
+      double largest = -1.0;
+      StochasticNode const *changed = nullptr;
+      for (std::size_t c = 0; c < S.children.size(); ++c) {
+        const double v = S.children[c]->logDensity(chain, PDF_LIKELIHOOD);
+        const double difference = v - density[c];
+        const double size = std::isnan(difference) ? std::numeric_limits<double>::infinity() : std::fabs(difference);
+        change += static_cast<long double>(size == std::numeric_limits<double>::infinity() ? size : difference);
+        if (size > largest) {
+          largest = size;
+          changed = S.children[c];
+        }
+      }
+      const double tolerance = std::max(likelihood_tolerance, likelihood_relative_tolerance * magnitude.sum);
+      if (changed != nullptr && !(std::fabs(static_cast<double>(change)) <= tolerance)) {
+        write(chain, entry);
+        throwNodeError(changed, likelihood_invariance_message);
+      }
+      if (S.timing) {
+        add(counters().seconds_likelihood,
+            std::chrono::duration<double>(likelihood_start - start).count() +
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - likelihood_after).count());
       }
     }
     if (S.timing) {
@@ -800,6 +869,9 @@ std::unique_ptr<Sampler> location_scale_owner(std::unique_ptr<Sampler> location,
   S.K = static_cast<unsigned>(counts[2]);
   S.mutant = test_mutant.load(std::memory_order_relaxed);
   S.timing = test_timing.load(std::memory_order_relaxed) != 0;
+  if (test_check.load(std::memory_order_relaxed) > 0) {
+    S.check_period = static_cast<std::uint64_t>(test_check.load(std::memory_order_relaxed));
+  }
 
   std::set<StochasticNode *> available(free.begin(), free.end());
   S.a = anchor;
@@ -996,7 +1068,7 @@ std::vector<char const *> const &location_scale_report_names()
 {
   static const std::vector<char const *> names = {
     "owners", "declined", "moves", "identity", "outside", "skipped", "exhausted", "evaluations", "jump2",
-    "seconds_embedded", "seconds_move", "seconds_check"};
+    "seconds_embedded", "seconds_move", "seconds_check", "likelihood_checks", "seconds_likelihood"};
   return names;
 }
 
@@ -1012,7 +1084,8 @@ std::vector<double> location_scale_report(bool clear)
   };
   return {take(c.owners), take(c.declined), take(c.moves), take(c.identity), take(c.outside), take(c.skipped),
           take(c.exhausted), take(c.evaluations), take_double(c.jump2), take_double(c.seconds_embedded),
-          take_double(c.seconds_move), take_double(c.seconds_check)};
+          take_double(c.seconds_move), take_double(c.seconds_check), take(c.likelihood_checks),
+          take_double(c.seconds_likelihood)};
 }
 
 std::vector<LocationScaleDecision> location_scale_decisions(bool clear)
@@ -1024,12 +1097,13 @@ std::vector<LocationScaleDecision> location_scale_decisions(bool clear)
   return out;
 }
 
-std::vector<int> location_scale_test_config(int mutant, int decline, int timing)
+std::vector<int> location_scale_test_config(int mutant, int decline, int timing, int check)
 {
-  std::vector<int> previous = {test_mutant.load(), test_decline.load(), test_timing.load()};
+  std::vector<int> previous = {test_mutant.load(), test_decline.load(), test_timing.load(), test_check.load()};
   if (mutant >= 0) test_mutant.store(mutant);
   if (decline >= 0) test_decline.store(decline);
   if (timing >= 0) test_timing.store(timing);
+  if (check >= 0) test_check.store(check);
   return previous;
 }
 

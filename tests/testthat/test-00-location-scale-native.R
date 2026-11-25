@@ -314,6 +314,97 @@ test_that("a dependence on the sampled SD that only the open gate shows is an er
 })
 
 
+test_that("after adaptation the move's invariance is also checked in log-likelihood units", {
+
+  skip_if_not_installed("rjags")
+  # A relative tolerance on parent values has no unit-free meaning. Two
+  # hand-tagged graphs whose means also depend on the sampled SD, in small
+  # units: (1) the allocation fixture in units of 1e-5 (row SEs about 1.5e-6,
+  # which RoBMA admits) with + 0.5 sigma, where a move with u = 0.2 changes
+  # the rows' log density by -0.63; (2) row SEs of 1e-6 around 1e-5 with
+  # + 0.1 sigma, where c = 1.8 changes it by +1.40. Every mean moves by less
+  # than the parent check's 1e-6, so only the check in log-likelihood units
+  # sees them: the classed error at the first active move after adaptation,
+  # with the move's entry restored.
+  first <- function() {
+    k <- 1e-5
+    setup <- .scale_allocation_setup()
+    setup$y <- setup$y * k
+    setup$variance <- setup$variance * k^2
+    setup$a_sd <- setup$a_sd * k
+    setup$prior_precision <- 1 / k^2
+    model <- .scale_allocation_model(setup)
+    model$syntax <- sub("mu[i] <- b + sigma * Z[cluster[i]]", "mu[i] <- b + sigma * Z[cluster[i]] + 0.5 * sigma",
+                        model$syntax, fixed = TRUE)
+    list(compiled = .scale_compile(model, list(I = 1L, a = 0.4 * k, g = 1L)),
+         x = c(0.8, -1.3, 0.4, 1.7, 0.45 * k, 0.7, 1.1), u = 0.2)
+  }
+  second <- function() {
+    setup <- .scale_allocation_setup()
+    setup$variance[] <- 1e-12
+    setup$y[] <- 1e-5
+    model <- .scale_allocation_model(setup)
+    model$syntax <- sub("sigma * Z[cluster[i]]", "sigma * Z[cluster[i]] + 0.1 * sigma", model$syntax, fixed = TRUE)
+    list(compiled = .scale_compile(model, list(I = 1, a = 1e-5, eta = c(1, 1), g = 2, slab = 0, Z = rep(0, 4))),
+         x = c(rep(0, 4), 1e-5, 1, 1), u = log(1.8))
+  }
+  for (case in list(first = first, second = second)) {
+    graph <- case()
+    owner <- graph$compiled$owner
+    expect_identical(graph$compiled$decisions$status, "owned")
+    rjags::adapt(graph$compiled$jags, 0L, end.adaptation = TRUE)
+    .scale_hook("set", owner, 0L, graph$x)
+    before <- .scale_hook("state", owner, 0L)
+    expect_true(before$active)
+    error <- tryCatch({
+      .scale_hook("transform", owner, 0L, graph$u)
+      ""
+    }, error = conditionMessage)
+    expect_match(error, paste0("Location scale move [RoBMA_location_scale_invariance]: the log density of this ",
+                               "likelihood node changed"), fixed = TRUE)
+    after <- .scale_hook("state", owner, 0L)
+    expect_identical(after$values, graph$x)
+    expect_identical(after$children, before$children)
+  }
+
+  # An ordinary clustered graph inside the move's chart (tau = 0.001, the share
+  # 1 - 2^-20, SEs 1e-6, outcomes 0.08 to 0.22): the rows are tens of
+  # thousands of their SDs from their means, and the move's check refuses the
+  # state with the precision guard's error before writing
+  setup <- .scale_allocation_setup(a_sd = .5)
+  setup$variance[] <- 1e-12
+  setup$y <- seq(.08, .22, length.out = length(setup$y))
+  clustered <- .scale_compile(.scale_clustered_model(setup), list(g = 1, slab = 0, gamma = c(.8, -1.3, .4, 1.7),
+    tau_indicator = 2, tau_component_2 = 1e-3, rho_component_1 = 1 - 2^-20))
+  rjags::adapt(clustered$jags, 0L, end.adaptation = TRUE)
+  values <- c(.8, -1.3, .4, 1.7, 1e-3, 1 - 2^-20)
+  .scale_hook("set", clustered$owner, 0L, values)
+  before <- .scale_hook("state", clustered$owner, 0L)
+  error <- tryCatch({
+    .scale_hook("transform", clustered$owner, 0L, log(.8))
+    ""
+  }, error = conditionMessage)
+  expect_match(error, "Location scale move [RoBMA_likelihood_not_representable]", fixed = TRUE)
+  expect_identical(.scale_hook("state", clustered$owner, 0L)$values, before$values)
+
+  # the valid fixtures pass the check at every one of 20,000 moves after
+  # adaptation (the test switch checks every active move, not every 64th)
+  allocation <- .scale_allocation_model(.scale_allocation_setup(include = 1))
+  clustered  <- .scale_clustered_model(.scale_allocation_setup())
+  for (case in list(list(model = allocation, inits = list(I = 1), monitor = "a", draws = 20500L),
+                    list(model = clustered, inits = list(tau_indicator = 2), monitor = "tau_component_2",
+                         draws = 30000L))) {
+    run <- .scale_run(.scale_compile(case$model, case$inits, check = 1L), case$monitor, draws = case$draws,
+                      burnin = 0L)
+    counters <- run$report$counters
+    # every move that was not exhausted wrote its point and was checked
+    expect_identical(counters[["likelihood_checks"]], counters[["moves"]] - counters[["exhausted"]],
+                     info = case$monitor)
+    expect_gte(counters[["likelihood_checks"]], 20000, label = case$monitor)
+  }
+})
+
+
 test_that("declined and undeclared scales draw exactly as before", {
 
   skip_if_not_installed("rjags")
