@@ -741,14 +741,27 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   the child (the entry state restored; mutants 12, 16 and 18 of the test
   hook). An unmoved mean was once required to be bitwise unchanged, but the
   graph's recomputation of it need not be (a Linux build with GCC 10.2.1 and
-  OpenBLAS 0.3.29 stopped `metafor-anova-rma-09` that way); the correction
-  does not re-evaluate the unmoved children's densities, so a change within
-  the tolerance alters the target by at most what the tracked comparison
-  accepts, while a dependence the probe missed changes the mean by far more.
-  After adaptation the block's counters record the unmoved comparisons that
-  were not bitwise equal (`unmoved_mean_inexact`) and their largest
-  discrepancy in the row's SDs (`unmoved_mean_max`; mutant 17 moves the entry
-  mean by one ulp); both are zero on the Windows build's fixtures.
+  OpenBLAS 0.3.29 stopped `metafor-anova-rma-09` that way), so the
+  comparison is a diagnostic of the design; the correction is exact whatever
+  the size of the difference: every child outside the correction's children
+  (the dirty ones, or all after a label change) with a row whose graph mean
+  after the final write is not bitwise its entry mean enters the paired
+  correction with the graph's own densities at the entry state (the entry
+  written back once, those children evaluated, the final state written
+  again; only when such a child exists) and at the final state, with the
+  precision guard and the endpoint record of a selection child as for the
+  others, while adapting too. (Leaving them out, as before, dropped their
+  density change `delta z - delta^2 / 2` per row from the ratio: a
+  coefficient whose response rounded to zero in the factory's probe, a mean
+  `offset + 2^-43 b` probed at an offset of 32768, was sampled without its
+  likelihood; mutant 21 leaves them out.) After adaptation the block's
+  counters record the unmoved comparisons that were not bitwise equal
+  (`unmoved_mean_inexact`), their largest discrepancy in the row's SDs
+  (`unmoved_mean_max`; mutant 17 moves the compared entry mean by one ulp,
+  mutants 22 and 23 by 0.1 and 10 times the row's tolerance, accepted and
+  counted, refused), the children included this way (`unmoved_included`)
+  and their largest density change in log units (`unmoved_density_max`); all
+  are zero on the Windows build's fixtures.
   Each update rebuilds the Gaussian
   working model from the graph (block precisions from the children's own
   parameters, the latent column probed), runs the component list forward or

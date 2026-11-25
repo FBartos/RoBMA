@@ -190,30 +190,111 @@ test_that("an unmoved mean may differ from its entry mean by rounding, not beyon
   expect_gt(ulp$counters[["unmoved_mean_inexact"]], 200)
   expect_gt(ulp$counters[["unmoved_mean_max"]], 0)
   expect_lt(ulp$counters[["unmoved_mean_max"]], 1e-12)
+  # the threshold: mutant 22 compares it with the entry mean 0.1 times the
+  # row's tolerance above (about 1e-7 SD), accepted and counted in every
+  # comparison, mutant 23 with 10 times the tolerance above, refused below.
+  # y's mean is never changed, so no child enters the correction.
+  pinned <- chain(22L)
+  expect_identical(pinned$draws, exact$draws)
+  expect_gt(pinned$counters[["unmoved_mean_inexact"]], 200)
+  expect_gt(pinned$counters[["unmoved_mean_max"]], 0.5e-7)
+  expect_lt(pinned$counters[["unmoved_mean_max"]], 2e-7)
+  expect_identical(unname(pinned$counters[c("unmoved_included", "unmoved_density_max")]), c(0, 0))
 
-  .location_hook(mutant = 18L)
-  on.exit(.location_hook(mutant = 0L), add = TRUE)
-  connection <- textConnection(model$syntax)
-  jags <- rjags::jags.model(connection, data = model$data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
-    inits = list(g = 1L, slab = 0.3, offset = 0, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 376L))
-  close(connection)
-  .location_hook(mutant = 0L)
-  expect_true("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)))
-  rjags::adapt(jags, 0L, end.adaptation = TRUE)
-  error <- NULL
-  for (iteration in 1:50) {
+  for (mutant in c(18L, 23L)) {
+    .location_hook(mutant = mutant)
+    on.exit(.location_hook(mutant = 0L), add = TRUE)
+    connection <- textConnection(model$syntax)
+    jags <- rjags::jags.model(connection, data = model$data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
+      inits = list(g = 1L, slab = 0.3, offset = 0, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 376L))
+    close(connection)
+    .location_hook(mutant = 0L)
+    expect_true("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)))
+    rjags::adapt(jags, 0L, end.adaptation = TRUE)
+    error <- NULL
+    for (iteration in 1:50) {
+      jags$sync()
+      entry <- jags$state()[[1L]]
+      error <- tryCatch({
+        stats::update(jags, n.iter = 1L, progress.bar = "none")
+        NULL
+      }, error = conditionMessage)
+      if (!is.null(error)) break
+    }
+    expect_match(error, paste0("Error in node y\nLocation block sampler [RoBMA_location_untracked_mean]: the mean of ",
+                               "this likelihood node changed in a sweep that did not move it"), fixed = TRUE,
+                 label = paste("mutant", mutant))
     jags$sync()
-    entry <- jags$state()[[1L]]
-    error <- tryCatch({
-      stats::update(jags, n.iter = 1L, progress.bar = "none")
-      NULL
-    }, error = conditionMessage)
-    if (!is.null(error)) break
+    expect_identical(jags$state()[[1L]], entry, label = paste("mutant", mutant))
   }
-  expect_match(error, paste0("Error in node y\nLocation block sampler [RoBMA_location_untracked_mean]: the mean of ",
-                             "this likelihood node changed in a sweep that did not move it"), fixed = TRUE)
-  jags$sync()
-  expect_identical(jags$state()[[1L]], entry)
+})
+
+
+test_that("an unmoved child whose mean the graph changed enters the correction with its own densities", {
+
+  skip_if_not_installed("rjags")
+  # The reviewer's fixture: 20 children with mean offset + 2^-43 b. The
+  # factory probes at offset = 32768, where the coefficient's response rounds
+  # to zero, so no component moves these children; the conjugate offset
+  # moves to zero at once, and from then on each sweep that moves b changes
+  # their graph means by 1.1e-7 SD per unit of b (within the comparison's
+  # tolerance). Their log density changes by about 0.018 per unit of b: the
+  # correction pairs their graph densities at the entry and the final state,
+  # so reversing the outcomes changes the coefficient's trace, and the
+  # posterior mean of b agrees with the stock samplers' on the same graph
+  # (|z| < 4, batch means over 50 batches) and with the analytic value.
+  # Mutant 21 leaves these children out: its traces ignore the outcomes and
+  # its posterior mean of b is the one without them.
+  n <- 20L
+  epsilon <- 2^-43
+  syntax <- paste(c("model {", "  g ~ dcat(p[])", "  slab ~ dnorm(0, 1)", "  b <- 0 * (g == 1) + slab * (g == 2)",
+                    "  offset ~ dnorm(0, 1e48)", "  mu <- offset + epsilon * b", "  y_direct ~ dnorm(b, 1)",
+                    "  for (i in 1:n) { y[i] ~ dnorm(mu, precision) }",
+                    "  tag1 <- robma_location_group(g, slab, 2, b, 1)", "  tags <- robma_location_setup(g, 1, 0)", "}"),
+                  collapse = "\n")
+  tags <- "  tag1 <- robma_location_group(g, slab, 2, b, 1)\n  tags <- robma_location_setup(g, 1, 0)\n"
+  run <- function(outcome, mutant = 0L, stock = FALSE, sweeps = 2000L) {
+    model <- list(syntax = if (stock) sub(tags, "", syntax, fixed = TRUE) else syntax,
+                  data = list(p = c(.5, .5), epsilon = epsilon, y_direct = .8, y = rep(outcome, n), n = n,
+                              precision = 1e12))
+    RoBMA:::.location_block_report_read()
+    inits <- list(g = 1L, slab = .3, offset = 2^15, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 4127L)
+    jags <- .location_compile(model, inits = inits, mutant = mutant)
+    expect_identical("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)), !stock)
+    rjags::adapt(jags, 100L, end.adaptation = TRUE)
+    RoBMA:::.location_block_report_read()
+    draws <- as.matrix(rjags::coda.samples(jags, "b", n.iter = sweeps, progress.bar = "none")[[1L]])[, "b"]
+    means <- colMeans(matrix(draws, ncol = 50L))
+    list(draws = draws, mean = mean(draws), mcse = stats::sd(means) / sqrt(50),
+         counters = RoBMA:::.location_block_report_read())
+  }
+  expect_false(identical(run(.008)$draws, run(-.008)$draws))
+  expect_identical(run(.008, 21L)$draws, run(-.008, 21L)$draws)
+  # the analytic posterior mean of b (the offset integrated)
+  v <- 1e-12 / n + 1e-48
+  log_f <- function(b) dnorm(b, 0, 1, log = TRUE) + dnorm(.8, b, 1, log = TRUE) - dnorm(.8, 0, 1, log = TRUE) +
+    (.008 * epsilon * b - .5 * epsilon^2 * b^2) / v
+  bf <- stats::integrate(function(b) exp(log_f(b)), -10, 10, rel.tol = 1e-12)$value
+  analytic <- bf / (1 + bf) * (.8 + epsilon * .008 / v) / (2 + epsilon^2 / v)
+  z <- function(a, b) (a$mean - b$mean) / sqrt(a$mcse^2 + b$mcse^2)
+  # the effect of reversing the outcomes on E[b], with its Monte Carlo error
+  effect <- function(positive, negative) {
+    list(mean = positive$mean - negative$mean, mcse = sqrt(positive$mcse^2 + negative$mcse^2))
+  }
+  stock <- run(.008, stock = TRUE, sweeps = 400000L)
+  exact <- run(.008, sweeps = 400000L)
+  expect_lt(abs(z(exact, stock)), 4)
+  expect_lt(abs(exact$mean - analytic) / exact$mcse, 4)
+  expect_gt(exact$counters[["unmoved_included"]], 0)
+  expect_gt(exact$counters[["unmoved_density_max"]], 1e-4)
+  stock_effect <- effect(stock, run(-.008, stock = TRUE, sweeps = 400000L))
+  expect_lt(abs(z(effect(exact, run(-.008, sweeps = 400000L)), stock_effect)), 4)
+  # mutant 21: no effect at all (identical traces), far from the stock
+  # samplers' (about 0.0097 analytically), and its E[b] far from the analytic value
+  omitted <- run(.008, 21L, sweeps = 400000L)
+  expect_identical(omitted$counters[["unmoved_included"]], 0)
+  expect_gt(abs(stock_effect$mean) / stock_effect$mcse, 4)
+  expect_gt(abs(omitted$mean - analytic) / omitted$mcse, 4)
 })
 
 

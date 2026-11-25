@@ -142,6 +142,11 @@ struct Counters {
   // discrepancy in the row's conditional SDs
   std::atomic<std::uint64_t> unmoved_mean_inexact{0};
   std::atomic<double> unmoved_mean_max{0.0};
+  // after adaptation, the unmoved children whose graph mean changed and that
+  // entered the exact correction with their own densities (correct()), and
+  // the largest absolute change of such a child's log density
+  std::atomic<std::uint64_t> unmoved_included{0};
+  std::atomic<double> unmoved_density_max{0.0};
   std::atomic<std::uint64_t> proposed[component_count];
   std::atomic<std::uint64_t> stage0[component_count];
   std::atomic<std::uint64_t> stage1[component_count];
@@ -1143,6 +1148,8 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   bool _not_exact = false;         // a surrogate evaluated this update was not exact
   long double _repr_delta = 0;     // accumulated log density change of the inner target
   Vec _correction_terms;           // scratch of correct(): the entry's exact terms
+  std::vector<unsigned> _unmoved_changed;  // scratch of correct(): unmoved children whose graph mean changed
+  Vec _unmoved_terms;              // scratch of correct(): their entry terms
   Vec _a, _lambda, _u, _P, _h;     // Gaussian working model
   std::vector<double const *> _params;
   Vec _scratch;
@@ -3689,43 +3696,57 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // changes and of the graph's expression), so that a design entry the probe
     // missed is not hidden by another coefficient that moves the same child.
     // An unmoved mean is compared with its entry mean under the same
-    // tolerance: the graph's recomputation of a mean that nothing moved need
-    // not be bitwise identical on every platform (a Linux build with OpenBLAS
-    // changed one by rounding), and the correction does not re-evaluate the
-    // densities of the unmoved children, so a change within the tolerance
-    // alters the target by at most what the tracked comparison accepts; a
-    // dependence the probe missed changes the mean by far more. After
-    // adaptation the comparisons of unmoved means that are not bitwise equal
-    // are counted (unmoved_mean_inexact) with their largest discrepancy in
-    // the row's SDs (unmoved_mean_max).
+    // tolerance (a diagnostic of the design: a dependence the probe missed
+    // changes the mean by far more than rounding). Its density is never left
+    // out: the graph's recomputation of a mean that nothing moved need not be
+    // bitwise identical on every platform (a Linux build with OpenBLAS changed
+    // one by rounding), and a coefficient whose response rounded to zero in
+    // the factory's probe (a mean offset + 2^-43 b at an offset of 32768)
+    // still moves it, so every child outside `kids` with a row whose graph
+    // mean after the final write is not bitwise its entry mean enters the
+    // paired correction below with the graph's own densities at both
+    // endpoints (mutant 21 leaves these children out). After adaptation the
+    // comparisons of unmoved means that are not bitwise equal are counted
+    // (unmoved_mean_inexact) with their largest discrepancy in the row's SDs
+    // (unmoved_mean_max), and the children included this way
+    // (unmoved_included) with their largest density change (unmoved_density_max).
+    std::vector<unsigned> &unmoved = _unmoved_changed;
+    unmoved.clear();
     for (unsigned c = 0; c < S.children.size(); ++c) {
       ChildSpec const &child = S.children[c];
       double const *mean = child.node->parents()[0]->value(_chain);
       const bool moved = _dirty[c] != 0;
+      bool changed = false;
       for (unsigned i = 0; i < child.n; ++i) {
         const unsigned row = child.row0 + i;
+        if (!moved && mean[i] != _mean_entry[row]) changed = true;
         const double sd = 1.0 / std::sqrt(_W[child.woff + i * child.n + i]);
         double expected = moved ? _mean[row] : _mean_entry[row];
+        // mutants 17, 18 (test hook): the entry mean an unmoved mean is
+        // compared with, one ulp or 1e-3 of the row's SD above it; 22, 23:
+        // 0.1 or 10 times the row's tolerance above it (pinned below)
+        const bool pinned = !moved && (S.mutant == 22 || S.mutant == 23);
         if (!moved) {
-          // mutants 17 and 18 (test hook): the entry mean an unmoved mean is
-          // compared with, one ulp above it or 1e-3 of the row's SD above it
           if (S.mutant == 17) expected = std::nextafter(expected, std::numeric_limits<double>::infinity());
           if (S.mutant == 18) expected += 1e-3 * sd;
-          if (mean[i] == expected) continue;
+          if (!pinned && mean[i] == expected) continue;
         }
         // the size of the means and of the design's terms at the final state
         double size = std::max(std::fabs(_mean_entry[row]), std::max(std::fabs(mean[i]), std::fabs(expected)));
         for (unsigned k = 0; k < S.p; ++k) size += std::fabs(S.X[static_cast<std::size_t>(row) * S.p + k] * _b[k]);
         if (child.latent >= 0) size += std::fabs(_d[row] * _z[static_cast<unsigned>(child.latent)]);
+        const double tolerance = tracked_mean_tolerance * sd + tracked_mean_rounding * size;
+        if (pinned) expected += (S.mutant == 22 ? 0.1 : 10.0) * tolerance;
         const double discrepancy = std::fabs(mean[i] - expected);
         if (!moved && !_adapting) {
           count(counters().unmoved_mean_inexact);
           record_max(counters().unmoved_mean_max, discrepancy / sd);
         }
-        if (!(discrepancy <= tracked_mean_tolerance * sd + tracked_mean_rounding * size)) {
+        if (!(discrepancy <= tolerance)) {
           throwNodeError(child.node, moved ? tracked_mean_message : untracked_mean_message);
         }
       }
+      if (changed && !moved && !label_changed && S.mutant != 21) unmoved.push_back(c);
     }
     for (unsigned m : changed_members) final_term(members[m], members[m]->logDensity(_chain, PDF_PRIOR));
     for (unsigned c : kids) {
@@ -3735,6 +3756,51 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
       final_term(S.children[c].node, v);
       if (!gaussian_child(c) && _value_ok[c] && v > negative_infinity) {
         new_endpoint += static_cast<long double>(_value[c]) - v;
+      }
+    }
+    if (!unmoved.empty()) {
+      // Their entry densities are no longer in the graph: the entry state is
+      // written back once, those children evaluated (as entry terms of a
+      // child in `kids`: finite or an error, the precision guard, the
+      // endpoint record of a selection child; a step row's parameters are
+      // the update's, the label being unchanged), and the final state
+      // written again, where each is paired with its own entry term.
+      std::vector<double> &entry_values = _unmoved_terms;
+      entry_values.clear();
+      _view->setValue(_entry, _chain);
+      for (unsigned c : unmoved) {
+        const double v = graph_density(c);
+        count(counters().correction_evaluations);
+        count(counters().evaluations[cat_correction]);
+        if (!std::isfinite(v)) {
+          throwNodeError(S.children[c].node,
+            "Location block sampler: the log density of this node is not finite at the update's entry state");
+        }
+        entry_values.push_back(v);
+        magnitude.add(S.children[c].node, v);
+        if (_entry_valued[c]) old_endpoint += static_cast<long double>(_value_entry[c]) - v;
+      }
+      _view->setValue(_final, _chain);
+      check_likelihood_magnitude(magnitude, _adapting, corrected_kind_location, "Location block sampler");
+      for (std::size_t q = 0; q < unmoved.size(); ++q) {
+        const unsigned c = unmoved[q];
+        const double v = graph_density(c);
+        count(counters().correction_evaluations);
+        count(counters().evaluations[cat_correction]);
+        if (std::isnan(v) || v == std::numeric_limits<double>::infinity()) {
+          throwNodeError(S.children[c].node,
+            "Location block sampler: the log density of this node is not defined at the proposed state");
+        }
+        if (v == negative_infinity) {
+          zero_density = true;
+          continue;
+        }
+        exact_change += static_cast<long double>(v) - entry_values[q];
+        if (!gaussian_child(c) && _value_ok[c]) new_endpoint += static_cast<long double>(_value[c]) - v;
+        if (!_adapting) {
+          count(counters().unmoved_included);
+          record_max(counters().unmoved_density_max, std::fabs(v - entry_values[q]));
+        }
       }
     }
     if (label_changed) final_term(bspec().nested, nested_term());
@@ -4401,9 +4467,9 @@ std::vector<char const *> const &location_block_report_names()
       "corrections_selection_accepted", "corrections_evidence_accepted", "fallback_exact",
       "surrogate_evaluations", "exact_evaluations", "correction_evaluations", "fit_rule_fallback", "ellipse_shrinks",
       "slice_refresh_groups", "slice_refresh_multi", "factorization_skips", "swap_unrepresentable",
-      "swap_irreproducible", "unmoved_mean_inexact", "max_correction", "max_correction_gaussian", "max_endpoint",
-      "max_endpoint_change", "max_stage2_gaussian", "max_swap_stage1_residual", "max_swap_full_residual",
-      "unmoved_mean_max"};
+      "swap_irreproducible", "unmoved_mean_inexact", "unmoved_included", "max_correction", "max_correction_gaussian",
+      "max_endpoint", "max_endpoint_change", "max_stage2_gaussian", "max_swap_stage1_residual",
+      "max_swap_full_residual", "unmoved_mean_max", "unmoved_density_max"};
     static std::vector<std::string> storage;
     for (int i = 0; i < component_count; ++i) {
       for (char const *stage : {"proposed", "stage0", "stage1", "accepted"}) {
@@ -4440,9 +4506,10 @@ std::vector<double> location_block_report(bool clear)
     take(c.exact_evaluations), take(c.correction_evaluations), take(c.fit_rule_fallback), take(c.ellipse_shrinks),
     take(c.slice_refresh_groups), take(c.slice_refresh_multi), take(c.factorization_skips),
     take(c.swap_unrepresentable), take(c.swap_irreproducible), take(c.unmoved_mean_inexact),
+    take(c.unmoved_included),
     take_max(c.max_correction), take_max(c.max_correction_gaussian), take_max(c.max_endpoint),
     take_max(c.max_endpoint_change), take_max(c.max_stage2_gaussian), take_max(c.max_swap_stage1_residual),
-    take_max(c.max_swap_full_residual), take_max(c.unmoved_mean_max)};
+    take_max(c.max_swap_full_residual), take_max(c.unmoved_mean_max), take_max(c.unmoved_density_max)};
   for (int i = 0; i < component_count; ++i) {
     out.push_back(take(c.proposed[i]));
     out.push_back(take(c.stage0[i]));

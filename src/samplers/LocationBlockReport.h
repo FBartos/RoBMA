@@ -64,8 +64,11 @@ std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labe
 // above it, an untracked mean change; with an owned bias label, of its swap
 // L2: 19 the reverse move scored with the forward end's base point instead of
 // the base point rebuilt at the proposal, 20 Barker's first stage after the
-// coin of the two-state moves instead of Metropolis's). Returns the previous
-// value.
+// coin of the two-state moves instead of Metropolis's; 21 the unmoved
+// children whose graph mean changed left out of the exact correction; 22 and
+// 23 the entry mean that an unmoved mean is compared with, 0.1 and 10 times
+// the row's tolerance above it, within it and beyond it). Returns the
+// previous value.
 int location_block_test_mutant(int mutant);
 // The outcome of the last factory call that found a declaration: "claimed",
 // "claimed without latents" or the first check that declined.
