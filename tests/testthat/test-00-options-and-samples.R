@@ -176,7 +176,7 @@ test_that("the readiness settings of burn-in are validated and survive control u
   defaults <- set_autofit_control()
   expect_identical(utils::tail(names(formals(set_autofit_control)), 3L), burnin_names)
   expect_identical(defaults[burnin_names],
-    list(burnin_max_Rhat = 1.5, burnin_extend = 500, burnin_max_extend = 10))
+    list(burnin_max_Rhat = 2, burnin_extend = 500, burnin_max_extend = 10))
   # an explicit NULL turns the check off and is kept as a named element
   off <- set_autofit_control(burnin_max_Rhat = NULL)
   expect_true("burnin_max_Rhat" %in% names(off))

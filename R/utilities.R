@@ -626,7 +626,7 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @param max_extend number of times after which the automatic fitting function is stopped.
 #' Defaults to \code{10}.
 #' @param burnin_max_Rhat threshold of the readiness check between burn-in and
-#' sampling. Defaults to \code{1.5}; \code{NULL} turns the check off. The check
+#' sampling. Defaults to \code{2}; \code{NULL} turns the check off. The check
 #' runs, also with \code{autofit = FALSE}, in the initial fit of a model (not
 #' when \code{update()} extends the chains, nor in the automatic extensions
 #' after sampling)
@@ -647,7 +647,12 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' with the check off. A fit whose chains are ready
 #' at once has the draws it would have with the check off, unless a monitored
 #' node has no observed descendants (see \code{autofit_control} in
-#' \code{\link[BayesTools]{JAGS_fit}}).
+#' \code{\link[BayesTools]{JAGS_fit}}). The default is chosen for three or four
+#' chains: one deviating chain raises the split-chain R-hat of a continuous
+#' parameter less the more chains are run, so a fit with many chains (eight or
+#' more) may set a lower value. A slowly mixing model can exceed the threshold
+#' although its chains agree; more burn-in then does not help, and the
+#' convergence checks of the retained samples report the slow mixing.
 #' @param burnin_extend number of final burn-in iterations that the readiness
 #' check assesses and of each extension of burn-in; at least \code{100}.
 #' Defaults to \code{500}.
@@ -719,7 +724,7 @@ for (option_name in names(.RoBMA_option_schema)) {
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = "auto", restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE, burnin_max_Rhat = 1.5, burnin_extend = 500, burnin_max_extend = 10){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = "auto", restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE, burnin_max_Rhat = 2, burnin_extend = 500, burnin_max_extend = 10){
 
   # list() keeps an explicit NULL 'burnin_max_Rhat', which turns the readiness
   # check off; BayesTools gives an omitted element its default
