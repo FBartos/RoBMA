@@ -18,7 +18,7 @@ set_autofit_control(
   check_indicators = FALSE,
   monitor = NULL,
   allow_not_assessable = FALSE,
-  burnin_max_Rhat = 1.5,
+  burnin_max_Rhat = 2,
   burnin_extend = 500,
   burnin_max_extend = 10
 )
