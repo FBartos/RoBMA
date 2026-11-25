@@ -106,7 +106,9 @@ most \code{burnin_max_Rhat} for every parameter of the convergence check
 chains that are not ready is extended by blocks of \code{burnin_extend}
 iterations until they are, \code{burnin_max_extend} blocks were added, or
 \code{max_time} is exceeded; without it, burn-in is kept. Chains that are
-still not ready start sampling with a warning. The check is skipped in a
+still not ready start sampling, and a warning is issued once that sampling
+has finished (an attempt that is restarted warns nothing). The check is
+skipped in a
 model to which JAGS assigns no sampler, whose chains cannot disagree; its
 burn-in then runs as with the check off. A fit whose chains are ready
 at once has the draws it would have with the check off, unless a monitored
