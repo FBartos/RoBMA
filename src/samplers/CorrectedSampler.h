@@ -179,16 +179,20 @@ void unregister_corrected_sampler(CorrectedSamplerWindow *sampler);
 // log density of the state its chain is in (the location block's exact
 // correction, the block kernels' and the scalar corrected slice's entry
 // density, the screened indicator's exact score of the current level and its
-// enumeration, the scale move's invariance check), it sums the absolute values
-// of the likelihood terms of that evaluation (the children's log densities,
-// priors excluded). Above the limit, double precision cannot resolve the
-// differences the sampler's acceptance ratios need (an estimate lies tens of
-// thousands of standard deviations from every value the model can give it):
-// after adaptation that is the classed error RoBMA_likelihood_not_representable
-// naming the node with the largest term. While adapting nothing is raised (a
-// chain may start far from the data), and a proposed state is never checked
-// (it is rejected or accepted as before). Up to the limit, sums of the terms
-// are differenced with an error below 1e-6.
+// enumeration, the scale move's evaluation of the children), it sums the
+// absolute values of the likelihood terms of that evaluation (the children's
+// log densities, priors excluded): the terms the move differences, at the
+// chain's state. Above the limit, double precision cannot resolve the
+// differences the sampler's acceptance ratios need (at that state an estimate
+// lies tens of thousands of standard deviations from its mean; another chain
+// may sample the same data): after adaptation that is the classed error
+// RoBMA_likelihood_not_representable naming the node with the largest term.
+// While adapting nothing is raised (a chain may start far from the data), and
+// a proposed state is never checked (it is rejected or accepted as before).
+// Below the limit, a sum of n terms accumulated in double precision loses up
+// to about (n - 1) u M (u = 2^-53, M the sum of their absolute values: 1.1e-7
+// per term at M = 1e9; measured up to 9e-6 for n = 10,000), which bounds the
+// error of a difference of two such totals.
 constexpr double likelihood_representable_limit = 1e9;
 
 // The sites of the guard, for the record of the largest sum seen after

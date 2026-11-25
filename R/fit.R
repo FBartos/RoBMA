@@ -915,7 +915,10 @@
 }
 
 
-# Stop before post-processing when fitting produced no posterior.
+# Stop before post-processing when fitting produced no posterior. An error of
+# RoBMA's samplers whose message carries a bracketed condition name, such as
+# [RoBMA_likelihood_not_representable], is signalled with that name as its
+# class and the shared parent class RoBMA_sampler_error (the message is kept).
 .stop_fit_errors <- function(fit) {
 
   fit_errors <- fit[["errors"]]
@@ -926,7 +929,13 @@
     return(invisible(TRUE))
   }
   if (length(fit_errors) > 0L) {
-    stop(paste(fit_errors, collapse = "\n"), call. = FALSE)
+    message <- paste(fit_errors, collapse = "\n")
+    tokens  <- regmatches(message, gregexpr("\\[RoBMA_[A-Za-z0-9_]+\\]", message))[[1L]]
+    classes <- unique(substr(tokens, 2L, nchar(tokens) - 1L))
+    if (length(classes) > 0L) {
+      stop(errorCondition(message, class = c(classes, "RoBMA_sampler_error"), call = NULL))
+    }
+    stop(message, call. = FALSE)
   }
 
   stop(

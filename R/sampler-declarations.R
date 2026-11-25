@@ -430,15 +430,16 @@
 # likelihood that double precision cannot resolve, a check of the data.
 .sampler_error_hint <- function(message) {
 
-  # The precision guard of RoBMA's samplers: the data, not the sampler. The
-  # ordinary samplers return draws for such data without a warning, so the
-  # hint names no sampler option.
+  # The precision guard of RoBMA's samplers: the data or the chain's state,
+  # not the sampler. The ordinary samplers return draws for such data without
+  # a warning, so the hint names no sampler option.
   if (grepl("[RoBMA_likelihood_not_representable]", message, fixed = TRUE)) {
     return(paste0(
-      message, "\nThe likelihood of the sampled state cannot be resolved in double precision: an estimate lies tens ",
-      "of thousands of standard deviations from every value the model can give it. The ordinary samplers would ",
+      message, "\nThe likelihood of the chain's current state cannot be resolved in double precision: at that state ",
+      "an estimate lies tens of thousands of standard deviations from its mean. The ordinary samplers would ",
       "return draws for such data without a warning. Check the estimates and their standard errors, their units ",
-      "and the model."
+      "and the model. A chain can also reach such a state while other chains sample the same data; other initial ",
+      "values or a longer adaptation may then avoid it."
     ))
   }
 

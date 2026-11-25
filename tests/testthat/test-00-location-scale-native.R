@@ -362,6 +362,10 @@ test_that("after adaptation the move's invariance is also checked in log-likelih
     }, error = conditionMessage)
     expect_match(error, paste0("Location scale move [RoBMA_location_scale_invariance]: the log density of this ",
                                "likelihood node changed"), fixed = TRUE)
+    # a fit that stops with this error signals its condition classes
+    condition <- tryCatch(RoBMA:::.stop_fit_errors(list(errors = error, has_posterior = FALSE)), error = identity)
+    expect_s3_class(condition, c("RoBMA_location_scale_invariance", "RoBMA_sampler_error", "error", "condition"),
+                    exact = TRUE)
     after <- .scale_hook("state", owner, 0L)
     expect_identical(after$values, graph$x)
     expect_identical(after$children, before$children)

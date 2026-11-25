@@ -65,14 +65,18 @@ test_that("the location block stops when the likelihood of the state cannot be r
   RoBMA.options(sampler.joint = "location")
   for (x3 in c(1e-30, 3e-18)) {
     data <- data.frame(y = c(.8, .8, 1e8), se = c(1, 1, 1e-5), x = c(1, 1, x3))
-    message <- tryCatch({
+    condition <- tryCatch({
       .location_one_chain(BMA(
         yi = y, sei = se, mods = ~ 0 + x, data = data, measure = "GEN", prior_mods = prior("normal", list(0, 1)),
         prior_heterogeneity = prior("point", list(0)), prior_heterogeneity_null = FALSE,
         prior_unit_information_sd = 1, standardize_continuous_predictors = FALSE, adapt = 100L, burnin = 100L,
         sample = 500L, chains = 1L, seed = 516L, autofit = FALSE, silent = TRUE))
-      ""
-    }, error = conditionMessage)
+      NULL
+    }, error = identity)
+    # the fitting error is signalled with its condition classes (?selection_sampler_info)
+    expect_s3_class(condition, c("RoBMA_likelihood_not_representable", "RoBMA_sampler_error", "error", "condition"),
+                    exact = TRUE)
+    message <- conditionMessage(condition)
     expect_true(startsWith(message, paste0("Error in node yi[3]
 Location block sampler ",
                                            "[RoBMA_likelihood_not_representable]: the log density of this ",
@@ -161,6 +165,16 @@ test_that("the factory verifies each design column against its baseline, and an 
   expect_match(error, "node y", fixed = TRUE)
   jags$sync()
   expect_identical(jags$state()[[1L]], entry)
+  # a fit that stops with this error signals its condition classes and keeps
+  # the message; a fitting error without a bracketed name keeps its plain class
+  condition <- tryCatch(RoBMA:::.stop_fit_errors(list(errors = error, has_posterior = FALSE)), error = identity)
+  expect_s3_class(condition, c("RoBMA_location_untracked_mean", "RoBMA_sampler_error", "error", "condition"),
+                  exact = TRUE)
+  expect_identical(conditionMessage(condition), error)
+  plain <- tryCatch(RoBMA:::.stop_fit_errors(list(errors = "some other error", has_posterior = FALSE)),
+                    error = identity)
+  expect_false(inherits(plain, "RoBMA_sampler_error"))
+  expect_identical(conditionMessage(plain), "some other error")
 })
 
 

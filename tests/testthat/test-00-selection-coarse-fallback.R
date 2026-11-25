@@ -402,16 +402,18 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
   }
   expect_identical(.sampler_error_hint("Error in node mu\nSlicer stuck"), "Error in node mu\nSlicer stuck")
 
-  # the precision guard of every sampler: a hint about the data, no sampler option
+  # the precision guard of every sampler: a hint about the data and the
+  # chain's state, no sampler option
   for (sampler in c("Corrected slice", "Corrected slice (block)", "Corrected slice (gated block)",
                     "Corrected finite sampler", "Location block sampler", "Location scale move")) {
     message <- paste0("Error in node y[3]\n", sampler, " [RoBMA_likelihood_not_representable]: the log density ",
                       "of this likelihood node is -5e+25 at the chain's current state")
     expect_identical(.sampler_error_hint(message), paste0(
-      message, "\nThe likelihood of the sampled state cannot be resolved in double precision: an estimate lies ",
-      "tens of thousands of standard deviations from every value the model can give it. The ordinary samplers ",
+      message, "\nThe likelihood of the chain's current state cannot be resolved in double precision: at that ",
+      "state an estimate lies tens of thousands of standard deviations from its mean. The ordinary samplers ",
       "would return draws for such data without a warning. Check the estimates and their standard errors, their ",
-      "units and the model."
+      "units and the model. A chain can also reach such a state while other chains sample the same data; other ",
+      "initial values or a longer adaptation may then avoid it."
     ), info = sampler)
   }
 

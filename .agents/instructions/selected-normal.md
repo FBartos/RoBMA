@@ -1129,18 +1129,29 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   entry's changed children, the block kernels' entry density in both kernels,
   the scalar corrected slice's entry density and the exact slicer's first
   evaluation, the screened indicator's exact score of the current level and
-  its enumeration's, the scale move's check in log-likelihood units) it sums
+  its enumeration's, the scale move's evaluation of the children) it sums
   the absolute values of the
   likelihood terms of that evaluation (`M`, the children's log densities,
-  priors excluded); after adaptation `M > 1e9` raises
+  priors excluded): the terms the move differences, at the chain's state,
+  not every value the model can give (a chain can sit in such a state while
+  other chains sample the same data). After adaptation `M > 1e9` raises
   `[RoBMA_likelihood_not_representable]` naming the node with the largest term
   and its value, and `.sampler_error_hint()` replaces the sampler hint with one
-  about the data (the ordinary samplers return draws for such data without a
-  warning, so no sampler option is a remedy). While adapting nothing is raised
+  about the data and the chain's state (the ordinary samplers return draws for
+  such data without a warning, so no sampler option is a remedy; other initial
+  values or a longer adaptation can avoid a state that other chains avoid).
+  While adapting nothing is raised
   (a chain may start far from the data), and a proposed state is never checked
-  (a huge term rejects it as before). Up to the limit, sums of the terms are
-  differenced with an error below 1e-6, so the bias-side samplers keep their
-  totals. The guard sees only the state the chain is in; L2's evidences are
+  (a huge term rejects it as before). Below the limit a sum of `n` terms
+  accumulated in double precision loses up to about `(n - 1) u M` (`u =
+  2^-53`; measured up to 9e-6 at `M = 1e9`, `n = 10,000`), which bounds the
+  error of a difference of two such totals that the bias-side samplers
+  keep. At the R boundary `.stop_fit_errors()` signals a fitting error whose
+  message carries a bracketed name of RoBMA's samplers with that name as its
+  condition class and the parent class `RoBMA_sampler_error`
+  (`RoBMA_likelihood_not_representable`, `RoBMA_location_untracked_mean`,
+  `RoBMA_location_scale_invariance`; the message is kept and the classes are
+  listed in `?selection_sampler_info`). The guard sees only the state the chain is in; L2's evidences are
   evaluated at its base point, so L2 applies the same limit there and makes
   no proposal above it (`swap_unrepresentable`, the L2 paragraph above), a
   rule of what the move holds fixed that keeps the kernel exact. L2's
