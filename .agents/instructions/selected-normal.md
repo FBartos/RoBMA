@@ -737,7 +737,21 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   and a mean it did not move its entry mean, both to within 1e-6 of the row's
   conditional SD plus 1e-12 of the size of the means and design terms, so that
   an entry the probe missed is never hidden by another coefficient that moves
-  the same child; either is the error `RoBMA_location_untracked_mean` naming
+  the same child. A moved mean's tolerance also holds the rounding of the
+  tracked computation: the tracked mean is the entry mean plus each probed
+  slope times its coordinate's change over the sweep, and each slope is a
+  difference of two probed means at a step of one (the design's and the bias
+  slopes' at the factory's baseline, the latent's at the update's entry), so
+  its error is at most `4 eps` times the size of those means' terms
+  (`column_check`'s bound; `X_size`, `column_size`, and per update `_d_size`,
+  the entry's terms, which can cancel), times the coordinate's absolute
+  change. Without it, rows at `3000`, `6000` and `8000 / 1e-6` (which the
+  `GEN` measure admits) stopped some seeds in their first adapting sweeps: the
+  latent, entering at a state where an intercept of about 6,300 and the
+  cluster effect cancelled, jumped by 2e4 to 5e4 with a slope probed to
+  4e-13, and the tracked means differed by up to 2.9e-8 against a
+  tolerance of 1.6e-8. The comparison runs while adapting too. Either is
+  the error `RoBMA_location_untracked_mean` naming
   the child (the entry state restored; mutants 12, 16 and 18 of the test
   hook). An unmoved mean was once required to be bitwise unchanged, but the
   graph's recomputation of it need not be (a Linux build with GCC 10.2.1 and

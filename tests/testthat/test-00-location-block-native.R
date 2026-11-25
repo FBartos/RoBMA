@@ -298,6 +298,37 @@ test_that("an unmoved child whose mean the graph changed enters the correction w
 })
 
 
+test_that("a tracked mean may carry the probed slopes' rounding times the coordinates' changes", {
+
+  skip_if_not_installed("rjags")
+  # The bias fixture with its first row at y1 / 1e-6 (rows the GEN measure
+  # admits): in the first adapting sweeps of these seeds the cluster latent
+  # jumps by 2e4 to 5e4 from a state where an intercept of about 6,300 and the
+  # cluster effect cancel, and the latent's slope, probed at that entry,
+  # carries 4e-13 to 5e-13 of rounding. The tracked means differed from the
+  # graph's by 7e-9 to 2.9e-8, above the tolerance of 1e-12 of the means'
+  # size (6e-9 to 1.6e-8): a false design error. With each slope's rounding
+  # bound times its coordinate's change in the tolerance of a moved mean,
+  # these seeds adapt and sample (the comparison runs while adapting too;
+  # mutants 12 and 16 above still fail it).
+  for (case in list(c(3000, 5), c(6000, 2), c(6000, 10), c(8000, 4), c(8000, 10))) {
+    setup <- .bias_setup()
+    setup$y[1]  <- case[1]
+    setup$se[1] <- 1e-6
+    setup$residual_sd <- setup$se * sqrt(1 - .85)
+    setup$loading     <- setup$se * sqrt(.85)
+    jags <- .location_compile(.bias_model(setup),
+                              inits = list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = as.integer(case[2])))
+    error <- tryCatch({
+      rjags::adapt(jags, 500L, end.adaptation = TRUE)
+      stats::update(jags, n.iter = 200L, progress.bar = "none")
+      NULL
+    }, error = conditionMessage)
+    expect_null(error, label = paste("row", case[1], "seed", case[2]))
+  }
+})
+
+
 test_that("the design is verified row by row, and a tracked mean that misses an entry is an error", {
 
   skip_if_not_installed("rjags")

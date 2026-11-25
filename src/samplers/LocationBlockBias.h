@@ -31,6 +31,7 @@ struct SlopeSpec {
   unsigned pos = 0;                   // position in the block's member values
   ScalarDist const *dist = nullptr;   // the source's prior (with its bounds)
   Vec column;                         // per row: mean change per unit physical slope (probed)
+  Vec column_size;                    // per row: the size of the means at its probe (column_check)
   std::vector<unsigned> children;     // children with a nonzero column entry
 };
 
@@ -446,7 +447,11 @@ inline bool probe_bias(GraphView const &view, Shared &S, BiasSpec &B)
       v[spec.pos] = 2.0;
       means(mu2);
       spec.column.assign(S.rows, 0.0);
-      for (unsigned r = 0; r < S.rows; ++r) spec.column[r] = mu1[r] - mu0[r];
+      spec.column_size.assign(S.rows, 0.0);
+      for (unsigned r = 0; r < S.rows; ++r) {
+        spec.column[r] = mu1[r] - mu0[r];
+        spec.column_size[r] = std::max(std::fabs(mu0[r]), std::max(std::fabs(mu1[r]), std::fabs(mu2[r])));
+      }
       // verified as the location columns are (column_check)
       double slope_scale = 0.0;
       const ColumnCheck check = column_check(mu0, mu1, mu2, 1.0, &slope_scale);

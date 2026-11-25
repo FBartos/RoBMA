@@ -626,6 +626,9 @@ struct Shared {
   std::vector<unsigned> coord_group;
   unsigned p = 0, rows = 0, wsize = 0, length = 0;
   Vec X;                                   // rows x p, row-major
+  // rows x p: the size of the means at each entry's probe (column_check),
+  // whose rounding 4 eps size bounds the entry's error per unit
+  Vec X_size;
   std::unique_ptr<GraphView> latent_view;  // latents only, for the per-update probe
   SelNormCoarseSettings settings;
   SelNormCoarseSettings fit_settings;      // the coarsest rung of each schedule (Newton fits)
@@ -1132,6 +1135,9 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
   std::vector<char> _g;            // gate on
   Vec _beta, _b, _z;               // slabs, physical coefficients, latents
   Vec _y, _mean_entry, _mean, _r, _wr, _d, _W;
+  // the update's entry: the physical coefficients and, per row, the size of
+  // the terms of the means at the latent probe (prepare())
+  Vec _b_entry, _d_size;
   std::vector<char> _selected, _value_ok, _dirty;
   Vec _value, _value_entry;        // inner-target terms of the selection children
   Vec _fit_value;                  // the coarse rung's terms at the current state
@@ -1515,14 +1521,36 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     std::fill(_h.begin(), _h.end(), 0.0);
     std::fill(_u.begin(), _u.end(), 0.0);
     std::fill(_a.begin(), _a.end(), 0.0);
+    // with the size of the means' terms at the latent probe (the entry and the
+    // latents one above it; the bias slopes at the entry label): the rounding
+    // of _d is at most 4 eps times it (correct(), the tracked comparison)
+    _b_entry = _b;
+    double slope_entry[2] = {0.0, 0.0};
+    if (sh.bias != nullptr) {
+      for (int b = 0; b < 2; ++b) {
+        SlopeSpec const &spec = sh.bias->slope[b];
+        if (spec.source != nullptr && spec.label == static_cast<int>(_entry[sh.bias->pos])) slope_entry[b] = _entry[spec.pos];
+      }
+    }
     Vec r0(sh.rows), WX, Wd, Wr0;
     for (ChildSpec const &child : sh.children) {
       for (unsigned i = 0; i < child.n; ++i) {
         const unsigned row = child.row0 + i;
         long double v = _r[row];
-        for (unsigned k = 0; k < p; ++k) v += static_cast<long double>(sh.X[row * p + k]) * _b[k];
-        if (child.latent >= 0) v += static_cast<long double>(_d[row]) * _z[child.latent];
+        double size = std::fabs(_mean_entry[row]) + std::fabs(_d[row]);
+        for (unsigned k = 0; k < p; ++k) {
+          v += static_cast<long double>(sh.X[row * p + k]) * _b[k];
+          size += std::fabs(sh.X[row * p + k] * _b[k]);
+        }
+        if (child.latent >= 0) {
+          v += static_cast<long double>(_d[row]) * _z[child.latent];
+          size += std::fabs(_d[row] * _z[child.latent]);
+        }
+        for (int b = 0; b < 2 && sh.bias != nullptr; ++b) {
+          if (slope_entry[b] != 0.0) size += std::fabs(sh.bias->slope[b].column[row] * slope_entry[b]);
+        }
         r0[row] = static_cast<double>(v);
+        _d_size[row] = size;
       }
     }
     std::vector<long double> M(p * p, 0.0L), v(p, 0.0L);
@@ -3693,8 +3721,10 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
     // never a silent rejection. A tracked mean is compared with a tolerance of
     // 1e-6 of the row's conditional SD (the precision matrix's diagonal) plus
     // 1e-12 of the means' size (the rounding of the block's accumulated
-    // changes and of the graph's expression), so that a design entry the probe
-    // missed is not hidden by another coefficient that moves the same child.
+    // changes and of the graph's expression) and, for a moved row, the rounding
+    // of the probed slopes times the coordinates' changes over the sweep, so
+    // that a design entry the probe missed is not hidden by another coefficient
+    // that moves the same child. The comparison runs while adapting too.
     // An unmoved mean is compared with its entry mean under the same
     // tolerance (a diagnostic of the design: a dependence the probe missed
     // changes the mean by far more than rounding). Its density is never left
@@ -3735,7 +3765,38 @@ class LocationBlock : public MutableSampleMethod, public CorrectedSamplerWindow 
         double size = std::max(std::fabs(_mean_entry[row]), std::max(std::fabs(mean[i]), std::fabs(expected)));
         for (unsigned k = 0; k < S.p; ++k) size += std::fabs(S.X[static_cast<std::size_t>(row) * S.p + k] * _b[k]);
         if (child.latent >= 0) size += std::fabs(_d[row] * _z[static_cast<unsigned>(child.latent)]);
-        const double tolerance = tracked_mean_tolerance * sd + tracked_mean_rounding * size;
+        double tolerance = tracked_mean_tolerance * sd + tracked_mean_rounding * size;
+        if (moved) {
+          // A tracked mean is the entry mean plus the probed slopes times the
+          // coordinates' changes, so it carries each slope's rounding times
+          // its coordinate's change over the sweep: a slope is a difference of
+          // two probed means at a step of one (the design's and the bias
+          // slopes' at the factory's baseline, the latent's at the update's
+          // entry), so its error is at most 4 eps times the size of those
+          // means' terms (column_check's bound; for the latent the entry's
+          // terms, which can cancel: an intercept of 6,300 against a cluster
+          // effect of -6,300, then a latent change of 5e4, missed the
+          // tolerance above by twice it while adapting).
+          const double eps = std::numeric_limits<double>::epsilon();
+          long double slopes = 0;
+          for (unsigned k = 0; k < S.p; ++k) {
+            const std::size_t at = static_cast<std::size_t>(row) * S.p + k;
+            slopes += static_cast<long double>(S.X_size[at]) * std::fabs(_b[k] - _b_entry[k]);
+          }
+          if (child.latent >= 0) {
+            const unsigned lat = static_cast<unsigned>(child.latent);
+            slopes += static_cast<long double>(_d_size[row]) * std::fabs(_z[lat] - _entry[S.latent_pos[lat]]);
+          }
+          if (bias()) {
+            for (int b = 0; b < 2; ++b) {
+              SlopeSpec const &spec = S.bias->slope[b];
+              if (spec.source == nullptr) continue;
+              const double entry_slope = spec.label == _label_entry ? _entry[spec.pos] : 0.0;
+              slopes += static_cast<long double>(spec.column_size[row]) * std::fabs(physical_at(_label, b) - entry_slope);
+            }
+          }
+          tolerance += 4.0 * eps * static_cast<double>(slopes);
+        }
         if (pinned) expected += (S.mutant == 22 ? 0.1 : 10.0) * tolerance;
         const double discrepancy = std::fabs(mean[i] - expected);
         if (!moved && !_adapting) {
@@ -3861,6 +3922,8 @@ public:
     _r.assign(S.rows, 0.0);
     _wr.assign(S.rows, 0.0);
     _d.assign(S.rows, 0.0);
+    _d_size.assign(S.rows, 0.0);
+    _b_entry.assign(S.p, 0.0);
     _W.assign(S.wsize, 0.0);
     _selected.assign(S.children.size(), 0);
     _value_ok.assign(S.children.size(), 0);
@@ -4152,6 +4215,7 @@ bool probe_design(GraphView const &view, Shared &S)
     means(mu0);
     for (double x : mu0) if (!std::isfinite(x)) ok = fail("design probe: a baseline mean is not finite");
     S.X.assign(static_cast<std::size_t>(S.rows) * p, 0.0);
+    S.X_size.assign(static_cast<std::size_t>(S.rows) * p, 0.0);
     // the sum of the columns' scales (column_check), the tolerance unit of the
     // gate-off and mixed points
     double total_scale = 0.0;
@@ -4183,7 +4247,10 @@ bool probe_design(GraphView const &view, Shared &S)
           ok = fail("design probe: the means are not linear in a coordinate");
         }
         total_scale += scale;
-        for (unsigned r = 0; r < S.rows; ++r) S.X[r * p + k] = mu1[r] - mu0[r];
+        for (unsigned r = 0; r < S.rows; ++r) {
+          S.X[r * p + k] = mu1[r] - mu0[r];
+          S.X_size[r * p + k] = std::max(std::fabs(mu0[r]), std::max(std::fabs(mu1[r]), std::fabs(mu2[r])));
+        }
       }
       if (ok && g.gate != nullptr) {
         // the gate off hides the slab
