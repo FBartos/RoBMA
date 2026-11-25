@@ -357,6 +357,16 @@
     }
   }
 
+  // The sum of the label masses other than label j's, summed directly (L0's
+  // 1 - p_j up to the normalization, for the proposal, the acceptance and the
+  // record alike).
+  long double other_mass(std::vector<long double> const &mass, int j) const
+  {
+    long double out = 0;
+    for (std::size_t l = 0; l < mass.size(); ++l) if (static_cast<int>(l) + 1 != j) out += mass[l];
+    return out;
+  }
+
   // ---- L0: the screened label update. Liu's Metropolized Gibbs step on the
   // label's surrogate full conditional at the current working state (every
   // label with prior mass: the surrogate terms of the coarse-capable children,
@@ -385,14 +395,15 @@
     for (double v : _label_score) maximum = std::max(maximum, v);
     if (!std::isfinite(maximum) || !std::isfinite(_label_score[static_cast<std::size_t>(k - 1)])) return;
     std::vector<long double> mass(static_cast<std::size_t>(B.levels), 0.0L);
-    long double total = 0;
     for (int l = 1; l <= B.levels; ++l) {
       const double v = _label_score[static_cast<std::size_t>(l - 1)];
       mass[static_cast<std::size_t>(l - 1)] = v > negative_infinity ? std::exp(static_cast<long double>(v - maximum)) : 0.0L;
-      total += mass[static_cast<std::size_t>(l - 1)];
     }
-    const long double others = total - mass[static_cast<std::size_t>(k - 1)];
-    label_record(k, mass, total);
+    // the masses of the labels other than the current one and the proposed one,
+    // summed directly at both endpoints (never total - mass, which loses a
+    // small positive sum against a dominant label), shared with the record
+    const long double others = other_mass(mass, k);
+    label_record(k, mass);
     if (!(others > 0)) return;
     bias_tally(bias_label, 0);
     long double draw = static_cast<long double>(rng->uniform()) * others;
@@ -404,7 +415,7 @@
       draw -= mass[static_cast<std::size_t>(l - 1)];
     }
     if (proposed == 0) return;
-    const long double others_at = total - mass[static_cast<std::size_t>(proposed - 1)];
+    const long double others_at = other_mass(mass, proposed);
     const long double ratio = others / others_at;
     if (!(ratio >= 1.0L || static_cast<long double>(rng->uniform()) < ratio)) return;
     bias_tally(bias_label, 2);
@@ -1822,19 +1833,17 @@
   // An L0 update from label k (its family's direction), from the label
   // masses exp(score - max) it computed: the probability of moving to a label
   // of the other family (Liu's Metropolized Gibbs: p_j / max(1 - p_k, 1 - p_j),
-  // with 1 - p_k summed over the other labels rather than subtracted) and
+  // with 1 - p_k and 1 - p_j summed over the other labels, other_mass, as the
+  // update sums them) and
   // log P(other family) - log P(own family) of the surrogate full
   // conditional, from the scores (log-sum-exp).
-  void label_record(int k, std::vector<long double> const &mass, long double total)
+  void label_record(int k, std::vector<long double> const &mass)
   {
     if (_adapting) return;
     BiasSpec const &B = bspec();
     const bool gaussian = B.gaussian(k);
     const int d = gaussian ? 1 : 0;
-    long double others = 0;
-    for (int l = 1; l <= B.levels; ++l) {
-      if (l != k) others += mass[static_cast<std::size_t>(l - 1)];
-    }
+    const long double others = other_mass(mass, k);
     long double cross = 0;
     double own_max = negative_infinity, other_max = negative_infinity;
     for (int l = 1; l <= B.levels; ++l) {
@@ -1845,7 +1854,7 @@
       }
       other_max = std::max(other_max, v);
       const long double m = mass[static_cast<std::size_t>(l - 1)];
-      if (m > 0) cross += m / std::max(others, total - m);
+      if (m > 0) cross += m / std::max(others, other_mass(mass, l));
     }
     auto log_sum_exp = [&](bool family_gaussian, double top) {
       if (!(top > negative_infinity)) return negative_infinity;

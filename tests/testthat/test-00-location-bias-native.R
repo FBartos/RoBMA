@@ -376,3 +376,46 @@ test_that("fixed component slots and reversed composites keep a small discrete c
   forward <- 0.5 * (V %*% L %*% J) + 0.5 * (J %*% V %*% L)
   expect_gt(stationary(forward), 1e-3)
 })
+
+
+test_that("the label update sums the other labels' masses directly at both endpoints", {
+
+  skip_if_not_installed("rjags")
+  # Labels with a prior mass of 1e-30 against a dominant Gaussian label: the
+  # sum of the others' masses subtracted from the total was zero, so L0 never
+  # proposed although its record reported a positive crossing probability.
+  # Summed directly, every update proposes (and essentially never moves);
+  # labels without prior mass are never proposed.
+  run <- function(weights) {
+    setup <- .bias_setup()
+    setup$bias_weights <- weights
+    RoBMA:::.location_bias_evidence_read()
+    chain <- .location_hand_chain(.bias_model(setup), "bias_indicator", draws = 100L, burnin = 0L, adapt = 1L,
+                                  config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 0L, trace = -1L))
+    list(chain = chain, evidence = RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ])
+  }
+  tiny <- run(c(1, 1e-30, 1e-30, 1e-30))
+  expect_identical(tiny$chain$decision, "claimed with the bias label")
+  expect_identical(unname(tiny$evidence[["leave_gaussian_label_updates"]]), 100)
+  expect_gt(tiny$evidence[["leave_gaussian_label_probability_sum"]], 0)
+  expect_identical(unname(tiny$evidence[["label_proposed"]]), 100)
+  expect_true(all(tiny$chain$draws[, "bias_indicator"] == 1))
+  # Zero support of the other family: the factory refuses labels without
+  # prior mass, so here the selection label has no likelihood (its step
+  # weight of the bin observed for the first estimate is zero). From the
+  # Gaussian labels L0 never proposes it and records no crossing probability.
+  setup <- .bias_setup()
+  setup$y[1L] <- -0.25
+  setup$omega <- 0
+  jags <- .location_compile(.bias_model(setup), inits = list(bias_indicator = 1L, .RNG.name = "base::Mersenne-Twister",
+                                                             .RNG.seed = 4127L))
+  rjags::adapt(jags, 1L, end.adaptation = TRUE)
+  RoBMA:::.location_bias_evidence_read()
+  draws <- as.matrix(rjags::coda.samples(jags, "bias_indicator", n.iter = 100L, progress.bar = "none")[[1L]])
+  zero <- RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ]
+  expect_true(all(draws[, "bias_indicator"] != 2))
+  expect_identical(unname(zero[["leave_gaussian_label_updates"]]), 100)
+  expect_identical(unname(zero[["leave_gaussian_label_probability_sum"]]), 0)
+  expect_identical(unname(zero[["leave_gaussian_label_crossings"]]), 0)
+  expect_gt(zero[["label_proposed"]], 0)
+})
