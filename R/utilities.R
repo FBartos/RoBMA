@@ -597,7 +597,12 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' convergence checks. A base name selects all indexed elements. Defaults to
 #' \code{NULL}, which checks every eligible parameter.
 #' @param allow_not_assessable whether requested sampled parameters with
-#' undefined diagnostics may be ignored. Defaults to \code{FALSE}.
+#' undefined diagnostics may be ignored by the convergence checks. Defaults to
+#' \code{FALSE}. More samples do not make them assessable, so automatic
+#' fitting never extends a model for them, whatever this setting: it stops
+#' once every parameter that can be assessed meets the criteria. With
+#' \code{set_convergence_checks(allow_not_assessable = FALSE)}, the fitted
+#' model then reports the parameters whose diagnostics are not assessable.
 #' @param max_time list with the time and unit specifying the maximum
 #' autofitting process per model. Passed to \link[base]{difftime} function
 #' (possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
@@ -607,20 +612,19 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' extension extends the fit when the criteria are not satisfied, or
 #' \code{"auto"} (the default) to size each extension from the convergence
 #' check that failed: BayesTools projects the additional draws that the
-#' parameter furthest from its criteria needs (from its ESS and MCMC errors;
-#' at least as many draws again for an R-hat above \code{max_Rhat}, and for a
-#' parameter whose diagnostics are not assessable unless
-#' \code{allow_not_assessable}) and adds a tenth, rounded up to a multiple of
-#' 100; the extension is then at most twice the current draws per chain
-#' (rounded down to a multiple of 100), at least 1000, and at most the draws
+#' parameter furthest from its criteria needs (from its ESS and MCMC errors,
+#' and at least as many draws again for an R-hat above \code{max_Rhat};
+#' diagnostics that are not assessable add nothing) and adds a tenth,
+#' rounded up to a multiple of 100; the extension is then at most twice the
+#' current draws per chain (rounded down to a multiple of 100), at least
+#' 1000, and at most the draws
 #' per chain that the time left under \code{max_time} allows at the rate
 #' observed so far, including adaptation and burn-in (rounded down to a
 #' multiple of 100; automatic fitting stops when that is below 100). Without
 #' \code{max_time}, each extension of a model that cannot converge
-#' multiplies the draws per chain by about 2.1 (a failed R-hat or a parameter
-#' whose diagnostics are not assessable) and up to 3 (large ESS or error
-#' deficits), up to \code{max_extend}. See \code{autofit_control} in
-#' \code{\link[BayesTools]{JAGS_fit}}.
+#' multiplies the draws per chain by about 2.1 (a failed R-hat) and up to 3
+#' (large ESS or error deficits), up to \code{max_extend}. See
+#' \code{autofit_control} in \code{\link[BayesTools]{JAGS_fit}}.
 #' @param restarts number of times new initial values should be generated in case a
 #' model fails to initialize. Defaults to \code{10}.
 #' @param max_extend number of times after which the automatic fitting function is stopped.
@@ -633,6 +637,10 @@ for (option_name in names(.RoBMA_option_schema)) {
 #'
 #' The autofit control manages computational resources by setting maximum time limits and
 #' determining how many additional samples to draw if convergence criteria are not met.
+#' Automatic fitting stops once every parameter whose diagnostics can be
+#' assessed meets its criteria, also when the diagnostics of other parameters
+#' are not assessable (see \code{allow_not_assessable}), or at \code{max_time}
+#' or \code{max_extend}.
 #' The convergence checks determine the quality standards that fitted models must meet.
 #' Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{restarts}, and
