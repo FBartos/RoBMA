@@ -366,16 +366,20 @@ test_that("random point hypotheses follow quantity-specific policy", {
 
 test_that("random-effect variances are tested through their standard deviations", {
 
-  skip_if_missing_fits("BMA.mv_random_components")
-  fit <- load_fit("BMA.mv_random_components", validate = FALSE)
+  skip_if_missing_fits("BMA.mv_random_components_iwmde")
+  fit <- load_fit("BMA.mv_random_components_iwmde", validate = FALSE)
   # 'tau2 = v^2' is 'tau = v' with the prior and posterior densities divided
   # by the derivative 2 * v of the square map, so every density method gives
   # the same Bayes factor for the gated SD and its variance.
   value <- 0.06
   for (method in c("KDE", "qCMDE", "IWMDE")) {
-    # Compare the IWMDE change of variables on its full eligible-row census;
-    # a 50-row subsample can fail the active-mass diagnostic before the test.
-    control <- switch(method, IWMDE = list(n_points = 20L, samples = Inf),
+    # Compare the IWMDE change of variables on a fixed sample of 4000 of the
+    # fit's about 7300 eligible rows (the census takes about twice as long).
+    # Its normalization mass is rejected above a 10% error: refits of this
+    # fit under seeds 1-20 gave at most 5.6% with this sample and 10.4% with
+    # 2000 rows; a 50-row sample, and the census of a short fit, can fail it
+    # before the test (this fit's draws are set for it in test-01-BMA.mv.R).
+    control <- switch(method, IWMDE = list(n_points = 20L, samples = 4000L),
       qCMDE = list(n_points = 20L, samples = 50L))
     run <- function(statement) {
       suppressWarnings(hypothesis(

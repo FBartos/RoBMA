@@ -760,11 +760,11 @@
   fit_priors <- .create_fit_priors(data = data, priors = priors)
 
   # Selection fits count the corrected sampler's work per fit, in every process
-  # that runs chains; an extension passes the report explicitly, since fits
-  # saved before the record existed store no report callback.
+  # that runs chains, and so do fits that declare the location block sampler;
+  # an extension passes the report explicitly, since fits saved before the
+  # record existed store no report callback.
   selection_fit  <- .is_priors_weightfunction(priors)
   extension      <- extend && length(object[["fit"]]) > 0L
-  sampler_report <- if (selection_fit) .selection_sampler_report_callback() else NULL
 
   ### fit the model
   if (!extension) {
@@ -773,6 +773,10 @@
     fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
     model_syntax     <- .create_model_syntax(data = data, priors = priors)
     declarations     <- .fit_sampler_declarations(data = data, priors = priors, fit_priors = fit_priors)
+    sampler_report   <- .sampler_report_callback(
+      selection = selection_fit,
+      location  = "RoBMA::LocationBlock" %in% c(attr(declarations[["sampler_joint"]], "sampler", exact = TRUE),
+                                                attr(declarations[["sampler_joint"]], "fallback", exact = TRUE)))
 
     fit <- BayesTools::JAGS_fit(
       model_syntax          = model_syntax,
@@ -812,6 +816,10 @@
 
   } else {
 
+    declared       <- attr(object[["fit"]], "sampler_declarations", exact = TRUE)
+    sampler_report <- .sampler_report_callback(
+      selection = selection_fit,
+      location  = identical(declared[["robma"]][["joint"]][["sampler"]], "RoBMA::LocationBlock"))
     fit <- BayesTools::JAGS_extend(
       fit                = object[["fit"]],
       autofit_control    = autofit_control,
@@ -848,6 +856,8 @@
       requested <- declarations[["requested"]]
       auto_dispatch <- attr(declarations[["sampler_joint"]], "auto_dispatch", exact = TRUE)
       requested[["joint_budget"]] <- auto_dispatch[["budget"]]
+      # the automatic fallback from the Gaussian candidate to the location block
+      if (!is.null(auto_dispatch[["sampler"]])) requested[["joint_sampler"]] <- auto_dispatch[["sampler"]]
     }
     fit <- .sampler_request_record(fit, requested)
     attr(fit, "selection_runtime") <- attr(
@@ -905,7 +915,10 @@
 }
 
 
-# Stop before post-processing when fitting produced no posterior.
+# Stop before post-processing when fitting produced no posterior. An error of
+# RoBMA's samplers whose message carries a bracketed condition name, such as
+# [RoBMA_likelihood_not_representable], is signalled with that name as its
+# class and the shared parent class RoBMA_sampler_error (the message is kept).
 .stop_fit_errors <- function(fit) {
 
   fit_errors <- fit[["errors"]]
@@ -916,7 +929,13 @@
     return(invisible(TRUE))
   }
   if (length(fit_errors) > 0L) {
-    stop(paste(fit_errors, collapse = "\n"), call. = FALSE)
+    message <- paste(fit_errors, collapse = "\n")
+    tokens  <- regmatches(message, gregexpr("\\[RoBMA_[A-Za-z0-9_]+\\]", message))[[1L]]
+    classes <- unique(substr(tokens, 2L, nchar(tokens) - 1L))
+    if (length(classes) > 0L) {
+      stop(errorCondition(message, class = c(classes, "RoBMA_sampler_error"), call = NULL))
+    }
+    stop(message, call. = FALSE)
   }
 
   stop(

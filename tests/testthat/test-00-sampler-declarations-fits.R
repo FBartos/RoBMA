@@ -18,14 +18,16 @@ context("Sampler declarations in fitted models")
 }
 
 # Compare gate and block declarations with the samplers JAGS assigns.
-# The corrected selection sampler is off unless `sampler` says otherwise.
+# The corrected selection sampler is off unless `sampler` says otherwise; the
+# weights keep the ordinary layout (one gate per weight coordinate).
 .declaration_fit <- function(constructor, args, declarations, sample = 100L, chains = 1L,
                              sampler = "slice") {
 
-  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "sampler.joint", "selection.sampler")]
+  previous <- RoBMA::RoBMA.options()[c("sampler.blocks", "sampler.gates", "sampler.joint", "selection.sampler",
+                                       "sampler.nested.weights")]
   on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
   RoBMA::RoBMA.options(sampler.blocks = declarations, sampler.gates = declarations,
-                       sampler.joint = "off", selection.sampler = sampler)
+                       sampler.joint = "off", selection.sampler = sampler, sampler.nested.weights = FALSE)
   args <- utils::modifyList(list(
     measure = "SMD", chains = chains, adapt = 50L, burnin = 50L, sample = sample, seed = 1L,
     parallel = FALSE, silent = TRUE,
@@ -358,7 +360,12 @@ test_that("an ensemble's allocation block goes to the corrected block sampler ex
     # the block is always declared; the corrected block sampler takes it when the
     # factor block's coarse rule is affordable, BayesTools' otherwise
     expect_gt(NROW(blocks), 0L)
-    expect_identical(samplers[["Sampler"]][allocation_sd],
+    # under the location block's heterogeneity scale the block's sampler runs
+    # embedded, and the scale record names it
+    allocation <- samplers[["Sampler"]][allocation_sd]
+    scale <- attr(fit[["fit"]], "sampler_declarations", exact = TRUE)[["robma"]][["joint"]][["scale"]]
+    if (identical(allocation, "RoBMA::LocationBlock")) allocation <- unique(scale[["decisions"]][["embedded"]])
+    expect_identical(allocation,
                      if (case$engaged) "RoBMA::CoarseCorrectedBlock" else "BayesTools::FactorSlice", info = label)
     record <- attr(fit[["fit"]], "selection_sampler", exact = TRUE)
     expect_false("allocation_block_withheld" %in% names(record))

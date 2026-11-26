@@ -28,8 +28,13 @@
 #include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CorrectedSampler.h"
 #include "samplers/CoarseCorrectedBlock.h"
+#include "samplers/ScreenedFinite.h"
+#include "distributions/selnorm-node-memo.h"
+#include "samplers/LocationBlockReport.h"
+#include "samplers/StepRowNormalizer.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
+#include "distributions/DSELNORMSTEPSWITCH.h"
 #include "distributions/selnorm-jags-bounds.h"
 
 #ifndef FCONE
@@ -597,6 +602,25 @@ extern "C" SEXP RoBMA_selnorm_factor_rule_affordable(SEXP order, SEXP rank)
   ROBMA_NATIVE_END
 }
 
+// An evidence record (rows of `columns.size()` values) as a numeric matrix with
+// those column names.
+static SEXP evidence_matrix(std::vector<double> const &values, std::vector<char const *> const &columns)
+{
+  const int width = static_cast<int>(columns.size());
+  const int rows = static_cast<int>(values.size()) / width;
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, rows, width));
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < width; ++c) REAL(out)[r + rows * c] = values[static_cast<std::size_t>(r * width + c)];
+  }
+  SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, width));
+  for (int c = 0; c < width; ++c) SET_STRING_ELT(names, c, Rf_mkChar(columns[static_cast<std::size_t>(c)]));
+  SET_VECTOR_ELT(dimnames, 1, names);
+  Rf_setAttrib(out, R_DimNamesSymbol, dimnames);
+  UNPROTECT(3);
+  return out;
+}
+
 // The per-fit counters of the corrected sampler in this process, read and then,
 // when 'clear' is TRUE, cleared (the runtime report of each fit).
 extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
@@ -607,21 +631,212 @@ extern "C" SEXP RoBMA_selnorm_sampler_report(SEXP clear)
   }
   const jags::RoBMA::CorrectedSamplerReport report =
     jags::RoBMA::corrected_sampler_report(LOGICAL(clear)[0] != 0);
-  const char *names[] = {"samplers", "fallback_few_proposals", "fallback_surrogate_exact",
-    "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "sampling_judged",
-    "min_sampler_rate"};
+  const char *names[] = {"samplers", "fallback_low_acceptance", "sampling_proposed",
+    "sampling_accepted", "sampling_judged", "min_sampler_rate"};
   const double values[] = {static_cast<double>(report.samplers),
-    static_cast<double>(report.fallback_few_proposals),
-    static_cast<double>(report.fallback_surrogate_exact),
     static_cast<double>(report.fallback_low_acceptance),
     static_cast<double>(report.sampling_proposed),
     static_cast<double>(report.sampling_accepted),
     report.sampling_judged,
     report.has_min_rate ? report.min_sampler_rate : NA_REAL};
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 8));
-  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 8));
-  for (int i = 0; i < 8; ++i) {
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 7));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 7));
+  for (int i = 0; i < 6; ++i) {
     SET_VECTOR_ELT(out, i, Rf_ScalarReal(values[i]));
+    SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  }
+  // the screened indicators' evidence record (ScreenedFinite.h), one row per
+  // indicator and chain
+  SET_VECTOR_ELT(out, 6, evidence_matrix(jags::RoBMA::screened_finite_evidence(LOGICAL(clear)[0] != 0),
+                                         jags::RoBMA::screened_finite_evidence_names()));
+  SET_STRING_ELT(labels, 6, Rf_mkChar("screened"));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// The evidence record of the location gates of this process (one row per gate
+// slot and chain, LocationBlockReport.h), read and cleared when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_block_evidence(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  return evidence_matrix(jags::RoBMA::location_block_evidence(LOGICAL(clear)[0] != 0),
+                         jags::RoBMA::location_block_evidence_names());
+  ROBMA_NATIVE_END
+}
+
+// The per-fit counters of the location block samplers of this process (a
+// named numeric vector), read and cleared when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_block_report(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  const std::vector<double> values = jags::RoBMA::location_block_report(LOGICAL(clear)[0] != 0);
+  std::vector<char const *> const &names = jags::RoBMA::location_block_report_names();
+  const R_xlen_t n = static_cast<R_xlen_t>(values.size());
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, n));
+  for (R_xlen_t i = 0; i < n; ++i) {
+    REAL(out)[i] = values[static_cast<std::size_t>(i)];
+    SET_STRING_ELT(labels, i, Rf_mkChar(names[static_cast<std::size_t>(i)]));
+  }
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the location block sampler's mutant and
+// probe (LocationBlockReport.h) for samplers built from now on; NULL keeps a
+// setting. Returns the previous mutant and probe, the outcome of the last
+// factory call that found a declaration, and the probe records since the last
+// call (cleared).
+extern "C" SEXP RoBMA_location_block_test(SEXP mutant, SEXP probe)
+{
+  ROBMA_NATIVE_BEGIN(mutant, probe)
+  if (mutant != R_NilValue && (TYPEOF(mutant) != INTSXP || XLENGTH(mutant) != 1 ||
+      INTEGER(mutant)[0] == NA_INTEGER || INTEGER(mutant)[0] < 0 || INTEGER(mutant)[0] > 31)) {
+    Rf_error("The location block mutant must be NULL or one integer between 0 and 31.");
+  }
+  if (probe != R_NilValue && (TYPEOF(probe) != LGLSXP || XLENGTH(probe) != 1 ||
+      LOGICAL(probe)[0] == NA_LOGICAL)) {
+    Rf_error("The location block probe must be NULL or one non-missing logical value.");
+  }
+  int previous;
+  if (mutant == R_NilValue) {
+    previous = jags::RoBMA::location_block_test_mutant(0);
+    jags::RoBMA::location_block_test_mutant(previous);
+  } else {
+    previous = jags::RoBMA::location_block_test_mutant(INTEGER(mutant)[0]);
+  }
+  const bool previous_probe = probe == R_NilValue ? jags::RoBMA::location_block_test_probe(-1) :
+    jags::RoBMA::location_block_test_probe(LOGICAL(probe)[0] != 0 ? 1 : 0);
+  const std::string decision = jags::RoBMA::location_block_test_decision();
+  const std::vector<double> records = jags::RoBMA::location_block_test_take_probe();
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 4));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarInteger(previous));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(previous_probe));
+  SET_VECTOR_ELT(out, 2, Rf_mkString(decision.c_str()));
+  SEXP values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
+  for (std::size_t i = 0; i < records.size(); ++i) REAL(values)[i] = records[i];
+  SET_VECTOR_ELT(out, 3, values);
+  const char *names[] = {"mutant", "probe", "decision", "records"};
+  for (int i = 0; i < 4; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(3);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the closed-form log density of one
+// step-selection row (dselnorm_step_switch in step mode) and its first two
+// derivatives in the mean, as the location block's analytic tilt computes
+// them (StepRowNormalizer.h), at `mean`, and the distribution's own log density
+// (DSELNORMSTEPSWITCH::logDensity) at every element of `means`, for central
+// differences. Bounds use the JAGS encoding (+-1e300 open).
+extern "C" SEXP RoBMA_step_row_derivative_probe(SEXP y, SEXP mean, SEXP row, SEXP omega, SEXP lower,
+                                                SEXP upper, SEXP means)
+{
+  ROBMA_NATIVE_BEGIN(y, mean, row, omega, lower, upper, means)
+  for (SEXP value : {y, mean, row, omega, lower, upper, means}) check_real(value, "argument");
+  if (Rf_length(y) != 1 || Rf_length(mean) != 1 || Rf_length(row) != 6 || Rf_length(omega) < 1 ||
+      Rf_length(lower) != Rf_length(omega) || Rf_length(upper) != Rf_length(omega)) {
+    Rf_error("'row' must be c(sd, se, power, bin, sign, telescope) and the bins must match.");
+  }
+  const double *r = REAL(row);
+  const int bins = Rf_length(omega);
+  const double observation = REAL(y)[0];
+  // the distribution's parameters: mean, sd, se, power, omega, lower, upper,
+  // bin, sign, kernel mode (step), telescoping
+  double mean_value = REAL(mean)[0], mode = 1.0;
+  std::vector<double const *> par = {&mean_value, &r[0], &r[1], &r[2], REAL(omega), REAL(lower), REAL(upper),
+                                     &r[3], &r[4], &mode, &r[5]};
+  std::vector<unsigned long> len = {1, 1, 1, 1, static_cast<unsigned long>(bins), static_cast<unsigned long>(bins),
+                                    static_cast<unsigned long>(bins), 1, 1, 1, 1};
+  jags::RoBMA::DSELNORMSTEPSWITCH distribution;
+  if (!distribution.checkParameterLength(len) || !distribution.checkParameterValue(par, len)) {
+    Rf_error("The row's parameters are not valid for dselnorm_step_switch.");
+  }
+  const SelNormJagsBounds decoded_lower(REAL(lower), static_cast<unsigned int>(bins));
+  const SelNormJagsBounds decoded_upper(REAL(upper), static_cast<unsigned int>(bins));
+  jags::RoBMA::StepRowLaw law;
+  law.sd = r[0];
+  law.se = r[1];
+  law.effect_sign = static_cast<int>(r[4]);
+  law.bins = bins;
+  law.omega = REAL(omega);
+  law.lower = decoded_lower.data();
+  law.upper = decoded_upper.data();
+  double log_a = NA_REAL, d1 = NA_REAL, d2 = NA_REAL;
+  const bool ok = jags::RoBMA::step_row_log_normalizer(law, mean_value, &log_a, &d1, &d2);
+  // the row's log density power * [log N(y; m, sd) + log omega_bin - log A(m)]
+  const double sd = r[0], power = r[2];
+  const int bin = static_cast<int>(r[3]);
+  const double residual = observation - mean_value;
+  const double value = power * (-0.5 * std::log(2 * M_PI) - std::log(sd) - 0.5 * residual * residual / (sd * sd) +
+                                std::log(REAL(omega)[bin - 1]) - log_a);
+  const double first = power * (residual / (sd * sd) - d1);
+  const double second = power * (-1.0 / (sd * sd) - d2);
+  const R_xlen_t n = XLENGTH(means);
+  SEXP exact = PROTECT(Rf_allocVector(REALSXP, n));
+  SEXP direct = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; ++i) {
+    mean_value = REAL(means)[i];
+    REAL(exact)[i] = distribution.logDensity(&observation, jags::PDF_LIKELIHOOD, par, len);
+    // the location block's direct evaluation of the same density (B1)
+    REAL(direct)[i] = jags::RoBMA::step_row_log_density(law, power, bin, 1, r[5] == 1, observation, mean_value);
+  }
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 6));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(ok));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarReal(value));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal(first));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarReal(second));
+  SET_VECTOR_ELT(out, 4, exact);
+  SET_VECTOR_ELT(out, 5, direct);
+  const char *names[] = {"ok", "value", "first", "second", "exact", "direct"};
+  for (int i = 0; i < 6; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(4);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the location block sampler's switches
+// (LocationBlockReport.h, location_block_test_config) for samplers built from
+// now on, as an integer vector c(refresh, fit_rule, timing), c(refresh,
+// fit_rule, timing, swap, trace) or c(refresh, fit_rule, timing, swap, trace,
+// coin) whose negative elements keep a setting, or NULL. Returns the previous
+// six settings.
+extern "C" SEXP RoBMA_location_block_test_config(SEXP config)
+{
+  ROBMA_NATIVE_BEGIN(config)
+  std::vector<int> wanted = {-1, -1, -1, -1, -1, -1};
+  if (config != R_NilValue) {
+    if (TYPEOF(config) != INTSXP || (XLENGTH(config) != 3 && XLENGTH(config) != 5 && XLENGTH(config) != 6)) {
+      Rf_error("The location block configuration must be NULL or three, five or six integers.");
+    }
+    const int upper[6] = {5, 2, 1, 64, 3, 2};
+    for (int i = 0; i < static_cast<int>(XLENGTH(config)); ++i) {
+      const int value = INTEGER(config)[i];
+      if (value == NA_INTEGER || value > upper[i]) Rf_error("The location block configuration is out of range.");
+      wanted[static_cast<std::size_t>(i)] = value;
+    }
+  }
+  const std::vector<int> previous =
+    jags::RoBMA::location_block_test_config(wanted[0], wanted[1], wanted[2], wanted[3], wanted[4], wanted[5]);
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 6));
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 6));
+  const char *names[] = {"refresh", "fit_rule", "timing", "swap", "trace", "coin"};
+  for (int i = 0; i < 6; ++i) {
+    INTEGER(out)[i] = previous[static_cast<std::size_t>(i)];
     SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
   }
   Rf_setAttrib(out, R_NamesSymbol, labels);
@@ -673,16 +888,166 @@ extern "C" SEXP RoBMA_corrected_block_test(SEXP fixed_order, SEXP trace)
   ROBMA_NATIVE_END
 }
 
+// Test hook, not package interface: the flags of the corrected samplers'
+// factories and of the node memo, and their process counters. `flags` is NULL
+// (keep) or a list with any of disable_new (no gated weight blocks, screened
+// indicators or gamma groups in models built from now on; disable_gated,
+// disable_finite and disable_sum leave out one of them), drop_sum_jacobian
+// (the gamma groups' mutant without sum log p), finite_proposal (3 the
+// mixture of the plain draw and Liu's step, the default; 2 Liu's Metropolized
+// Gibbs; 0 the plain surrogate draw; 1 uncorrected mutant), force_fallback
+// (every sampler
+// switches to its exact kernel at the end of adaptation), freeze_finite (the
+// screened indicators keep their values) and memo_slots (0, 1 or 2
+// entries per selection node from now on). Returns the flags, the counters per
+// sampler kind (rows slice, block, gated, finite), the memo counters
+// (lookups and hits of the cluster and factor nodes) and, when `scores` is TRUE,
+// the scores of the
+// live screened samplers at their chains' current states (per sampler its
+// chain, the number of levels L, L surrogate and L exact scores), and the
+// largest sum of absolute likelihood terms that each site of the precision
+// guard evaluated after adaptation (likelihood_magnitude); `clear` resets the
+// counters and those maxima after reading them.
+extern "C" SEXP RoBMA_corrected_sampler_test(SEXP flags, SEXP clear, SEXP scores)
+{
+  ROBMA_NATIVE_BEGIN(flags, clear, scores)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  jags::RoBMA::CorrectedTestFlags current = jags::RoBMA::corrected_test_flags();
+  int memo_slots = selnorm_node_memo_slots();
+  if (flags != R_NilValue) {
+    if (TYPEOF(flags) != VECSXP) Rf_error("'flags' must be NULL or a named list.");
+    SEXP flag_names = Rf_getAttrib(flags, R_NamesSymbol);
+    for (R_xlen_t i = 0; i < XLENGTH(flags); ++i) {
+      const std::string name = flag_names == R_NilValue ? "" : CHAR(STRING_ELT(flag_names, i));
+      SEXP value = VECTOR_ELT(flags, i);
+      if (XLENGTH(value) != 1 || (TYPEOF(value) != LGLSXP && TYPEOF(value) != REALSXP)) {
+        Rf_error("Each flag must be one logical or numeric value.");
+      }
+      const double number = TYPEOF(value) == LGLSXP ? LOGICAL(value)[0] : REAL(value)[0];
+      if (!std::isfinite(number)) Rf_error("Each flag must be finite.");
+      if (name == "disable_new") current.disable_new = number != 0;
+      else if (name == "disable_gated") current.disable_gated = number != 0;
+      else if (name == "disable_finite") current.disable_finite = number != 0;
+      else if (name == "disable_sum") current.disable_sum = number != 0;
+      else if (name == "drop_sum_jacobian") current.drop_sum_jacobian = number != 0;
+      else if (name == "finite_proposal") current.finite_proposal = static_cast<int>(number);
+      else if (name == "memo_slots") memo_slots = static_cast<int>(number);
+      else if (name == "force_fallback") current.force_fallback = number != 0;
+      else if (name == "freeze_finite") current.freeze_finite = number != 0;
+      else Rf_error("Unknown corrected sampler test flag '%s'.", name.c_str());
+    }
+    if (memo_slots < 0 || memo_slots > 2) Rf_error("'memo_slots' must be 0, 1 or 2.");
+    jags::RoBMA::corrected_test_set_flags(current);
+    selnorm_node_memo_set_slots(memo_slots);
+  }
+  const bool reset = LOGICAL(clear)[0] != 0;
+  const auto take = [reset](std::atomic<std::uint64_t> &counter) {
+    return static_cast<double>(reset ? counter.exchange(0, std::memory_order_relaxed) :
+                               counter.load(std::memory_order_relaxed));
+  };
+  const int kinds = jags::RoBMA::corrected_kind_count;
+  SEXP counters = PROTECT(Rf_allocMatrix(REALSXP, kinds, 8));
+  for (int k = 0; k < kinds; ++k) {
+    jags::RoBMA::CorrectedKindCounters &kind = jags::RoBMA::corrected_kind_counters(k);
+    double *column = REAL(counters) + k;
+    column[0 * kinds] = take(kind.samplers);
+    column[1 * kinds] = take(kind.updates);
+    column[2 * kinds] = take(kind.proposed);
+    column[3 * kinds] = take(kind.accepted);
+    column[4 * kinds] = take(kind.evidence_proposed);
+    column[5 * kinds] = take(kind.evidence_accepted);
+    column[6 * kinds] = take(kind.fallbacks);
+    column[7 * kinds] = take(kind.exact_scores);
+  }
+  SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP rows = PROTECT(Rf_allocVector(STRSXP, kinds));
+  const char *row_names[] = {"slice", "block", "gated", "finite", "location"};
+  for (int k = 0; k < kinds; ++k) SET_STRING_ELT(rows, k, Rf_mkChar(row_names[k]));
+  SEXP columns = PROTECT(Rf_allocVector(STRSXP, 8));
+  const char *column_names[] = {"samplers", "updates", "proposed", "accepted", "evidence_proposed",
+                                "evidence_accepted", "fallbacks", "exact_scores"};
+  for (int i = 0; i < 8; ++i) SET_STRING_ELT(columns, i, Rf_mkChar(column_names[i]));
+  SET_VECTOR_ELT(dimnames, 0, rows);
+  SET_VECTOR_ELT(dimnames, 1, columns);
+  Rf_setAttrib(counters, R_DimNamesSymbol, dimnames);
+
+  SelNormMemoCounters &memo = selnorm_node_memo_counters();
+  SEXP memo_values = PROTECT(Rf_allocVector(REALSXP, 5));
+  REAL(memo_values)[0] = take(memo.lookups[0]);
+  REAL(memo_values)[1] = take(memo.hits[0]);
+  REAL(memo_values)[2] = take(memo.lookups[1]);
+  REAL(memo_values)[3] = take(memo.hits[1]);
+  REAL(memo_values)[4] = selnorm_node_memo_slots();
+  SEXP memo_names = PROTECT(Rf_allocVector(STRSXP, 5));
+  const char *memo_labels[] = {"cluster_lookups", "cluster_hits", "factor_lookups", "factor_hits", "slots"};
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(memo_names, i, Rf_mkChar(memo_labels[i]));
+  Rf_setAttrib(memo_values, R_NamesSymbol, memo_names);
+
+  // evaluating the live screened samplers sets their nodes and evaluates their
+  // children (memo and counters included), so it runs only on request
+  if (TYPEOF(scores) != LGLSXP || XLENGTH(scores) != 1 || LOGICAL(scores)[0] == NA_LOGICAL) {
+    Rf_error("'scores' must be one non-missing logical value.");
+  }
+  const std::vector<double> screened = LOGICAL(scores)[0] ? jags::RoBMA::screened_finite_test_scores() :
+    std::vector<double>();
+  SEXP score_values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(screened.size())));
+  for (std::size_t i = 0; i < screened.size(); ++i) REAL(score_values)[i] = screened[i];
+
+  SEXP flag_values = PROTECT(Rf_allocVector(VECSXP, 9));
+  SET_VECTOR_ELT(flag_values, 0, Rf_ScalarLogical(current.disable_new));
+  SET_VECTOR_ELT(flag_values, 1, Rf_ScalarLogical(current.drop_sum_jacobian));
+  SET_VECTOR_ELT(flag_values, 2, Rf_ScalarReal(current.finite_proposal));
+  SET_VECTOR_ELT(flag_values, 3, Rf_ScalarReal(selnorm_node_memo_slots()));
+  SET_VECTOR_ELT(flag_values, 4, Rf_ScalarLogical(current.force_fallback));
+  SET_VECTOR_ELT(flag_values, 5, Rf_ScalarLogical(current.freeze_finite));
+  SET_VECTOR_ELT(flag_values, 6, Rf_ScalarLogical(current.disable_gated));
+  SET_VECTOR_ELT(flag_values, 7, Rf_ScalarLogical(current.disable_finite));
+  SET_VECTOR_ELT(flag_values, 8, Rf_ScalarLogical(current.disable_sum));
+  SEXP flag_labels = PROTECT(Rf_allocVector(STRSXP, 9));
+  const char *flag_label_names[] = {"disable_new", "drop_sum_jacobian", "finite_proposal", "memo_slots",
+                                    "force_fallback", "freeze_finite", "disable_gated", "disable_finite",
+                                    "disable_sum"};
+  for (int i = 0; i < 9; ++i) SET_STRING_ELT(flag_labels, i, Rf_mkChar(flag_label_names[i]));
+  Rf_setAttrib(flag_values, R_NamesSymbol, flag_labels);
+
+  // the largest sum of absolute likelihood terms after adaptation per site of
+  // the precision guard (CorrectedSampler.h)
+  const std::vector<double> maxima = jags::RoBMA::likelihood_magnitude_maxima(reset);
+  SEXP magnitude_values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(maxima.size())));
+  for (std::size_t i = 0; i < maxima.size(); ++i) REAL(magnitude_values)[i] = maxima[i];
+  SEXP magnitude_names = PROTECT(Rf_allocVector(STRSXP, static_cast<R_xlen_t>(maxima.size())));
+  const char *site_names[] = {"slice", "block", "gated", "finite", "location", "scale"};
+  for (std::size_t i = 0; i < maxima.size(); ++i) SET_STRING_ELT(magnitude_names, i, Rf_mkChar(site_names[i]));
+  Rf_setAttrib(magnitude_values, R_NamesSymbol, magnitude_names);
+
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
+  SET_VECTOR_ELT(out, 0, flag_values);
+  SET_VECTOR_ELT(out, 1, counters);
+  SET_VECTOR_ELT(out, 2, memo_values);
+  SET_VECTOR_ELT(out, 3, score_values);
+  SET_VECTOR_ELT(out, 4, magnitude_values);
+  SEXP labels = PROTECT(Rf_allocVector(STRSXP, 5));
+  const char *names[] = {"flags", "kinds", "memo", "screened_scores", "likelihood_magnitude"};
+  for (int i = 0; i < 5; ++i) SET_STRING_ELT(labels, i, Rf_mkChar(names[i]));
+  Rf_setAttrib(out, R_NamesSymbol, labels);
+  UNPROTECT(13);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 // Test hook, not package interface: the surrogate and the exact density of one
 // cluster or factor selection block given as its JAGS parameter list (in the
 // parameter order of the distribution), evaluated through the distribution
 // classes the sampler uses, with the validators and the surrogate's pieces
 // (numerator, log normalizer of the rung, whether it fell back to the exact
 // density). `settings` is the sampler's setting vector (three grid steps, rule
-// count). An exception of an evaluation is returned as its message. With
-// `unchecked` the evaluations also run on blocks whose validators refuse them only
-// because the quadrature nodes or log weights have non-finite values, to reach the
-// branches those values guard; every other control (lengths, orders that sum to the
+// count) and optionally a named rule (SelNormCoarseSettings::rule). An
+// exception of an evaluation is returned as its message. With `unchecked` the
+// evaluations also run on blocks whose validators refuse them only because the
+// quadrature nodes or log weights have non-finite values, to reach the branches
+// those values guard; every other control (lengths, orders that sum to the
 // tables, bins, the QMC array) must pass, since the evaluators index with them.
 extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings,
                                               SEXP unchecked)
@@ -697,7 +1062,9 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   check_real(x, "x");
   check_real(settings, "settings");
   check_logical(unchecked, "unchecked");
-  if (Rf_length(settings) != 4) Rf_error("'settings' must contain three grid steps and a rule count.");
+  if (Rf_length(settings) != 4 && Rf_length(settings) != 5) {
+    Rf_error("'settings' must contain three grid steps, a rule count and optionally a named rule.");
+  }
   if (TYPEOF(parameters) != VECSXP || Rf_length(parameters) != 20) {
     Rf_error("'parameters' must be a list of the 20 distribution parameters.");
   }
@@ -706,6 +1073,7 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   coarse.diagonal_step = REAL(settings)[1];
   coarse.log_weight_step = REAL(settings)[2];
   coarse.max_rules = static_cast<unsigned int>(REAL(settings)[3]);
+  if (Rf_length(settings) == 5) coarse.rule = static_cast<unsigned int>(REAL(settings)[4]);
   std::vector<double const *> par(20);
   std::vector<unsigned long> len(20);
   for (int i = 0; i < 20; ++i) {
@@ -832,10 +1200,94 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   SET_VECTOR_ELT(output, 8, Rf_mkString(surrogate_error.c_str()));
   SET_VECTOR_ELT(output, 9, Rf_mkString(exact_error.c_str()));
   SET_VECTOR_ELT(output, 10, Rf_ScalarInteger(static_cast<int>(
-    std::min(coarse.max_rules, static_cast<unsigned int>(len[13])))));
+    std::min(coarse.rule > 0 ? coarse.rule : coarse.max_rules, static_cast<unsigned int>(len[13])))));
   for (int i = 0; i < slots; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   Rf_setAttrib(output, R_NamesSymbol, names);
   UNPROTECT(2);
   return output;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the per-attempt record of the location
+// block's bias-label swap L2 since the last call (the trace switch of
+// RoBMA_location_block_test_config), a matrix with one row per attempt.
+extern "C" SEXP RoBMA_location_block_test_trace()
+{
+  ROBMA_NATIVE_BEGIN()
+  static const std::vector<char const *> names = {
+    "chain", "from", "target", "stage1_passed", "stage1", "stage2", "accepted", "sd",
+    "omega1", "omega2", "omega3", "omega4", "omega5", "omega6"};
+  return evidence_matrix(jags::RoBMA::location_block_test_take_trace(), names);
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: numeric helpers of the location block
+// sampler (LocationBlockReport.h). "swap_gate": `a` holds the target cell's
+// log evidences (gate off, gate on) and the result their gate's log
+// probabilities (on, off); "endpoint_difference": the restoration probe's
+// largest difference of `a` and `b`.
+extern "C" SEXP RoBMA_location_block_test_numeric(SEXP what, SEXP a, SEXP b)
+{
+  ROBMA_NATIVE_BEGIN(what, a, b)
+  if (TYPEOF(what) != STRSXP || XLENGTH(what) != 1 || STRING_ELT(what, 0) == NA_STRING) {
+    Rf_error("'what' must be one string.");
+  }
+  if (TYPEOF(a) != REALSXP || TYPEOF(b) != REALSXP) Rf_error("'a' and 'b' must be numeric vectors.");
+  const std::string name = CHAR(STRING_ELT(what, 0));
+  std::vector<double> out;
+  if (name == "swap_gate") {
+    if (XLENGTH(a) != 2) Rf_error("'a' must hold the two log evidences.");
+    out = jags::RoBMA::location_block_test_swap_gate(REAL(a)[0], REAL(a)[1]);
+  } else if (name == "endpoint_difference") {
+    const std::vector<double> x(REAL(a), REAL(a) + XLENGTH(a)), y(REAL(b), REAL(b) + XLENGTH(b));
+    out = {jags::RoBMA::location_block_test_endpoint_difference(x, y)};
+  } else {
+    Rf_error("Unknown location block numeric test.");
+  }
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(out.size())));
+  for (std::size_t i = 0; i < out.size(); ++i) REAL(result)[i] = out[i];
+  UNPROTECT(1);
+  return result;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the location block's sweep sequences
+// since the last call (trace switch, bit 2; LocationBlockReport.h), as one
+// numeric vector of headers and entries.
+extern "C" SEXP RoBMA_location_block_test_sequence()
+{
+  ROBMA_NATIVE_BEGIN()
+  const std::vector<double> records = jags::RoBMA::location_block_test_take_sequence();
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(records.size())));
+  for (std::size_t i = 0; i < records.size(); ++i) REAL(out)[i] = records[i];
+  UNPROTECT(1);
+  return out;
+  ROBMA_NATIVE_END
+}
+
+// The evidence record of the location block's bias label in this process
+// (LocationBlockReport.h): a list of a matrix with one row per chain (the
+// components' counts, L2's stage-1 log ratios and pass probabilities and L0's
+// family record by source family) and a matrix
+// of the sweeps ending in each label (chain, label, sweeps), read and cleared
+// when 'clear' is TRUE.
+extern "C" SEXP RoBMA_location_bias_evidence(SEXP clear)
+{
+  ROBMA_NATIVE_BEGIN(clear)
+  if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
+    Rf_error("'clear' must be one non-missing logical value.");
+  }
+  std::vector<double> labels;
+  const std::vector<double> chains = jags::RoBMA::location_bias_evidence(LOGICAL(clear)[0] != 0, &labels);
+  static const std::vector<char const *> label_names = {"chain", "label", "sweeps"};
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(out, 0, evidence_matrix(chains, jags::RoBMA::location_bias_evidence_names()));
+  SET_VECTOR_ELT(out, 1, evidence_matrix(labels, label_names));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(names, 0, Rf_mkChar("chains"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("labels"));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
   ROBMA_NATIVE_END
 }

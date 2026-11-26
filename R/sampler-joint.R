@@ -11,27 +11,49 @@
                                scale = policy == "clustered.scale")
     })
   }
-  if (.data_outcome_type(data) != "norm" || .is_data_multilevel(data) ||
-      .is_data_random(data) || .is_data_scale(data) || .is_data_weights(data)) {
-    return(NULL)
+  location <- function(moderator = FALSE) {
+    probabilities <- RoBMA.get_option("sampler.probabilities")
+    structure(function(prior_list, formula_design, data) {
+      .sampler_joint_location(prior_list, formula_design, data, probabilities, moderator)
+    }, sampler = "RoBMA::LocationBlock")
   }
+  if (policy %in% c("auto", "location") && .sampler_joint_location_data(data, policy)) return(location())
+  if (policy == "location") return(NULL)
+  independent <- .data_outcome_type(data) == "norm" && !.is_data_multilevel(data) && !.is_data_random(data)
+  if (!independent) return(NULL)
 
-  sign <- if (.data_effect_direction(data) == "negative") -1 else 1
-  if (policy %in% c("auto", "gaussian") && !.is_data_known_v(data) &&
-      .is_data_mods(data) && is.null(fit_priors[["bias"]])) {
-    auto_dispatch <- if (policy == "auto") new.env(parent = emptyenv()) else NULL
-    return(structure(function(prior_list, formula_design, data) {
-      .sampler_joint_gaussian(prior_list, formula_design, data, sign, auto_dispatch)
-    }, sampler = "RoBMA::GaussianJoint", auto_dispatch = auto_dispatch))
+  if (!.is_data_scale(data) && !.is_data_weights(data)) {
+    sign <- if (.data_effect_direction(data) == "negative") -1 else 1
+    if (policy %in% c("auto", "gaussian") && !.is_data_known_v(data) &&
+        .is_data_mods(data) && is.null(fit_priors[["bias"]])) {
+      auto_dispatch <- if (policy == "auto") new.env(parent = emptyenv()) else NULL
+      # "auto": a Gaussian candidate that its bound design declines falls back
+      # to the location block (resolved once the design is bound; the
+      # dispatch records the sampler taken). The row budget is a deliberate
+      # exception: a fit over it keeps the ordinary samplers.
+      fallback <- if (policy == "auto" && .sampler_location_independent_auto) location(TRUE) else NULL
+      return(structure(function(prior_list, formula_design, data) {
+        markers <- .sampler_joint_gaussian(prior_list, formula_design, data, sign, auto_dispatch)
+        if (is.null(markers) && !is.null(fallback) && is.null(auto_dispatch[["budget"]])) {
+          markers <- fallback(prior_list, formula_design, data)
+          if (!is.null(markers)) auto_dispatch[["sampler"]] <- attr(fallback, "sampler", exact = TRUE)
+        }
+        markers
+      }, sampler = "RoBMA::GaussianJoint", auto_dispatch = auto_dispatch,
+      fallback = attr(fallback, "sampler", exact = TRUE)))
+    }
+    if (policy %in% c("auto", "bias") &&
+        (!.is_data_mods(data) || (policy == "bias" && !.is_data_known_v(data))) &&
+        inherits(fit_priors[["bias"]], "prior.bias_mixture") &&
+        .sampler_joint_independent_selection(data)) {
+      return(structure(function(prior_list, formula_design, data) {
+        .sampler_joint_bias(prior_list, formula_design, data, sign)
+      }, sampler = "RoBMA::IndependentBiasJoint"))
+    }
   }
-  if (policy %in% c("auto", "bias") &&
-      (!.is_data_mods(data) || (policy == "bias" && !.is_data_known_v(data))) &&
-      inherits(fit_priors[["bias"]], "prior.bias_mixture") &&
-      .sampler_joint_independent_selection(data)) {
-    return(structure(function(prior_list, formula_design, data) {
-      .sampler_joint_bias(prior_list, formula_design, data, sign)
-    }, sampler = "RoBMA::IndependentBiasJoint"))
-  }
+  # Independent fits that no other joint sampler takes: the location block
+  # (without latents) when the fit has a gated moderator.
+  if (policy == "auto" && .sampler_location_independent_auto && .is_data_mods(data)) return(location(TRUE))
   return(NULL)
 }
 

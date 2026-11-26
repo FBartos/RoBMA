@@ -49,14 +49,26 @@ context("Random-effect rows without an original-scale value")
 }
 
 # The same block under model averaging: the heterogeneity null puts a spike on
-# the total SD, so some draws have no correlation defined.
+# the total SD, so some draws have no correlation defined. The tests need draws
+# in both states among the pooled draws of the two chains, and the fixture puts
+# both states in every chain. These data favour heterogeneity: at the default
+# inclusion probability 0.5, about one draw in ten has the block off, and the
+# gate changes state only about once in 100 iterations, so a chain of 500 draws
+# can have none. The null's prior probability 0.9 puts about half of the
+# posterior on each state, and thinning by 5 gives each chain about 20 changes
+# of state between its draws (over seeds 1-20, every chain kept at least 134
+# of its 500 draws in either state).
 .random_na_rows_bma_fit <- function() {
 
   if (is.null(.random_na_rows_env[["bma"]])) {
     .random_na_rows_env[["bma"]] <- suppressWarnings(BMA.mv(
       yi = yi, V = vi, mods = ~ x, random = ~ us(1 + f:x | study),
-      data = .random_na_rows_data(), measure = "SMD", chains = 2, adapt = 300,
-      burnin = 300, sample = 500, seed = 1, silent = TRUE, parallel = FALSE
+      data = .random_na_rows_data(), measure = "SMD",
+      prior_heterogeneity_null = BayesTools::prior(
+        "spike", parameters = list(location = 0), prior_weights = 9
+      ),
+      chains = 2, adapt = 300, burnin = 300, sample = 500, thin = 5,
+      seed = 1, silent = TRUE, parallel = FALSE
     ))
   }
 

@@ -81,8 +81,8 @@ jobs:
 
       - name: Run Unit Tests
         env:
-          # The hosted Windows runner takes about 1.7 times as long as the
-          # reference machine, where the standard budget is 1200 seconds.
+          # The hosted runners are slower and vary more than the reference
+          # machine, where the standard budget is 1500 seconds.
           ROBMA_STANDARD_GATE_SECONDS: "2400"
           TESTTHAT_MAX_FAILS: Inf
         run: |

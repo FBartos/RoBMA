@@ -23,7 +23,7 @@ namespace {
 // Process-lifetime storage avoids static destruction while the DLL unloads.
 SelNormNodeMemo &cluster_node_memo()
 {
-  static SelNormNodeMemo *memo = new SelNormNodeMemo();
+  static SelNormNodeMemo *memo = new SelNormNodeMemo(0);
   return *memo;
 }
 }

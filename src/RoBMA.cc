@@ -17,9 +17,13 @@ static_assert(JAGS_MAJOR >= 5, "RoBMA requires JAGS 5.0.0 or later");
 #include "distributions/DSELNORMSAMPLINGCONDITIONED.h"
 #include "samplers/CoarseCorrectedSlice.h"
 #include "samplers/CoarseCorrectedBlock.h"
+#include "samplers/GatedCorrectedBlock.h"
+#include "samplers/ScreenedFinite.h"
 #include "samplers/IndependentBiasJoint.h"
 #include "samplers/GaussianJoint.h"
 #include "samplers/JointCluster.h"
+#include "samplers/LocationBlock.h"
+#include "samplers/LocationScale.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -55,6 +59,11 @@ namespace jags {
       // claim their blocks before BayesTools' factor slice factory.
       insert(coarse_corrected_slice_factory());
       insert(coarse_corrected_block_factory());
+      // Gated selection weights (before BayesTools::GatedSlice) and finite
+      // indicators with selection children (before base::Finite and the
+      // BayesTools finite readout); the joint factories below are asked first.
+      insert(screened_finite_factory());
+      insert(gated_corrected_block_factory());
       insert(new IndependentBiasJointTag(false));
       insert(new IndependentBiasJointTag(true));
       insert(&independent_bias_joint);
@@ -63,6 +72,14 @@ namespace jags {
       insert(new ClusterTag(false));
       insert(new ClusterTag(true));
       insert(joint_cluster_factory());
+      // Inserted last, so asked first: the location block claims the
+      // declared location members before the corrected selection samplers.
+      insert(new LocationTag(0));
+      insert(new LocationTag(1));
+      insert(new LocationTag(2));
+      insert(new LocationTag(3));
+      insert(new LocationScaleTag);
+      insert(location_block_factory());
     }
 
     // destructor (executed when unloading the module)

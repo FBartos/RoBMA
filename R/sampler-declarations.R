@@ -51,7 +51,7 @@
   disabled_reason <- "The 'jags.default' sampler policy disables specialized samplers."
   policy       <- requested[["joint"]]
   expected     <- switch(policy, auto = requested[["joint_sampler"]], bias = "RoBMA::IndependentBiasJoint",
-                         gaussian = "RoBMA::GaussianJoint",
+                         gaussian = "RoBMA::GaussianJoint", location = "RoBMA::LocationBlock",
                          clustered = "RoBMA::JointCluster", clustered.scale = "RoBMA::JointCluster")
   if (!is.null(expected)) {
     claimed <- lapply(assignments, function(table) table[["Node"]][table[["Sampler"]] == expected])
@@ -74,12 +74,19 @@
         "RoBMA::GaussianJoint" = if (policy == "auto")
           "This update requires an unweighted independent Gaussian fit, one standardized numeric moderator and eligible normal mixtures." else
           "This update requires an unweighted independent Gaussian fit, a single continuous moderator and eligible normal mixtures.",
+        "RoBMA::LocationBlock" = paste(
+          "This update requires a fit of a Gaussian outcome (multilevel, random-effect, or with a gated moderator) with a location term",
+          "whose prior mixes an exact zero with a normal slab, and no exact probability readout of its indicator."),
         "This update requires an eligible clustered fit with one factor moderator and supported prior laws."),
       native_declined = if (expected == "RoBMA::GaussianJoint")
         "The compiled graph or Gaussian proposal coverage did not qualify. See the fit's sampler assignments." else
         "The native sampler did not claim the declared nodes. See the fit's sampler assignments."
     )
     record[["joint"]] <- list(policy = policy, status = status, reason = reason, sampler = expected, nodes = owned)
+    if (expected == "RoBMA::LocationBlock") {
+      record[["joint"]][["counters"]] <- .location_block_record(attr(fit, "runtime_report_values", exact = TRUE))
+      record[["joint"]][["scale"]] <- .location_scale_record(attr(fit, "runtime_report_values", exact = TRUE))
+    }
   }
 
   if (requested[["nested_weights"]]) {
@@ -115,12 +122,283 @@
         ifelse(recorded, NA_character_, "The fitted sampler supplies no conditional branch probabilities.")
     )
   }
+  evidence <- .sampler_evidence_record(fit, declarations, assignments, workers)
+  if (!is.null(evidence)) record[["evidence"]] <- evidence
   if (length(record) > 0L) {
     record[["request"]] <- requested
     declarations[["robma"]] <- record
     attr(fit, "sampler_declarations") <- declarations
   }
   return(fit)
+}
+
+
+# The evidence record of indicators that do not switch, from the runtime
+# reports of this call's retained runs (updates after adaptation): per
+# location gate and chain the updates and the gate's transitions in each
+# direction between an update's entry and the state the update retains
+# (`switched_on`, `switched_off`: what the chain did; a sweep the exact
+# correction rejects changes nothing, a swap changes both gates), and of the
+# inner stage (`inner_*`, the sweep's components before its exact correction)
+# the flips proposed and accepted in each direction, the proposals the free
+# screen removed and, for those that reached stage 1, the count, sum and
+# maximum of the log collapsed odds of the other state against the current
+# one (exact in Gaussian labels, Laplace in selection labels; conditional on
+# the state where each flip was proposed); per screened indicator and chain
+# the updates, the observed changes of level and the mean and maximum
+# probability that an update changes the level before its exact correction,
+# for the kernel that ran (Liu's move probability or the plain draw's 1 - p_k
+# on the surrogate, the exact enumeration's 1 - p_k after a fallback); for a
+# bias label owned by the location block (`bias`, per chain) the
+# proposals and acceptances of its label update, Gaussian-family move, slope
+# update and cross-family swap, and per source family (`leave_selection_*`,
+# `leave_gaussian_*`) for the swap the count, sum and maximum of the stage-1
+# log ratio and the sum of the stage-1 pass probabilities min(1, exp(.)) of
+# every attempt and the count, sum and maximum of the stage-1 log ratio of the
+# swaps the exact correction kept, and for the label update, from the label
+# scores it computes, its updates, the sum of their probabilities of moving to
+# a label of the other family on its inner target, the moves it made there
+# and the maximum of log P(other family) - log P(own family) of its surrogate
+# full conditional (`*_label_*`); with the sweeps ending in each label
+# (`bias_labels`) and, when the indicator is monitored, per chain from all
+# retained draws of the fit its runs in the two families (`bias_sojourns`:
+# the family of the first draw, the length of the initial run in it and
+# whether it is censored, the crossings in each direction and the longest run
+# in each family). The records describe; they do not classify. The
+# probability sums are conditional on each chain's state: near-zero sums with
+# a censored initial run in every chain are consistent with decisive data, in
+# some chains only with chains that do not mix.
+# Counts and sums are added and maxima taken over runs and processes;
+# NULL without any record. The native screened record identifies a sampler by
+# its serial in its process; R names its node from the fit's final state
+# (.sampler_screened_names), in earlier runs through the same serial, and a
+# record whose node is unknown or ambiguous keeps its own row per run,
+# process, serial and chain (.sampler_screened_combine).
+.sampler_evidence_record <- function(fit, declarations, assignments, workers) {
+
+  values <- attr(fit, "runtime_report_values", exact = TRUE)
+  if (length(values) == 0L) return(NULL)
+  gates <- character()
+  for (marker in declarations[["joint"]][["markers"]]) {
+    arguments <- marker[["arguments"]]
+    if (identical(marker[["tag"]], "robma_location_group") && !isTRUE(arguments[[3L]] == 0)) {
+      gates[as.character(arguments[[5L]])] <- arguments[[1L]]
+    }
+  }
+  global_of <- function(process) {
+    chains <- if (is.null(workers)) NULL else workers[[process]][["chains"]]
+    function(local) if (is.null(chains)) as.integer(local) + 1L else chains[as.integer(local) + 1L]
+  }
+  # the screened samplers' nodes, matched in the last run (whose final state the
+  # fit keeps); a sampler lives as long as its model build and its serial is
+  # never reused in its process, so an earlier run's record with a serial of
+  # the last run of the same process is the same sampler (a rebuilt model's
+  # samplers have other serials, and their records keep no node)
+  known <- list()
+  last  <- values[[length(values)]]
+  for (process in seq_along(last)) {
+    rows <- last[[process]][["screened"]]
+    if (!is.matrix(rows) || nrow(rows) == 0L) next
+    table  <- assignments[[min(process, length(assignments))]]
+    owners <- table[["Node"]][table[["Sampler"]] == "RoBMA::ScreenedFinite"]
+    known[[process]] <- stats::setNames(.sampler_screened_names(rows, owners, global_of(process), fit),
+                                        rows[, "serial"])
+  }
+  location <- list()
+  screened <- list()
+  bias <- list()
+  bias_labels <- list()
+  indicator <- "bias_indicator"
+  for (marker in declarations[["joint"]][["markers"]]) {
+    if (identical(marker[["tag"]], "robma_location_bias")) indicator <- marker[["arguments"]][[1L]]
+  }
+  for (run_index in seq_along(values)) {
+    run <- values[[run_index]]
+    for (process in seq_along(run)) {
+      report <- run[[process]]
+      if (is.null(report)) next
+      global <- global_of(process)
+      rows <- report[["location_evidence"]]
+      if (is.matrix(rows) && nrow(rows) > 0L) {
+        location[[length(location) + 1L]] <- data.frame(
+          node = unname(gates[as.character(rows[, "slot"])]), chain = global(rows[, "chain"]),
+          rows[, setdiff(colnames(rows), c("slot", "chain")), drop = FALSE], stringsAsFactors = FALSE)
+      }
+      rows <- report[["location_bias"]]
+      if (is.list(rows) && is.matrix(rows[["chains"]]) && nrow(rows[["chains"]]) > 0L) {
+        counts <- rows[["chains"]]
+        bias[[length(bias) + 1L]] <- data.frame(node = indicator, chain = global(counts[, "chain"]),
+          counts[, setdiff(colnames(counts), "chain"), drop = FALSE], stringsAsFactors = FALSE)
+      }
+      if (is.list(rows) && is.matrix(rows[["labels"]]) && nrow(rows[["labels"]]) > 0L) {
+        labels <- rows[["labels"]]
+        bias_labels[[length(bias_labels) + 1L]] <- data.frame(chain = global(labels[, "chain"]),
+          label = as.integer(labels[, "label"]), sweeps = labels[, "sweeps"])
+      }
+      rows <- report[["screened"]]
+      if (is.matrix(rows) && nrow(rows) > 0L) {
+        names <- if (process <= length(known)) known[[process]] else NULL
+        node  <- if (is.null(names)) rep(NA_character_, nrow(rows)) else unname(names[as.character(rows[, "serial"])])
+        screened[[length(screened) + 1L]] <- data.frame(
+          node = node, run = run_index, process = process, serial = rows[, "serial"],
+          chain = global(rows[, "chain"]),
+          rows[, c("levels", "updates", "changes", "leave_sum", "leave_max"), drop = FALSE], stringsAsFactors = FALSE)
+      }
+    }
+  }
+  combine <- function(parts, maxima) {
+    if (length(parts) == 0L) return(NULL)
+    all <- do.call(rbind, parts)
+    key <- paste(all[["node"]], all[["chain"]])
+    out <- do.call(rbind, lapply(split(all, factor(key, levels = unique(key))), function(rows) {
+      row <- rows[1L, , drop = FALSE]
+      for (column in setdiff(names(rows), c("node", "chain", "levels"))) {
+        row[[column]] <- if (column %in% maxima) max(rows[[column]]) else sum(rows[[column]])
+      }
+      row
+    }))
+    out <- out[order(out[["node"]], out[["chain"]]), , drop = FALSE]
+    rownames(out) <- NULL
+    out
+  }
+  bias <- combine(bias, c("leave_selection_log_ratio_max", "leave_gaussian_log_ratio_max",
+                          "kept_leave_selection_log_ratio_max", "kept_leave_gaussian_log_ratio_max",
+                          "leave_selection_label_log_ratio_max", "leave_gaussian_label_log_ratio_max"))
+  if (!is.null(bias)) {
+    for (column in grep("_max$", names(bias), value = TRUE)) bias[[column]][!is.finite(bias[[column]])] <- NA_real_
+  }
+  if (length(bias_labels) > 0L) {
+    bias_labels <- do.call(rbind, bias_labels)
+    bias_labels <- stats::aggregate(sweeps ~ chain + label, data = bias_labels, FUN = sum)
+    bias_labels <- bias_labels[order(bias_labels[["chain"]], bias_labels[["label"]]), , drop = FALSE]
+    rownames(bias_labels) <- NULL
+  } else {
+    bias_labels <- NULL
+  }
+  location <- combine(location, "inner_log_odds_max")
+  if (!is.null(location)) location[["inner_log_odds_max"]][!is.finite(location[["inner_log_odds_max"]])] <- NA_real_
+  screened <- .sampler_screened_combine(screened)
+  sojourns <- .sampler_bias_sojourn_record(fit, declarations, indicator)
+  if (is.null(location) && is.null(screened) && is.null(bias) && is.null(sojourns)) return(NULL)
+  out <- list(location = location, screened = screened)
+  if (!is.null(bias)) out[c("bias", "bias_labels")] <- list(bias, bias_labels)
+  if (!is.null(sojourns)) out[["bias_sojourns"]] <- sojourns
+  return(out)
+}
+
+
+# The sojourns of the location block's bias label in its families (step
+# selection against the Gaussian labels none, PET and PEESE, from the codes of
+# the block's bias declaration), per chain from all retained draws of the
+# indicator in the fit; NULL without the declaration or when the indicator is
+# not monitored.
+.sampler_bias_sojourn_record <- function(fit, declarations, indicator) {
+
+  declared <- any(vapply(declarations[["joint"]][["markers"]], function(marker) {
+    identical(marker[["tag"]], "robma_location_bias")
+  }, logical(1L)))
+  codes <- fit[["data"]][["RoBMA_location_bias_codes"]]
+  if (!declared || is.null(codes)) return(NULL)
+  chains <- fit[["mcmc"]]
+  if (length(chains) == 0L || !indicator %in% colnames(chains[[1L]]) ||
+      any(vapply(chains, NROW, integer(1L)) == 0L)) return(NULL)
+  rows <- lapply(seq_along(chains), function(chain) {
+    labels <- as.integer(round(as.numeric(chains[[chain]][, indicator])))
+    data.frame(node = indicator, chain = chain, .sampler_bias_sojourns(codes[labels] == 1), stringsAsFactors = FALSE)
+  })
+  do.call(rbind, rows)
+}
+
+# The family runs of one chain's label sequence (`selection` TRUE in a step
+# selection label): its draws, the family of the first draw, the length of the
+# initial run in it and whether that run is censored (the chain never left),
+# the crossings in each direction and the longest run in each family (0 when
+# never visited).
+.sampler_bias_sojourns <- function(selection) {
+
+  runs   <- rle(selection)
+  family <- ifelse(runs[["values"]], "selection", "gaussian")
+  longest <- function(value) if (any(runs[["values"]] == value)) max(runs[["lengths"]][runs[["values"]] == value]) else 0L
+  left <- utils::head(runs[["values"]], -1L)
+  data.frame(
+    draws                     = length(selection),
+    first_family              = family[1L],
+    initial_run               = runs[["lengths"]][1L],
+    initial_censored          = length(runs[["lengths"]]) == 1L,
+    leave_selection_crossings = sum(left),
+    leave_gaussian_crossings  = sum(!left),
+    longest_selection_run     = longest(TRUE),
+    longest_gaussian_run      = longest(FALSE),
+    stringsAsFactors          = FALSE
+  )
+}
+
+
+# The node of each screened sampler's rows (one process): native samplers know
+# no node names, and JAGS orders its sampler table differently from the order
+# the factory creates them, so a serial is matched to the screened node whose
+# final value equals the sampler's last value in every chain of the process and
+# whose monitored draws lie in the sampler's support. A serial without exactly
+# one such node is left unnamed.
+.sampler_screened_names <- function(rows, owners, global, fit) {
+
+  end_state <- fit[["end_state"]]
+  draws     <- tryCatch(as.matrix(fit[["mcmc"]]), error = function(e) NULL)
+  value_of  <- function(node, chain) {
+    state <- end_state[[chain]]
+    base  <- sub("\\[.*$", "", node)
+    value <- state[[base]]
+    if (is.null(value)) return(NA_real_)
+    if (base == node) return(as.numeric(value)[1L])
+    index <- as.integer(strsplit(sub("^.*\\[(.*)\\]$", "\\1", node), ",", fixed = TRUE)[[1L]])
+    if (length(index) == 1L) return(as.numeric(value)[index])
+    as.numeric(value[matrix(index, nrow = 1L)])
+  }
+  names <- vapply(unique(rows[, "serial"]), function(serial) {
+    own    <- rows[rows[, "serial"] == serial, , drop = FALSE]
+    chains <- global(own[, "chain"])
+    lower  <- own[1L, "lower"]
+    upper  <- lower + own[1L, "levels"] - 1
+    fits <- vapply(owners, function(node) {
+      if (!isTRUE(all(vapply(chains, function(chain) value_of(node, chain), numeric(1)) == own[, "last"]))) return(FALSE)
+      if (is.null(draws) || !node %in% colnames(draws)) return(TRUE)
+      all(draws[, node] >= lower & draws[, node] <= upper)
+    }, logical(1))
+    if (sum(fits) == 1L) owners[fits] else NA_character_
+  }, character(1))
+  # one node has one sampler per model build: a node matched by several
+  # serials names none of them
+  names[names %in% names[duplicated(names) & !is.na(names)]] <- NA_character_
+  unname(names[match(rows[, "serial"], unique(rows[, "serial"]))])
+}
+
+
+# The screened records of all runs and processes (one row per run, process,
+# sampler serial and chain): the records of a named node add up per node and
+# chain (counts and sums added, maxima taken), and a record without a node
+# keeps its own row per run, process, serial and chain, so that distinct
+# indicators are never merged; `run`, `process` and `serial` are NA in the
+# rows of named nodes.
+.sampler_screened_combine <- function(parts) {
+
+  if (length(parts) == 0L) return(NULL)
+  all   <- do.call(rbind, parts)
+  named <- !is.na(all[["node"]])
+  key   <- ifelse(named, paste("node", all[["node"]], all[["chain"]]),
+                  paste("record", all[["run"]], all[["process"]], all[["serial"]], all[["chain"]]))
+  all[named, c("run", "process", "serial")] <- NA
+  out <- do.call(rbind, lapply(split(all, factor(key, levels = unique(key))), function(rows) {
+    row <- rows[1L, , drop = FALSE]
+    for (column in c("updates", "changes", "leave_sum")) row[[column]] <- sum(rows[[column]])
+    row[["leave_max"]] <- max(rows[["leave_max"]])
+    row
+  }))
+  out[["leave_mean"]] <- out[["leave_sum"]] / out[["updates"]]
+  out <- out[order(out[["node"]], out[["run"]], out[["process"]], out[["serial"]], out[["chain"]]),
+             c("node", "chain", "run", "process", "serial", "levels", "updates", "changes", "leave_mean", "leave_max"),
+             drop = FALSE]
+  rownames(out) <- NULL
+  out
 }
 
 
@@ -148,8 +426,22 @@
 # A fitting error raised by a BayesTools sampler or by RoBMA's corrected
 # selection sampler keeps its message and gains a hint: the option that returns
 # the parameters to the stock JAGS samplers, and a request to report the model
-# (the density could not be computed, or a declaration is wrong).
+# (the density could not be computed, or a declaration is wrong); or, for a
+# likelihood that double precision cannot resolve, a check of the data.
 .sampler_error_hint <- function(message) {
+
+  # The precision guard of RoBMA's samplers: the data or the chain's state,
+  # not the sampler. The ordinary samplers return draws for such data without
+  # a warning, so the hint names no sampler option.
+  if (grepl("[RoBMA_likelihood_not_representable]", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe likelihood of the chain's current state cannot be resolved in double precision: estimates ",
+      "lie far from the values the model gives them at this state. The ordinary samplers would ",
+      "return draws for such data without a warning. Check the estimates and their standard errors, their units ",
+      "and the model. A chain can also reach such a state while other chains sample the same data; other initial ",
+      "values or a longer adaptation may then avoid it."
+    ))
+  }
 
   # Errors of either block sampler (RoBMA's corrected block sampler and
   # BayesTools' factor slice sampler, which takes the same block under "slice"
@@ -176,12 +468,26 @@
     ))
   }
 
+  # The corrected scalar and gated block samplers and the screened indicator
+  # sampler: the 'slice' tier returns their parameters to the other samplers.
   if (grepl("Corrected slice", message, fixed = TRUE) ||
+      grepl("Corrected finite sampler", message, fixed = TRUE) ||
       grepl("Surrogate slice transition failed", message, fixed = TRUE)) {
     return(paste0(
       message, "
 The error was raised by the corrected selection sampler that RoBMA uses by default. ",
       "Fit the model again after 'RoBMA.options(selection.sampler = \"slice\")' to sample these parameters ",
+      "with the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+
+  # The location block sampler and its heterogeneity scale move: the "off"
+  # policy returns their parameters to the other samplers.
+  if (grepl("Location block sampler", message, fixed = TRUE) ||
+      grepl("Location scale move", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by the location block sampler that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(sampler.joint = \"off\")' to sample these parameters ",
       "with the ordinary samplers, and please report the model to the RoBMA developers."
     ))
   }
@@ -206,7 +512,11 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
 }
 
 
-# Gates: a bias-mixture prior, with or without a weight function branch.
+# Gates: a bias-mixture prior, with or without a weight function branch. Under
+# 'selection.sampler = "slice.coarse"' the weights of a branch go to RoBMA's
+# corrected gated block when its selection children take part (selection
+# blocks with a coarse rule, or independent step-selection rows through the
+# row cache); the other gated parameters keep BayesTools' gated slice sampler.
 .sampler_gates_declared <- function(fit_priors) {
 
   return(.sampler_module_samplers() && isTRUE(RoBMA.get_option("sampler.gates")) &&

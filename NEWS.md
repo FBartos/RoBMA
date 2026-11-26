@@ -17,14 +17,16 @@
 - `update()` gains `adapt` to set the adaptation of one extension
 - `set_autofit_control()` gains `burnin_max_Rhat`, `burnin_extend` and `burnin_max_extend` for the check that the chains agree at the end of burn-in
 - Eligible independent selection and one-moderator Gaussian ensembles use joint updates by default, with automatic Gaussian updates limited to 800 estimates. `sampler.joint = "bias"` also supports additive selection meta-regressions.
-- `sampler.nested.weights` enables shared weights for nested selection models and `sampler.probabilities` records conditional indicator probabilities
+- `sampler.nested.weights` shares weights of nested selection models (on by default) and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
 - very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
+- model-averaged fits with multilevel or clustered estimates, and fits with moderator inclusion indicators, update their location terms, publication-bias indicator and heterogeneity with the location block sampler; draws differ from earlier versions (option `sampler.joint`)
+- fits stop with a classed error and an explanation when, at a chain's state, estimates lie too far from the values the model gives them for the likelihood to be computed accurately
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default, also for their jointly sampled parameter blocks; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
-- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance (option `selection.coarse_min_acceptance`)
+- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance and how often its indicators switched (option `selection.coarse_min_acceptance`)
 - `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each automatic extension from the failed convergence check
 - automatic fitting stops once every diagnostic that can be assessed meets its criterion instead of extending until `max_time` or `max_extend` for parameters whose diagnostics cannot be assessed
 

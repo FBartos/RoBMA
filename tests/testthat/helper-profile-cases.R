@@ -160,6 +160,26 @@ standard_required_tests <- function() {
 
   rbind(
     .hypothesis_plan_required_tests(),
+    .required_tests("test-00-location-block-native.R", c(
+      "Gaussian children: closed-form gate probabilities, exact stages, no selection evaluation",
+      "frozen-state identities of the line moves hold in selection and Gaussian labels"
+    )),
+    .required_tests("test-00-location-bias-native.R", c(
+      "the location block owns the bias label, its slopes and the nested node's label and declines what it cannot verify",
+      "public fits give the bias label to the location block unless its probabilities are read",
+      "frozen-state identities of the Gaussian-family moves hold for regular and prior cells",
+      "frozen-state identities of the cross-family swap and of the label scores hold",
+      "the bias label's evidence record shows a family that is never visited",
+      "fixed component slots and reversed composites keep a small discrete chain stationary"
+    )),
+    .required_tests("test-00-location-scale-native.R", c(
+      "the scale owner claims the declared sources and embeds their ordinary samplers",
+      "frozen states: the scale move keeps the children, the gamma total and its group law, and its density is Liu and Sabatti's",
+      "the production slice leaves a broad bounded target invariant and a fixed cap per side does not",
+      "a dependence on the sampled SD that only the open gate shows is an error at the first move",
+      "the move acts on weights within [2^-20, 1 - 2^-20] with a stable chart and is the identity beyond",
+      "ownership does not depend on initial values, and a move that changes the likelihood is an error"
+    )),
     .required_tests("test-00-carrier-integration.R", c(
       "public no-intercept moderator means use the fitted contrast basis",
       "whole marginal-means regions retain structural fixed-cell refusal",
@@ -404,7 +424,9 @@ certification_cases <- function() {
         "selection-kernel.*|selection-probability-numerics|",
         "selection-factor-routing|selection-estimate-cells|",
         "selection-coarse-blocks|selection-coarse-exactness|selection-coarse-fallback|",
-        "selection-corrected-block|selection-corrected-block-exactness|",
+        "selection-corrected-block|selection-corrected-block-exactness|location-block-exactness|",
+        "selection-corrected-weights|selection-corrected-weights-exactness|",
+        "selection-step-row-cache|",
         "jags-build-requirements|",
         "selection-certificate-proposals|selection-certificate-acceptance|",
         "selection-node-memo|sampler-declarations-fits)|",
@@ -427,6 +449,17 @@ certification_cases <- function() {
           "cluster and factor blocks give their nodes the corrected sampler",
           "a corrected chain draws identically with the node memo on and off"
         )),
+        .required_tests("test-00-location-block-exactness.R", c(
+          "the location block chain targets the exact posterior and broken kernels do not",
+          "the location block's bias-label moves target the exact posterior and broken swaps do not",
+          "the scale move keeps the exact posterior of the heterogeneity and broken moves do not",
+          "the location block over step-selection rows targets the exact posterior in both effect directions",
+          "the location block over dense multivariate selection blocks targets the exact posterior",
+          "a two-coordinate slab, the forced slice refresh and the exact mode after the fallback are exact",
+          "the location block keeps the exact posterior of a graph whose unmoved children change and mutant 21 does not",
+          "the scale move's correction of changes within the tolerance keeps the stock samplers' posterior",
+          "the location block keeps its sampler in parallel workers"
+        )),
         .required_tests("test-00-sampler-declarations-fits.R", c(
           "declared nodes get the BayesTools samplers and the others keep theirs",
           "guarded priors keep the stock samplers",
@@ -448,9 +481,21 @@ certification_cases <- function() {
           "the corrected block chain is exact on a dense selection child with a crude anchor grid",
           "the block surrogate does not depend on the evaluation history or on warm memos"
         )),
+        .required_tests("test-00-selection-corrected-weights.R", c(
+          "model-averaged fits claim their weights and indicators, also in parallel and through update()",
+          "fits without coarse-capable children, and the memo alone, draw as before"
+        )),
+        .required_tests("test-00-selection-corrected-weights-exactness.R", c(
+          "the three-branch ensemble is exact and its mutants are not",
+          "the two-branch ensemble is exact",
+          "the gated block is exact in its random order and not in a fixed one",
+          "the three-branch ensemble of step-selection rows is exact with a perturbed cache and its mutants are not",
+          "the gated block of step-selection rows is exact in its random order and not in a fixed one",
+          "the heterogeneity gate and the allocation block are exact"
+        )),
         .required_tests("test-00-selection-coarse-fallback.R", c(
           "stress fixtures fall back at the default threshold and are exact with and without the fallback",
-          "a sampler decides its kernel once, at the end of adaptation, by the first rule that holds",
+          "a sampler decides its kernel once, at the end of adaptation, from its evidence proposals",
           "the worst-sampler rate is the rate of one sampler over its whole run",
           "serial and parallel fits record their corrected samplers, and update() adds once",
           "the JASP path, alternating fits and leftover counts keep each fit's record its own",

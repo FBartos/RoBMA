@@ -1,8 +1,8 @@
 
 Conditional Marginal Means:
                                     Mean    SD  0.025    0.5 0.975 Inclusion BF
-intercept                          0.134 0.074  0.000  0.136 0.269 4.600000e-01
-Preregistered[Not Pre-Registered]  0.222 0.049  0.128  0.221 0.320 3.876104e+12
-Preregistered[Pre-Registered]     -0.117 0.155 -0.294 -0.179 0.249 7.670000e-01
+intercept                          0.135 0.069 -0.004  0.134 0.262 5.500000e-01
+Preregistered[Not Pre-Registered]  0.226 0.049  0.136  0.223 0.327 2.491324e+08
+Preregistered[Pre-Registered]     -0.133 0.148 -0.304 -0.190 0.227 8.810000e-01
 [0;31mmu_Preregistered[Not Pre-Registered]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.[0m
 

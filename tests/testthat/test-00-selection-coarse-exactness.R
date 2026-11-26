@@ -265,10 +265,13 @@ test_that("the corrected chain is exact when a loading column of a factor block 
   exact <- summarize(c("product", "best"))
   surrogate_only <- summarize(c("rule", "best"))
 
+  # the indicator is a screened indicator, whose changes of level the process
+  # counters count with the location's proposals
+  expect_true("RoBMA::ScreenedFinite" %in% hand$samplers)
   chain <- .coarse_hand_chain(hand, c("mu", "ind"), draws)
   counters <- chain$counters
-  expect_identical(counters[["proposed"]], as.numeric(draws))
-  expect_identical(counters[["accepted"]] + counters[["correction_rejected"]], as.numeric(draws))
+  expect_gt(counters[["proposed"]], draws)
+  expect_identical(counters[["accepted"]] + counters[["correction_rejected"]], counters[["proposed"]])
   expect_gte(counters[["correction_rejected"]], 0.05 * draws)
 
   mu <- chain$draws[, "mu"]

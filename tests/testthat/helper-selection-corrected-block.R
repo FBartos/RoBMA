@@ -107,6 +107,42 @@
 }
 
 
+# Frees a compiled model now: rjags' own finalizer of the model's console,
+# called directly (it clears the pointer, so a later collection does nothing).
+# Its samplers are destroyed and leave the live lists the test hooks read, as
+# after a gc() that collects the unreferenced model, without the cost of a full
+# collection (0.13 s in a fresh session, about 0.5 s on the heap late in the
+# standard profile). The model cannot be used afterwards.
+.release_model <- function(model) {
+
+  invisible(.Call("clear_console", model$ptr(), PACKAGE = "rjags"))
+}
+
+# One hand-written model at a time: .fresh_model(build) releases the model of
+# its previous call and only then compiles `build` (a value of
+# .block_hand_model()), so the samplers that the test hooks read as live and
+# the per-fit report are the new model's alone, as when a gc() preceded the
+# build. Models that other code compiled (a RoBMA() fit's) are not tracked: a
+# test that reads every live sampler collects them with gc() first. A test
+# releases its last model on exit with withr::defer(.fresh_model_release()).
+.fresh_models <- new.env(parent = emptyenv())
+
+.fresh_model <- function(build) {
+
+  .fresh_model_release()
+  hand <- build
+  .fresh_models$last <- hand$model
+  hand
+}
+
+.fresh_model_release <- function() {
+
+  if (!is.null(.fresh_models$last)) .release_model(.fresh_models$last)
+  .fresh_models$last <- NULL
+  invisible(NULL)
+}
+
+
 # Adapts for `adapt` iterations, ends the adaptation (each block decides its
 # kernel there), burns in and draws `draws` values of `monitor`; returns the draws
 # (a matrix, or a list of matrices for several chains), the process counters of
@@ -125,6 +161,21 @@
   list(draws = if (length(values) == 1L) as.matrix(values[[1L]]) else lapply(values, as.matrix),
        samplers = hand$samplers, counters = RoBMA::selection_sampler_info(),
        report = RoBMA:::.selection_sampler_report_read(), exhausted = hook$exhausted, trace = hook$records)
+}
+
+
+# Runs a compiled model: `adapt` adaptive updates, the end of adaptation when
+# `end_adaptation` (otherwise the whole run adapts: rjags' update() alone does
+# not end it) and `iterations` further updates; returns the error message, ""
+# without one.
+.block_run_message <- function(model, iterations, end_adaptation, adapt = 20L) {
+
+  tryCatch({
+    rjags::adapt(model, adapt, end.adaptation = FALSE)
+    if (end_adaptation) rjags::adapt(model, 0L, end.adaptation = TRUE)
+    stats::update(model, n.iter = iterations, progress.bar = "none")
+    ""
+  }, error = function(error) conditionMessage(error))
 }
 
 

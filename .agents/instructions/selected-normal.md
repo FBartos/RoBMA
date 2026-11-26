@@ -462,22 +462,29 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   full-event projection (`.zplot_full_event_projection`) judges its event
   integrals through `.selection_joint_checked_event`, which is scaled.
   Deterministic rules do not use the multiplier.
-- Last-evaluation memo: JAGS evaluates a node first at its current value, so
-  about 17% of the node calls repeat the previous one. Each factor and cluster
-  step node keeps owned copies of every input of a deterministic result (`x`,
-  all parameter arrays including the quadrature tables, scalar controls, dims
-  and flags) and its log density, and answers a call only when every stored
-  value is equal (pointer identity never suffices: JAGS mutates in place). The
-  QMC design is not an input. Only results the kernel flags `deterministic`
-  (ladders, tier, rank-one interval refinement, sparse grid; the batch results carry the flag as an attribute
-  of that name) are stored, never a randomized, non-finite or thrown one. The
-  memo is a function-local map keyed by node, never deleted, and cleared as a
-  whole above 4096 keys. Each entry copies the quadrature tables (about 32 KB
-  for a cluster node, 5 KB for a factor node), so the map can hold roughly
-  130 MB for the rest of the R session, entries of finished models included;
-  a process with more step nodes than the cap clears it repeatedly and gains
-  little from it. `ROBMA_SELNORM_NODE_MEMO=0`, read once per process, disables
-  it. Draws are bitwise identical with and without it.
+- Evaluation memo: JAGS evaluates a node first at its current value, so
+  about 17% of the node calls repeat the previous one, and a sampler that
+  restores an earlier state (a rejected correction, an enumerated indicator)
+  leaves that state one evaluation back. Each factor and cluster step node
+  keeps two entries, each with owned copies of every input of a deterministic
+  result (`x`, all parameter arrays including the quadrature tables, scalar
+  controls, dims and flags) and its log density, and answers a call only when
+  every stored value of an entry is equal (pointer identity never suffices:
+  JAGS mutates in place); a store replaces the entry used least recently (a
+  hit counts as a use). The QMC design is not an input. Only results the
+  kernel flags `deterministic` (ladders, tier, rank-one interval refinement,
+  sparse grid; the batch results carry the flag as an attribute of that name)
+  are stored, never a randomized, non-finite or thrown one. The memo is a
+  function-local map keyed by node, never deleted, and cleared as a whole
+  above 4096 keys. Each entry copies the quadrature tables (about 32 KB for a
+  cluster node, 5 KB for a factor node), so the map can hold roughly 260 MB
+  for the rest of the R session, entries of finished models included; a
+  process with more step nodes than the cap clears it repeatedly and gains
+  little from it. `ROBMA_SELNORM_NODE_MEMO`, read once per process, is `0` to
+  disable it and `1` for one entry per node (the earlier memo); the test hook
+  `RoBMA_corrected_sampler_test` changes the entry count at run time and reads
+  its lookup and hit counters. Draws are bitwise identical with two, one and
+  no entries.
 - Lean arithmetic: the nested-forest rung with its shifted copies and the
   rank-one cluster rung accumulate node products in double. A row's node
   normalizers are computed into a call-owned workspace and all validated (the
@@ -528,14 +535,37 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   pins the surrogate values, fallbacks and purity, and
   `test-00-selection-coarse-exactness.R` the exactness of the corrected chains
   against QUADPACK references. The scalar factory skips any node with a
-  `dbt_block` or `dbt_gate` marker child, whatever the factory order.
+  `dbt_block` or `dbt_gate` marker child, whatever the factory order. A dense
+  child whose kernel mode is fixed at NORMAL is not coarse-capable (its
+  surrogate is its exact density), so `child_kind` decides from fixed parents
+  that no surrogate of a sampler can ever differ from the exact density and the
+  sampler is not created.
 - Corrected block sampler (`src/samplers/CoarseCorrectedBlock.cc`,
-  `RoBMA::CoarseCorrectedBlock`): a declared block (`sampler.blocks`) whose
+  `RoBMA::CoarseCorrectedBlock`, a thin owner of the kernel in
+  `CorrectedBlockKernel.cc` that the gated block shares): a declared block
+  (`sampler.blocks`) whose
   multilevel view has a coarse-capable selection child. Its factory groups the
   marked members as BayesTools' factor slice factory does (markers read the
   same way) and is asked first: RoBMA's module loads after BayesTools', and
   JAGS asks a later module's factories first; other groups go to
-  `BayesTools::FactorSlice`. One update: the full density and the surrogate
+  `BayesTools::FactorSlice`. Gamma-sum coordinates (`GammaGroup.cc`): members
+  `eta_i ~ dgamma(a_i, r)` with fixed shapes, one fixed common rate and no
+  truncation whose only children (checked on the compiled graph) are sampler
+  markers, one aggregate of exactly the group, `sum()` of that aggregate and
+  divisions `eta_i / sum` (every other path declines the group) are held as
+  the m - 1 log-ratio coordinates `z_i = log(eta_i / eta_m)` and the total
+  `T`: `T ~ Gamma(sum a, r)` is independent of the proportions and of the
+  likelihood. The Jacobian of `(T, z) -> eta` is `T^(m-1) prod_i p_i`; the
+  kernel adds `(m - 1) log T + sum_i log p_i` to the members' own densities.
+  The corrected update draws a new `T` from its law after the surrogate sweep
+  and before the full evaluation and corrects with `log Gamma(T) - log
+  Gamma(T')` (the total's terms cancel in exact arithmetic, so the acceptance
+  is that of the proportions, and the last full evaluation is at the state the
+  update keeps, which the node memo then holds); the exact kernel draws `T`
+  first (Gibbs) and sweeps. A heterogeneity allocation block (allocation SD and
+  two Dirichlet gammas) thus has two directions and one gamma draw; the test
+  hook's `drop_sum_jacobian` mutant fails the exactness fixtures. One update:
+  the full density and the surrogate
   (each member's full density, the exact terms of the other children, the
   selected children's surrogates) at block entry, a fair forward or backward
   order draw, one slice update of the surrogate per direction with chained
@@ -556,11 +586,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   optimistic; a block kept on that reading is still exact (the rule guards
   efficiency only), and the per-fit warning judges the rate after adaptation.
   The
-  fallback rules are the scalar sampler's, judged on acceptance^(1/d) (a block
-  move composes d direction moves), the rate exponent that the worst-sampler
-  rate and the warning (`sampling_judged`) also use; after a fallback the block
-  runs BayesTools' fixed-order sweep of the full conditional with the learned
-  axes, call for call. A member with two finite bounds whose span is not
+  fallback rule is the scalar sampler's, judged on acceptance^(1/d) (d the
+  number of directions; a block move composes d direction moves), the rate
+  exponent that the worst-sampler rate and the warning (`sampling_judged`)
+  also use; after a fallback the block runs BayesTools' fixed-order sweep of
+  the full conditional with the learned axes, call for call (the test hook's
+  `force_fallback` pins this against `BayesTools::FactorSlice`). A member with two finite bounds whose span is not
   finite stops at construction, as in BayesTools' sampler; every error of
   either block sampler gets the hint `sampler.blocks = FALSE`
   (`.sampler_error_hint()`), a member on a bound also the interior start. Test
@@ -573,35 +604,647 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   bound is not resolved, and this is not detected (see the kernel header). The
   scalar samplers do not have this limit; `sampler.blocks = FALSE` is the
   remedy.
-- Fallback and record: each sampler object (node or block x chain, per model build)
-  keeps its own adaptation flag (JAGS has no accessor), counts its adaptive
-  proposals and accepted corrections, and records whether any adaptive
+- Corrected gated block (`src/samplers/GatedCorrectedBlock.cc`,
+  `RoBMA::GatedCorrectedBlock`, asked before `BayesTools::GatedSlice`): the
+  still-unclaimed gated scalar continuous nodes with a fixed support grouped by
+  pointer identity of their `<active>` node (with `sampler.nested.weights`,
+  the default, the shared coordinates and the fine branch's own coordinate
+  form separate blocks, so no live coordinate is redrawn from its prior; fits
+  whose weight priors do not qualify keep the ordinary layout). A group is claimed
+  when no member depends on another, it has a coarse-capable selection child
+  or a singleton step-switch row (the row cache, below) and every member
+  reaches every such child only through the child's weights (no other
+  parameter of such a child is a member or a deterministic descendant of one):
+  selection weights, not a PET or PEESE slope (which keeps
+  `GatedSlice`; under the normal kernel of its branch its surrogate is exact).
+  Gate closed: every member drawn from its own distribution, redrawn up to 100
+  times while a value is not strictly inside its support or a deterministic
+  descendant is not finite, otherwise kept (each attempt is an independent
+  prior draw, so the kernel is the restricted prior or, with a probability that
+  does not depend on the state, no move); while adapting, a change of the
+  children's log density is `GatedSlice`'s declaration error, and any error
+  of the closed update restores the block-entry values and their
+  deterministic descendants before it propagates. Gate open: one
+  update of the shared block kernel, whose axes learn from these updates only;
+  until a refresh first replaces them (from 100 open adaptive updates; a
+  refresh that keeps the axes because an eigenvalue of the covariance is not
+  positive keeps these widths too) the coordinate
+  axes have widths of 2.5 prior SDs (trigamma of the shapes for gamma and beta
+  members and log-ratio coordinates, 1 otherwise). `checkAdaptation()` is true
+  after any update, so a branch never open while adapting does not hold up the
+  adaptation. Errors start with "Corrected slice (gated block)" and get the
+  `selection.sampler = "slice"` hint.
+- Screened indicator (`src/samplers/ScreenedFinite.cc`,
+  `RoBMA::ScreenedFinite`; the kernel `ScreenedFiniteKernel` takes a setter so
+  that a joint owner can call it): a scalar `dcat` (fixed probabilities) or
+  `dbern` (fixed probability) without truncation, with a fixed finite support,
+  a coarse-capable selection child among the stochastic children of its view
+  or a singleton step-switch row whose weights or kernel mode the node reaches
+  (the bias label; the row cache, below),
+  no `bt_finite_tag`/`bt_finite_witness_tag` child (a `sampler.probabilities`
+  readout keeps the enumerating `BayesTools::Finite`, whose recorded
+  probabilities are the exact conditionals; a surrogate proposal's
+  probabilities are not), and not claimed by RoBMA's joint samplers (asked
+  first). One update scores every level of nonzero prior mass with
+  `s_l = log prior(l) + sum` of each stochastic child's surrogate (the exact
+  density of children without one, the label-dependent prior of shared nested
+  weights included), proposes by one of two moves reversible for the
+  surrogate law on `exp(s)`, chosen per update by a coin that does not depend
+  on the state: with probability 7/8 Liu's Metropolized Gibbs sampler (a
+  level other than `k` with probability `p_k' / (1 - p_k)`, accepted on the
+  surrogate with `min(1, (1 - p_k) / (1 - p_k'))`; the identity when no other
+  level has mass), with probability 1/8 (`plain_proposal_probability`) the
+  plain surrogate draw from
+  `exp(s)` (current level included), and for `k' != k`
+  evaluates the exact scores of `k` and then `k'` (so the last exact
+  evaluation is the proposed state) and accepts with
+  `min(1, exp((e_k' - s_k') - (e_k - s_k)))`; a self-proposal costs no exact
+  evaluation. Each move with its correction is exact, so is the mixture, and
+  the plain draw's holding probability makes the chain aperiodic: Liu's step
+  alone swaps two equally scored levels at every update, so a chain thinned by
+  two kept its initial label (tested with the tie fixture at `thin = 2` from
+  both labels; at 1/8 the tied label keeps a holding probability of 1/16 per
+  update). The test hook keeps either move alone (`finite_proposal = 2`
+  Liu, `0` plain; `3` the default mixture). Liu's step raised the bias label's
+  switches on the tutorial and Assink fits by 37% to 2x for 2-10% more time
+  than the plain draw. The exact
+  kernel is base::Finite's enumeration, arithmetic and single uniform (tested
+  draw for draw against base::Finite, and against quadrature with the gated
+  block's exact kernel after a forced fallback); its evidence record sums the
+  other levels' masses directly (a difference of the cumulative total
+  recorded 0 for a leave probability of 1e-30). The
+  `finite_proposal = 1` mutant (no correction) fails the exactness fixtures.
+  Batch scoring of the six selection labels was not built.
+- Row cache of step-switch rows (`src/samplers/StepRowCache.{h,cc}`): the
+  surrogate term of the singleton `dselnorm_step_switch` children of the
+  corrected gated block and of a screened indicator that reaches their weights
+  or kernel mode (`CorrectedBlockOptions::row_cache`, the kernel's
+  `row_cache` argument; the declared-block sampler and the scalar corrected
+  slice keep these rows as exact terms). In step mode with observed bin
+  `o > 0` a row's density is `pw [log phi(sign y; sign m, sd) + log omega_o -
+  log A]`, `A = sum_b omega_b p_b`; the fixed parameters' checks are made
+  once, both Gaussian terms (normal and step mode) are a function of the
+  row's observation, mean and SD and `p_b` of its mean and SD, so the cache
+  keeps them for the state it last saw and computes them again when an
+  evaluation finds another (the Gaussian terms at once, `p_b` at the first
+  step-mode evaluation that needs them; `refresh()` brings the rows to the
+  state at the start of each corrected update and of the screened test
+  scores), and `value()` reads per row the kernel mode, the weights (their
+  validity once per weights vector) and the mean and SD, in the order of
+  `cpp_selnorm_kernel_lpdf`. The corrections are exact for any surrogate that
+  is one function of the evaluated state, so every cached value and every
+  choice between the cache and the node depends on the evaluated state alone:
+  a screened level scores the same from every entry level (PET and PEESE
+  labels move the means), which the frozen-state test checks bitwise. A row
+  goes to its node's own `logDensity` when a parameter other than the mean,
+  SD, weights and mode is not fixed or fails the distribution's check, its SE
+  is infinite, at its mean and SD a Gaussian term or a bin probability is not
+  finite or no bin probability exceeds 1e-280, its cached `A` is not above
+  1e-280 (StepRowNormalizer's linear threshold; the log-scale rows), or the
+  linear interval masses cannot resolve `A`: the rounding bound `sum_b
+  omega_b e_b` (`e_b` from the tails the subtraction cancels and the rounding
+  of the standardized bounds) exceeds `1e-10 A` (a bin of large weight whose
+  probability is zero or lost its relative precision, such as a central bin
+  of width 2.8e-16 with weight 1e60). Telescoping
+  changes only the exact normalizer's route. Evidence: a corrected proposal of
+  a sampler with cached rows is evidence when `|log acceptance ratio| > 1e-9 *
+  max(1, |exact log densities|)` (`step_row_cache_mismatch`) or its exact
+  proposal density is zero with a finite surrogate, in addition to the
+  coarse children's flag; exact up to rounding, the cache alone neither
+  falls back nor enters the record's acceptance rate. Heterogeneity, effect
+  and moderator indicators move the rows' means or SDs and keep their
+  samplers. Test hook `RoBMA_step_row_cache_test` (mutants: power, observed
+  bin, stale cache; a perturbation of the cached probabilities; `disable`,
+  the eligibility before the cache; counters; the frozen-state probe of the
+  live block kernels); tests in `test-00-selection-step-row-cache.R`,
+  exactness fixtures in `test-00-selection-corrected-weights-exactness.R`.
+- Location block sampler (`src/samplers/LocationBlock.cc`,
+  `RoBMA::LocationBlock`, declared by `R/sampler-joint-location.R` under
+  `sampler.joint` "auto" or "location"): one owner of the location gates, their
+  normal slabs and the standardized latents of the sampled random-effect term
+  of a `.mv` fit. Its factory verifies the declaration on the compiled graph
+  (gate charts by deparse, JAGS closed-class linearity of every node that
+  reaches a child, members only in the children's means, a probed design with
+  affine guards) and declines otherwise. The probe verifies each row of a
+  design column against its own response (`column_check`: rounding of the
+  row's baseline and perturbed means below 1e-10 of its response, linearity to
+  1e-9 of it; a zero entry's rounding below 1e-10 of the column's largest
+  response), so one row's entry is never measured against another row's
+  larger response (an offset of 32768 lost a row's entries while the column
+  passed, corrections reached 141); and at run time the exact correction
+  compares, after its write of the final state, every likelihood mean with
+  the block's: a mean the sweep moved must equal the one the block tracked,
+  and a mean it did not move its entry mean, both to within 1e-6 of the row's
+  conditional SD plus 1e-12 of the size of the means and design terms, so that
+  an entry the probe missed is never hidden by another coefficient that moves
+  the same child. A moved mean's tolerance also holds the rounding of the
+  tracked computation: the tracked mean is the entry mean plus each probed
+  slope times its coordinate's change over the sweep, and each slope is a
+  difference of two probed means at a step of one (the design's and the bias
+  slopes' at the factory's baseline, the latent's at the update's entry), so
+  its error is at most `4 eps` times the size of those means, times the
+  coordinate's absolute change. For the design's and the bias slopes' columns
+  the size is that of the probed means themselves, the largest `|mu|` of the
+  three probes (`X_size`, `column_size`, as `column_check` bounds a column);
+  it does not cover a cancellation inside the graph's expression at the
+  factory's baseline. For the latent it is the sum of the absolute terms of
+  the entry's means (`_d_size`: the entry mean, the design terms, the
+  latent's term and the bias slopes' terms at the entry label), since those
+  can cancel. Without it, rows at `3000`, `6000` and `8000 / 1e-6` (which the
+  `GEN` measure admits) stopped some seeds in their first adapting sweeps: the
+  latent, entering at a state where an intercept of about 6,300 and the
+  cluster effect cancelled, jumped by 2e4 to 5e4 with a slope probed to
+  4e-13, and the tracked means differed by up to 2.9e-8 against a
+  tolerance of 1.6e-8. The comparison runs while adapting too. Either is
+  the error `RoBMA_location_untracked_mean` naming
+  the child (the entry state restored; mutants 12, 16 and 18 of the test
+  hook). An unmoved mean was once required to be bitwise unchanged, but the
+  graph's recomputation of it need not be (a Linux build with GCC 10.2.1 and
+  OpenBLAS 0.3.29 stopped `metafor-anova-rma-09` that way), so the
+  comparison is a diagnostic of the design; the correction is exact whatever
+  the size of the difference: every child outside the correction's children
+  (the dirty ones, or all after a label change) with a row whose graph mean
+  after the final write is not bitwise its entry mean enters the paired
+  correction with the graph's own densities at the entry state (the entry
+  written back once, those children evaluated, the final state written
+  again; only when such a child exists) and at the final state, with the
+  precision guard and the endpoint record of a selection child as for the
+  others, while adapting too. (Leaving them out, as before, dropped their
+  density change `delta z - delta^2 / 2` per row from the ratio: a
+  coefficient whose response rounded to zero in the factory's probe, a mean
+  `offset + 2^-43 b` probed at an offset of 32768, was sampled without its
+  likelihood; mutant 21 leaves them out.) After adaptation the block's
+  counters record the unmoved comparisons that were not bitwise equal
+  (`unmoved_mean_inexact`), their largest discrepancy in the row's SDs
+  (`unmoved_mean_max`; mutant 17 moves the compared entry mean by one ulp,
+  mutants 22 and 23 by 0.1 and 10 times the row's tolerance, accepted and
+  counted, refused), the children included this way (`unmoved_included`)
+  and their largest density change in log units (`unmoved_density_max`); all
+  are zero on the Windows build's fixtures.
+  Each update rebuilds the Gaussian
+  working model from the graph (block precisions from the children's own
+  parameters, the latent column probed), runs the component list forward or
+  fully reversed (collapsed flips and refreshes along sheared lines, swaps of
+  correlated gates, a joint refresh and exact latent draws in Gaussian labels;
+  Newton-Laplace tilted flips, refreshes and swaps with a row-marginal screen
+  and slice updates of the latents in selection labels, all on the corrected
+  sampler's surrogate) and accepts the sweep with one correction against the
+  graph's own exact densities of the changed members and children, in every
+  label, so the inner representation never changes the target. Fallback to the
+  exact likelihood at the first `adaptOff()` with at least 50 updates that are
+  evidence about the surrogate and an acceptance below the threshold; it
+  registers with the corrected-sampler report and its counters reach the
+  joint-sampler record. Test hook `RoBMA_location_block_test` (mutants,
+  frozen-state probe, factory decision); exactness fixtures in
+  `test-00-location-block-native.R` and `test-00-location-block-exactness.R`.
+  Its latents are also the cluster effects `gamma[k]` of clustered `RoBMA()`
+  and `BMA()` fits, and "auto" gives it independent fits with a gated
+  moderator that no other joint sampler takes (without latents). The Newton
+  fits only build proposals: they evaluate each cluster or factor child at
+  rule 1 of its schedule (`SelNormCoarseSettings::rule`; back to the sampler's
+  rule at the first `adaptOff()` when the stage-2 acceptance of the tilted
+  flips and swaps was below 0.9 over at least 50 of them while adapting), and
+  a line whose selection children are all step-switch rows uses the rows'
+  closed-form normalizer derivatives (`StepRowNormalizer`) instead of central
+  differences; Metropolis-Hastings ratios and the exact correction keep the
+  sampler's rule, and the step-switch rows' densities are the distribution's
+  own evaluations with the parameters read once per update. An elliptical
+  slice refresh of all active coefficients (component E, latents sheared) is
+  exact but stays behind the test switch `RoBMA_location_block_test_config`:
+  measured against the per-group refreshes it lost effective samples of
+  individual coefficients on the 18-moderator tutorial model. The fit's
+  sampler record carries an evidence record per gate and chain (the updates
+  and the gate's transitions by direction between each update's entry and the
+  state it retains, so a rejected sweep counts nothing and a swap counts for
+  both gates; and, named `inner_*`, the inner stage's flips by direction,
+  screened proposals and log odds of the other state) and, for the
+  screened indicators, per indicator and chain (`sampler_declarations$robma$
+  evidence`), for consumers that tell decided from stuck indicators.
+  With a publication-bias mixture of none, step-selection, PET and PEESE
+  branches the block also owns the bias indicator and the PET and PEESE slope
+  sources (`src/samplers/LocationBlockBias.h` for the declaration and
+  verification, `LocationBlockBiasMoves.h` for the moves). R declares them with
+  one tag (`robma_location_bias`: indicator, family codes, sources, intercept
+  slot) unless `sampler.probabilities` names the indicator; the factory
+  verifies the indicator's fixed categorical law, each source's scalar prior
+  with fixed parameters and support exactly `[0, Inf)` entering only through
+  `source * equals(indicator, label)`, the probed slope columns of the means
+  (affine, additive, without effect at other labels), the kernel mode (NORMAL
+  exactly on the labels none, PET and PEESE), and that the label reaches the
+  likelihood otherwise only through parameters the Gaussian working model does
+  not read; gate markers and the nested weight node (`BayesTools_nested_a`,
+  whose density enters every label score) are the only other stochastic
+  descendants. A failed check declines the bias members and keeps the
+  location members (the factory decision names the reason); the selection
+  weights keep `GatedCorrectedBlock` or `GatedSlice`. A label is evaluated by
+  writing the indicator and its label nodes (weights, kernel modes, rules,
+  the nested node's parameters) without the means: every child is scored at
+  the block's working means. Sweep conditions: the slot list is fixed for the
+  fit (label-dependent components decide when they run whether they act), the
+  surrogate inner target is a property of the fit, composite components
+  reverse their order in the reversed sweep, the correction writes the
+  indicator back to its entry value before reading the entry's exact
+  densities and counts every child and the nested node as changed when the
+  label changed, and a sweep counts as evidence about the surrogate only when
+  an endpoint is a selection label. Components, first in the forward sweep and
+  mirrored in the reversed one: D draws dormant slopes from their priors; L0
+  is Liu's Metropolized Gibbs step on the label's surrogate full conditional,
+  or after a state-independent coin with probability 1/8 (`label_coin`) the
+  plain Gibbs draw over the label scores (the current label included), with
+  the other labels' masses summed directly at both endpoints. No move of the
+  block is a periodic two-state move: a Metropolis step between two states
+  with ratio exactly one alternates deterministically, so an evenly thinned
+  chain could keep one state. The first stage of the gate flips and the
+  location swaps therefore uses Barker's acceptance `r / (1 + r)` instead of
+  `min(1, r)` after a coin with probability 1/4 per attempt
+  (`two_state_coin`); the later stages are unchanged, since the ratio of the
+  two directions' first-stage acceptances is `r` under both (test switch
+  `coin` of `RoBMA_location_block_test_config` forces either way, and L0's
+  coin too). L2 uses the plain Metropolis first stage: it is attempted on a
+  state-independent quarter of the sweeps, so it cannot alternate
+  deterministically, and its recorded pass probabilities are those of the
+  kernel that runs;
+  L1 (Gaussian labels) proposes label, intercept gate and slab, both slopes
+  and the latents from the collapsed Gaussian cells (an independence
+  Metropolis-Hastings step computed from the inner target and both proposal
+  densities; prior cells propose the slope from its prior); S (PET and PEESE)
+  slice-samples the active slope on its collapsed conditional, draws the
+  intercept and latents from their conditionals and accepts with the ratio of
+  the inner target to that law; L2 swaps between the families with label,
+  gate, intercept and slope moved together along the shears `K_t` (the
+  intercept's line) and `K_b` (the slope's conditional-mean shear), holding
+  `E_0 = E - K_t t - K_b theta`: label proposals by the selection labels'
+  row-marginal screens or the Gaussian labels' evidences (5% uniform),
+  absolute evidences at the base point (`t = 0`, no slope, `E_0`: the
+  Gaussian plane in closed form, a selection label's value there times its
+  Laplace odds along the line), stage 1 on the evidences and the label
+  Hastings factor, stage 2 on the inner target with the complete proposal
+  densities. L2 is the identity when its base point is not representable:
+  each label's evaluation of the children there (G0's and a fitted selection
+  label's absolute evidence) sums the absolute values of their terms, and
+  when the largest sum `M_0` exceeds `likelihood_representable_limit` (1e9)
+  the swap makes no proposal in that sweep (nothing further is drawn, no
+  proposal, attempt or inner-target change is recorded, and
+  `swap_unrepresentable` counts the sweep in the block's counters and, after
+  adaptation, in `evidence$bias`), while adapting too, without an error.
+  `M_0` is a function of what the move holds fixed (`E_0` and the unchanged
+  state, evaluated equal up to rounding from both ends; the probe records
+  both ends' `M_0`), so the pair is skipped from either end and the kernel
+  stays exact; entering a selection label, its terms join `M_0` after the
+  target label's draw, and the reverse move checks them before its own. The
+  two directions evaluate their evidences and laws at base points rebuilt
+  from their own ends, equal in exact arithmetic; the damped Newton fits
+  reject a step only when it lowers their objective by more than
+  `1e-10 (1 + |f|)` (`fit_tolerance`), so on ordinary data both ends' fits
+  take the same steps and the reverse ratios are the inverses to about
+  1e-13 (accepting on `f(next) >= f0` let rounding decide the last step and
+  left residuals up to 8.1e-8). At extreme rows the fits amplify the
+  rounding of the working means instead: with one row at `1000 / 1e-6`
+  (`M_0` 1.2e7, the Laplace means up to 7e-4 SD apart) the two ends' log
+  ratios differed by up to 6.5e-4. So after stage 1 and the move, L2
+  rebuilds its proposal end as an attempt that starts there computes it
+  (`swap_back`, the same `swap_base` with the pair's selection fit, label
+  proposals, stage 1 and proposal densities, from the working state alone:
+  `_h`, the line, the fits and every cached child value rebuilt), and the
+  move is the identity (`swap_irreproducible`, in the block's counters and,
+  after adaptation, `evidence$bias`; the attempt's stage-1 records stay and
+  nothing else is recorded) when the geometry or a fit fails there, the base
+  point there is not representable, `|stage 1 + reverse stage 1|` exceeds
+  `swap_reciprocity_tolerance` (1e-9, about 1e4 times the residual of
+  ordinary data; a missing Hastings term is at least 1e-3), or so does the
+  sum of the two ends' log ratios of the proposal densities,
+  `log q(x|x') - log q(x'|x)` at each end's base point (a guard, not a
+  requirement of exactness: with stage 2's exact ratio below, only stage 1's
+  reciprocity enters detailed balance). Given the working means, both ends
+  evaluate the same two base points, so the rule decides the same from
+  either end of the evaluated pair; after adaptation the counters keep the largest residuals of the attempts
+  that went on to stage 2 (`max_swap_stage1_residual`,
+  `max_swap_full_residual`).
+  The rebuilt end shares the forward end's working means (moved by the
+  swap's shift), while the chain's own reverse attempt, starting at the
+  proposal in a later sweep, reads the graph's means there and moves them by
+  that sweep's shifts; the two differ by rounding, which at extreme rows the
+  fits amplify (at `1000 / 1e-6` rule residuals up to 4.7e-4 with
+  bitwise-equal base points). So the base point is also not representable
+  for the swap when the working means' representability criterion
+  `Q = sum_i delta_i (1 + |z_i|)` exceeds `swap_working_tolerance` (1e-8),
+  over every child's rows, with `delta_i = 4 eps size_i / sd_i` (`size_i` the
+  sum of the absolute terms of the row's mean at the end's state before its
+  move to the base point: the working mean, the design terms with the
+  intercept's, the latent's term and the active slope's term;
+  `sd_i = W_ii^-1/2`; `eps = 2^-52`; 4 eps the rounding the tracked
+  comparison allows a probed slope) and `z_i = sd_i (W r)_i` the
+  standardized working residual at the base point
+  (`swap_working_criterion`). The working means were read and carried where
+  the intercept and the slopes hold their values; the move to the base point
+  removes those terms from the means but not from their rounding, so `size_i`
+  is taken before it (taken at the base point, it gave data shifted far
+  from zero the `Q` of ordinary data, 1.5e-12 at `|y| / SE` of 1,400, while
+  re-read means moved the rule's inputs by up to 3.3e-6 and 85 to 97% of the
+  attempts that passed stage 1 were the identity after it). `Q` is thus a
+  function of each end, not of the base point alone: every attempt
+  evaluates it at its own end wherever `M_0` is (`swap_unrepresentable`) and
+  at its rebuilt end (`swap_irreproducible`), and the reverse attempt at the
+  same two ends; after adaptation the counters keep the largest `Q` over the
+  attempts' own base points that pass the check (also in attempts that end
+  before a proposal) and over the proposal ends that were rebuilt
+  successfully (`max_swap_working`). `Q` is a criterion, not a bound. It
+  adds one term per row, so it grows linearly with the number of rows; a
+  row's term grows with the row's size in units of its conditional SD,
+  `size_i / sd_i` (about `|y_i| / sd_i` for an outcome whose mean the
+  intercept carries), and with its standardized residual at the base point,
+  `1 + |z_i|` (the base point holds the intercept at zero, so for such an
+  outcome `|z_i|` is of the same order); for rows alike `Q` scales as
+  `n (|y| / SE)^2`. Measured as the largest `Q` after adaptation of one
+  chain: 2.3e-11 on the real cases (`gender_3lvl_dec_def_long`,
+  `assink_V_mods`, `che_int`); 9.1e-11 on a 10,000-row clustered SMD fixture
+  (`|y| / SE` 0 to 12, median 2); on clustered SMD fits with a two-level
+  moderator, 2.1e-10 with 1,000 rows at a median `|y| / SE` of 10, 6.9e-9
+  with 1,000 rows at 61 and 8.0e-9 with 10,000 rows at 20; 4.8e-10 on 1,000
+  clustered Fisher-z rows at a median of 43 and 3.9e-9 on 10,000 such rows;
+  on the 10-row bias fixture with one row at `2 / 1e-3` up to 4.7e-11 and
+  at `20 / 1e-4` up to 4.1e-9 (chain seeds 1-40), and at least 4e-6 at
+  `1000 / 1e-6` and `8000 / 1e-6`. Outcomes located far from zero relative
+  to their standard errors are skipped by `Q` (`swap_unrepresentable`), and
+  the chain keeps its other label moves; the skip starts at these medians of
+  `|y| / SE`: on the 10-row bias fixture with every estimate and the
+  intercept's prior mean shifted and the SEs scaled by 10 or 100, every
+  attempt from 980 (none at 930), and with the fixture's SEs of about 0.2,
+  where its cluster latents take up part of the location at the base point,
+  some attempts from 1,210 and every one from 1,860 (none at 1,170); on the
+  clustered SMD fits (L2 in every sweep), 196 to 198 of 200 sweeps,
+  adaptation included, with 1,000 rows from 81 (none at 61; at 121 the
+  skipped `Q` was 2.4e-8 to 2.7e-8) and with 10,000 rows at 30 (none at
+  20). Just below, the rule's residuals reach its tolerance instead on the
+  10-row fixture: at a median of 700 to 930 (SEs
+  times 10) 64 to 73% of the attempts that pass stage 1 are the identity
+  (`swap_irreproducible`), at 470 to 560 about 30%. `Q`'s two passes over
+  the rows (the sizes and the criterion) cost less than the run-to-run
+  variation of the timing: L2 took 0.116 to 0.117 ms per attempt with and
+  without them on the bias fixture (four alternating runs of 10,000
+  sweeps), and 10.5 to 10.7 ms on 1,000 Fisher-z rows (two alternating runs
+  each). The probe rebuilds each
+  dry run's proposal end from working means read from the graph at the
+  proposal, with the forward sweep's latent slopes (kind 7; a sweep that
+  starts at the proposal probes the slopes again, which the probe does not
+  reproduce), and records the change of the rule's inputs against the
+  rebuild from the carried means. Over chain seeds 1-40 (L2 in every sweep,
+  about 32,000 dry runs per fixture), in the dry runs the whole rule admits,
+  that change is up to 8e-12, a floor of rounding, and 58 `Q` on the default
+  fixture (99.9% within 5.8 `Q`), up to 3.4e-10 and 11 `Q` at `2 / 1e-3`, and
+  up to 3.3e-8 and 19 `Q` at `20 / 1e-4`; on relocated fixtures below the
+  skip (seed 4127) up to 2.5e-8 and 4.5 `Q`. The selection labels' Laplace
+  fits can move the rule's inputs by up to about 1e-5 in rare admitted
+  attempts, at initial and at ordinary states, whatever `Q` is: the fits run
+  two damped Newton iterations whose step halvings are decided by
+  comparisons of the objective, and the fresh rebuild's fit, with `G0`
+  equal, can stop at another mean. With one row at `1 / 1e-3` (chain seeds
+  1-40, 100 draws, about 12,000 rule-admitted dry runs), 3 changed by more
+  than 1e-7: by 6.9e-6 at seed 17's first dry run, at the chain's initial
+  state (`M_0` 2.5e6, `Q` 7.5e-9, the Laplace means 8.8e-6 law SDs apart),
+  by 3.4e-6 at seed 11 (`Q` 7.6e-9), and by 2.2e-7 at an ordinary state
+  (seed 1, the 75th dry run: `M_0` 7.4, `Q` 7e-12, the means 4.6e-7 law SDs
+  apart); at `2 / 1.6e-3` by up to 9.5e-7 (seed 12, `Q` 6.1e-9). At
+  `2 / 1e-3` `Q` skips the initial states' cases: with `size_i` taken at
+  the base point, 7 admitted dry runs there changed by up to 1.6e-5, each
+  among its chain's first three dry runs, where `Q` from the end's sizes is
+  2.4e-8 to 3.1e-8.
+  Stage 2 takes each proposal density from the base point of the end that
+  draws it, `r = delta + log q'(x|x') - log q(x'|x)`, the exact
+  Metropolis-Hastings ratio of the two evaluated ends and the exact negative
+  of the reverse move's evaluated at the same two ends
+  (a symmetrized ratio of the two ends' own-base ratios, `(full - full') / 2`,
+  is off by half the sum of the two ends' discrepancies of the proposal
+  densities, up to 3.4e-4 on that fixture, which the rule bounds only when
+  one end's discrepancy dominates). The swap is exact for the inner target
+  given the working means, up to `swap_reciprocity_tolerance` in stage 1,
+  for the two ends it evaluates; the working means are carried through an
+  update, and the swap runs only where `Q <= 1e-8` at both ends and elsewhere
+  is the identity. The chain's own reverse attempt starts from working means
+  re-read at the proposal and from latent slopes probed again there; what is
+  measured is a rebuild with re-read means and the forward sweep's latent
+  slopes (kind 7), which agrees with the rebuilt end to within 58 `Q` and
+  3.3e-8 in a log ratio on the default, `2 / 1e-3` and `20 / 1e-4` fixtures
+  and by up to about 1e-5 in the rare admitted attempts above. That
+  agreement is measured, not guaranteed, and the effect of the re-probed
+  slopes is not measured.
+  The rebuild adds one base-point evaluation with one fit to every
+  attempt that passes stage 1. On ordinary fixtures nothing is skipped; at
+  `1000 / 1e-6` every attempt after adaptation is skipped at its base point
+  by `Q` (without the `Q` rule most are the identity after stage 1, and the
+  swaps that reach stage 2 have residuals below 2e-13), at `20 / 1e-4` a few
+  are the identity after stage 1. The probe records the rule's residuals of
+  each dry run, `M_0` and `Q` of each dry run skipped at its base point, and
+  the change of the rule's inputs when the proposal end is rebuilt from
+  working means read from the graph, after each accepted
+  live swap an attempt started at its state, forced back, whose end must
+  equal the rebuilt one bitwise (`Q` included: both builds of that end take
+  their sizes from the same working state), and for each live attempt that reaches
+  stage 2 the acceptance's input with stage 1, the exact ratio and the
+  forward end's own ratio from the attempt's quantities (kind 10) (mutant 19
+  scores the reverse with the forward end's base point, as the swap did
+  before, and skips nothing after stage 1; mutant 20 runs Barker's first
+  stage; mutant 24 leaves `Q` out of the rule; mutant 25 takes an entered
+  selection label's base point as not representable after the target label's
+  draw; mutant 26 takes stage 2's ratio from the forward end's base point
+  alone; mutants 27 and 28 run only the dormant draws and L2, rejecting every
+  proposal at stage 2, 28 with the snapshot leaving the evidence flag as the
+  swap's evaluations set it; mutant 29 takes the rebuilt end's `Q` as 10
+  times its tolerance, so that on ordinary fixtures, where the own end, `M_0`
+  and both residuals pass, only that check refuses, and mutant 30 is mutant 29
+  without it; mutant 31 takes the rebuilt end's sizes from the attempt's own
+  end). The gate of the target cell is drawn and
+  scored with the same two log probabilities, `-log(1 + e^-d)` and
+  `-log(1 + e^d)` of the difference `d` of the cell's two evidences
+  (`swap_gate_log_probabilities`): normalized by their total, evidences of
+  size 1e9 rounded the smaller cell's draw probability to zero while its
+  score kept 4.1e-8. With JAGS's Mersenne-Twister generator, whose uniforms
+  lie on the grid `k 2^-32` (JAGS's other generators, Super-Duper and
+  RngStream, which the fits' initial values select, are not on that grid),
+  the draw `u < p` realizes any probability to within an absolute `2^-32`
+  (2.3e-10), as any such draw does; the relative error is large only for
+  very small cells: at that pair (`d` = 17) the off cell's 4.14e-8 is drawn
+  with probability 4.12e-8 (relative log error -4.6e-3), at `d` = 20 the
+  relative log error is -0.10, and a cell below `2^-32` (`d` above 22.2) is
+  never drawn while its score stays `e^-d`; large relative errors concern
+  only events below about 1e-7 per attempt.
+  The swap's evaluations at its base point, at its rebuilt end and at a
+  proposal it discards leave the sweep's evidence flag about the surrogate
+  (`_not_exact`) as it was (the working state's snapshot restores it; the
+  exact correction's ratio depends on the sweep's endpoints only); an
+  accepted proposal's evaluations keep it. Only the swap resets the flag at
+  a discarded proposal: the other moves' discarded proposals still mark the
+  sweep. The flag enters no acceptance ratio: it decides which sweeps count
+  as evidence about the surrogate, in the counters and, while adapting, in
+  the acceptance rate that can switch the sampler to its exact kernel at the
+  end of adaptation (`selection.coarse_min_acceptance`). The tilted fits of the location components (flips, refreshes and
+  swaps, whose reverse fit is evaluated at inputs that differ from the
+  forward ones by rounding) take their steps by the same rule, so they too
+  agree between the two ends up to rounding. L2 runs with probability 1/4 per sweep (`default_swap_probability`;
+  with its Laplace fits it took 15.7% of the sampling sweep on the Assink
+  full-V moderator fit and 10.6% on the 18-moderator tutorial fit at one, 8.5%
+  and 5.6% at 1/2, above the 5% of the rule, and 4.4% and 2.9% at 1/4), decided
+  before any component and independent of the state. The test hook's
+  probe records, at each component's slot, L1's analytic against computed
+  ratio, S's acceptance ratio, L2's reciprocity, rebuilt base quantities and
+  probability flows, the fitted plane against the children's densities, and
+  L0's buffered scores against the graph's; mutants 6-11 remove parts of L2
+  or take the joint slot from the entry label (a target term left out of
+  both a component's ratio and its recorded inner-target change is restored
+  by the exact correction, so the mutants remove terms from the ratio only);
+  the trace switch records every
+  L2 attempt (`RoBMA_location_block_test_trace`). The evidence record adds
+  `evidence$bias` (per chain the proposals and acceptances of L0, L1, S and
+  L2 and the sweeps L2 skipped, `swap_unrepresentable` and
+  `swap_irreproducible`; by source family,
+  `leave_selection_*` and `leave_gaussian_*`, for L2 the count, sum and maximum of the stage-1 log ratio and the sum of
+  `min(1, exp(stage 1))` of all attempts and the count, sum and maximum of
+  the stage-1 log ratio of the swaps the exact correction kept, and for L0,
+  from the label scores it computes and without another likelihood
+  evaluation, its updates, the sum of their probabilities of moving to the
+  other family on the inner target of the kernel that ran (after the coin
+  Liu's `p_j / max(1 - p_i, 1 - p_j)` or the Gibbs draw's `p_j`; the screened
+  indicator's record has the same convention), the
+  moves it made there and the maximum of `log P(other family) - log P(own
+  family)`), `evidence$bias_labels` (sweeps ending in each label) and
+  `evidence$bias_sojourns` (per chain, from all retained draws of a
+  monitored indicator: the first draw's family, the initial run's length and
+  whether it is censored, the crossings in each direction and the longest
+  run in each family). These records are descriptive (no status, warning or
+  default depends on them): a family that is never left although swaps out
+  of it pass stage 1 points to a stuck chain; very negative ratios and
+  near-zero L0 probability sums throughout are consistent with, but do not
+  prove, decisive evidence; the sums are conditional on each chain's state,
+  so a censored initial run in some chains only, while others visit the
+  other family, points to chains that do not mix. Exactness fixtures (labels none, selection, PET,
+  PEESE; nested; a second selection label) in
+  `test-00-location-block-exactness.R`; frozen-state identities and the
+  sweep's discrete-chain check in `test-00-location-bias-native.R`.
+- Heterogeneity scale of the location block (`src/samplers/LocationScale.cc`,
+  declared by `R/sampler-joint-location-scale.R` with the location block when
+  it has latents): the block also owns the heterogeneity sources of the
+  sampled term (`.mv` allocation layout: the allocation SD and the gamma
+  sources of the component's Dirichlet split, or the SD alone for one term;
+  clustered fits: the stochastic sources of `tau` and `rho` behind their
+  gates). With `v_j = a^2 w_j`, the scale group `T_c` multiplies the sampled
+  component's variance by `c^2`, keeps the others and divides the latents by
+  `c` (gamma sources keep their total), so no child density changes; one
+  slice update of `u = log c` from 0 (width 0.5, a total budget of 40
+  expansions split at random between the sides, Neal 2003; a fixed cap per
+  side is not a valid kernel) of `log f(u) = log p_a(a') + log p_w(w') -
+  (2L - 1) log a' - sum(Z^2) / (2 c^2) + (2 - K) u` from the sources' own
+  `PDF_PRIOR` densities (Liu and Sabatti 2000) needs no likelihood
+  evaluation. One update: the location sweep, the sources' ordinary samplers
+  (built by asking the factories after the location block's on exactly these
+  nodes and embedded unchanged, so their adaptation, fallback and
+  corrected-sampler record are those of an ordinary fit), then the move, which
+  is the identity unless every declared gate indicator is at its declared
+  level. The move acts on a set defined by the state alone: finite sources
+  strictly inside their supports and the share (clustered) or every
+  allocation weight (gamma) in `[2^-20, 1 - 2^-20]`, within which the
+  variances the graph rebuilds from the rounded weights keep a relative
+  accuracy of about `2^-33`; from a state outside it the move is the identity
+  (counted as `outside`) and a transformed point outside it has zero density
+  on the orbit, so the move is a kernel for the posterior restricted to the
+  set. `d = (1 - w_s) + w_s c^2` is formed from the sources as a sum of
+  positive parts. After each move's write every parent value of the
+  stochastic children of the sources and latents (markers excluded) that the
+  write can change is compared with its value before (`1e-6 (1 + |value|)`);
+  a change restores the entry and raises the error `RoBMA_location_scale_
+  invariance` naming the child (measured cost: 0.12 ms per sweep, 0.3%, on
+  `gender`; 0.004 ms, 0.07%, on `assink_V_mods`). A relative tolerance on
+  parent values has no unit-free meaning (in units of 1e-5 a mean term
+  `0.5 sigma` changed the rows' log density by -0.63 within it), so after
+  adaptation every move also evaluates the children's log densities before
+  and after the write, each paired with its own value (a long double sum).
+  A change of their sum above `max(1e-6, 1e-9 M)` (`M` the sum of their
+  absolute values before the write, which carries the precision guard below)
+  restores the entry and raises the same error naming the child whose log
+  density changed most: a design diagnostic, since the orbit leaves the
+  likelihood unchanged in exact arithmetic (checked on every move: when only
+  the first and every 64th were, a hand-tagged graph passed a small first
+  move and committed +1.40 on the second). Below it the move is a proposal
+  that the children's likelihood corrects: the write is kept with
+  probability `min(1, exp(change))`, without a draw when the change is not
+  negative and with one uniform otherwise (the entry restored on rejection).
+  The slice update is reversible for `f` and the paired changes of a move and
+  of its reverse are exact negatives, so the corrected kernel is exact for
+  the model as the graph computes it: a valid clustered graph inside the chart
+  at `M = 1.94e8` changes by rounding up to 0.006 per move (within its
+  tolerance 0.19), and a hand-tagged graph whose change stays below the
+  tolerance (a child of `sigma` alone spanning 0.85 in log density, a
+  constant child far from its mean setting `M` near 9e8) is sampled as the
+  stock samplers sample it, while without the correction (scale mutant 5)
+  it is not. Counters: `likelihood_checks` (the moves evaluated),
+  `likelihood_changed` (a nonzero change), `likelihood_rejected`,
+  `likelihood_change_max` (the largest absolute change, log units) and, with
+  the timing switch, `seconds_likelihood`. While adapting only the parent
+  values are compared (no evaluation, no correction). The factory declines
+  (everything as before; draws identical) unless
+  the sources are free, unobserved, fixed-parameter scalars with the declared
+  supports (a gamma group recognized by `find_gamma_groups` behind the
+  declared ratios), the block owns all `K` latents, no source has a gate
+  marker or shares a block marker with another node, the sources' samplers
+  claim exactly them, and the chart check passes: once at construction
+  (chain 0, state restored) at values the declaration alone fixes (the
+  sources at interior points of their supports, the latents at nonzero
+  values, the indicators at their declared levels, every bias label), the
+  charts of `a`, `w` and `sigma_s` match and `sigma_s' = c sigma_s` for `c`
+  in {0.7, 1.3} (moved halfway towards one until the point stays in the
+  move's set), so that ownership does not depend on initial values or differ
+  between chains and workers; the likelihood's invariance is the per-move
+  check's (a dependence it finds is an error, not a decline). The tag passes the
+  gamma sources through their ratio nodes so that it adds no child to the
+  gamma group. The record `sampler_declarations$robma$joint$scale` holds the
+  factory decisions (layout, L, K, status, reason, invariance check, embedded
+  samplers) and the move's counters. Test hooks
+  `RoBMA_location_scale_test_config` (mutants, decline, timing) and
+  `RoBMA_location_scale_test`; tests `test-00-location-scale-native.R`, the
+  quadrature fixtures in `test-00-location-block-exactness.R`.
+- Fallback and record: each sampler object (node, block or indicator x chain,
+  per model build) keeps its own adaptation flag (JAGS has no accessor) and
+  counts its adaptive evidence proposals and their accepted corrections
+  (`CorrectedTally`). Evidence is a proposal during which at least one
   surrogate used a normalizer that is not the exact one (the trailing
   `surrogate_not_exact` flag of the three `surrogateLogDensity`: a cluster or
   factor child's coarse rung, never its `exact_fallback`; a dense child's
   anchor integral or unit normalizer; no child under the NORMAL kernel, whose
-  anchor normalizer is the exact one). At its first `adaptOff()` (a second
-  call changes nothing) and with `selection.coarse_min_acceptance > 0`
-  (default 0.90, frozen with the
+  anchor normalizer is the exact one); for an indicator, a change of level
+  whose surrogate at either level was not exact; for cached step-switch rows,
+  a mismatch beyond rounding (the row cache, above). A Gaussian label's proposals
+  are therefore not evidence (their correction is one). At its first
+  `adaptOff()` (a second call changes nothing) and with
+  `selection.coarse_min_acceptance > 0` (default 0.90, frozen with the
   runtime settings; settings without it, from 4.1.1 fits, mean 0) it switches
   for good to the exact kernel, an ordinary slice update of the full
-  conditional through the same `logDensity()`, when (a) it made fewer than 50
-  adaptive proposals, (c) no adaptive surrogate was not exact, or (b) its
-  adaptive acceptance is below the threshold, the first that holds being the
-  recorded reason. Both kernels are exact and the choice uses adaptation draws
-  only, so no switch happens after adaptation. Adaptation ends where BayesTools
+  conditional through the same `logDensity()`, only when it made at least 50
+  adaptive evidence proposals and their acceptance (rate^(1/d) for a block) is
+  below the threshold; with fewer it stays corrected, and the per-fit warning
+  over evidence proposals after adaptation is the safety net. (Earlier
+  development versions also fell back after fewer than 50 adaptive proposals or
+  without an inexact surrogate, which disabled every corrected sampler of a
+  chain that adapted in a Gaussian label; those two reasons are retired and
+  their record elements dropped.) A sampler whose children can never use an
+  inexact surrogate is not created (`child_kind`, fixed parents), except for
+  cached step-switch rows, whose gain is the cheaper evaluation. Both kernels
+  are exact and the choice uses adaptation draws only, so no switch happens
+  after adaptation. Adaptation ends where BayesTools
   calls `rjags::adapt(end.adaptation = TRUE)` during fitting or reconstruction,
   or where JAGS ends it on setting a monitor (`coda.samples()`); rjags'
   `update()` alone does not, so a hand model updated without either keeps its
   samplers adapting (and counting as adaptive). Per-fit counters
   (`RoBMA_selnorm_sampler_report`, read and cleared) count objects, fallbacks
-  by reason, post-adaptation proposals and acceptances of samplers still
-  corrected (burn-in and all sampling iterations, including thinned iterations) and the lowest rate
-  of one sampler over its proposals since the last clearing read (a registry
+  (`fallback_low_acceptance`), post-adaptation evidence proposals and
+  acceptances of samplers still corrected (burn-in and all sampling
+  iterations, including thinned iterations) and the lowest rate
+  of one sampler over its evidence proposals since the last clearing read (a registry
   of live samplers under a mutex; a sampler destroyed earlier leaves its rate
   in a retired minimum; samplers with fewer than 1,000 such proposals do not
   count); the three
-  process-wide counters of `selection_sampler_info()` are unchanged. `.fit()`
+  process-wide counters of `selection_sampler_info()` count every corrected
+  proposal (evidence or not, adaptation included; an indicator's changes of
+  level), and the test hook `RoBMA_corrected_sampler_test` counts updates,
+  proposals, evidence, fallbacks and exact scores per sampler kind. `.fit()`
   passes a report callback (`BayesTools::JAGS_fit(runtime_report = )`, also on
   extensions) for selection fits, sums the retained runs over processes, adds
   the input fit's record once and stores `attr(fit, "selection_sampler")`
@@ -617,6 +1260,64 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `allocation_block_withheld` and warned on fallbacks of ensembles without
   their allocation block; the accessor drops that element and a refresh of the
   warnings drops that stored message (`.selection_sampler_fallback_pattern`).
+- Precision guard (`CorrectedSampler.{h,cc}`, one constant
+  `likelihood_representable_limit = 1e9`): data that the input checks admit
+  can hold an estimate that no state of the model fits within tens of
+  thousands of standard deviations (`yi = 1000`, `sei = 1e-6` with the effect
+  fixed at zero); its log density (1e10 to 1e26) leaves double precision unable
+  to resolve the differences the samplers need, and the reviewed fixtures drew
+  the prior from these and from the stock JAGS and BayesTools samplers alike.
+  Wherever one of this package's samplers evaluates the exact log density of
+  the state its chain is in (the location block's exact correction over the
+  entry's changed children, the block kernels' entry density in both kernels,
+  the scalar corrected slice's entry density and the exact slicer's first
+  evaluation, the screened indicator's exact score of the current level and
+  its enumeration's, the scale move's evaluation of the children) it sums
+  the absolute values of the
+  likelihood terms of that evaluation (`M`, the children's log densities,
+  priors excluded): the terms the move differences, at the chain's state,
+  not every value the model can give (a chain can sit in such a state while
+  other chains sample the same data). After adaptation `M > 1e9` raises
+  `[RoBMA_likelihood_not_representable]` naming the node with the largest term
+  and its value, and `.sampler_error_hint()` replaces the sampler hint with one
+  about the data and the chain's state (the ordinary samplers return draws for
+  such data without a warning, so no sampler option is a remedy; other initial
+  values or a longer adaptation can avoid a state that other chains avoid).
+  While adapting nothing is raised
+  (a chain may start far from the data), and a proposed state is never checked
+  (a huge term rejects it as before). Below the limit a sum of `n` terms
+  accumulated in double precision loses up to about `(n - 1) u M` (`u =
+  2^-53`; measured up to 9e-6 at `M = 1e9`, `n = 10,000`): the error of one
+  total. A difference of two totals, as the bias-side samplers keep, carries
+  the sum of both totals' allowances plus the rounding of the subtraction
+  (the two totals can round in opposite directions: with two terms per total
+  near `M = 8e8`, 1.17e-7 against the one-total 8.9e-8). The guard evaluates
+  the terms of the current state, not those of the proposed total. At the R
+  boundary `.stop_fit_errors()` signals a fitting error whose
+  message carries a bracketed name of RoBMA's samplers with that name as its
+  condition class and the parent class `RoBMA_sampler_error`
+  (`RoBMA_likelihood_not_representable`, `RoBMA_location_untracked_mean`,
+  `RoBMA_location_scale_invariance`; the message is kept and the classes are
+  listed in `?selection_sampler_info`). The guard sees only the state the chain is in; L2's evidences are
+  evaluated at its base point, so L2 applies the same limit there and makes
+  no proposal above it (`swap_unrepresentable`, the L2 paragraph above), a
+  rule of what the move holds fixed that keeps the kernel exact. L2's
+  frozen-state fixture with one row at `y = 1000`, `se = 1e-6`, which its
+  cluster latent absorbs, has base-point sums of about 5e17 in the first
+  adapting sweeps (the relative reciprocity residual 1.17 before the rule)
+  and is skipped there; after adaptation the state (`M` = 1.3e7) and the base
+  point (`M_0` = 1.2e7) are representable, but its working means are not for
+  the swap (`Q` at least 4e-6, the tolerance 1e-8), and every attempt is
+  skipped at its base point (`swap_unrepresentable`, the L2 paragraph above).
+  Without the `Q` rule (mutant 24) swaps run there, and the attempts whose
+  proposal end, rebuilt with Laplace laws up to 7e-4 SD from the forward
+  end's, does not reproduce them to `swap_reciprocity_tolerance` are the
+  identity (`swap_irreproducible`).
+  The test hook `RoBMA_corrected_sampler_test` reports the largest `M` per site
+  after adaptation (`likelihood_magnitude`); tests in
+  `test-00-selection-corrected-block.R` (block, gated, scalar, both kernels,
+  the limit's boundary pair), `test-00-selection-corrected-weights.R`,
+  `test-00-location-block-native.R` and `test-00-location-scale-native.R`.
 - BayesTools samplers (`R/sampler-declarations.R`): `.fit()` passes
   `sampler_gates` and `sampler_blocks` to `BayesTools::JAGS_fit()`, which writes
   marker nodes that the `BayesTools::GatedSlice` and `BayesTools::FactorSlice`
@@ -642,9 +1343,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   The values of `selection.sampler` are tiers: `"slice.coarse"` (corrected
   sampler and declarations), `"slice"` (declarations only) and `"jags.default"`
   (no declaration and no corrected sampler in any model, as `"default"` in
-  4.1.1). Under `"slice.coarse"` gated nodes stay with the gated sampler and a
+  4.1.1). Under `"slice.coarse"` gated selection weights go to the corrected
+  gated block and other gated nodes stay with the gated sampler, a
   declared block goes to the corrected block sampler when it has a
-  coarse-capable selection child, to the factor slice sampler otherwise.
+  coarse-capable selection child, to the factor slice sampler otherwise, and
+  eligible indicators go to the screened indicator sampler;
+  `sampler.gates = FALSE` removes the gates the gated block reads.
   The released `"coarse_corrected"` and `"default"` are deprecated aliases of
   `"slice.coarse"` and `"jags.default"`; settings frozen in fits keep their
   string and `.selection_sampler_corrected()` reads both spellings.

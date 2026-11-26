@@ -1,0 +1,170 @@
+#ifndef ROBMA_LOCATION_BLOCK_REPORT_H
+#define ROBMA_LOCATION_BLOCK_REPORT_H
+
+// The per-fit report and the test hook of the location block sampler
+// (LocationBlock.h), without JAGS headers, for the R-native entry points.
+
+#include <string>
+#include <vector>
+
+namespace jags {
+namespace RoBMA {
+
+// The per-fit counters of the location block samplers of this process
+// (relaxed atomics), read and cleared when clear is true: values in the order
+// of location_block_report_names().
+std::vector<char const *> const &location_block_report_names();
+std::vector<double> location_block_report(bool clear);
+
+// The evidence record of the location gates of this process since the last
+// clearing read, over the updates after adaptation: per gate (its declaration
+// slot) and chain the rows of location_block_evidence_names() (the updates
+// and the gate's transitions in each direction between each update's entry
+// and the state it retains; of the inner stage, before the exact correction,
+// the flips proposed and accepted in each direction, proposals the free
+// screen removed, and the count, sum and maximum of the log collapsed odds of
+// the other state against the current one for the proposals that reached
+// stage 1).
+std::vector<char const *> const &location_block_evidence_names();
+std::vector<double> location_block_evidence(bool clear);
+
+// The evidence record of an owned bias label (LocationBlockBias.h) since the
+// last clearing read, over the updates after adaptation: per chain the rows
+// of location_bias_evidence_names() (proposals and acceptances of the label
+// update L0, the Gaussian-family move L1, the slope update S and the swap L2
+// with its stage-1 passes; per direction of L2, leaving the selection or the
+// Gaussian family, the count, sum and maximum of the stage-1 log ratio of
+// every attempt and of the swaps the sweep's exact correction kept), and in
+// `labels` the rows (chain, label, sweeps ending in the label).
+std::vector<char const *> const &location_bias_evidence_names();
+std::vector<double> location_bias_evidence(bool clear, std::vector<double> *labels);
+
+// Test hook, not package interface: a deliberately broken kernel frozen into
+// the samplers built from now on (0 none; 1 a shear that differs between a
+// flip and its reverse; 2 flips without the reverse proposal density, in both
+// directions; 3 no final correction; 4 the elliptical slice step around the
+// slab prior means instead of the Gaussian working mean; 5 the elliptical
+// slice step without the latent shear; with an owned bias label, of its swap
+// L2: 6 the label Hastings factor omitted, 7 the gate share omitted, 8 the
+// prior density of the slope that becomes dormant omitted, 9 the nested
+// weight node's density omitted from the acceptance ratio (the recorded
+// inner-target change keeps it), 10 the within-label contrast instead of the
+// absolute evidence of a selection label; 11 the joint refresh's slot taken
+// from the entry label; 12 the design column of the last coordinate dropped
+// after the factory's probe, an untracked mean change; 13 the slice refresh's
+// coordinates in the forward order in reversed sweeps; 14 one error thrown
+// after the exact correction's write of the final state, in the first sweep
+// after adaptation that changes the state; 15 every sweep that changed the
+// bias label rejected by the exact correction, and with the probe a record
+// of the restored graph against the entry's, type 11; 16 the first
+// coordinate's entry dropped after the probe at the last row that another
+// coordinate also moves, a tracked mean the graph moves elsewhere; 17 the
+// entry mean that the exact correction compares an unmoved mean with, one ulp
+// above it, within the tolerance; 18 that entry mean 1e-3 of the row's SD
+// above it, an untracked mean change; with an owned bias label, of its swap
+// L2: 19 the reverse move scored with the forward end's base point instead of
+// the base point rebuilt at the proposal, 20 Barker's first stage after the
+// coin of the two-state moves instead of Metropolis's; 21 the unmoved
+// children whose graph mean changed left out of the exact correction; 22 and
+// 23 the entry mean that an unmoved mean is compared with, 0.1 and 10 times
+// the row's tolerance above it, within it and beyond it; with an owned bias
+// label, of its swap L2: 24 the working means' criterion Q left out of the
+// skip rule, 25 an entered selection label's base point taken as not
+// representable after the target label's draw, 26 stage 2 with both proposal
+// densities from the forward end's base point, 27 the dormant draws and L2
+// alone in every sweep (no other component), every proposal of L2 rejected
+// at stage 2, 28 mutant 27 with the working state's snapshot leaving the
+// evidence flag as the swap's evaluations set it, 29 the rebuilt end's Q
+// taken as 10 times its tolerance, 30 mutant 29 without the Q check at the
+// rebuilt end, 31 the rebuilt end's Q from the sizes of the attempt's own
+// end). Returns the previous value.
+int location_block_test_mutant(int mutant);
+// The outcome of the last factory call that found a declaration: "claimed",
+// "claimed without latents" or the first check that declined.
+std::string location_block_test_decision();
+// The probe (frozen into samplers built from now on): every sweep first
+// dry-runs each collapsed Gaussian move and records, per move, its type
+// (0 flip on, 1 flip off, 2 refresh, 3 study effect, 4 swap, 5 joint), the
+// label (1 selection), the stage-1 log ratio, the full log ratio from the
+// direct Gaussian evaluation of priors, children and proposal densities, the
+// selection part log A~(old) - log A~(new), and the collapsed log odds. It
+// also dry-runs one elliptical slice proposal (type 6) and records log T as
+// the block computes it, the separately evaluated change of the inner target
+// minus that of the Gaussian working model, the inner target's change and the
+// working model's change (the first two must agree). With an owned bias label
+// each bias component records at its slot (LocationBlockBiasMoves.h): type 7
+// L1 (analytic and computed log ratio, prior-cell flags, label), type 8 S
+// (its acceptance log ratio), type 9 L2 (kind 0: stage 1, stage 1 plus the
+// reverse stage 1, full, full plus the reverse full; kind 1: differences of
+// E_0, of the evidences and label proposals and of the shears rebuilt from
+// the proposal, and of the accepted flows of the two directions; kind 2: the
+// fitted Gaussian plane's largest error and scale; kind 3: stage 1 and the
+// full ratio plus their reverses from the forward move's base quantities;
+// kind 4: relative differences of G0 and of the plane rebuilt from the
+// proposal, the largest difference of the refitted Laplace means in SDs and
+// of their precisions, relative; kind 5: 1 when the proposal end was rebuilt
+// (0 and nothing else recorded otherwise), the skip rule's residuals
+// |stage 1 + reverse stage 1| and |sum of the two ends' log ratios of the
+// proposal densities|, and the symmetrized own-base full ratio minus the live
+// ratio; kind 6, after each accepted live swap: the largest differences
+// between the proposal end the swap rebuilt and the one an attempt started
+// there computes (geometry and base point with Q, label proposals, stage 1 and the
+// two log proposal densities; all zero) and the sum of the two moves'
+// inner-target changes; kind 7, with each rebuilt proposal end: the end
+// rebuilt again from working means read from the graph at the proposal, the
+// largest difference of the rule's inputs (stage 1 and the log ratio of the
+// proposal densities) from the end rebuilt from the carried means, the
+// difference of the reverse proposal density, and Q of the carried and the
+// fresh rebuild; kind 8, a dry run skipped at its base point: M_0, Q, 1 when
+// after the target label's draw; kind 10, each live attempt that reaches
+// stage 2: stage 2's input as the acceptance takes it, stage 1, the exact
+// ratio and the forward end's own ratio), type 10 L0 (the
+// largest difference of a label's buffered exact score from the graph's and
+// the scale) and type 12 L0's record at each update (kind 1: the kernel, 1
+// the Gibbs draw, the probability of moving to the other family that the
+// evidence record adds, the current label, the labels; then per label kind 2:
+// the label, its mass exp(score - max), 1 for a Gaussian label).
+// probe < 0 reads the flag; otherwise sets it and returns the previous one.
+bool location_block_test_probe(int probe);
+std::vector<double> location_block_test_take_probe();
+// Test hook: switches frozen into the samplers built from now on; a negative
+// argument keeps a setting. refresh: the kernels that refresh the active
+// coefficients in selection labels (0 the default, 1 the per-group refreshes
+// R_j only, 2 one elliptical slice step E, 3 two E steps, 4 E and the R_j,
+// 5 the R_j with every group's slice update forced from the first adaptOff());
+// fit_rule: the rule of the Newton-Laplace fits (0 the coarsest rung with the
+// acceptance safeguard, 1 the coarsest rung always, 2 the sampler's rule);
+// timing: 1 accumulates the wall time of the update's parts in the report;
+// swap: the schedule of the bias label's cross-family swap L2 (0 the
+// default, k >= 1 attempted with probability 1 / k per sweep); trace (bits):
+// 1 records every L2 attempt (location_block_test_take_trace), 2 every
+// sweep's sequence (location_block_test_take_sequence); coin: the
+// state-independent coin of the gate flips' and location swaps' first stage
+// (Barker's) and of L0 (the Gibbs draw), 0 the default (probability 1/4 and
+// 1/8 per attempt), 1 always the alternative, 2 never (L2's first stage is
+// Metropolis's in every case).
+// Returns the previous six settings.
+std::vector<int> location_block_test_config(int refresh, int fit_rule, int timing, int swap = -1, int trace = -1,
+                                            int coin = -1);
+// The per-attempt record of L2 since the last call (trace switch): per
+// attempt (14 fields) chain, source label, target label, stage 1 passed,
+// stage-1 log ratio, stage-2 log ratio, accepted, the first latent column
+// entry (the random-effect SD) and the target label's first six weights.
+std::vector<double> location_block_test_take_trace();
+// The sweep sequences since the last call (trace switch, bit 2): per sweep a
+// header (-1, chain, reversed, entry label is a selection label, entries) and
+// its entries (kind, a, b) in the order they ran: the slots (kind 0 flip,
+// 1 refresh, 2 swap, 3 joint, 4 ellipse, 5 latent, 6 bias component; a and b
+// the group, pair, latent or bias component) and within a composite slice
+// refresh its coordinates (kind 100, group, coordinate).
+std::vector<double> location_block_test_take_sequence();
+// Test hook: the log probabilities (on, off) of the gate of L2's target cell
+// from its log evidences (LocationBlock.cc, swap_gate_log_probabilities).
+std::vector<double> location_block_test_swap_gate(double log_e_off, double log_e_on);
+// Test hook: the restoration probe's comparison of two vectors of graph
+// values (LocationBlock.cc, endpoint_difference).
+double location_block_test_endpoint_difference(std::vector<double> const &a, std::vector<double> const &b);
+
+}
+}
+#endif

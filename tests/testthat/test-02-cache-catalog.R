@@ -681,7 +681,42 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "src/selnorm/selnorm-parallel.h",
     "src/selnorm/selnorm-phack.cc.inc",
     "src/selnorm/selnorm-probability.cc.inc",
-    "src/selnorm/selnorm-step.cc.inc"
+    "src/selnorm/selnorm-step.cc.inc",
+    # the location block with its bias moves and its heterogeneity scale
+    # move, the screened finite, gamma-group and gated block samplers, the
+    # step-row cache and normalizer and the corrected block kernel, with
+    # their R declarations and report readers; and the fit-time selnorm
+    # headers that listed sources include (selnorm-qmc-z.h from the cluster,
+    # factor, mv and sampling-conditioned distributions and r-selnorm.cc,
+    # selnorm-rank-one.h from selnorm-mv.cc, selnorm-node-product.h from
+    # selnorm.h, selnorm-compact-partition.h from r-selnorm.cc)
+    "R/sampler-joint-location-scale.R",
+    "R/sampler-joint-location.R",
+    "src/r-location-scale.cc",
+    "src/samplers/CorrectedBlockKernel.cc",
+    "src/samplers/CorrectedBlockKernel.h",
+    "src/samplers/GammaGroup.cc",
+    "src/samplers/GammaGroup.h",
+    "src/samplers/GatedCorrectedBlock.cc",
+    "src/samplers/GatedCorrectedBlock.h",
+    "src/samplers/LocationBlock.cc",
+    "src/samplers/LocationBlock.h",
+    "src/samplers/LocationBlockBias.h",
+    "src/samplers/LocationBlockBiasMoves.h",
+    "src/samplers/LocationBlockReport.h",
+    "src/samplers/LocationScale.cc",
+    "src/samplers/LocationScale.h",
+    "src/samplers/LocationScaleReport.h",
+    "src/samplers/ScreenedFinite.cc",
+    "src/samplers/ScreenedFinite.h",
+    "src/samplers/StepRowCache.cc",
+    "src/samplers/StepRowCache.h",
+    "src/samplers/StepRowNormalizer.cc",
+    "src/samplers/StepRowNormalizer.h",
+    "src/selnorm/selnorm-compact-partition.h",
+    "src/selnorm/selnorm-node-product.h",
+    "src/selnorm/selnorm-qmc-z.h",
+    "src/selnorm/selnorm-rank-one.h"
   ) %in% source_files))
   expect_false(any(c(
     "DESCRIPTION",
@@ -827,7 +862,8 @@ test_that("package source hash refreshes after source edits", {
                    "src/glmm-binomial-loglik.h",
                    "src/samplers/CoarseCorrectedSlice.h",
                    "src/selnorm/selnorm-cdf-table-data.h",
-                   "src/selnorm/selnorm-mixture-compression.h")) {
+                   "src/selnorm/selnorm-mixture-compression.h",
+                   "src/samplers/LocationBlockBiasMoves.h")) {
     before_header_edit <- package_source_md5()
     header_path <- file.path(package_root, header)
     writeLines(
@@ -955,6 +991,7 @@ test_that("fit catalog is internally consistent", {
               info = "all catalog source files must exist")
   no_loo_fits <- c(
     "brma.mv_block_mvn_random_mods_scale",
+    "BMA.mv_random_components_iwmde",
     "nielweise2008_glmm_effect_null",
     "dat.lehmann2018-3PSM_effect_null",
     "hypothesis_plan_treatment",
@@ -1124,6 +1161,7 @@ test_that("fit catalog is internally consistent", {
       "dat.lehmann2018_RoBMA_mods2",
       "dat.lehmann2018_RoBMA_3lvl_mods_scale",
       "BMA.mv_random_components",
+      "BMA.mv_random_components_iwmde",
       "RoBMA.mv_marg_product_space",
       "bselmodel.mv_marg_random",
       "bPET.mv_random",
