@@ -305,7 +305,7 @@ test_that("the scale move keeps the exact posterior of the heterogeneity and bro
 # of b is the one without them.
 test_that("the location block keeps the exact posterior of a graph whose unmoved children change and mutant 21 does not", {
 
-  skip_if_not_certification("The unmoved-child chains (about 20 s) run in the numerical-kernels case.")
+  skip_if_not_certification("The unmoved-child chains (about 30 s) run in the numerical-kernels case.")
   skip_if_not_installed("rjags")
   analytic <- .location_unmoved_analytic(.008)
   z <- function(a, b) (a$mean - b$mean) / sqrt(a$mcse^2 + b$mcse^2)
@@ -322,8 +322,9 @@ test_that("the location block keeps the exact posterior of a graph whose unmoved
   stock_effect <- effect(stock, .location_unmoved_run(-.008, stock = TRUE, sweeps = 400000L))
   expect_lt(abs(z(effect(exact, .location_unmoved_run(-.008, sweeps = 400000L)), stock_effect)), 4)
   # mutant 21: far from the stock samplers' effect of the outcomes (about
-  # 0.0097 analytically), and its E[b] far from the analytic value
-  omitted <- .location_unmoved_run(.008, 21L, sweeps = 400000L)
+  # 0.0097 analytically), and its E[b] far from the analytic value (|z| about
+  # 6 at 400,000 sweeps, so its chain runs four times as long)
+  omitted <- .location_unmoved_run(.008, 21L, sweeps = 1600000L)
   expect_identical(omitted$counters[["unmoved_included"]], 0)
   expect_gt(abs(stock_effect$mean) / stock_effect$mcse, 4)
   expect_gt(abs(omitted$mean - analytic) / omitted$mcse, 4)
@@ -333,18 +334,25 @@ test_that("the location block keeps the exact posterior of a graph whose unmoved
 # The tolerance fixture of the scale move (.scale_tolerance_run; its
 # structural claims run in test-00-location-scale-native.R): every move's
 # change of the likelihood stays below the tolerance, and the move corrects
-# it, so the posterior mean of sigma agrees with the stock samplers' (the scale
-# declined) within Monte Carlo error (|z| < 4, batch means), and without the
-# correction (mutant 5) it does not.
+# it, so the posterior mean of sigma agrees with the exact value (the
+# allocation quadrature with the child v, .scale_tolerance_reference) and with
+# the stock samplers' (the scale declined) within Monte Carlo error (|z| < 4,
+# batch means), and without the correction (mutant 5) it differs from the
+# exact value.
 test_that("the scale move's correction of changes within the tolerance keeps the stock samplers' posterior", {
 
   skip_if_not_certification("The tolerance fixture's chains (about 15 s) run in the numerical-kernels case.")
   skip_if_not_installed("rjags")
+  reference <- .scale_tolerance_reference()
+  expect_lt(abs(reference - .scale_tolerance_reference(a_nodes = 160L, w_nodes = 160L, a_max = 5)), 1e-6)
   z <- function(a, b) (a$mean - b$mean) / sqrt(a$mcse^2 + b$mcse^2)
+  z_reference <- function(a) (a$mean - reference) / a$mcse
   stock     <- .scale_tolerance_run(decline = 1L)
   corrected <- .scale_tolerance_run()
   expect_identical(stock$status, "declined")
   expect_identical(corrected$status, "owned")
+  expect_lt(abs(z_reference(stock)), 4)
+  expect_lt(abs(z_reference(corrected)), 4)
   expect_lt(abs(z(corrected, stock)), 4)
   # the moves changed the likelihood, within the tolerance, and the
   # correction rejected some of them
@@ -354,7 +362,7 @@ test_that("the scale move's correction of changes within the tolerance keeps the
   expect_lt(corrected$counters[["likelihood_change_max"]], 0.9)
   uncorrected <- .scale_tolerance_run(mutant = 5L)
   expect_identical(uncorrected$counters[["likelihood_rejected"]], 0)
-  expect_gt(abs(z(uncorrected, stock)), 4)
+  expect_gt(abs(z_reference(uncorrected)), 4)
 })
 
 

@@ -176,21 +176,34 @@
 # (0.09 + sigma^2) (below the parent check's 1e-6) at precision 1.7e14, so its
 # log density spans (-0.85, 0]; and a child far from its constant mean (log
 # density -9e8, unchanged by the move) that sets M, and so the tolerance
-# 1e-9 M, near 0.9. A run (`decline` 1: the stock samplers) of `draws` after
-# 500 adaptive and 500 burn-in updates returns the ownership status, the
-# posterior mean of sigma, its MCSE (batch means over 50 batches) and the
-# move's record.
-.scale_tolerance_run <- function(mutant = 0L, decline = 0L, draws = 100000L) {
+# 1e-9 M, near 0.9.
+.scale_tolerance_model <- function() {
 
-  setup <- .scale_allocation_setup(include = 1)
-  model <- .scale_allocation_model(setup)
+  model <- .scale_allocation_model(.scale_allocation_setup(include = 1))
   model$syntax <- sub("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }",
                       paste("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }", "  far <- 0 * a + far_mean",
                             "  y_far ~ dnorm(far, 1)", "  v_mean <- 1e-7 * pow(sigma, 2) / (0.09 + pow(sigma, 2))",
                             "  v ~ dnorm(v_mean, v_precision)", sep = "\n"),
                       model$syntax, fixed = TRUE)
   model$data <- c(model$data, list(far_mean = sqrt(2 * 9e8), y_far = 0, v = 0, v_precision = 1.7e14))
-  compiled <- .scale_compile(model, list(I = 1), mutant = mutant, decline = decline, seed = 9157L)
+  model
+}
+
+
+# The tolerance graph compiled (`decline` 1: the stock samplers) without
+# running it.
+.scale_tolerance_compile <- function(mutant = 0L, decline = 0L) {
+
+  .scale_compile(.scale_tolerance_model(), list(I = 1), mutant = mutant, decline = decline, seed = 9157L)
+}
+
+
+# A run of the tolerance graph of `draws` after 500 adaptive and 500 burn-in
+# updates returns the ownership status, the posterior mean of sigma, its MCSE
+# (batch means over 50 batches) and the move's record.
+.scale_tolerance_run <- function(mutant = 0L, decline = 0L, draws = 100000L) {
+
+  compiled <- .scale_tolerance_compile(mutant = mutant, decline = decline)
   out <- .scale_run(compiled, "sigma", draws = draws, burnin = 500L, adapt = 500L)
   sigma <- out$draws[, "sigma"]
   means <- colMeans(matrix(sigma, length(sigma) / 50L, 50L))
@@ -289,9 +302,13 @@
 }
 
 
-.scale_allocation_reference <- function(setup, a_nodes = 120L, w_nodes = 120L, a_max = 4) {
+# `log_child`: the log likelihood of further children of sigma alone, a
+# function of sigma (vectorized; sigma = a sqrt(w_s) when the heterogeneity is
+# included, 0 when it is excluded).
+.scale_allocation_reference <- function(setup, a_nodes = 120L, w_nodes = 120L, a_max = 4, log_child = NULL) {
 
   stopifnot(length(setup$shapes) == 2L, setup$s == 2L, !is.finite(setup$a_upper))
+  if (is.null(log_child)) log_child <- function(sigma) 0 * sigma
   n <- length(setup$y)
   H <- outer(setup$cluster, seq_len(max(setup$cluster)), `==`) * 1
   ga <- .scale_gauss_legendre(a_nodes, 0, a_max)
@@ -308,7 +325,7 @@
   rows <- list()
   for (gate in 1:2) {
     # heterogeneity excluded: the prior of (a, w_s)
-    excluded <- log_ml(diag(setup$variance), gate)
+    excluded <- log_ml(diag(setup$variance), gate) + log_child(0)
     rows[[length(rows) + 1L]] <- list(log_mass = log_gate[gate] + log(1 - setup$include) + excluded,
                                       gate = gate, I = 0, grid = NULL)
     grid <- expand.grid(i = seq_len(a_nodes), j = seq_len(w_nodes))
@@ -320,6 +337,7 @@
       log_w[k] <- log_prior_a[grid$i[k]] + log_prior_w[grid$j[k]] + log_ml(Sigma, gate) +
         log(ga$weights[grid$i[k]]) + log(gw$weights[grid$j[k]])
     }
+    log_w <- log_w + log_child(ga$nodes[grid$i] * sqrt(gw$nodes[grid$j]))
     top <- max(log_w)
     weight <- exp(log_w - top)
     rows[[length(rows) + 1L]] <- list(log_mass = log_gate[gate] + log(setup$include) + top + log(sum(weight)),
@@ -348,6 +366,18 @@
     ws2   = moment(function(a, w) w^2, prior_w[2L]),
     sigma = moment(function(a, w) a * sqrt(w), 0),
     sigma2 = moment(function(a, w) a^2 * w, 0))
+}
+
+
+# The exact posterior mean of sigma in the tolerance graph
+# (.scale_tolerance_model): the allocation reference with the likelihood of
+# its child v = 0 ~ N(1e-7 sigma^2 / (0.09 + sigma^2), 1 / 1.7e14); the far
+# child's mean is a constant.
+.scale_tolerance_reference <- function(a_nodes = 120L, w_nodes = 120L, a_max = 4) {
+
+  log_v <- function(sigma) stats::dnorm(0, 1e-7 * sigma^2 / (0.09 + sigma^2), 1 / sqrt(1.7e14), log = TRUE)
+  .scale_allocation_reference(.scale_allocation_setup(include = 1), a_nodes, w_nodes, a_max,
+                              log_child = log_v)[["sigma"]]
 }
 
 

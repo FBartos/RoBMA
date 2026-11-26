@@ -80,11 +80,10 @@ test_that("BMA.mv fits a product space over fixed and random components", {
 test_that("BMA.mv keeps a long fit of the random-components model for IWMDE", {
 
   # The IWMDE ordinates of the study SD (test-02-random-parameters.R) are
-  # estimated on the draws with that component active (about 35%).
+  # estimated on the census of draws with that component active (about 35%).
   # Their normalization-mass error is Monte Carlo error that shrinks only
   # with more such draws: with 300 draws per chain it exceeds the 10%
-  # rejection threshold for 8 of 20 seeds; with 10000 it stays below 4%,
-  # and below 5.6% on the fixed sample of 4000 such draws the test uses.
+  # rejection threshold for 8 of 20 seeds; with 10000 it stays below 4%.
   input <- .bma_mv_fit_data()
   fit <- .bma_mv_random_components_fit(input, sample = 10000)
   save_fit("BMA.mv_random_components_iwmde", fit)

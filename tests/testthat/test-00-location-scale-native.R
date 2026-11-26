@@ -455,7 +455,7 @@ test_that("the scale move's likelihood correction samples a graph whose change s
   # the stock samplers' posterior of sigma (the scale declined) and the
   # uncorrected one does not takes 100,000 draws per chain and runs in the
   # certification case 'numerical-kernels' (test-00-location-block-exactness.R).
-  expect_identical(.scale_tolerance_run(decline = 1L, draws = 5000L)$status, "declined")
+  expect_identical(.scale_tolerance_compile(decline = 1L)$decisions$status, "declined")
   corrected <- .scale_tolerance_run(draws = 5000L)
   expect_identical(corrected$status, "owned")
   expect_gt(corrected$counters[["likelihood_changed"]], 0.99 * corrected$counters[["likelihood_checks"]])
