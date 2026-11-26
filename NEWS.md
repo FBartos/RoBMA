@@ -15,6 +15,7 @@
 - `plot_diagnostic()` and `plot_diagnostic_trace()` gain `statistic` and `batch_size` to trace batched inclusion probabilities, mixture-component probabilities, and switching rates
 - `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
+- `set_autofit_control()` gains `burnin_max_Rhat`, `burnin_extend` and `burnin_max_extend` for the check that the chains agree at the end of burn-in
 - Eligible independent selection and one-moderator Gaussian ensembles use joint updates by default, with automatic Gaussian updates limited to 800 estimates. `sampler.joint = "bias"` also supports additive selection meta-regressions.
 - `sampler.nested.weights` enables shared weights for nested selection models and `sampler.probabilities` records conditional indicator probabilities
 

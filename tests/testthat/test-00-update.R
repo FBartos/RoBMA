@@ -628,11 +628,15 @@ test_that("the readiness check of burn-in receives the autofit control and the f
   fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_extend = 100))
   record <- attr(fit[["fit"]], "burnin_check")
   expect_identical(record[["stop_reason"]], "no_autofit")
-  # the default threshold of set_autofit_control() reaches the check
-  expect_identical(record[["burnin_max_Rhat"]], 2)
+  # the default threshold of set_autofit_control(), "auto", reaches the check
+  # and resolves to 1.7 + 0.9 / 2 for the two chains
+  expect_identical(record[["burnin_max_Rhat"]], 1.7 + 0.9 / 2)
   expect_equal(fit[["fit"]][["burnin"]], 100)
-  expect_true(any(grepl("The chains had not reached agreement at the end of burn-in",
+  expect_true(any(grepl("Chains did not agree at the end of burn-in: R-hat 3.00 for 'mu' (limit 2.15).",
     fit[["fit"]][["warnings"]], fixed = TRUE)))
+  # a stored number fixes it
+  fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_extend = 100, burnin_max_Rhat = 1.8))
+  expect_identical(attr(fit[["fit"]], "burnin_check")[["burnin_max_Rhat"]], 1.8)
 
   # an explicit NULL turns the check off
   checks <- 0L

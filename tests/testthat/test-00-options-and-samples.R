@@ -176,17 +176,24 @@ test_that("the readiness settings of burn-in are validated and survive control u
   defaults <- set_autofit_control()
   expect_identical(utils::tail(names(formals(set_autofit_control)), 3L), burnin_names)
   expect_identical(defaults[burnin_names],
-    list(burnin_max_Rhat = 2, burnin_extend = 500, burnin_max_extend = 10))
+    list(burnin_max_Rhat = "auto", burnin_extend = 500, burnin_max_extend = 10))
   # an explicit NULL turns the check off and is kept as a named element
   off <- set_autofit_control(burnin_max_Rhat = NULL)
   expect_true("burnin_max_Rhat" %in% names(off))
   expect_null(off[["burnin_max_Rhat"]])
+  # a number fixes the threshold
+  expect_identical(set_autofit_control(burnin_max_Rhat = 1.8)[["burnin_max_Rhat"]], 1.8)
 
   # validated by BayesTools
   expect_error(set_autofit_control(burnin_extend = 50),
     "Checking 'autofit_control':\n\tThe 'burnin_extend' must be equal or higher than 100.", fixed = TRUE)
   expect_error(set_autofit_control(burnin_max_Rhat = 0.5), "'burnin_max_Rhat' must be equal or higher than 1.")
   expect_error(set_autofit_control(burnin_max_Rhat = Inf), "'burnin_max_Rhat' argument must contain only finite values.")
+  expect_error(set_autofit_control(burnin_max_Rhat = "Auto"),
+    "Checking 'autofit_control':\n\tThe 'Auto' values are not recognized by the 'burnin_max_Rhat' argument.",
+    fixed = TRUE)
+  expect_error(set_autofit_control(burnin_max_Rhat = c("auto", "auto")),
+    "The 'burnin_max_Rhat' argument must have length '1'.", fixed = TRUE)
   expect_error(set_autofit_control(burnin_max_extend = -1), "'burnin_max_extend' must be equal or higher than 0.")
   expect_error(set_autofit_control(burnin_extend = NULL), "The 'burnin_extend' argument cannot be NULL.")
 
@@ -206,6 +213,10 @@ test_that("the readiness settings of burn-in are validated and survive control u
   later <- .update_autofit_control(cleared, list(max_extend = 2))
   expect_true("burnin_max_Rhat" %in% names(later))
   expect_null(later[["burnin_max_Rhat"]])
+  # "auto" is kept when omitted and replaced by a number, and the reverse
+  expect_identical(.update_autofit_control(defaults, list(max_extend = 2))[["burnin_max_Rhat"]], "auto")
+  expect_identical(.update_autofit_control(defaults, list(burnin_max_Rhat = 1.3))[["burnin_max_Rhat"]], 1.3)
+  expect_identical(.update_autofit_control(stored, list(burnin_max_Rhat = "auto"))[["burnin_max_Rhat"]], "auto")
   # a control stored before the settings existed takes their defaults
   legacy <- set_autofit_control(max_extend = 3)
   legacy[burnin_names] <- NULL

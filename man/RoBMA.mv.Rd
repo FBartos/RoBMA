@@ -309,8 +309,9 @@ likelihood.}
 
 \item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.
 With at least two chains, the chains are checked for agreement over the
-last \code{min(burnin_extend, burnin)} iterations of burn-in (at least 100)
-before sampling starts, and with \code{autofit} burn-in is extended until they
+last \code{min(burnin_extend, floor(burnin / thin))} samples of burn-in, taken
+every \code{thin} iterations (at least 100 samples), before sampling starts,
+and with \code{autofit} burn-in is extended until they
 agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}} for when the check
 runs). The fitted JAGS
 object (\code{object$fit$burnin}) reports the burn-in that was run; the fitting

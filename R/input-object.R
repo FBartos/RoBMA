@@ -8,8 +8,9 @@
 #' @param sample numeric. Number of MCMC samples to save. Defaults to `5000`.
 #' @param burnin numeric. Number of burn-in iterations. Defaults to `2000`.
 #' With at least two chains, the chains are checked for agreement over the
-#' last `min(burnin_extend, burnin)` iterations of burn-in (at least 100)
-#' before sampling starts, and with `autofit` burn-in is extended until they
+#' last `min(burnin_extend, floor(burnin / thin))` samples of burn-in, taken
+#' every `thin` iterations (at least 100 samples), before sampling starts,
+#' and with `autofit` burn-in is extended until they
 #' agree (see `burnin_max_Rhat` in [set_autofit_control()] for when the check
 #' runs). The fitted JAGS
 #' object (`object$fit$burnin`) reports the burn-in that was run; the fitting

@@ -17,7 +17,7 @@ set_autofit_control(
   max_extend = 10,
   check_indicators = FALSE,
   monitor = NULL,
-  burnin_max_Rhat = 2,
+  burnin_max_Rhat = "auto",
   burnin_extend = 500,
   burnin_max_extend = 10
 )
@@ -90,6 +90,54 @@ Defaults to \code{FALSE}.}
 convergence checks. A base name selects all indexed elements. Defaults to
 \code{NULL}, which checks every eligible parameter.}
 
+\item{burnin_max_Rhat}{threshold of the readiness check between burn-in and
+sampling. Defaults to \code{"auto"}, which is \code{1.7 + 0.9 / chains}
+(\code{2.15} for two chains, \code{2} for three, \code{1.925} for four); a
+number fixes the threshold and \code{NULL} turns the check off. The check
+runs, also with \code{autofit = FALSE}, in the initial fit of a model (not
+when \code{update()} extends the chains, nor in the automatic extensions
+after sampling)
+when there are at least two chains, the block of the last
+\code{min(burnin_extend, floor(burnin / thin))} samples of burn-in, taken
+every \code{thin} iterations as in sampling, has at least 100 samples, and
+JAGS assigns the model a sampler. The iterations of the block run with the
+monitors on and their samples are checked and then dropped: the chains are
+ready when the
+split-chain R-hat point estimate (each chain's block split into halves) is at
+most \code{burnin_max_Rhat} for every parameter of the convergence check
+(\code{monitor}, \code{check_indicators}). With \code{autofit}, burn-in of
+chains that are not ready is extended by blocks of \code{burnin_extend}
+samples (\code{burnin_extend * thin} iterations) until they are,
+\code{burnin_max_extend} blocks were added, or
+\code{max_time} is exceeded; without it, burn-in is kept. Chains that are
+still not ready start sampling, and a warning is issued once that sampling
+has finished (an attempt that is restarted warns nothing). In a model to
+which JAGS assigns no sampler, whose chains cannot disagree, burn-in runs as
+with the check off. A fit whose chains are ready
+at once has the draws it would have with the check off, unless a monitored
+node has no observed descendants (see \code{autofit_control} in
+\code{\link[BayesTools]{JAGS_fit}}). The automatic value falls with the
+number of chains: for chains that agree but are autocorrelated, the
+split-chain R-hat has the same typical value for any number of chains but
+varies less the more chains are run, so a threshold that falls with the
+number of chains keeps false alarms from becoming more frequent with them
+and keeps part of the sensitivity to one deviating chain that a fixed value
+loses. A slowly mixing model can exceed the threshold although its chains
+agree, because the statistic grows with the autocorrelation of the block's
+samples; a larger \code{thin} is then the remedy, while more burn-in is the
+remedy for chains that have not yet reached the same region. When the
+warning appears for chains that started in different components (for
+example of the publication-bias mixture), a longer adaptation (such as
+\code{adapt = 5000}) resolves it sooner than more burn-in alone.}
+
+\item{burnin_extend}{number of final burn-in samples, taken every
+\code{thin} iterations, that the readiness check assesses, and of each
+extension of burn-in (\code{burnin_extend * thin} iterations); at least
+\code{100}. Defaults to \code{500}.}
+
+\item{burnin_max_extend}{largest number of extensions of burn-in, with
+\code{autofit} only. Defaults to \code{10}.}
+
 \item{allow_not_assessable}{whether requested sampled parameters with
 undefined diagnostics may be ignored by the convergence checks. Defaults to
 \code{FALSE}, with which the fitted model reports the parameters whose
@@ -99,45 +147,6 @@ check (a mixture component or indicator state that no chain has visited,
 samples that are constant), so a parameter that only more samples would
 reveal is not waited for; every diagnostic that can be assessed still
 extends the model.}
-
-\item{burnin_max_Rhat}{threshold of the readiness check between burn-in and
-sampling. Defaults to \code{2}; \code{NULL} turns the check off. The check
-runs, also with \code{autofit = FALSE}, in the initial fit of a model (not
-when \code{update()} extends the chains, nor in the automatic extensions
-after sampling)
-when there are at least two chains, the block of the last
-\code{min(burnin_extend, burnin)} iterations of burn-in has at least 100
-iterations, and JAGS assigns the model a sampler. The iterations of the
-block run with the monitors on and their draws are checked and then
-dropped: the chains are ready when the
-split-chain R-hat point estimate (each chain's block split into halves) is at
-most \code{burnin_max_Rhat} for every parameter of the convergence check
-(\code{monitor}, \code{check_indicators}). With \code{autofit}, burn-in of
-chains that are not ready is extended by blocks of \code{burnin_extend}
-iterations until they are, \code{burnin_max_extend} blocks were added, or
-\code{max_time} is exceeded; without it, burn-in is kept. Chains that are
-still not ready start sampling, and a warning is issued once that sampling
-has finished (an attempt that is restarted warns nothing). In a model to
-which JAGS assigns no sampler, whose chains cannot disagree, burn-in runs as
-with the check off. A fit whose chains are ready
-at once has the draws it would have with the check off, unless a monitored
-node has no observed descendants (see \code{autofit_control} in
-\code{\link[BayesTools]{JAGS_fit}}). The default is chosen for three or four
-chains: one deviating chain raises the split-chain R-hat of a continuous
-parameter less the more chains are run, so a fit with many chains (eight or
-more) may set a lower value. A slowly mixing model can exceed the threshold
-although its chains agree; more burn-in then does not help, and the
-convergence checks of the retained samples report the slow mixing. When
-the warning appears for chains that started in different components (for
-example of the publication-bias mixture), a longer adaptation (such as
-\code{adapt = 5000}) resolves it sooner than more burn-in alone.}
-
-\item{burnin_extend}{number of final burn-in iterations that the readiness
-check assesses and of each extension of burn-in; at least \code{100}.
-Defaults to \code{500}.}
-
-\item{burnin_max_extend}{largest number of extensions of burn-in, with
-\code{autofit} only. Defaults to \code{10}.}
 }
 \value{
 \code{set_autofit_control} returns a list of autofit control settings
@@ -172,7 +181,8 @@ The convergence checks determine the quality standards that fitted models must m
 Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{restarts}, \code{max_extend},
 and \code{burnin_max_Rhat} can be set to \code{NULL}; \code{sample_extend}
-must be a positive integer or \code{"auto"}. The routing controls are delegated to
+must be a positive integer or \code{"auto"}, and \code{burnin_max_Rhat} a
+finite number of at least 1 or \code{"auto"}. The routing controls are delegated to
 \code{BayesTools::JAGS_check_convergence()}.
 Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
