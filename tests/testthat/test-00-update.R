@@ -118,6 +118,85 @@ test_that("update.brma extends one sample chunk and recomputes stored caches", {
   expect_true(calls[["marglik"]])
 })
 
+test_that("update.brma extends by 'auto' or a number, and not at all without sample_extend", {
+
+  object <- mock_update_object()
+  expect_identical(object[["autofit_control"]][["sample_extend"]], "auto")
+  # a fit of the earlier layout stores a fixed step
+  object[["autofit_control"]][["sample_extend"]] <- 7
+
+  calls <- list()
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, adapt = NULL) {
+      calls[[length(calls) + 1L]] <<- object[["autofit_control"]][c("sample_extend", "max_extend")]
+      return(object[["fit"]])
+    },
+    .object_summary = function(object) data.frame(Mean = 2, row.names = "mu"),
+    .object_coefficients = function(object) c(mu = 2),
+    .package = "RoBMA"
+  )
+
+  auto   <- update(object, sample_extend = "auto")
+  fixed  <- update(object, sample_extend = 30)
+  absent <- update(object, autofit_control = list(max_extend = 3))
+  named  <- update(object, sample_extend = c(a = "auto"))
+
+  # one extension each, sized by BayesTools for "auto"; a named "auto" reaches
+  # the fit as the plain string
+  expect_identical(calls, list(
+    list(sample_extend = "auto", max_extend = 1),
+    list(sample_extend = 30, max_extend = 1),
+    list(sample_extend = "auto", max_extend = 1)
+  ))
+  expect_identical(auto[["autofit_control"]][["sample_extend"]], "auto")
+  expect_identical(named[["autofit_control"]][["sample_extend"]], "auto")
+  expect_identical(fixed[["autofit_control"]][["sample_extend"]], 30)
+  # without sample_extend, update() does not extend and keeps the stored step
+  expect_identical(absent[["autofit_control"]][["sample_extend"]], 7)
+  expect_identical(absent[["autofit_control"]][["max_extend"]], 3)
+
+  for (value in list("Auto", "", c("auto", "auto"), NA_character_)) {
+    expect_error(update(object, sample_extend = value), "sample_extend", info = deparse(value))
+  }
+  expect_length(calls, 3L)
+})
+
+test_that("update.brma drops the allow_not_assessable of a stored autofit control", {
+
+  # RoBMA 4.1.1 stored 'allow_not_assessable' in the autofit control; the
+  # element was removed and an update drops it without a warning
+  object <- mock_update_object()
+  object[["autofit_control"]][["allow_not_assessable"]] <- TRUE
+  object[["convergence_checks"]][["allow_not_assessable"]] <- TRUE
+
+  forwarded <- list()
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, adapt = NULL) {
+      forwarded[[length(forwarded) + 1L]] <<- object[["autofit_control"]]
+      return(object[["fit"]])
+    },
+    .object_summary = function(object) data.frame(Mean = 2, row.names = "mu"),
+    .object_coefficients = function(object) c(mu = 2),
+    .package = "RoBMA"
+  )
+
+  expect_silent(extended <- update(object, sample_extend = "auto"))
+  expect_silent(controlled <- update(object, autofit_control = list(max_extend = 3)))
+
+  # the control of the extension (validated by BayesTools before .fit()
+  # forwards it to BayesTools::JAGS_extend()) and the stored ones lack it
+  expect_length(forwarded, 1L)
+  expect_false("allow_not_assessable" %in% names(forwarded[[1L]]))
+  expect_identical(forwarded[[1L]][["max_extend"]], 1)
+  for (updated in list(extended, controlled)) {
+    expect_false("allow_not_assessable" %in% names(updated[["autofit_control"]]))
+    # the convergence checks keep theirs
+    expect_true(updated[["convergence_checks"]][["allow_not_assessable"]])
+  }
+  expect_identical(extended[["autofit_control"]][["sample_extend"]], "auto")
+  expect_identical(controlled[["autofit_control"]][["max_extend"]], 3)
+})
+
 test_that("update.brma can drop stored caches after extension", {
 
   object <- mock_update_object()
@@ -399,12 +478,12 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
   original <- getFromNamespace(".bt_rjags_run", "BayesTools")
   testthat::local_mocked_bindings(
     .bt_rjags_run = function(model, data, inits, monitor, adapt, burnin, sample,
-                            thin, cl, silent, live_model = NULL, probability_plan = NULL) {
+                            thin, cl, silent, ..., probability_plan = NULL) {
       calls[[length(calls) + 1L]] <<- list(
         adapt = adapt, burnin = burnin, parallel = !is.null(cl), probability_plan = probability_plan
       )
       original(model, data, inits, monitor, adapt, burnin, sample, thin, cl, silent,
-               live_model = live_model, probability_plan = probability_plan)
+               ..., probability_plan = probability_plan)
     },
     .package = "BayesTools",
     .env = env
@@ -518,4 +597,103 @@ test_that("automatic extensions of a fit use its adaptation", {
     list(initial = 300L, extensions = data.frame(adapt = c(300L, 300L), rebuilt = c(FALSE, FALSE)))
   )
   expect_identical(vapply(.draws_by_chain(fit), nrow, integer(1)), c(120L, 120L))
+})
+
+test_that("the readiness check of burn-in receives the autofit control and the fit reports the burn-in run", {
+
+  # the chains disagree in the first checked block and agree in the next
+  checks <- 0L
+  testthat::local_mocked_bindings(
+    .bt_burnin_block_Rhat = function(block, ...) {
+      checks <<- checks + 1L
+      c(mu = if (checks == 1L) 3 else 1)
+    },
+    .package = "BayesTools"
+  )
+  fit <- .adaptation_fit(
+    autofit = TRUE,
+    autofit_control = set_autofit_control(max_Rhat = NULL, min_ESS = NULL, burnin_extend = 100,
+                                          burnin_max_extend = 2)
+  )
+  record <- attr(fit[["fit"]], "burnin_check")
+  expect_identical(checks, 2L)
+  expect_identical(record[c("block", "burnin_extend", "extension", "status")],
+    list(block = 100L, burnin_extend = 100, extension = 100, status = "ready"))
+  expect_equal(fit[["fit"]][["burnin"]], 200)
+  expect_equal(fit[["fit_control"]][["burnin"]], 100)
+  expect_identical(vapply(coda::as.mcmc.list(fit[["fit"]]), stats::start, numeric(1)), c(501, 501))
+
+  # without autofit the chains keep their burn-in and the warning reaches the fit
+  checks <- 0L
+  fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_extend = 100))
+  record <- attr(fit[["fit"]], "burnin_check")
+  expect_identical(record[["stop_reason"]], "no_autofit")
+  # the default threshold of set_autofit_control(), "auto", reaches the check
+  # and resolves to 2.15 for the two chains
+  expect_identical(record[["burnin_max_Rhat"]], 2.15)
+  expect_equal(fit[["fit"]][["burnin"]], 100)
+  expect_true(any(grepl("Chains did not agree at the end of burn-in: R-hat 3.00 for 'mu' (limit 2.15).",
+    fit[["fit"]][["warnings"]], fixed = TRUE)))
+  # a stored number fixes it
+  fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_extend = 100, burnin_max_Rhat = 1.8))
+  expect_identical(attr(fit[["fit"]], "burnin_check")[["burnin_max_Rhat"]], 1.8)
+
+  # an explicit NULL turns the check off
+  checks <- 0L
+  fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_max_Rhat = NULL))
+  expect_identical(checks, 0L)
+  expect_null(attr(fit[["fit"]], "burnin_check"))
+})
+
+test_that("update.brma sizes an 'auto' extension from the convergence check of the stored fit", {
+
+  fit <- .adaptation_fit()
+  # 100 draws per chain: twice the draws is below the minimum extension of 1000
+  extended <- update(fit, sample_extend = "auto")
+  expect_identical(vapply(.draws_by_chain(extended), nrow, integer(1)), c(1100L, 1100L))
+  expect_identical(
+    lapply(.draws_by_chain(extended), function(draws) draws[seq_len(100), , drop = FALSE]),
+    .draws_by_chain(fit)
+  )
+  expect_identical(extended[["autofit_control"]][["sample_extend"]], "auto")
+
+  # an unreachable ESS target is capped at twice the draws per chain, and
+  # criteria that hold give the minimum
+  capped <- update(extended, sample_extend = "auto", autofit_control = list(min_ESS = 1e6))
+  expect_identical(vapply(.draws_by_chain(capped), nrow, integer(1)), c(3300L, 3300L))
+  met <- update(extended, sample_extend = "auto", autofit_control = list(max_Rhat = NULL, min_ESS = NULL))
+  expect_identical(vapply(.draws_by_chain(met), nrow, integer(1)), c(2100L, 2100L))
+
+  # a number extends by that number
+  expect_identical(vapply(.draws_by_chain(update(fit, sample_extend = 20)), nrow, integer(1)), c(120L, 120L))
+})
+
+test_that("a fit that stops automatically stores the message of a component that no chain visits", {
+
+  # PET has prior weight 1e-12 against no bias, so no chain visits it: its
+  # draws stay 0 and its diagnostics are not assessable. Automatic fitting
+  # stops after the initial sampling, as does the extension of update(), and
+  # the convergence check of the model stores the message of PET unless
+  # allow_not_assessable = TRUE (and no termination warning)
+  data("Bem2011", package = "RoBMA", envir = environment())
+  fit_with <- function(allow) RoBMA(
+    yi = d, sei = se, measure = "SMD", data = Bem2011,
+    prior_bias = prior_PET("Cauchy", list(0, 1), truncation = list(0, Inf), prior_weights = 1e-12),
+    chains = 2, adapt = 200, burnin = 200, sample = 1000, seed = 1, autofit = TRUE,
+    autofit_control = set_autofit_control(max_extend = 1),
+    convergence_checks = set_convergence_checks(allow_not_assessable = allow)
+  )
+  stored <- "R-hat, ESS diagnostics are not assessable for 'PET'."
+  for (allow in c(FALSE, TRUE)) {
+    fit     <- fit_with(allow)
+    updated <- update(fit, sample_extend = 1000)
+    expect_identical(nrow(attr(fit[["fit"]], "adaptation")$extensions), 0L, info = allow)
+    expect_identical(vapply(fit[["fit"]][["mcmc"]], nrow, integer(1)), c(1000L, 1000L), info = allow)
+    expect_identical(vapply(updated[["fit"]][["mcmc"]], nrow, integer(1)), c(2000L, 2000L), info = allow)
+    for (object in list(fit, updated)) {
+      PET <- unlist(lapply(object[["fit"]][["mcmc"]], function(chain) as.numeric(chain[, "PET"])))
+      expect_identical(unique(PET), 0, info = allow)
+      expect_identical(object[["fit"]][["warnings"]], if (!allow) stored, info = allow)
+    }
+  }
 })

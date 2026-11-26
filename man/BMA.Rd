@@ -220,7 +220,20 @@ field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
-\item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
+\item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.
+With at least two chains, the chains are checked for agreement over the
+last \code{min(burnin_extend, floor(burnin / thin))} samples of burn-in, taken
+every \code{thin} iterations (at least 100 samples), before sampling starts,
+and with \code{autofit} burn-in is extended until they
+agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}} for when the check
+runs). A larger \code{thin} helps when more widely spaced samples are less
+correlated; as the check needs 100 samples at the fit's thinning, it does
+not run with \code{burnin} below \code{100 * thin}, and when it runs with \code{burnin} at
+most \code{burnin_extend * thin}, the block holds every complete window of
+\code{thin} iterations of burn-in (the first \code{burnin \%\% thin} iterations run
+unmonitored), so raise \code{burnin} together with \code{thin}. The fitted JAGS
+object (\code{object$fit$burnin}) reports the burn-in that was run; the fitting
+settings (\code{object$fit_control$burnin}) keep the requested value.}
 
 \item{adapt}{numeric. Number of adaptation iterations. Defaults to \code{500}.}
 

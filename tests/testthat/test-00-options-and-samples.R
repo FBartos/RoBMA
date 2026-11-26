@@ -147,6 +147,90 @@ test_that("brma-family constructors inherit the silent option and model averagin
 })
 
 
+test_that("automatic extensions default to sample_extend = 'auto' and keep a fixed number", {
+
+  expect_identical(formals(set_autofit_control)[["sample_extend"]], "auto")
+  expect_identical(set_autofit_control()[["sample_extend"]], "auto")
+  expect_identical(set_autofit_control(sample_extend = 2000)[["sample_extend"]], 2000)
+  # a named "auto" is stored as the plain string, which BayesTools runs as "auto"
+  expect_identical(set_autofit_control(sample_extend = c(step = "auto"))[["sample_extend"]], "auto")
+  object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD",
+                 only_priors = TRUE, silent = TRUE)
+  expect_identical(object[["autofit_control"]][["sample_extend"]], "auto")
+
+  # validated by BayesTools: a positive whole number or "auto"
+  for (value in list("Auto", c("auto", "auto"), NA_character_, 0, 1.5, TRUE, NULL)) {
+    expect_error(set_autofit_control(sample_extend = value), "sample_extend", info = deparse(value))
+  }
+  # a stored fixed step stays when other settings change
+  expect_identical(
+    .update_autofit_control(set_autofit_control(sample_extend = 7), list(max_extend = 3))[["sample_extend"]],
+    7
+  )
+})
+
+
+test_that("the readiness settings of burn-in are validated and survive control updates", {
+
+  burnin_names <- c("burnin_max_Rhat", "burnin_extend", "burnin_max_extend")
+  defaults <- set_autofit_control()
+  expect_identical(utils::tail(names(formals(set_autofit_control)), 3L), burnin_names)
+  expect_identical(defaults[burnin_names],
+    list(burnin_max_Rhat = "auto", burnin_extend = 500, burnin_max_extend = 10))
+  # an explicit NULL turns the check off and is kept as a named element
+  off <- set_autofit_control(burnin_max_Rhat = NULL)
+  expect_true("burnin_max_Rhat" %in% names(off))
+  expect_null(off[["burnin_max_Rhat"]])
+  # a number fixes the threshold
+  expect_identical(set_autofit_control(burnin_max_Rhat = 1.8)[["burnin_max_Rhat"]], 1.8)
+
+  # validated by BayesTools
+  expect_error(set_autofit_control(burnin_extend = 50),
+    "Checking 'autofit_control':\n\tThe 'burnin_extend' must be equal or higher than 100.", fixed = TRUE)
+  expect_error(set_autofit_control(burnin_max_Rhat = 0.5), "'burnin_max_Rhat' must be equal or higher than 1.")
+  expect_error(set_autofit_control(burnin_max_Rhat = Inf), "'burnin_max_Rhat' argument must contain only finite values.")
+  expect_error(set_autofit_control(burnin_max_Rhat = "Auto"),
+    "Checking 'autofit_control':\n\tThe 'Auto' values are not recognized by the 'burnin_max_Rhat' argument.",
+    fixed = TRUE)
+  expect_error(set_autofit_control(burnin_max_Rhat = c("auto", "auto")),
+    "The 'burnin_max_Rhat' argument must have length '1'.", fixed = TRUE)
+  expect_error(set_autofit_control(burnin_max_extend = -1), "'burnin_max_extend' must be equal or higher than 0.")
+  expect_error(set_autofit_control(burnin_extend = NULL), "The 'burnin_extend' argument cannot be NULL.")
+
+  # the convergence checks do not get them
+  expect_false(any(grepl("^burnin_", names(formals(set_convergence_checks)))))
+  expect_false(any(grepl("^burnin_", names(set_convergence_checks()))))
+  expect_false(any(grepl("^burnin_", names(.update_convergence_checks(set_convergence_checks(), list())))))
+
+  # update(): a supplied value or NULL replaces the stored one, an omitted one is kept
+  stored <- set_autofit_control(burnin_max_Rhat = 1.3, burnin_extend = 300, burnin_max_extend = 4)
+  expect_identical(.update_autofit_control(stored, NULL)[burnin_names], stored[burnin_names])
+  expect_identical(.update_autofit_control(stored, list(burnin_extend = 200))[burnin_names],
+    list(burnin_max_Rhat = 1.3, burnin_extend = 200, burnin_max_extend = 4))
+  cleared <- .update_autofit_control(stored, list(burnin_max_Rhat = NULL))
+  expect_true("burnin_max_Rhat" %in% names(cleared))
+  expect_null(cleared[["burnin_max_Rhat"]])
+  later <- .update_autofit_control(cleared, list(max_extend = 2))
+  expect_true("burnin_max_Rhat" %in% names(later))
+  expect_null(later[["burnin_max_Rhat"]])
+  # "auto" is kept when omitted and replaced by a number, and the reverse
+  expect_identical(.update_autofit_control(defaults, list(max_extend = 2))[["burnin_max_Rhat"]], "auto")
+  expect_identical(.update_autofit_control(defaults, list(burnin_max_Rhat = 1.3))[["burnin_max_Rhat"]], 1.3)
+  expect_identical(.update_autofit_control(stored, list(burnin_max_Rhat = "auto"))[["burnin_max_Rhat"]], "auto")
+  # a control stored before the settings existed takes their defaults
+  legacy <- set_autofit_control(max_extend = 3)
+  legacy[burnin_names] <- NULL
+  expect_identical(.update_autofit_control(legacy, list())[burnin_names], defaults[burnin_names])
+
+  # the constructors store the control as given
+  object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD", only_priors = TRUE, silent = TRUE,
+    autofit_control = set_autofit_control(burnin_max_Rhat = NULL, burnin_extend = 200))
+  expect_true("burnin_max_Rhat" %in% names(object[["autofit_control"]]))
+  expect_null(object[["autofit_control"]][["burnin_max_Rhat"]])
+  expect_identical(object[["autofit_control"]][["burnin_extend"]], 200)
+})
+
+
 test_that("convergence checks expose BayesTools routing controls", {
 
   checks <- set_convergence_checks()
@@ -173,10 +257,53 @@ test_that("convergence checks expose BayesTools routing controls", {
   )[["check_indicators"]])
   expect_identical(routed[["monitor"]], c("mu", "tau"))
   expect_true(routed[["allow_not_assessable"]])
+  expect_identical(names(checks), c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error",
+    "check_indicators", "monitor", "allow_not_assessable"
+  ))
+  expect_error(
+    set_convergence_checks(allow_not_assessable = NA),
+    "Checking 'convergence_checks':\n\tThe 'allow_not_assessable' argument cannot contain NA/NaN values.",
+    fixed = TRUE
+  )
+  # the setting alone is a valid convergence-check list
+  only_allow <- RoBMA:::.check_and_list_convergence_checks(list(allow_not_assessable = TRUE))
+  expect_true(only_allow[["allow_not_assessable"]])
+  expect_false(only_allow[["check_indicators"]])
+  expect_false(RoBMA:::.check_and_list_convergence_checks(list(max_Rhat = 1.05))[["allow_not_assessable"]])
   expect_false("remove_failed" %in% names(checks))
   expect_false("balance_probability" %in% names(checks))
   expect_error(set_convergence_checks(remove_failed = TRUE), "unused argument")
   expect_error(set_convergence_checks(balance_probability = FALSE), "unused argument")
+})
+
+test_that("the automatic-fitting control has no allow_not_assessable", {
+
+  # removed after 4.1.1: automatic fitting never extends a model for
+  # parameters that cannot be assessed; set_convergence_checks() keeps it
+  expect_identical(names(set_autofit_control()), c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error", "max_time",
+    "sample_extend", "restarts", "max_extend", "check_indicators", "monitor",
+    "burnin_max_Rhat", "burnin_extend", "burnin_max_extend"
+  ))
+  expect_false("allow_not_assessable" %in% names(formals(set_autofit_control)))
+  expect_error(set_autofit_control(allow_not_assessable = TRUE), "unused argument")
+  expect_error(
+    RoBMA(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD", only_priors = TRUE, silent = TRUE,
+          autofit_control = list(sample_extend = "auto", allow_not_assessable = TRUE)),
+    "The 'allow_not_assessable' objects are not recognized by the 'autofit_control' argument.",
+    fixed = TRUE
+  )
+
+  # a control stored by RoBMA 4.1.1 is rebuilt without it, whatever its value
+  for (allow in c(FALSE, TRUE)) {
+    stored <- c(set_autofit_control(sample_extend = 1000), list(allow_not_assessable = allow))
+    expect_identical(.update_autofit_control(stored, NULL), set_autofit_control(sample_extend = 1000))
+    expect_identical(
+      .update_autofit_control(stored, list(max_extend = 3)),
+      set_autofit_control(sample_extend = 1000, max_extend = 3)
+    )
+  }
 })
 
 test_that("targeted convergence controls retain product-space indicator checks", {

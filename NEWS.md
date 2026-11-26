@@ -4,6 +4,7 @@
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
+- `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it
 
 ### Features
 - `plot_models()` displays posterior probabilities of individual models and their component inclusion, coefficient directions, or mixture members
@@ -14,6 +15,7 @@
 - `plot_diagnostic()` and `plot_diagnostic_trace()` gain `statistic` and `batch_size` to trace batched inclusion probabilities, mixture-component probabilities, and switching rates
 - `bias_exempt` lets individual outcomes bypass publication-bias adjustment in selection, PET, PEESE, and model-averaged fits
 - `update()` gains `adapt` to set the adaptation of one extension
+- `set_autofit_control()` gains `burnin_max_Rhat`, `burnin_extend` and `burnin_max_extend` for the check that the chains agree at the end of burn-in
 - Eligible independent selection and one-moderator Gaussian ensembles use joint updates by default, with automatic Gaussian updates limited to 800 estimates. `sampler.joint = "bias"` also supports additive selection meta-regressions.
 - `sampler.nested.weights` shares weights of nested selection models (on by default) and `sampler.probabilities` records conditional indicator probabilities
 
@@ -25,6 +27,8 @@
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default, also for their jointly sampled parameter blocks; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
 - the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance and how often its indicators switched (option `selection.coarse_min_acceptance`)
+- `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each automatic extension from the failed convergence check
+- automatic fitting stops once every diagnostic that can be assessed meets its criterion instead of extending until `max_time` or `max_extend` for parameters whose diagnostics cannot be assessed
 
 ### Fixes
 - JASP fits retain the requested draws per chain and report selection sampler acceptance across the full sampling run
