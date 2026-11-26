@@ -133,8 +133,17 @@ The available options are:
   and the per-fit record); a block that `sampler.blocks` declares is
   updated jointly by the corrected block sampler when it has such a
   selection block among its children, and by the factor slice sampler of
-  the BayesTools JAGS module otherwise; parameters that `sampler.gates`
-  declares keep the gated sampler. `"slice"` uses the samplers JAGS
+  the BayesTools JAGS module otherwise; the selection weights of a
+  branch that `sampler.gates` declares are updated together by the
+  corrected gated block sampler when the branch has such a selection
+  block or independent step-selection rows (the estimates of
+  [`RoBMA()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.md)),
+  and the other gated parameters keep the gated sampler; indicators with
+  fixed prior probabilities (the bias, heterogeneity, effect and
+  moderator indicators) whose children include such a selection block,
+  and the bias indicator of independent step-selection rows, are updated
+  by the screened indicator sampler unless a joint sampler or
+  `sampler.probabilities` takes them. `"slice"` uses the samplers JAGS
   assigns together with the gated and factor slice samplers of the
   BayesTools JAGS module where `sampler.gates` and `sampler.blocks`
   declare them. `"jags.default"` uses only the samplers JAGS assigns, in
@@ -149,17 +158,20 @@ The available options are:
 - `selection.coarse_min_acceptance`:
 
   acceptance threshold of the corrected sampler (default `0.90`, a
-  number between `0` and `1`). Each corrected sampler whose acceptance
-  rate during adaptation is below it, that made fewer than 50 proposals
-  during adaptation, or whose surrogate never differed from the exact
-  density during adaptation updates its parameter or block with the
-  exact sampler for the rest of the fit, and a fit with at least 1,000
-  counted proposals whose post-adaptation acceptance rate, or that of
-  its worst sampler, is below it warns. A block of d parameters is
-  judged by its acceptance rate to the power 1/d (see
-  [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md)).
-  `0` disables the fallback and the warning. Captured when each model is
-  compiled, like the other sampler settings.
+  number between `0` and `1`). Each corrected sampler that made at least
+  50 evidence proposals during adaptation (proposals for which a
+  selection block's surrogate differed from its exact density) with an
+  acceptance rate below it updates its parameter, block or indicator
+  with the exact sampler for the rest of the fit, and a fit with at
+  least 1,000 counted evidence proposals whose post-adaptation
+  acceptance rate, or that of its worst sampler, is below it warns. A
+  block of d directions is judged by its acceptance rate to the power
+  1/d (see
+  [`selection_sampler_info`](https://fbartos.github.io/RoBMA/dev/reference/selection_sampler_info.md));
+  the location block sampler (`sampler.joint`) is one corrected sampler
+  per chain, whose acceptance is that of its whole sweep. `0` disables
+  the fallback and the warning. Captured when each model is compiled,
+  like the other sampler settings.
 
 - `selection.coarse_grid`:
 
@@ -194,9 +206,13 @@ The available options are:
   model-averaged fits
   ([`RoBMA()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.md),
   [`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
-  are updated by the gated slice sampler of the BayesTools JAGS module
-  (default `TRUE`): while the bias indicator does not select a branch,
-  its parameters are drawn directly from their prior instead of by slice
+  are updated by the gated slice sampler of the BayesTools JAGS module,
+  or, for the selection weights of a branch under
+  `selection.sampler = "slice.coarse"` (a branch with a selection block
+  that takes part in the corrected sampler or with independent
+  step-selection rows), by the corrected gated block sampler (default
+  `TRUE`): while the bias indicator does not select a branch, its
+  parameters are drawn directly from their prior instead of by slice
   sampling. `selection.sampler = "jags.default"` turns the gated sampler
   off.
 
@@ -245,21 +261,53 @@ The available options are:
   supplied covariance matrix, and the ordinary selection-weight layout.
   `"gaussian"` requests the Gaussian joint sampler, including for larger
   models and for unstandardized numeric moderators. Both Gaussian routes
-  require sufficient proposal coverage. `"clustered"` and
-  `"clustered.scale"` request the grouped moderator update in eligible
-  positive-direction clustered models with one factor moderator and no
-  bias-exempt rows. `"clustered.scale"` also updates heterogeneity
-  jointly. Unsupported or declined candidates use the ordinary sampler
-  policy. Set `sampler.joint = "off"` to omit all joint-sampler markers.
+  require sufficient proposal coverage. `"location"` requests the
+  location block sampler, which `"auto"` also uses for multilevel,
+  random-effect and clustered fits of normal outcomes
+  ([`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md),
+  [`BMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/BMA.mv.md),
+  and
+  [`RoBMA()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.md) or
+  [`BMA()`](https://fbartos.github.io/RoBMA/dev/reference/BMA.md) with
+  clusters) and for independent fits with a gated moderator that no
+  other joint sampler takes (including an automatic Gaussian candidate
+  that its bound design declines, but not a fit over the Gaussian row
+  limit, which keeps the ordinary samplers): one update of all location
+  terms whose prior mixes an exact zero with a normal slab, the other
+  normal location coefficients and the standardized effects of the
+  sampled random-effect term or the clusters, with the inclusion
+  indicators updated along the Gaussian posterior of the correlated
+  coefficients and the study effects; under `"location"` every fit of a
+  normal outcome qualifies. Its selection-model updates use the
+  corrected selection sampler's surrogate and one exact correction per
+  update (`selection.sampler`); naming a location indicator in
+  `sampler.probabilities` keeps the ordinary samplers. With a
+  publication-bias mixture of no-bias, selection, PET and PEESE
+  components it also updates the bias indicator and the PET and PEESE
+  coefficients together with the intercept (naming `bias_indicator` in
+  `sampler.probabilities` keeps their ordinary samplers). When it owns
+  the standardized effects, it also owns the heterogeneity parameters of
+  their term (the total heterogeneity SD and its allocation weights, or
+  `tau` and `rho` of clustered fits), updates them with their ordinary
+  samplers and follows them with an exact joint rescaling of the
+  heterogeneity and the standardized effects that leaves the fitted
+  model unchanged. `"clustered"` and `"clustered.scale"` request the
+  grouped moderator update in eligible positive-direction clustered
+  models with one factor moderator and no bias-exempt rows.
+  `"clustered.scale"` also updates heterogeneity jointly. Unsupported or
+  declined candidates use the ordinary sampler policy. Set
+  `sampler.joint = "off"` to omit all joint-sampler markers.
 
 - `sampler.nested.weights`:
 
   whether to request the nested parameterization for eligible pairs of
-  cumulative selection-weight priors (default `FALSE`). The physical
-  weight priors and likelihood are preserved. The nested layout can be
-  used with the independent joint bias update in unmoderated models. Set
-  `sampler.joint = "off"` to use the nested layout alone. If the nested
-  layout is declined, the ordinary rules for joint sampling apply.
+  cumulative selection-weight priors (default `TRUE`; `FALSE` keeps the
+  ordinary layout). The physical weight priors and likelihood are
+  preserved. The nested layout can be used with the independent joint
+  bias update in unmoderated models and with the location block sampler.
+  Set `sampler.joint = "off"` to use the nested layout alone. If the
+  nested layout is declined, the ordinary rules for joint sampling
+  apply.
 
 - `sampler.probabilities`:
 
@@ -321,12 +369,47 @@ probability options, inspect
 `attr(fit$fit, "sampler_declarations")$robma` for eligibility and
 sampler assignments. The joint sampler report records
 `"budget_bypassed"` when an otherwise eligible automatic Gaussian fit
-exceeds the row limit. `fit$fit$samplers` lists the assigned sampler for
-each sampled node in the first worker, and `fit$fit$samplers_by_worker`
-records assignments when workers differ. The probability report includes
-the requested spelling and the fitted trace key. These settings and
-declarations carry over to
-[`update()`](https://rdrr.io/r/stats/update.html).
+exceeds the row limit. For the location block sampler, `$joint$counters`
+holds its per-fit counters (with a bias indicator owned by the block,
+`max_swap_working` is the largest representability criterion of the
+working means after adaptation, over the cross-family swap's own base
+points that pass their representability check, also in attempts that end
+before a proposal, and over the proposal ends that were rebuilt
+successfully; a criterion above `1e-8` skips the swap and counts in
+`swap_unrepresentable` at the attempt's own end and in
+`swap_irreproducible` at its rebuilt proposal end; the criterion grows
+with the number of rows and with their `|y| / SE`, so for outcomes
+located far from zero relative to their standard errors every swap is
+skipped, measured from a median `|y| / SE` of about 1,000 with 10 rows,
+between 61 and 81 with 1,000 rows and between 20 and 30 with 10,000
+rows, while the chain keeps its other label moves) and `$joint$scale`,
+present when the block also owns the heterogeneity sources, the scale
+ownership decisions and the move's counters: `moves` counts updates in
+states where the declared sources are active (slice calls that exhausted
+their interval included), `identity` and `outside` the updates where the
+move is the identity (sources inactive, or an allocation weight or share
+outside \[2^-20, 1 - 2^-20\]); after adaptation `likelihood_changed`
+counts the moves that changed the likelihood by rounding,
+`likelihood_rejected` those its correction undid, and
+`likelihood_change_max` is the largest such change (log units).
+`$evidence` describes indicators that may not switch (it decides nothing
+and is absent when no run reported): `location` per gate and chain the
+updates after adaptation and the transitions the chain retained
+(`switched_on`, `switched_off`), with the inner stage's flips and log
+odds as `inner_*`; with a bias indicator owned by the block, `bias` per
+chain the proposals and acceptances of its label, Gaussian family, slope
+and swap moves, the swaps skipped because their base point was not
+representable (`swap_unrepresentable`) or because their proposal did not
+reproduce them (`swap_irreproducible`), and their cross-family evidence
+over the updates after adaptation, `bias_labels` the tally of those
+updates by the label they end in, and `bias_sojourns` per chain the runs
+of the retained draws of the indicator in the step-selection and the
+Gaussian families (absent when the indicator is not monitored).
+`fit$fit$samplers` lists the assigned sampler for each sampled node in
+the first worker, and `fit$fit$samplers_by_worker` records assignments
+when workers differ. The probability report includes the requested
+spelling and the fitted trace key. These settings and declarations carry
+over to [`update()`](https://rdrr.io/r/stats/update.html).
 
 Boolean options require scalar `TRUE` or `FALSE` values. `max_cores`
 must be integer-like and at least 1; `cluster_likelihood.n_gamma` must

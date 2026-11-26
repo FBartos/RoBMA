@@ -37,21 +37,35 @@ before the record existed) gives `NA` counts and `complete = FALSE`.
 The corrected sampler is the default,
 `RoBMA.options(selection.sampler = "slice.coarse")`; set
 `selection.sampler = "slice"` before fitting to use the other samplers
-instead, or `"jags.default"` for only the samplers JAGS assigns.
-Parameters that `sampler.gates` declares to the gated sampler of the
-BayesTools JAGS module keep it. A block that `sampler.blocks` declares
-(see
+instead, or `"jags.default"` for only the samplers JAGS assigns. The
+selection-weight parameters of a branch of a publication-bias mixture
+that `sampler.gates` declares are updated together by the corrected
+gated block sampler when one of the branch's selection blocks takes part
+(below); other gated parameters (PET and PEESE slopes, and weights whose
+selection blocks do not take part) keep the gated sampler of the
+BayesTools JAGS module. A block that `sampler.blocks` declares (see
 [`RoBMA.options`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA_options.md))
 is updated by the corrected block sampler when one of its selection
 blocks takes part (below), and by the factor slice sampler of the
-BayesTools JAGS module otherwise. Every proposal is corrected against
-the full original likelihood and prior. Only the selection normalizer
-used to construct proposals is coarsened. A reversible slice transition
-for that surrogate is followed by a Metropolis correction using both
-original and surrogate densities at the current and proposed states. The
-original likelihood keeps its existing numerical integration controls
-and diagnostics; the correction does not replace those numerical
-integrals by symbolic exact values.
+BayesTools JAGS module otherwise. A scalar indicator (the bias
+indicator, the heterogeneity inclusion indicator and effect and
+moderator indicators with fixed prior probabilities) with such a
+selection block among its children is updated by the screened indicator
+sampler, unless a joint sampler updates it or `sampler.probabilities`
+records its conditional probabilities. Independent step-selection rows
+(the estimates of
+[`RoBMA()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.md) and
+the single-estimate clusters of
+[`RoBMA.mv()`](https://fbartos.github.io/RoBMA/dev/reference/RoBMA.mv.md))
+take part in the gated weights and the bias indicator through a row
+cache (below). Every proposal is corrected against the full original
+likelihood and prior. Only the selection normalizer used to construct
+proposals is coarsened. A reversible slice transition for that surrogate
+is followed by a Metropolis correction using both original and surrogate
+densities at the current and proposed states. The original likelihood
+keeps its existing numerical integration controls and diagnostics; the
+correction does not replace those numerical integrals by symbolic exact
+values.
 
 Dense multivariate step blocks. The surrogate rounds means and the
 logarithms of positive weights to fixed grids. Each covariance diagonal
@@ -95,36 +109,77 @@ updated node is a dense multivariate block or a coarse-capable cluster
 or factor block; its other children enter the surrogate through their
 exact densities.
 
+Step-selection rows. The weights of a branch whose estimates enter as
+independent step-selection rows, and an indicator that sets the weights
+or the kernel of such rows (the bias indicator), take part through a row
+cache: while only those weights or only the indicator move, the
+probabilities of each row's selection intervals are fixed, so they are
+computed once per update and each surrogate evaluation is a weighted sum
+and a logarithm per row. This is the rows' exact density up to rounding;
+a row whose mean moves with the indicator (the PET and PEESE branches),
+or whose normalizer is too small for the cached sum, enters with its
+exact density. A proposal is evidence for the cache (below) only when
+its surrogate and exact changes differ by more than a relative
+\\10^{-9}\\. Indicators that change only the rows' means or variances
+(heterogeneity, effect and moderator indicators) keep their samplers.
+
 Blocks. The corrected block sampler makes one factor slice sweep on the
 surrogate over all parameters of a declared block, in forward or
 backward direction order chosen at random at each update, and accepts or
 rejects the whole sweep with the same correction. The random order makes
 the proposal reversible, so the corrected chain targets the exact
 posterior of the block; the directions and widths adapt as in the factor
-slice sampler. Discrete, vector-valued and unrelated updates, and
-updates whose selection children are all without a coarse rule, retain
-ordinary JAGS samplers. Whatever the surrogate, the corrected chain
+slice sampler. Gamma parameters that enter the model only through their
+proportions (the Dirichlet weights of a heterogeneity allocation, the
+weights of a cumulative weight function) are updated through their
+proportions, and their sum is drawn from its gamma distribution at each
+update.
+
+Gated weights. While its branch is inactive, the weights of a branch are
+drawn from their prior, as in the gated sampler; while it is active,
+they are updated by the corrected block sweep, whose directions adapt
+only on those updates.
+
+Indicators. The screened indicator sampler scores every level of the
+indicator with the surrogates of its selection children, each level's
+score computed from that level's model state alone. At each update it
+proposes a level from these scores by one of two moves, chosen at random
+independently of the state: with probability 7/8 a Metropolized Gibbs
+step (a level other than the current one, accepted on the scores), with
+probability 1/8 a draw from the scores with the current level included
+(which keeps a thinned chain from alternating between two equally likely
+levels). A change of level is corrected with one Metropolis step against
+the exact scores of both levels, so the chain targets the exact
+posterior, and an update that keeps the current level costs no exact
+evaluation. Vector-valued and unrelated updates, and updates whose
+selection children are all without a coarse rule (other than the
+step-selection rows above), retain ordinary JAGS samplers. For any
+surrogate computed from the model state it scores, the corrected chain
 targets the exact full conditional; a coarser rule changes the
 acceptance rate and the cost, not the posterior.
 
-Fallback. Each corrected sampler (one per parameter or block and chain)
-chooses its kernel once, at the end of adaptation, from its adaptation
-updates: with `selection.coarse_min_acceptance` above 0 (default `0.90`)
-it updates its parameter with the exact slice sampler (a block with the
-factor slice sweep of the exact posterior) for the rest of the fit when
-it made fewer than 50 proposals during adaptation, when no surrogate it
-evaluated during adaptation differed from the exact density (no block's
-surrogate differs under the normal kernel, and a cluster or factor
-block's does not where its rule is unavailable, as in a model average
-whose selection branches all use the best-weight rule), or when its
-acceptance rate during adaptation is below the threshold; the first of
-these that holds is the recorded reason. A block of d parameters is
-judged per direction: its acceptance rate to the power 1/d, here, for
-`min_sampler_rate` and for the warning below. Both kernels leave the
-posterior unchanged and the choice is not revisited, so the chain after
-adaptation is a single exact kernel. A threshold of `0` disables the
-fallback and the warning. Every model build (a fit, and each parallel
-worker's or extension's rebuild of the model) adapts and decides again.
+Fallback. Each corrected sampler (one per parameter, block or indicator
+and chain) chooses its kernel once, at the end of adaptation, from its
+evidence proposals during adaptation: proposals for which at least one
+selection block evaluated a surrogate that differs from its exact
+density (none does under the normal kernel of a model-averaged fit's
+normal branches, or where its rule is unavailable); for an indicator,
+changes of level whose surrogate differed at either level. With
+`selection.coarse_min_acceptance` above 0 (default `0.90`) it updates
+its parameter with the exact slice sampler (a block with the factor
+slice sweep of the exact posterior, an indicator by enumerating its
+levels) for the rest of the fit when it made at least 50 evidence
+proposals during adaptation and their acceptance rate is below the
+threshold. With fewer it stays corrected and the warning below judges it
+after adaptation. A sampler whose selection blocks can never differ from
+their exact densities (decided from the fixed settings of the blocks) is
+not created. A block of d directions is judged per direction: its
+acceptance rate to the power 1/d, here, for `min_sampler_rate` and for
+the warning below. Both kernels leave the posterior unchanged and the
+choice is not revisited, so the chain after adaptation is a single exact
+kernel. A threshold of `0` disables the fallback and the warning. Every
+model build (a fit, and each parallel worker's or extension's rebuild of
+the model) adapts and decides again.
 
 Record. A fitted selection model keeps the record of its corrected
 samplers, collected from every process that ran chains and summed over
@@ -134,15 +189,16 @@ the fit and its extensions
 shows the value the fit was made with, so fits of earlier versions show
 `"coarse_corrected"` or `"default"`; `min_acceptance` is `0` for fits
 made before the threshold existed); `samplers`, the corrected sampler
-objects constructed, one per parameter or block and chain and counted
-again for every model build; `fallback_samplers`, those that switched to
-the exact slice sampler, split by reason into `fallback_few_proposals`,
-`fallback_surrogate_exact` and `fallback_low_acceptance`;
-`sampling_proposed` and `sampling_accepted`, the proposals made after
-adaptation by samplers that stayed corrected and the proposals whose
-correction accepted them (unchanged values included), counting burn-in
-and all sampling iterations through the end of each chain or extension,
-including iterations between retained draws when thinning;
+objects constructed, one per parameter, block or indicator and chain and
+counted again for every model build; `fallback_samplers`, those that
+switched to the exact kernel, and `fallback_low_acceptance`, the same
+count under the one remaining reason (records of development versions
+also split out two retired reasons, which are dropped);
+`sampling_proposed` and `sampling_accepted`, the evidence proposals made
+after adaptation by samplers that stayed corrected and the proposals
+whose correction accepted them (unchanged values included), counting
+burn-in and all sampling iterations through the end of each chain or
+extension, including iterations between retained draws when thinning;
 `sampling_judged`, the sum over the samplers of their proposals times
 their acceptance rate per direction (rate^(1/d) for a block of d
 parameters, the accepted proposals of a scalar sampler, over each
@@ -163,8 +219,9 @@ report per process across all its progress ticks. The last element is
 `complete`, `FALSE` when part of the chain was drawn without a record
 (an extension of a fit saved before the record existed, a process whose
 report failed, or draws added without any report), in which case the
-counts cover the recorded part only. Adaptation updates and updates of
-samplers that fell back are not counted.
+counts cover the recorded part only. Adaptation updates, proposals that
+are not evidence (for example in the normal branches of a model average)
+and updates of samplers that fell back are not counted.
 
 Warning. A fit or an extension whose record has at least 1,000 counted
 proposals and whose judged `acceptance_rate`, or `min_sampler_rate`, is
@@ -174,10 +231,35 @@ below `min_acceptance` warns with the condition classes
 The message is kept with the fit's warnings, replaced at every
 extension.
 
+Errors. An error of a corrected sampler, of the location block sampler
+or of its heterogeneity scale move names the node and ends with a hint,
+in most cases the option that returns the parameters to the ordinary
+samplers and a request to report the model. Errors whose message
+contains a bracketed name are signalled with that name as condition
+class and the shared parent class `RoBMA_sampler_error`:
+`RoBMA_location_untracked_mean` (a mean of a likelihood node is not the
+one the location block's verified design predicts) and
+`RoBMA_location_scale_invariance` (the heterogeneity scale move changed
+a likelihood node, which it must leave unchanged). One error concerns
+the data or the chain's state instead: where a sampler evaluates the
+exact density of the state its chain is in and, after adaptation, the
+absolute log densities of the likelihood terms of that evaluation (the
+terms its move differences) sum to more than \\10^9\\, it stops with the
+class `RoBMA_likelihood_not_representable`. At that state estimates lie
+far from the values the model gives them, and double precision cannot
+resolve the differences that the acceptance ratios need. The ordinary
+samplers return draws for such data without a warning; check the
+estimates and their standard errors, their units and the model. A chain
+can also reach such a state while other chains sample the same data;
+other initial values or a longer adaptation may then avoid it. While
+adapting, a chain that starts far from the data raises nothing.
+
 Process counters. Without `fit`, the function reports the counters of
-all corrected samplers in this process, including adaptation; clear them
-between phases for a sampling-only comparison. They do not report
-separate parallel workers. Inspect them between sampling calls.
+all corrected samplers in this process (every proposal with a
+correction, evidence or not, and for an indicator every change of
+level), including adaptation; clear them between phases for a
+sampling-only comparison. They do not report separate parallel workers.
+Inspect them between sampling calls.
 
 Already compiled samplers retain their grid, coarse rule-budget and
 threshold settings. Coarse settings can affect sampling efficiency even
