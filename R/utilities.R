@@ -669,16 +669,20 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' less correlated, while more burn-in is the remedy for chains that have not
 #' yet reached the same region. The check needs 100 samples at the fit's
 #' thinning: with \code{burnin} below \code{100 * thin} it does not run, and
-#' with \code{burnin} at most \code{burnin_extend * thin} the block is the
-#' whole burn-in, so raise \code{burnin} together with \code{thin}. When the
+#' when it runs with \code{burnin} at most \code{burnin_extend * thin}, the
+#' block holds every complete window of \code{thin} iterations of burn-in (the
+#' first \code{burnin \%\% thin} iterations run unmonitored), so raise
+#' \code{burnin} together with \code{thin}. When the
 #' warning appears for chains that started in different components (for
 #' example of the publication-bias mixture), a longer adaptation (such as
 #' \code{adapt = 5000}) resolves it sooner than more burn-in alone.
 #' @param burnin_extend number of final burn-in samples, taken every
 #' \code{thin} iterations, that the readiness check assesses, and of each
 #' extension of burn-in (\code{burnin_extend * thin} iterations); at least
-#' \code{100}. Defaults to \code{500}. With \code{burnin} at most
-#' \code{burnin_extend * thin}, the block is the whole burn-in.
+#' \code{100}. Defaults to \code{500}. When the check runs with \code{burnin}
+#' at most \code{burnin_extend * thin}, its block holds every complete window
+#' of \code{thin} iterations of burn-in, and the first
+#' \code{burnin \%\% thin} iterations run unmonitored.
 #' @param burnin_max_extend largest number of extensions of burn-in, with
 #' \code{autofit} only. Defaults to \code{10}.
 #'

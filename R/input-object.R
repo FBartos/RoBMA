@@ -14,9 +14,10 @@
 #' agree (see `burnin_max_Rhat` in [set_autofit_control()] for when the check
 #' runs). A larger `thin` helps when more widely spaced samples are less
 #' correlated; as the check needs 100 samples at the fit's thinning, it does
-#' not run with `burnin` below `100 * thin`, and with `burnin` at most
-#' `burnin_extend * thin` the block is the whole burn-in, so raise `burnin`
-#' together with `thin`. The fitted JAGS
+#' not run with `burnin` below `100 * thin`, and when it runs with `burnin` at
+#' most `burnin_extend * thin`, the block holds every complete window of
+#' `thin` iterations of burn-in (the first `burnin %% thin` iterations run
+#' unmonitored), so raise `burnin` together with `thin`. The fitted JAGS
 #' object (`object$fit$burnin`) reports the burn-in that was run; the fitting
 #' settings (`object$fit_control$burnin`) keep the requested value.
 #' @param adapt numeric. Number of adaptation iterations. Defaults to `500`.
