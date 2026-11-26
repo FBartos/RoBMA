@@ -9,7 +9,7 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9017</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9018</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -77,12 +77,14 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
 <span>  max_error <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_SD_error <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>time <span class="op">=</span> <span class="fl">60</span>, unit <span class="op">=</span> <span class="st">"mins"</span><span class="op">)</span>,</span>
-<span>  sample_extend <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  sample_extend <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  restarts <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  max_extend <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  check_indicators <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  monitor <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  allow_not_assessable <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  burnin_max_Rhat <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  burnin_extend <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  burnin_max_extend <span class="op">=</span> <span class="fl">10</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">set_convergence_checks</span><span class="op">(</span></span>
@@ -132,9 +134,23 @@ Defaults to <code>list(time = 60, unit = "mins")</code>.</p></dd>
 
 
 <dt id="arg-sample-extend">sample_extend<a class="anchor" aria-label="anchor" href="#arg-sample-extend"></a></dt>
-<dd><p>number of samples to extend the fitting process if
-the criteria are not satisfied.
-Defaults to <code>1000</code>.</p></dd>
+<dd><p>number of samples per chain by which each automatic
+extension extends the fit when the criteria are not satisfied, or
+<code>"auto"</code> (the default) to size each extension from the convergence
+check that failed: BayesTools projects the additional draws that the
+parameter furthest from its criteria needs (from its ESS and MCMC errors,
+and at least as many draws again for an R-hat above <code>max_Rhat</code>;
+diagnostics that are not assessable add nothing) and adds a tenth,
+rounded up to a multiple of 100; the extension is then at most twice the
+current draws per chain (rounded down to a multiple of 100), at least
+1000, and at most the draws
+per chain that the time left under <code>max_time</code> allows at the rate
+observed so far, including adaptation and burn-in (rounded down to a
+multiple of 100; automatic fitting stops when that is below 100). Without
+<code>max_time</code>, each extension of a model that cannot converge
+multiplies the draws per chain by about 2.1 (a failed R-hat) and up to 3
+(large ESS or error deficits), up to <code>max_extend</code>. See
+<code>autofit_control</code> in <code><a href="https://fbartos.github.io/BayesTools/reference/JAGS_fit.html" class="external-link">JAGS_fit</a></code>.</p></dd>
 
 
 <dt id="arg-restarts">restarts<a class="anchor" aria-label="anchor" href="#arg-restarts"></a></dt>
@@ -163,9 +179,79 @@ convergence checks. A base name selects all indexed elements. Defaults to
 <code>NULL</code>, which checks every eligible parameter.</p></dd>
 
 
+<dt id="arg-burnin-max-rhat">burnin_max_Rhat<a class="anchor" aria-label="anchor" href="#arg-burnin-max-rhat"></a></dt>
+<dd><p>threshold of the readiness check between burn-in and
+sampling. Defaults to <code>"auto"</code>, which is <code>1.7 + 0.9 / chains</code>
+(<code>2.15</code> for two chains, <code>2</code> for three, <code>1.925</code> for four); a
+number fixes the threshold and <code>NULL</code> turns the check off. The check
+runs, also with <code>autofit = FALSE</code>, in the initial fit of a model (not
+when <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> extends the chains, nor in the automatic extensions
+after sampling)
+when there are at least two chains, the block of the last
+<code>min(burnin_extend, floor(burnin / thin))</code> samples of burn-in, taken
+every <code>thin</code> iterations as in sampling, has at least 100 samples, and
+JAGS assigns the model a sampler. The iterations of the block run with the
+monitors on and their samples are checked and then dropped: the chains are
+ready when the
+split-chain R-hat point estimate (each chain's block split into halves) is at
+most <code>burnin_max_Rhat</code> for every parameter of the convergence check
+(<code>monitor</code>, <code>check_indicators</code>). With <code>autofit</code>, burn-in of
+chains that are not ready is extended by blocks of <code>burnin_extend</code>
+samples (<code>burnin_extend * thin</code> iterations) until they are,
+<code>burnin_max_extend</code> blocks were added, or
+<code>max_time</code> is exceeded; without it, burn-in is kept. Chains that are
+still not ready start sampling, and a warning is issued once that sampling
+has finished (an attempt that is restarted warns nothing). In a model to
+which JAGS assigns no sampler, whose chains cannot disagree, burn-in runs as
+with the check off. A fit whose chains are ready
+at once has the draws it would have with the check off, unless a monitored
+node has no observed descendants (see <code>autofit_control</code> in
+<code><a href="https://fbartos.github.io/BayesTools/reference/JAGS_fit.html" class="external-link">JAGS_fit</a></code>). The automatic value falls with the
+number of chains: for chains that agree but are autocorrelated, the
+split-chain R-hat has the same typical value for any number of chains but
+varies less the more chains are run, so a threshold that falls with the
+number of chains keeps false alarms from becoming more frequent with them
+and keeps part of the sensitivity to one deviating chain that a fixed value
+loses. A slowly mixing model can exceed the threshold although its chains
+agree, because the statistic grows with the autocorrelation of the block's
+samples; a larger <code>thin</code> then helps when more widely spaced samples are
+less correlated, while more burn-in is the remedy for chains that have not
+yet reached the same region. The check needs 100 samples at the fit's
+thinning: with <code>burnin</code> below <code>100 * thin</code> it does not run, and
+when it runs with <code>burnin</code> at most <code>burnin_extend * thin</code>, the
+block holds every complete window of <code>thin</code> iterations of burn-in (the
+first <code>burnin %% thin</code> iterations run unmonitored), so raise
+<code>burnin</code> together with <code>thin</code>. When the
+warning appears for chains that started in different components (for
+example of the publication-bias mixture), a longer adaptation (such as
+<code>adapt = 5000</code>) resolves it sooner than more burn-in alone.</p></dd>
+
+
+<dt id="arg-burnin-extend">burnin_extend<a class="anchor" aria-label="anchor" href="#arg-burnin-extend"></a></dt>
+<dd><p>number of final burn-in samples, taken every
+<code>thin</code> iterations, that the readiness check assesses, and of each
+extension of burn-in (<code>burnin_extend * thin</code> iterations); at least
+<code>100</code>. Defaults to <code>500</code>. When the check runs with <code>burnin</code>
+at most <code>burnin_extend * thin</code>, its block holds every complete window
+of <code>thin</code> iterations of burn-in, and the first
+<code>burnin %% thin</code> iterations run unmonitored.</p></dd>
+
+
+<dt id="arg-burnin-max-extend">burnin_max_extend<a class="anchor" aria-label="anchor" href="#arg-burnin-max-extend"></a></dt>
+<dd><p>largest number of extensions of burn-in, with
+<code>autofit</code> only. Defaults to <code>10</code>.</p></dd>
+
+
 <dt id="arg-allow-not-assessable">allow_not_assessable<a class="anchor" aria-label="anchor" href="#arg-allow-not-assessable"></a></dt>
 <dd><p>whether requested sampled parameters with
-undefined diagnostics may be ignored. Defaults to <code>FALSE</code>.</p></dd>
+undefined diagnostics may be ignored by the convergence checks. Defaults to
+<code>FALSE</code>, with which the fitted model reports the parameters whose
+diagnostics are not assessable. Automatic fitting does not extend a model
+for diagnostics that cannot be assessed from the samples available at a
+check (a mixture component or indicator state that no chain has visited,
+samples that are constant), so a parameter that only more samples would
+reveal is not waited for; every diagnostic that can be assessed still
+extends the model.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -174,7 +260,8 @@ undefined diagnostics may be ignored. Defaults to <code>FALSE</code>.</p></dd>
 including <code>max_Rhat</code>, <code>min_ESS</code>, <code>max_error</code>,
 <code>max_SD_error</code>, <code>max_time</code>, <code>sample_extend</code>,
 <code>restarts</code>, <code>max_extend</code>, <code>check_indicators</code>,
-<code>monitor</code>, and <code>allow_not_assessable</code>.
+<code>monitor</code>, <code>burnin_max_Rhat</code>, <code>burnin_extend</code>, and
+<code>burnin_max_extend</code>.
 <code>set_convergence_checks</code> returns a list with convergence thresholds
 <code>max_Rhat</code>, <code>min_ESS</code>, <code>max_error</code>, <code>max_SD_error</code>,
 <code>check_indicators</code>, <code>monitor</code>, and
@@ -187,11 +274,18 @@ stop iterating based on convergence criteria. <code>set_convergence_checks</code
 for determining whether a model has converged adequately.</p>
 <p>The autofit control manages computational resources by setting maximum time limits and
 determining how many additional samples to draw if convergence criteria are not met.
+Automatic fitting stops once every diagnostic that can be assessed from the
+samples available at a check meets its criterion, also when other
+diagnostics are not assessable then, or at <code>max_time</code> or
+<code>max_extend</code>; <code>set_convergence_checks(allow_not_assessable = )</code>
+decides whether the fitted model reports the parameters whose diagnostics
+are not assessable.
 The convergence checks determine the quality standards that fitted models must meet.
 Autofit thresholds <code>max_Rhat</code>, <code>min_ESS</code>, <code>max_error</code>,
-<code>max_SD_error</code>, <code>max_time</code>, <code>restarts</code>, and
-<code>max_extend</code> can be set to <code>NULL</code>; <code>sample_extend</code> must be a
-positive integer. The routing controls are delegated to
+<code>max_SD_error</code>, <code>max_time</code>, <code>restarts</code>, <code>max_extend</code>,
+and <code>burnin_max_Rhat</code> can be set to <code>NULL</code>; <code>sample_extend</code>
+must be a positive integer or <code>"auto"</code>, and <code>burnin_max_Rhat</code> a
+finite number of at least 1 or <code>"auto"</code>. The routing controls are delegated to
 <code><a href="https://fbartos.github.io/BayesTools/reference/JAGS_check_convergence.html" class="external-link">BayesTools::JAGS_check_convergence()</a></code>.
 Thresholds can be disabled with <code>NULL</code>; otherwise <code>max_Rhat</code> must be
 at least 1, <code>min_ESS</code> and <code>max_error</code> must be nonnegative, and

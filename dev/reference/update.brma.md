@@ -42,7 +42,14 @@ update(
 
 - sample_extend:
 
-  integer. Number of additional samples per chain.
+  number of additional samples per chain, or `"auto"` to size this one
+  extension from the convergence check of `object` against its stored
+  autofit criteria, as `set_autofit_control(sample_extend = "auto")`
+  sizes automatic extensions (at most twice the current samples per
+  chain, but at least 1000; `max_time` does not shorten it, as no draws
+  of the call have been timed). Defaults to `NULL`, which does not
+  extend the chains; the `sample_extend` stored in the autofit control,
+  including its default `"auto"`, is not used then.
 
 - adapt:
 
@@ -141,6 +148,7 @@ in `object`.
 ``` r
 if (FALSE) { # \dontrun{
 fit <- update(fit, sample_extend = 1000)
+fit <- update(fit, sample_extend = "auto")
 fit <- update(fit, slab = paste("Study", seq_len(nobs(fit))))
 } # }
 ```
