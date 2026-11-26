@@ -222,7 +222,11 @@ last \code{min(burnin_extend, floor(burnin / thin))} samples of burn-in, taken
 every \code{thin} iterations (at least 100 samples), before sampling starts,
 and with \code{autofit} burn-in is extended until they
 agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}} for when the check
-runs). The fitted JAGS
+runs). A larger \code{thin} helps when more widely spaced samples are less
+correlated; as the check needs 100 samples at the fit's thinning, it does
+not run with \code{burnin} below \code{100 * thin}, and with \code{burnin} at most
+\code{burnin_extend * thin} the block is the whole burn-in, so raise \code{burnin}
+together with \code{thin}. The fitted JAGS
 object (\code{object$fit$burnin}) reports the burn-in that was run; the fitting
 settings (\code{object$fit_control$burnin}) keep the requested value.}
 
