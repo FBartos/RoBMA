@@ -9,7 +9,15 @@
 #' @param formula. unsupported; included for compatibility with
 #'   \code{\link[stats]{update}}.
 #' @param ... unsupported additional arguments.
-#' @param sample_extend integer. Number of additional samples per chain.
+#' @param sample_extend number of additional samples per chain, or
+#'   \code{"auto"} to size this one extension from the convergence check of
+#'   \code{object} against its stored autofit criteria, as
+#'   \code{set_autofit_control(sample_extend = "auto")} sizes automatic
+#'   extensions (at most twice the current samples per chain, but at least
+#'   1000; \code{max_time} does not shorten it, as no draws of the call have
+#'   been timed). Defaults to \code{NULL},
+#'   which does not extend the chains; the \code{sample_extend} stored in the
+#'   autofit control, including its default \code{"auto"}, is not used then.
 #' @param adapt integer. Number of adaptation iterations run when JAGS rebuilds
 #'   the sampler for this extension. Defaults to \code{NULL}, which uses the
 #'   \code{adapt} of the initial fit. A supplied value applies to this
@@ -67,6 +75,7 @@
 #'
 #' @examples \dontrun{
 #' fit <- update(fit, sample_extend = 1000)
+#' fit <- update(fit, sample_extend = "auto")
 #' fit <- update(fit, slab = paste("Study", seq_len(nobs(fit))))
 #' }
 #'
@@ -98,7 +107,15 @@ update.brma <- function(
 
   recompute <- match.arg(recompute)
 
-  if (!is.null(sample_extend)) {
+  # a positive whole number of samples, or "auto" (sized by BayesTools)
+  if (is.character(sample_extend)) {
+    BayesTools::check_char(
+      sample_extend,
+      "sample_extend",
+      allow_values = "auto",
+      allow_NA     = FALSE
+    )
+  } else if (!is.null(sample_extend)) {
     BayesTools::check_int(
       sample_extend,
       "sample_extend",
@@ -204,7 +221,8 @@ update.brma <- function(
 }
 
 
-# Extend exactly one sample_extend chunk, even when stored max_extend is larger.
+# Extend exactly one sample_extend chunk (sized by BayesTools from the check of
+# the stored fit for "auto"), even when stored max_extend is larger.
 .extend_brma_fit_once <- function(object, adapt) {
 
   if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0L) {

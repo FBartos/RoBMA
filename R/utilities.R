@@ -597,19 +597,94 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' convergence checks. A base name selects all indexed elements. Defaults to
 #' \code{NULL}, which checks every eligible parameter.
 #' @param allow_not_assessable whether requested sampled parameters with
-#' undefined diagnostics may be ignored. Defaults to \code{FALSE}.
+#' undefined diagnostics may be ignored by the convergence checks. Defaults to
+#' \code{FALSE}, with which the fitted model reports the parameters whose
+#' diagnostics are not assessable. Automatic fitting does not extend a model
+#' for diagnostics that cannot be assessed from the samples available at a
+#' check (a mixture component or indicator state that no chain has visited,
+#' samples that are constant), so a parameter that only more samples would
+#' reveal is not waited for; every diagnostic that can be assessed still
+#' extends the model.
 #' @param max_time list with the time and unit specifying the maximum
 #' autofitting process per model. Passed to \link[base]{difftime} function
 #' (possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
 #' \code{"days"}, and \code{"weeks"}).
 #' Defaults to \code{list(time = 60, unit = "mins")}.
-#' @param sample_extend number of samples to extend the fitting process if
-#' the criteria are not satisfied.
-#' Defaults to \code{1000}.
+#' @param sample_extend number of samples per chain by which each automatic
+#' extension extends the fit when the criteria are not satisfied, or
+#' \code{"auto"} (the default) to size each extension from the convergence
+#' check that failed: BayesTools projects the additional draws that the
+#' parameter furthest from its criteria needs (from its ESS and MCMC errors,
+#' and at least as many draws again for an R-hat above \code{max_Rhat};
+#' diagnostics that are not assessable add nothing) and adds a tenth,
+#' rounded up to a multiple of 100; the extension is then at most twice the
+#' current draws per chain (rounded down to a multiple of 100), at least
+#' 1000, and at most the draws
+#' per chain that the time left under \code{max_time} allows at the rate
+#' observed so far, including adaptation and burn-in (rounded down to a
+#' multiple of 100; automatic fitting stops when that is below 100). Without
+#' \code{max_time}, each extension of a model that cannot converge
+#' multiplies the draws per chain by about 2.1 (a failed R-hat) and up to 3
+#' (large ESS or error deficits), up to \code{max_extend}. See
+#' \code{autofit_control} in \code{\link[BayesTools]{JAGS_fit}}.
 #' @param restarts number of times new initial values should be generated in case a
 #' model fails to initialize. Defaults to \code{10}.
 #' @param max_extend number of times after which the automatic fitting function is stopped.
 #' Defaults to \code{10}.
+#' @param burnin_max_Rhat threshold of the readiness check between burn-in and
+#' sampling. Defaults to \code{"auto"}, which is \code{1.7 + 0.9 / chains}
+#' (\code{2.15} for two chains, \code{2} for three, \code{1.925} for four); a
+#' number fixes the threshold and \code{NULL} turns the check off. The check
+#' runs, also with \code{autofit = FALSE}, in the initial fit of a model (not
+#' when \code{update()} extends the chains, nor in the automatic extensions
+#' after sampling)
+#' when there are at least two chains, the block of the last
+#' \code{min(burnin_extend, floor(burnin / thin))} samples of burn-in, taken
+#' every \code{thin} iterations as in sampling, has at least 100 samples, and
+#' JAGS assigns the model a sampler. The iterations of the block run with the
+#' monitors on and their samples are checked and then dropped: the chains are
+#' ready when the
+#' split-chain R-hat point estimate (each chain's block split into halves) is at
+#' most \code{burnin_max_Rhat} for every parameter of the convergence check
+#' (\code{monitor}, \code{check_indicators}). With \code{autofit}, burn-in of
+#' chains that are not ready is extended by blocks of \code{burnin_extend}
+#' samples (\code{burnin_extend * thin} iterations) until they are,
+#' \code{burnin_max_extend} blocks were added, or
+#' \code{max_time} is exceeded; without it, burn-in is kept. Chains that are
+#' still not ready start sampling, and a warning is issued once that sampling
+#' has finished (an attempt that is restarted warns nothing). In a model to
+#' which JAGS assigns no sampler, whose chains cannot disagree, burn-in runs as
+#' with the check off. A fit whose chains are ready
+#' at once has the draws it would have with the check off, unless a monitored
+#' node has no observed descendants (see \code{autofit_control} in
+#' \code{\link[BayesTools]{JAGS_fit}}). The automatic value falls with the
+#' number of chains: for chains that agree but are autocorrelated, the
+#' split-chain R-hat has the same typical value for any number of chains but
+#' varies less the more chains are run, so a threshold that falls with the
+#' number of chains keeps false alarms from becoming more frequent with them
+#' and keeps part of the sensitivity to one deviating chain that a fixed value
+#' loses. A slowly mixing model can exceed the threshold although its chains
+#' agree, because the statistic grows with the autocorrelation of the block's
+#' samples; a larger \code{thin} then helps when more widely spaced samples are
+#' less correlated, while more burn-in is the remedy for chains that have not
+#' yet reached the same region. The check needs 100 samples at the fit's
+#' thinning: with \code{burnin} below \code{100 * thin} it does not run, and
+#' when it runs with \code{burnin} at most \code{burnin_extend * thin}, the
+#' block holds every complete window of \code{thin} iterations of burn-in (the
+#' first \code{burnin \%\% thin} iterations run unmonitored), so raise
+#' \code{burnin} together with \code{thin}. When the
+#' warning appears for chains that started in different components (for
+#' example of the publication-bias mixture), a longer adaptation (such as
+#' \code{adapt = 5000}) resolves it sooner than more burn-in alone.
+#' @param burnin_extend number of final burn-in samples, taken every
+#' \code{thin} iterations, that the readiness check assesses, and of each
+#' extension of burn-in (\code{burnin_extend * thin} iterations); at least
+#' \code{100}. Defaults to \code{500}. When the check runs with \code{burnin}
+#' at most \code{burnin_extend * thin}, its block holds every complete window
+#' of \code{thin} iterations of burn-in, and the first
+#' \code{burnin \%\% thin} iterations run unmonitored.
+#' @param burnin_max_extend largest number of extensions of burn-in, with
+#' \code{autofit} only. Defaults to \code{10}.
 #'
 #' @details
 #' \code{set_autofit_control} controls the automatic model fitting process, determining when to
@@ -618,11 +693,18 @@ for (option_name in names(.RoBMA_option_schema)) {
 #'
 #' The autofit control manages computational resources by setting maximum time limits and
 #' determining how many additional samples to draw if convergence criteria are not met.
+#' Automatic fitting stops once every diagnostic that can be assessed from the
+#' samples available at a check meets its criterion, also when other
+#' diagnostics are not assessable then, or at \code{max_time} or
+#' \code{max_extend}; \code{set_convergence_checks(allow_not_assessable = )}
+#' decides whether the fitted model reports the parameters whose diagnostics
+#' are not assessable.
 #' The convergence checks determine the quality standards that fitted models must meet.
 #' Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
-#' \code{max_SD_error}, \code{max_time}, \code{restarts}, and
-#' \code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
-#' positive integer. The routing controls are delegated to
+#' \code{max_SD_error}, \code{max_time}, \code{restarts}, \code{max_extend},
+#' and \code{burnin_max_Rhat} can be set to \code{NULL}; \code{sample_extend}
+#' must be a positive integer or \code{"auto"}, and \code{burnin_max_Rhat} a
+#' finite number of at least 1 or \code{"auto"}. The routing controls are delegated to
 #' \code{BayesTools::JAGS_check_convergence()}.
 #' Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 #' at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
@@ -660,7 +742,8 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{sample_extend},
 #' \code{restarts}, \code{max_extend}, \code{check_indicators},
-#' \code{monitor}, and \code{allow_not_assessable}.
+#' \code{monitor}, \code{burnin_max_Rhat}, \code{burnin_extend}, and
+#' \code{burnin_max_extend}.
 #' \code{set_convergence_checks} returns a list with convergence thresholds
 #' \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
 #' \code{check_indicators}, \code{monitor}, and
@@ -675,20 +758,24 @@ for (option_name in names(.RoBMA_option_schema)) {
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = "auto", restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, burnin_max_Rhat = "auto", burnin_extend = 500, burnin_max_extend = 10){
 
+  # list() keeps an explicit NULL 'burnin_max_Rhat', which turns the readiness
+  # check off; BayesTools gives an omitted element its default
   autofit_settings <- list(
-    max_Rhat      = max_Rhat,
-    min_ESS       = min_ESS,
-    max_error     = max_error,
-    max_SD_error  = max_SD_error,
-    max_time      = max_time,
-    sample_extend = sample_extend,
-    restarts      = restarts,
-    max_extend          = max_extend,
-    check_indicators     = check_indicators,
-    monitor              = monitor,
-    allow_not_assessable = allow_not_assessable
+    max_Rhat          = max_Rhat,
+    min_ESS           = min_ESS,
+    max_error         = max_error,
+    max_SD_error      = max_SD_error,
+    max_time          = max_time,
+    sample_extend     = sample_extend,
+    restarts          = restarts,
+    max_extend        = max_extend,
+    check_indicators  = check_indicators,
+    monitor           = monitor,
+    burnin_max_Rhat   = burnin_max_Rhat,
+    burnin_extend     = burnin_extend,
+    burnin_max_extend = burnin_max_extend
   )
   autofit_settings <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_settings, call = "Checking 'autofit_control':\n\t")
 
@@ -812,13 +899,22 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   } else {
     old_autofit_control[["monitor"]]
   }
-  allow_not_assessable <- if(!is.null(autofit_control[["allow_not_assessable"]])) {
-    autofit_control[["allow_not_assessable"]]
-  } else {
-    isTRUE(old_autofit_control[["allow_not_assessable"]])
+
+  # The readiness settings, also an explicit NULL 'burnin_max_Rhat' (check
+  # off); settings that neither control holds (fits stored before they
+  # existed) take the defaults of set_autofit_control().
+  burnin_settings <- list()
+  for (name in c("burnin_max_Rhat", "burnin_extend", "burnin_max_extend")) {
+    if (name %in% names(autofit_control)) {
+      burnin_settings[name] <- list(autofit_control[[name]])
+    } else if (name %in% names(old_autofit_control)) {
+      burnin_settings[name] <- list(old_autofit_control[[name]])
+    }
   }
 
-  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend, check_indicators = check_indicators, monitor = monitor, allow_not_assessable = allow_not_assessable)
+  # the control is rebuilt from its current elements, so the
+  # 'allow_not_assessable' that fits of RoBMA 4.1.1 store is dropped
+  new_autofit_control <- do.call(set_autofit_control, c(list(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend, check_indicators = check_indicators, monitor = monitor), burnin_settings))
   new_autofit_control <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = new_autofit_control)
 
   return(new_autofit_control)
@@ -871,7 +967,23 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
 .check_and_list_convergence_checks <- function(convergence_checks){
 
-  convergence_checks <- BayesTools::JAGS_check_and_list_autofit_settings(convergence_checks, skip_sample_extend = TRUE, call = "Checking 'convergence_checks':\n\t")
+  call <- "Checking 'convergence_checks':\n\t"
+  # 'allow_not_assessable' is an argument of BayesTools::JAGS_check_convergence()
+  # but not an element of BayesTools' autofit settings, which check the others
+  allow_not_assessable <- FALSE
+  if(is.list(convergence_checks) && "allow_not_assessable" %in% names(convergence_checks)){
+    if(!is.null(convergence_checks[["allow_not_assessable"]])){
+      allow_not_assessable <- convergence_checks[["allow_not_assessable"]]
+    }
+    convergence_checks <- convergence_checks[names(convergence_checks) != "allow_not_assessable"]
+    # a list that held nothing else
+    if(length(convergence_checks) == 0L){
+      convergence_checks <- list(check_indicators = FALSE)
+    }
+  }
+  convergence_checks <- BayesTools::JAGS_check_and_list_autofit_settings(convergence_checks, skip_sample_extend = TRUE, call = call)
+  BayesTools::check_bool(allow_not_assessable, "allow_not_assessable", allow_NA = FALSE, call = call)
+  convergence_checks[["allow_not_assessable"]] <- allow_not_assessable
 
   return(convergence_checks)
 }
