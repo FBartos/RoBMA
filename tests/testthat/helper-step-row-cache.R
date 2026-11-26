@@ -91,17 +91,17 @@
   fit[["fit"]]
 }
 
-# The fit's model compiled again (.block_hand_model) at its end state with the
-# bias indicator at `label`; deterministic entries of the end state (any NA)
-# are left out of the initial values.
+# The fit's model compiled again (.block_hand_model, one at a time:
+# .fresh_model) at its end state with the bias indicator at `label`;
+# deterministic entries of the end state (any NA) are left out of the initial
+# values.
 .rows_recompile <- function(fit, label) {
 
-  invisible(gc())
   state <- fit[["end_state"]][[1L]]
   state <- state[!names(state) %in% c(".RNG.state", ".RNG.name")]
   state <- state[!vapply(state, anyNA, logical(1L))]
   state[["bias_indicator"]] <- label
-  .block_hand_model(paste(as.character(fit[["model"]]), collapse = "\n"), fit[["data"]], inits = state)
+  .fresh_model(.block_hand_model(paste(as.character(fit[["model"]]), collapse = "\n"), fit[["data"]], inits = state))
 }
 
 
@@ -164,9 +164,8 @@
 # `entry` of node `node` (the scores of the most recent live sampler).
 .rows_entry_scores <- function(syntax, data, node, entry, inits = list()) {
 
-  invisible(gc())
   inits[[node]] <- entry
-  hand <- .block_hand_model(syntax, data, inits = inits)
+  hand <- .fresh_model(.block_hand_model(syntax, data, inits = inits))
   scores <- .weights_screened_scores()
   scores[[length(scores)]]
 }

@@ -456,6 +456,8 @@ certification_cases <- function() {
           "the location block over step-selection rows targets the exact posterior in both effect directions",
           "the location block over dense multivariate selection blocks targets the exact posterior",
           "a two-coordinate slab, the forced slice refresh and the exact mode after the fallback are exact",
+          "the location block keeps the exact posterior of a graph whose unmoved children change and mutant 21 does not",
+          "the scale move's correction of changes within the tolerance keeps the stock samplers' posterior",
           "the location block keeps its sampler in parallel workers"
         )),
         .required_tests("test-00-sampler-declarations-fits.R", c(

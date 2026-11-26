@@ -226,6 +226,54 @@
 }
 
 
+# The reviewer's unmoved-child fixture: 20 children with mean offset + 2^-43 b
+# at precision 1e12 and the observed `outcome`. The factory probes at
+# offset = 32768, where the coefficient's response rounds to zero, so no
+# component moves these children; the conjugate offset moves to zero at once,
+# and from then on each sweep that moves b changes their graph means by
+# 1.1e-7 SD per unit of b (within the comparison's tolerance). Their log
+# density changes by about 0.018 per unit of b at the outcome 0.008. `stock`
+# leaves out the location tags (the stock samplers on the same graph). A run
+# of `sweeps` after 100 adaptive updates returns the draws of b, their mean,
+# its MCSE (batch means over 50 batches) and the location block's record.
+.location_unmoved_run <- function(outcome, mutant = 0L, stock = FALSE, sweeps = 2000L) {
+
+  n <- 20L
+  syntax <- paste(c("model {", "  g ~ dcat(p[])", "  slab ~ dnorm(0, 1)", "  b <- 0 * (g == 1) + slab * (g == 2)",
+                    "  offset ~ dnorm(0, 1e48)", "  mu <- offset + epsilon * b", "  y_direct ~ dnorm(b, 1)",
+                    "  for (i in 1:n) { y[i] ~ dnorm(mu, precision) }",
+                    "  tag1 <- robma_location_group(g, slab, 2, b, 1)", "  tags <- robma_location_setup(g, 1, 0)", "}"),
+                  collapse = "\n")
+  tags <- "  tag1 <- robma_location_group(g, slab, 2, b, 1)\n  tags <- robma_location_setup(g, 1, 0)\n"
+  model <- list(syntax = if (stock) sub(tags, "", syntax, fixed = TRUE) else syntax,
+                data = list(p = c(.5, .5), epsilon = 2^-43, y_direct = .8, y = rep(outcome, n), n = n,
+                            precision = 1e12))
+  RoBMA:::.location_block_report_read()
+  inits <- list(g = 1L, slab = .3, offset = 2^15, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 4127L)
+  jags <- .location_compile(model, inits = inits, mutant = mutant)
+  expect_identical("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)), !stock)
+  rjags::adapt(jags, 100L, end.adaptation = TRUE)
+  RoBMA:::.location_block_report_read()
+  draws <- as.matrix(rjags::coda.samples(jags, "b", n.iter = sweeps, progress.bar = "none")[[1L]])[, "b"]
+  means <- colMeans(matrix(draws, ncol = 50L))
+  list(draws = draws, mean = mean(draws), mcse = stats::sd(means) / sqrt(50),
+       counters = RoBMA:::.location_block_report_read())
+}
+
+# The analytic posterior mean of b in the unmoved-child fixture (the offset
+# integrated).
+.location_unmoved_analytic <- function(outcome) {
+
+  n <- 20L
+  epsilon <- 2^-43
+  v <- 1e-12 / n + 1e-48
+  log_f <- function(b) dnorm(b, 0, 1, log = TRUE) + dnorm(.8, b, 1, log = TRUE) - dnorm(.8, 0, 1, log = TRUE) +
+    (outcome * epsilon * b - .5 * epsilon^2 * b^2) / v
+  bf <- stats::integrate(function(b) exp(log_f(b)), -10, 10, rel.tol = 1e-12)$value
+  bf / (1 + bf) * (.8 + epsilon * outcome / v) / (2 + epsilon^2 / v)
+}
+
+
 # Data of the public location block fits: 8 studies of 3 estimates with
 # independent sampling errors (several likelihood blocks share each study
 # effect), a three-level factor, and a numeric moderator with overwhelming

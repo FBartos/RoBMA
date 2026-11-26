@@ -55,8 +55,9 @@ context("Random-effect rows without an original-scale value")
 # inclusion probability 0.5, about one draw in ten has the block off, and the
 # gate changes state only about once in 100 iterations, so a chain of 500 draws
 # can have none. The null's prior probability 0.9 puts about half of the
-# posterior on each state, and thinning by 10 gives each chain about 40 changes
-# of state between its draws.
+# posterior on each state, and thinning by 5 gives each chain about 20 changes
+# of state between its draws (over seeds 1-20, every chain kept at least 134
+# of its 500 draws in either state).
 .random_na_rows_bma_fit <- function() {
 
   if (is.null(.random_na_rows_env[["bma"]])) {
@@ -66,7 +67,7 @@ context("Random-effect rows without an original-scale value")
       prior_heterogeneity_null = BayesTools::prior(
         "spike", parameters = list(location = 0), prior_weights = 9
       ),
-      chains = 2, adapt = 300, burnin = 300, sample = 500, thin = 10,
+      chains = 2, adapt = 300, burnin = 300, sample = 500, thin = 5,
       seed = 1, silent = TRUE, parallel = FALSE
     ))
   }

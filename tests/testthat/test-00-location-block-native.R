@@ -15,7 +15,7 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
   model <- .location_gaussian_model(setup)
   reference <- .location_gaussian_reference(setup)
 
-  chain <- .location_hand_chain(model, c("g", "b", "b0"), draws = 40000L, probe = TRUE)
+  chain <- .location_hand_chain(model, c("g", "b", "b0"), draws = 40000L)
   expect_identical(chain$decision, "claimed")
   members <- c("b0", paste0("g[", 1:3, "]"), paste0("slab[", 1:3, "]"), paste0("Z[", 1:4, "]"))
   expect_true(all(chain$samplers[members] == "RoBMA::LocationBlock"))
@@ -34,14 +34,16 @@ test_that("Gaussian children: closed-form gate probabilities, exact stages, no s
   expect_identical(counters[["factorization_skips"]], 0)
   expect_identical(unname(counters[c("unmoved_mean_inexact", "unmoved_mean_max")]), c(0, 0))
   # frozen-state identity: the collapsed odds and line laws equal the direct
-  # Gaussian evaluation of priors, children and proposals
-  expect_lt(max(abs(chain$probe$full - chain$probe$stage1)), 1e-10)
-  expect_setequal(unique(chain$probe$type), c("flip_on", "flip_off", "refresh", "study", "joint", "ellipse"))
+  # Gaussian evaluation of priors, children and proposals (probed on 2000
+  # sweeps, about 29,000 records with every move type over seeds 4118-4137)
+  probe <- .location_hand_chain(model, c("g", "b", "b0"), draws = 2000L, probe = TRUE)$probe
+  expect_lt(max(abs(probe$full - probe$stage1)), 1e-10)
+  expect_setequal(unique(probe$type), c("flip_on", "flip_off", "refresh", "study", "joint", "ellipse"))
 
   # power: a shear that differs between a flip and its reverse is not exact
-  # and breaks the identity; so does a flip without its reverse proposal
-  # density
-  shear <- .location_hand_chain(model, c("g", "b", "b0"), draws = 40000L, mutant = 1L, probe = TRUE)
+  # and breaks the identity (on 5000 draws its comparison has |z| above 20
+  # over seeds 4118-4137); so does a flip without its reverse proposal density
+  shear <- .location_hand_chain(model, c("g", "b", "b0"), draws = 5000L, mutant = 1L, probe = TRUE)
   expect_false(attr(.location_compare(.location_gaussian_observables(shear$draws), reference), "passes"))
   expect_gt(max(abs(shear$probe$full - shear$probe$stage1)), 1)
   dormant <- .location_hand_chain(model, c("g", "b", "b0"), draws = 2000L, mutant = 2L, probe = TRUE)
@@ -247,68 +249,24 @@ test_that("an unmoved mean may differ from its entry mean by rounding, not beyon
 test_that("an unmoved child whose mean the graph changed enters the correction with its own densities", {
 
   skip_if_not_installed("rjags")
-  # The reviewer's fixture: 20 children with mean offset + 2^-43 b. The
-  # factory probes at offset = 32768, where the coefficient's response rounds
-  # to zero, so no component moves these children; the conjugate offset
-  # moves to zero at once, and from then on each sweep that moves b changes
-  # their graph means by 1.1e-7 SD per unit of b (within the comparison's
-  # tolerance). Their log density changes by about 0.018 per unit of b: the
-  # correction pairs their graph densities at the entry and the final state,
-  # so reversing the outcomes changes the coefficient's trace, and the
-  # posterior mean of b agrees with the stock samplers' on the same graph
-  # (|z| < 4, batch means over 50 batches) and with the analytic value.
-  # Mutant 21 leaves these children out: its traces ignore the outcomes and
-  # its posterior mean of b is the one without them.
-  n <- 20L
-  epsilon <- 2^-43
-  syntax <- paste(c("model {", "  g ~ dcat(p[])", "  slab ~ dnorm(0, 1)", "  b <- 0 * (g == 1) + slab * (g == 2)",
-                    "  offset ~ dnorm(0, 1e48)", "  mu <- offset + epsilon * b", "  y_direct ~ dnorm(b, 1)",
-                    "  for (i in 1:n) { y[i] ~ dnorm(mu, precision) }",
-                    "  tag1 <- robma_location_group(g, slab, 2, b, 1)", "  tags <- robma_location_setup(g, 1, 0)", "}"),
-                  collapse = "\n")
-  tags <- "  tag1 <- robma_location_group(g, slab, 2, b, 1)\n  tags <- robma_location_setup(g, 1, 0)\n"
-  run <- function(outcome, mutant = 0L, stock = FALSE, sweeps = 2000L) {
-    model <- list(syntax = if (stock) sub(tags, "", syntax, fixed = TRUE) else syntax,
-                  data = list(p = c(.5, .5), epsilon = epsilon, y_direct = .8, y = rep(outcome, n), n = n,
-                              precision = 1e12))
-    RoBMA:::.location_block_report_read()
-    inits <- list(g = 1L, slab = .3, offset = 2^15, .RNG.name = "base::Mersenne-Twister", .RNG.seed = 4127L)
-    jags <- .location_compile(model, inits = inits, mutant = mutant)
-    expect_identical("RoBMA::LocationBlock" %in% names(rjags::list.samplers(jags)), !stock)
-    rjags::adapt(jags, 100L, end.adaptation = TRUE)
-    RoBMA:::.location_block_report_read()
-    draws <- as.matrix(rjags::coda.samples(jags, "b", n.iter = sweeps, progress.bar = "none")[[1L]])[, "b"]
-    means <- colMeans(matrix(draws, ncol = 50L))
-    list(draws = draws, mean = mean(draws), mcse = stats::sd(means) / sqrt(50),
-         counters = RoBMA:::.location_block_report_read())
-  }
-  expect_false(identical(run(.008)$draws, run(-.008)$draws))
-  expect_identical(run(.008, 21L)$draws, run(-.008, 21L)$draws)
-  # the analytic posterior mean of b (the offset integrated)
-  v <- 1e-12 / n + 1e-48
-  log_f <- function(b) dnorm(b, 0, 1, log = TRUE) + dnorm(.8, b, 1, log = TRUE) - dnorm(.8, 0, 1, log = TRUE) +
-    (.008 * epsilon * b - .5 * epsilon^2 * b^2) / v
-  bf <- stats::integrate(function(b) exp(log_f(b)), -10, 10, rel.tol = 1e-12)$value
-  analytic <- bf / (1 + bf) * (.8 + epsilon * .008 / v) / (2 + epsilon^2 / v)
-  z <- function(a, b) (a$mean - b$mean) / sqrt(a$mcse^2 + b$mcse^2)
-  # the effect of reversing the outcomes on E[b], with its Monte Carlo error
-  effect <- function(positive, negative) {
-    list(mean = positive$mean - negative$mean, mcse = sqrt(positive$mcse^2 + negative$mcse^2))
-  }
-  stock <- run(.008, stock = TRUE, sweeps = 400000L)
-  exact <- run(.008, sweeps = 400000L)
-  expect_lt(abs(z(exact, stock)), 4)
-  expect_lt(abs(exact$mean - analytic) / exact$mcse, 4)
+  # The reviewer's fixture (.location_unmoved_run): 20 children with mean
+  # offset + 2^-43 b that no component moves, although each sweep that moves b
+  # changes their graph means. The correction pairs their graph densities at
+  # the entry and the final state, so reversing the outcomes changes the
+  # coefficient's trace, and the record counts the children it included after
+  # adaptation with their density changes. Mutant 21 leaves these children
+  # out: its traces ignore the outcomes and it includes none. That the chain
+  # then targets the exact posterior (the stock samplers' and the analytic
+  # posterior mean of b, which mutant 21 misses) takes 400,000 sweeps per
+  # chain and runs in the certification case 'numerical-kernels'
+  # (test-00-location-block-exactness.R).
+  exact   <- .location_unmoved_run(.008)
+  omitted <- .location_unmoved_run(.008, mutant = 21L)
+  expect_false(identical(exact$draws, .location_unmoved_run(-.008)$draws))
+  expect_identical(omitted$draws, .location_unmoved_run(-.008, mutant = 21L)$draws)
   expect_gt(exact$counters[["unmoved_included"]], 0)
   expect_gt(exact$counters[["unmoved_density_max"]], 1e-4)
-  stock_effect <- effect(stock, run(-.008, stock = TRUE, sweeps = 400000L))
-  expect_lt(abs(z(effect(exact, run(-.008, sweeps = 400000L)), stock_effect)), 4)
-  # mutant 21: no effect at all (identical traces), far from the stock
-  # samplers' (about 0.0097 analytically), and its E[b] far from the analytic value
-  omitted <- run(.008, 21L, sweeps = 400000L)
   expect_identical(omitted$counters[["unmoved_included"]], 0)
-  expect_gt(abs(stock_effect$mean) / stock_effect$mcse, 4)
-  expect_gt(abs(omitted$mean - analytic) / omitted$mcse, 4)
 })
 
 

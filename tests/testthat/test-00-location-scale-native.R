@@ -447,46 +447,23 @@ test_that("after adaptation the move's invariance is also checked in log-likelih
 test_that("the scale move's likelihood correction samples a graph whose change stays within the tolerance", {
 
   skip_if_not_installed("rjags")
-  # A hand-tagged allocation graph whose likelihood the orbit changes by less
-  # than the move's tolerance: a child v of sigma alone, mean 1e-7 sigma^2 /
-  # (0.09 + sigma^2) (below the parent check's 1e-6) at precision 1.7e14, so
-  # its log density spans (-0.85, 0]; and a child far from its constant mean
-  # (log density -9e8, unchanged by the move) that sets M, and so the
-  # tolerance 1e-9 M, near 0.9. Every move's change stays below it, and the
-  # move corrects it: the posterior mean of sigma agrees with the stock
-  # samplers' (the scale declined) within Monte Carlo error (|z| < 4, batch
-  # means), and without the correction (mutant 5) it does not.
-  setup <- .scale_allocation_setup(include = 1)
-  model <- .scale_allocation_model(setup)
-  model$syntax <- sub("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }",
-                      paste("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }", "  far <- 0 * a + far_mean",
-                            "  y_far ~ dnorm(far, 1)", "  v_mean <- 1e-7 * pow(sigma, 2) / (0.09 + pow(sigma, 2))",
-                            "  v ~ dnorm(v_mean, v_precision)", sep = "\n"),
-                      model$syntax, fixed = TRUE)
-  model$data <- c(model$data, list(far_mean = sqrt(2 * 9e8), y_far = 0, v = 0, v_precision = 1.7e14))
-  run <- function(mutant = 0L, decline = 0L) {
-    compiled <- .scale_compile(model, list(I = 1), mutant = mutant, decline = decline, seed = 9157L)
-    out <- .scale_run(compiled, "sigma", draws = 100000L, burnin = 500L, adapt = 500L)
-    sigma <- out$draws[, "sigma"]
-    means <- colMeans(matrix(sigma, length(sigma) / 50L, 50L))
-    list(status = compiled$decisions$status, mean = mean(sigma), mcse = stats::sd(means) / sqrt(50),
-         counters = out$report$counters)
-  }
-  z <- function(a, b) (a$mean - b$mean) / sqrt(a$mcse^2 + b$mcse^2)
-  stock     <- run(decline = 1L)
-  corrected <- run()
-  expect_identical(stock$status, "declined")
+  # The tolerance fixture (.scale_tolerance_run): a hand-tagged allocation
+  # graph whose likelihood the orbit changes by less than the move's
+  # tolerance (near 0.9). The moves changed the likelihood, within the
+  # tolerance, and the correction rejected some of them; without the
+  # correction (mutant 5) none is rejected. That the corrected chain samples
+  # the stock samplers' posterior of sigma (the scale declined) and the
+  # uncorrected one does not takes 100,000 draws per chain and runs in the
+  # certification case 'numerical-kernels' (test-00-location-block-exactness.R).
+  expect_identical(.scale_tolerance_run(decline = 1L, draws = 5000L)$status, "declined")
+  corrected <- .scale_tolerance_run(draws = 5000L)
   expect_identical(corrected$status, "owned")
-  expect_lt(abs(z(corrected, stock)), 4)
-  # the moves changed the likelihood, within the tolerance, and the
-  # correction rejected some of them
   expect_gt(corrected$counters[["likelihood_changed"]], 0.99 * corrected$counters[["likelihood_checks"]])
   expect_gt(corrected$counters[["likelihood_rejected"]], 0)
   expect_gt(corrected$counters[["likelihood_change_max"]], 0.1)
   expect_lt(corrected$counters[["likelihood_change_max"]], 0.9)
-  uncorrected <- run(mutant = 5L)
+  uncorrected <- .scale_tolerance_run(mutant = 5L, draws = 5000L)
   expect_identical(uncorrected$counters[["likelihood_rejected"]], 0)
-  expect_gt(abs(z(uncorrected, stock)), 4)
 })
 
 

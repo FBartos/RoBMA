@@ -107,6 +107,42 @@
 }
 
 
+# Frees a compiled model now: rjags' own finalizer of the model's console,
+# called directly (it clears the pointer, so a later collection does nothing).
+# Its samplers are destroyed and leave the live lists the test hooks read, as
+# after a gc() that collects the unreferenced model, without the cost of a full
+# collection (0.13 s in a fresh session, about 0.5 s on the heap late in the
+# standard profile). The model cannot be used afterwards.
+.release_model <- function(model) {
+
+  invisible(.Call("clear_console", model$ptr(), PACKAGE = "rjags"))
+}
+
+# One hand-written model at a time: .fresh_model(build) releases the model of
+# its previous call and only then compiles `build` (a value of
+# .block_hand_model()), so the samplers that the test hooks read as live and
+# the per-fit report are the new model's alone, as when a gc() preceded the
+# build. Models that other code compiled (a RoBMA() fit's) are not tracked: a
+# test that reads every live sampler collects them with gc() first. A test
+# releases its last model on exit with withr::defer(.fresh_model_release()).
+.fresh_models <- new.env(parent = emptyenv())
+
+.fresh_model <- function(build) {
+
+  .fresh_model_release()
+  hand <- build
+  .fresh_models$last <- hand$model
+  hand
+}
+
+.fresh_model_release <- function() {
+
+  if (!is.null(.fresh_models$last)) .release_model(.fresh_models$last)
+  .fresh_models$last <- NULL
+  invisible(NULL)
+}
+
+
 # Adapts for `adapt` iterations, ends the adaptation (each block decides its
 # kernel there), burns in and draws `draws` values of `monitor`; returns the draws
 # (a matrix, or a list of matrices for several chains), the process counters of

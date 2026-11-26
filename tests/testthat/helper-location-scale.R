@@ -171,6 +171,34 @@
 }
 
 
+# A hand-tagged allocation graph whose likelihood the orbit changes by less
+# than the move's tolerance: a child v of sigma alone, mean 1e-7 sigma^2 /
+# (0.09 + sigma^2) (below the parent check's 1e-6) at precision 1.7e14, so its
+# log density spans (-0.85, 0]; and a child far from its constant mean (log
+# density -9e8, unchanged by the move) that sets M, and so the tolerance
+# 1e-9 M, near 0.9. A run (`decline` 1: the stock samplers) of `draws` after
+# 500 adaptive and 500 burn-in updates returns the ownership status, the
+# posterior mean of sigma, its MCSE (batch means over 50 batches) and the
+# move's record.
+.scale_tolerance_run <- function(mutant = 0L, decline = 0L, draws = 100000L) {
+
+  setup <- .scale_allocation_setup(include = 1)
+  model <- .scale_allocation_model(setup)
+  model$syntax <- sub("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }",
+                      paste("  for (k in 1:K) { Z[k] ~ dnorm(0, 1) }", "  far <- 0 * a + far_mean",
+                            "  y_far ~ dnorm(far, 1)", "  v_mean <- 1e-7 * pow(sigma, 2) / (0.09 + pow(sigma, 2))",
+                            "  v ~ dnorm(v_mean, v_precision)", sep = "\n"),
+                      model$syntax, fixed = TRUE)
+  model$data <- c(model$data, list(far_mean = sqrt(2 * 9e8), y_far = 0, v = 0, v_precision = 1.7e14))
+  compiled <- .scale_compile(model, list(I = 1), mutant = mutant, decline = decline, seed = 9157L)
+  out <- .scale_run(compiled, "sigma", draws = draws, burnin = 500L, adapt = 500L)
+  sigma <- out$draws[, "sigma"]
+  means <- colMeans(matrix(sigma, length(sigma) / 50L, 50L))
+  list(status = compiled$decisions$status, mean = mean(sigma), mcse = stats::sd(means) / sqrt(50),
+       counters = out$report$counters)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # Independent references
 # ---------------------------------------------------------------------------- #

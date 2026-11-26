@@ -12,16 +12,17 @@ skip_on_cran()
 # quadrature references runs in test-00-selection-corrected-weights-exactness.R
 # and the fits in the certification case 'numerical-kernels' below.
 
-.weights_build <- function(...) {
-
-  invisible(gc())
-  .weights_model(...)
-}
+# The weights fixture's model, one at a time (.fresh_model): the model of the
+# previous build is released first. Tests release their last model on exit,
+# and those that read every live sampler collect untracked models first.
+.weights_build <- function(...) .fresh_model(.weights_model(...))
 
 
 test_that("selection weights get the gated block sampler and indicators the screened one", {
 
   skip_if_not_installed("rjags")
+  withr::defer(.fresh_model_release())
+  invisible(gc())
   setup <- .weights_setup(1:3)
   hand <- .weights_build(setup)
   expect_identical(unname(hand$samplers[c("b", "r", "eta[1]", "eta[2]", "eta[3]")]),
@@ -35,7 +36,7 @@ test_that("selection weights get the gated block sampler and indicators the scre
 
   # the heterogeneity fixture: the indicator is screened and the declared block
   # holds the allocation SD and one log-ratio of its Dirichlet weights
-  het <- .heterogeneity_model(.heterogeneity_setup())
+  het <- .fresh_model(.heterogeneity_model(.heterogeneity_setup()))
   expect_identical(unname(het$samplers[c("h", "s", "e[1]", "e[2]")]),
                    c("RoBMA::ScreenedFinite", rep("RoBMA::CoarseCorrectedBlock", 3L)))
   expect_identical(.weights_block_widths()[[length(.weights_block_widths())]][["d"]], 2)
@@ -56,6 +57,8 @@ test_that("selection weights get the gated block sampler and indicators the scre
 test_that("the samplers decline what they cannot claim exactly or usefully", {
 
   skip_if_not_installed("rjags")
+  withr::defer(.fresh_model_release())
+  invisible(gc())
   setup <- .weights_setup(1:3)
   stock <- c("base::Finite", rep("BayesTools::GatedSlice", 4L))
   nodes <- c("b", "r", "eta[1]", "eta[2]", "eta[3]")
@@ -96,6 +99,7 @@ test_that("the samplers decline what they cannot claim exactly or usefully", {
 test_that("the screened scores are the surrogate and exact densities of every level at frozen states", {
 
   skip_if_not_installed("rjags")
+  withr::defer(.fresh_model_release())
   setup <- .weights_setup(1:3)
   states <- list(list(b = 1L, r = .3, eta = c(.5, 1, 2)), list(b = 2L, r = .8, eta = c(2, .2, .7)),
                  list(b = 3L, r = .05, eta = c(1, 3, .1)))
@@ -124,6 +128,7 @@ test_that("the screened scores are the surrogate and exact densities of every le
 test_that("the two-entry memo and absent samplers leave the draws unchanged", {
 
   skip_if_not_installed("rjags")
+  withr::defer(.fresh_model_release())
   setup <- .weights_setup(1:3)
   chain <- function(flags, ...) {
     .with_corrected_flags(flags, .block_chain(.weights_build(setup, ...), c("b", "r", "eta"), 300L,
@@ -156,6 +161,7 @@ test_that("the screened proposals and the corrected sum direction keep the indic
   # indicator either keeps its level without an exact score or makes one
   # corrected proposal with two; the gated blocks only propose while open
   # (the plain draw, Liu's step and their default mixture)
+  withr::defer(.fresh_model_release())
   setup <- .weights_setup(1:3)
   invisible(.corrected_test_hook(clear = TRUE))
   for (proposal in c(0, 2, 3)) {
@@ -188,10 +194,10 @@ test_that("the screened indicator's default kernel is aperiodic between two tied
   fit <- .rows_tie_fit()
   syntax <- paste(as.character(fit[["model"]]), collapse = "\n")
   n <- 4000L
+  withr::defer(.fresh_model_release())
   frequency <- function(entry, thin, flags = list()) {
-    invisible(gc())
-    hand <- .with_corrected_flags(flags, .block_hand_model(syntax, fit[["data"]],
-                                                           inits = list(bias_indicator = entry)))
+    hand <- .fresh_model(.with_corrected_flags(flags, .block_hand_model(syntax, fit[["data"]],
+                                                                        inits = list(bias_indicator = entry))))
     expect_identical(unname(hand$samplers["bias_indicator"]), "RoBMA::ScreenedFinite")
     rjags::adapt(hand$model, 0L, end.adaptation = TRUE)
     draws <- rjags::coda.samples(hand$model, "bias_indicator", n.iter = thin * n, thin = thin,
@@ -222,9 +228,9 @@ test_that("the screened indicator's exact kernel after a fallback draws as base:
   # so the chains agree draw for draw
   setup <- .rows_weights_setup(1:3, x = rbind(c(2.4, 1.3, .6, -.3), c(2.1, 1.7, .9, -.8), c(2.9, 1.1, .2, -.5),
                                               c(2.2, 1.5, .4, -.2)))
+  withr::defer(.fresh_model_release())
   arm <- function(flags) {
-    invisible(gc())
-    .with_corrected_flags(flags, .block_chain(.rows_weights_model(setup), c("b", "r", "eta"), 3000L,
+    .with_corrected_flags(flags, .block_chain(.fresh_model(.rows_weights_model(setup)), c("b", "r", "eta"), 3000L,
                                               adapt = 0L, burnin = 0L))
   }
   screened <- arm(list(disable_gated = TRUE, force_fallback = TRUE))
@@ -268,10 +274,10 @@ test_that("the screened evidence records the move probability of the kernel that
                lo = c(0, -1e300), hi = c(1e300, 0))
   updates <- 400
   # (force_fallback is read at the end of adaptation)
+  withr::defer(.fresh_model_release())
   record <- function(flags) {
-    invisible(gc())
     .with_corrected_flags(flags, {
-      hand <- .block_hand_model(syntax, data, inits = list(b = 1L))
+      hand <- .fresh_model(.block_hand_model(syntax, data, inits = list(b = 1L)))
       expect_identical(unname(hand$samplers["b"]), "RoBMA::ScreenedFinite")
       rjags::adapt(hand$model, 0L, end.adaptation = TRUE)
     })
@@ -301,10 +307,9 @@ test_that("the screened evidence records the move probability of the kernel that
   # enumeration records its leave probability from the other levels' masses
   # summed directly (a difference of the cumulative total recorded 0)
   tiny <- "model {\n  b ~ dcat(prior[1:2])\n  mode <- equals(b, 2)\n  y ~ dselnorm_step_switch(0, 1, 1, 1, w[1:2], lo[1:2], hi[1:2], 1, 1, mode, 1)\n}"
-  invisible(gc())
   hand <- .with_corrected_flags(list(force_fallback = TRUE), {
-    hand <- .block_hand_model(tiny, list(prior = c(1, 1e-30), w = c(1, 1), y = .25, lo = c(0, -1e300),
-                                         hi = c(1e300, 0)), inits = list(b = 1L))
+    hand <- .fresh_model(.block_hand_model(tiny, list(prior = c(1, 1e-30), w = c(1, 1), y = .25,
+                                                      lo = c(0, -1e300), hi = c(1e300, 0)), inits = list(b = 1L)))
     rjags::adapt(hand$model, 0L, end.adaptation = TRUE)
     hand
   })
@@ -390,7 +395,6 @@ test_that("fits whose bias samplers cannot resolve an admitted extreme estimate 
       convergence_checks = RoBMA::set_convergence_checks(min_ESS = NULL, max_Rhat = NULL, allow_not_assessable = TRUE))
     if (exempt_row) arguments[["bias_exempt"]] <- quote(exempt)
     object <- do.call(RoBMA::RoBMA, arguments)
-    invisible(gc())
     .with_corrected_flags(flags, .fit(object))
   }
   for (exempt in c(FALSE, TRUE)) {
