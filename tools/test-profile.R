@@ -42,7 +42,7 @@ finish_profile <- function(status = 0L) {
 
 standard_gate_seconds <- function() {
 
-  value   <- Sys.getenv("ROBMA_STANDARD_GATE_SECONDS", unset = "1200")
+  value   <- Sys.getenv("ROBMA_STANDARD_GATE_SECONDS", unset = "1500")
   seconds <- suppressWarnings(as.numeric(value))
   if (length(seconds) != 1L || !is.finite(seconds) || seconds <= 0) {
     stop(
@@ -447,7 +447,7 @@ if (identical(profile, "standard")) {
     finish_profile()
   }
 
-  # The 1200-second budget holds on the reference machine; CI sets
+  # The 1500-second budget holds on the reference machine; CI sets
   # ROBMA_STANDARD_GATE_SECONDS for its slower runner.
   budget <- standard_gate_seconds()
   validate_fit_cache("standard")

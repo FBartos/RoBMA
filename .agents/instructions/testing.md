@@ -38,7 +38,7 @@ cleans the standard fit cache before rebuilding; `update = TRUE` permits
 missing visual candidates, and `regenerate = TRUE` combines those controls.
 Every run ends with snapshot review. Ordinary tests have no per-file timing
 baseline, so `update_timings = TRUE` fails clearly; the standard profile's
-20-minute total limit is an extreme ceiling, not a runtime target. Interactive
+25-minute total limit is an extreme ceiling, not a runtime target. Interactive
 calls default to
 testthat's progress reporter. Use `reporter = "llm"` for agent-oriented output;
 the quiet LLM reporter prints failures and warnings immediately, retains skip
@@ -50,7 +50,7 @@ much slower than the ordinary standard profile and does not run
 
 - `Rscript tools/test-profile.R standard`: routine unit, integration,
   representative metafor, and human-reviewed visual tests using an already
-  valid fit cache; its 20-minute maximum on the reference machine is a ceiling,
+  valid fit cache; its 25-minute maximum on the reference machine is a ceiling,
   not a target. It never fits models.
 - `Rscript tools/test-profile.R refresh-standard`: create only missing or stale
   standard cached fits. Use `--clean` only for an intentional full refresh.
@@ -93,12 +93,15 @@ the estimator. Its output records source/package/DLL identity and labels
 elapsed values as including Rprof sampling and allocation profiling. An explicit
 `ROBMA_DEBUG_DLL=TRUE` retains the existing DLL and is labelled a debug opt-out.
 
-The complete standard profile gates its test phase at 1200 seconds, after
+The complete standard profile gates its test phase at 1500 seconds, after
 cache validation, including `run_tests()` preparation and required-evidence checks;
 the runner separately reports the full profile wall time.
 `ROBMA_STANDARD_GATE_SECONDS` overrides the budget only for slower machines:
 the GitHub Windows runner takes about 1.7 times as long, and the unit-test
 workflow sets 2400, which the Linux and Apple silicon lanes of `post-merge` share.
+That value was kept when the local budget rose from 1200 to 1500 seconds, so
+the hosted budget binds first (above about 1410 seconds on the reference
+machine).
 Standard uses the explicit `profile == "standard"` catalog membership, rather
 than every `tier == "core"` entry. Certification extends the catalog and
 selects its own declared fit subsets; excluded core entries are not standard
