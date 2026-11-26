@@ -96,12 +96,10 @@ elapsed values as including Rprof sampling and allocation profiling. An explicit
 The complete standard profile gates its test phase at 1500 seconds, after
 cache validation, including `run_tests()` preparation and required-evidence checks;
 the runner separately reports the full profile wall time.
-`ROBMA_STANDARD_GATE_SECONDS` overrides the budget only for slower machines:
-the GitHub Windows runner takes about 1.7 times as long, and the unit-test
-workflow sets 2400, which the Linux and Apple silicon lanes of `post-merge` share.
-That value was kept when the local budget rose from 1200 to 1500 seconds, so
-the hosted budget binds first (above about 1410 seconds on the reference
-machine).
+`ROBMA_STANDARD_GATE_SECONDS` overrides the budget only for other machines:
+the hosted runners are slower and vary more (the GitHub Windows runner took
+0.9 to 1.4 times as long in November 2026), and the unit-test workflow sets
+2400, which the Linux and Apple silicon lanes of `post-merge` share.
 Standard uses the explicit `profile == "standard"` catalog membership, rather
 than every `tier == "core"` entry. Certification extends the catalog and
 selects its own declared fit subsets; excluded core entries are not standard
