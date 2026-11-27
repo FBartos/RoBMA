@@ -4,7 +4,7 @@
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
-- `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it
+- `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it; `update()` and the fitting functions refuse elements of `autofit_control` and `convergence_checks` that the control does not have
 - `adapt` and `burnin` are counted at the fit's thinning like `sample`, so fits with `thin` above 1 run `thin` times as many warm-up iterations and their draws can differ from earlier versions
 - `predict()` adjusts for publication bias by default (`bias_adjusted = TRUE`); pass `bias_adjusted = FALSE` for the previous predictions
 

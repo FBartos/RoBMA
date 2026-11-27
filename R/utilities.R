@@ -877,6 +877,10 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_autofit_control <- function(old_autofit_control, autofit_control){
 
+  # the caller's elements must be settings of this control; the stored control
+  # is rebuilt below, which drops what earlier versions stored in it
+  .check_control_names(autofit_control, "autofit_control", set_autofit_control)
+
   if("max_Rhat" %in% names(autofit_control)){
     max_Rhat <- autofit_control[["max_Rhat"]]
   }else{
@@ -952,6 +956,8 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_convergence_checks <- function(old_convergence_checks, convergence_checks){
 
+  .check_control_names(convergence_checks, "convergence_checks", set_convergence_checks)
+
   if("max_Rhat" %in% names(convergence_checks)){
     max_Rhat <- convergence_checks[["max_Rhat"]]
   }else{
@@ -996,8 +1002,18 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 
 
+# Elements that a control does not have (the arguments of its setter) are
+# refused, not ignored or misrouted: BayesTools' validator of the convergence
+# checks also accepts the autofit-only settings.
+.check_control_names <- function(control, name, setter){
+
+  BayesTools::check_list(control, name, check_names = names(formals(setter)), allow_NULL = TRUE,
+                         call = paste0("Checking '", name, "':\n\t"))
+}
+
 .check_and_list_convergence_checks <- function(convergence_checks){
 
+  .check_control_names(convergence_checks, "convergence_checks", set_convergence_checks)
   call <- "Checking 'convergence_checks':\n\t"
   # 'allow_not_assessable' is an argument of BayesTools::JAGS_check_convergence()
   # but not an element of BayesTools' autofit settings, which check the others

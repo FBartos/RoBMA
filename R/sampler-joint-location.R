@@ -17,19 +17,13 @@
 # outcome (the `.mv` interfaces and clustered fits) to the location block; on
 # request every fit of a Gaussian outcome qualifies. Independent fits reach it
 # under the automatic policy only when no other joint sampler takes them
-# (.sampler_joint_declared, .sampler_location_independent_auto).
+# (.sampler_joint_declared).
 .sampler_joint_location_data <- function(data, policy) {
 
   if (.data_outcome_type(data) != "norm") return(FALSE)
   random <- .is_data_multilevel(data) || .is_data_random(data)
   return(random || policy == "location")
 }
-
-
-# Whether the automatic policy gives independent fits with a gated moderator
-# that no other joint sampler takes to the location block (decided by
-# measurement on the Assink meta-regression).
-.sampler_location_independent_auto <- TRUE
 
 
 # The markers of an eligible fit or NULL. `probabilities` are the requested

@@ -401,6 +401,31 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
   }
   expect_identical(.sampler_error_hint("Error in node mu\nSlicer stuck"), "Error in node mu\nSlicer stuck")
 
+  # the location block sampler, its scale move and the joint samplers (their
+  # native messages): the "off" policy of 'sampler.joint'
+  joint_hint <- paste0("Fit the model again after 'RoBMA.options(sampler.joint = \"off\")' to sample these ",
+                       "parameters with the ordinary samplers, and please report the model to the RoBMA developers.")
+  for (message in c(paste0("Error in node y[1]\nLocation block sampler: the covariance of this likelihood node is ",
+                           "not positive definite"),
+                    paste0("Error in node y[1]\nLocation scale move [RoBMA_location_scale_invariance]: a parent value ",
+                           "of this likelihood node changed under the heterogeneity scale move, which must leave every ",
+                           "child unchanged; the move was undone"))) {
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe error was raised by the location block sampler that RoBMA uses by default. ", joint_hint
+    ), info = message)
+  }
+  for (message in c("Joint bias sampler encountered an invalid current state.",
+                    "Joint bias sampler could not evaluate the current state.",
+                    "Joint bias sampler could not evaluate its acceptance probability.",
+                    "RoBMA Gaussian joint sampler could not evaluate the retained state.",
+                    "RoBMA Gaussian joint sampler could not represent a raw slab draw.",
+                    "Error in node mu\nJoint cluster scalar refresh has a nonfinite density",
+                    "Error in node gate[1]\nJoint cluster gate refresh has a nonfinite density")) {
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe error was raised by a joint sampler that RoBMA uses by default. ", joint_hint
+    ), info = message)
+  }
+
   # the precision guard of every sampler: a hint about the data and the
   # chain's state, no sampler option
   for (sampler in c("Corrected slice", "Corrected slice (block)", "Corrected slice (gated block)",

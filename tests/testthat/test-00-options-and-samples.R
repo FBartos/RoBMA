@@ -201,6 +201,19 @@ test_that("the readiness settings of burn-in are validated and survive control u
   expect_false(any(grepl("^burnin_", names(formals(set_convergence_checks)))))
   expect_false(any(grepl("^burnin_", names(set_convergence_checks()))))
   expect_false(any(grepl("^burnin_", names(.update_convergence_checks(set_convergence_checks(), list())))))
+  # and refuse them (BayesTools' validator of the checks accepts them), as the
+  # autofit control refuses the setting of the checks, also in update()
+  refused <- function(control, element) paste0("Checking '", control, "':\n\tThe '", element,
+                                              "' objects are not recognized by the '", control, "' argument.")
+  expect_error(brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD", only_priors = TRUE, silent = TRUE,
+                    convergence_checks = list(burnin_max_Rhat = NULL)),
+               refused("convergence_checks", "burnin_max_Rhat"), fixed = TRUE)
+  expect_error(.update_convergence_checks(set_convergence_checks(), list(burnin_extend = 200)),
+               refused("convergence_checks", "burnin_extend"), fixed = TRUE)
+  expect_error(.update_autofit_control(set_autofit_control(), list(allow_not_assessable = TRUE)),
+               refused("autofit_control", "allow_not_assessable"), fixed = TRUE)
+  expect_error(.update_autofit_control(set_autofit_control(), list(max_extend = 2, max_Rhatt = 1.1)),
+               refused("autofit_control", "max_Rhatt"), fixed = TRUE)
 
   # update(): a supplied value or NULL replaces the stored one, an omitted one is kept
   stored <- set_autofit_control(burnin_max_Rhat = 1.3, burnin_extend = 300, burnin_max_extend = 4)

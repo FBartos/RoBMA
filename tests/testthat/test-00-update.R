@@ -195,6 +195,16 @@ test_that("update.brma drops the allow_not_assessable of a stored autofit contro
   }
   expect_identical(extended[["autofit_control"]][["sample_extend"]], "auto")
   expect_identical(controlled[["autofit_control"]][["max_extend"]], 3)
+
+  # a caller's element that the control does not have is refused, not dropped
+  # or stored in the other control
+  expect_error(update(object, autofit_control = list(allow_not_assessable = TRUE)), paste0(
+    "Checking 'autofit_control':\n\tThe 'allow_not_assessable' objects are not recognized by the ",
+    "'autofit_control' argument."), fixed = TRUE)
+  expect_error(update(object, convergence_checks = list(burnin_max_Rhat = NULL)), paste0(
+    "Checking 'convergence_checks':\n\tThe 'burnin_max_Rhat' objects are not recognized by the ",
+    "'convergence_checks' argument."), fixed = TRUE)
+  expect_length(forwarded, 1L)
 })
 
 test_that("update.brma can drop stored caches after extension", {
