@@ -55,7 +55,8 @@
 # reports the processor). With `fit`, also TRUE for a fit none of them samples.
 .test_reference_build_draws <- function(fit = NULL) {
 
-  if (.Platform$OS.type == "windows" && !.test_in_covr() && !.test_fused_multiply_add()) return(TRUE)
+  if (.Platform$OS.type == "windows" && identical(R.version$arch, "x86_64") &&
+      !.test_in_covr() && !.test_fused_multiply_add()) return(TRUE)
   if (is.null(fit)) return(FALSE)
   jags     <- fit[["fit"]]
   tables   <- c(list(jags[["samplers"]]), lapply(jags[["samplers_by_worker"]], `[[`, "samplers"))
@@ -77,12 +78,19 @@
   ))
 }
 
-# Draws a plot on a null device: where its snapshot is not compared
-# (.test_reference_build_draws()), the plot is still drawn.
+# Draws a plot on a null device and returns to the caller's device: where its
+# snapshot is not compared (.test_reference_build_draws()), the plot is still
+# drawn. A ggplot is printed, so that it is built and rendered.
 .test_draw <- function(draw) {
 
+  previous <- grDevices::dev.cur()
   grDevices::pdf(NULL)
-  on.exit(grDevices::dev.off(), add = TRUE)
-  draw()
+  device <- grDevices::dev.cur()
+  on.exit({
+    grDevices::dev.off(device)
+    if (previous > 1L && previous %in% grDevices::dev.list()) grDevices::dev.set(previous)
+  }, add = TRUE)
+  plot <- draw()
+  if (inherits(plot, "ggplot")) print(plot)
   invisible(TRUE)
 }

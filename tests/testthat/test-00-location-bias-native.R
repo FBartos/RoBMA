@@ -413,13 +413,17 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   expect_false(any(swap$kind %in% c(5, 6, 7)))
   expect_gt(min(base_skips$full[base_skips$stage1 <= 1e9]), 1e-6)
   expect_identical(chain$counters[["bias_label_swap_accepted"]], 0)
-  chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 600L,
+  # (4000 draws: the reproduction is checked after each accepted swap, at
+  # least 4 for each of the seeds 1-30 and 4127 with and without fused
+  # multiply-adds in RoBMA; with 600 draws some seeds accepted none)
+  chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 4000L,
                                 burnin = 100L, adapt = 100L, probe = TRUE, mutant = 24L, inits = absorbed)
   swap <- chain$probe[chain$probe$type == "label_swap", ]
   rule <- swap[swap$kind == 5 & swap$stage1 == 1, ]
   expect_gt(mean(rule$full > 1e-9 | rule$selection_part > 1e-9), 0.5)
   expect_gt(max(rule$full, rule$selection_part), 1e-6)
   reproduced <- swap[swap$kind == 6, ]
+  expect_gt(nrow(reproduced), 0L)
   expect_true(all(reproduced$stage1 == 0 & reproduced$full == 0 & reproduced$selection_part == 0))
   expect_gt(chain$counters[["swap_irreproducible"]], 0)
   expect_lte(chain$counters[["max_swap_full_residual"]], 1e-9)

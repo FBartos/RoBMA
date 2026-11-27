@@ -396,8 +396,7 @@ test_that("Q-Q plot for RoBMA model renders base output", {
   fit_brma <- fits[[name]]
   draw <- function() suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   if (!.test_reference_build_draws(fit_brma)) {
-    set.seed(1)
-    expect_no_error(.test_draw(draw))
+    expect_no_error(withr::with_seed(1, .test_draw(draw)))
     .skip_reference_build_draws(name)
   }
   set.seed(1)

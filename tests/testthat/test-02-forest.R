@@ -712,6 +712,8 @@ test_that("Forest plot renders representative fitted object families", {
   not_compared <- character()
   for (name in snapshot_names) {
     if (!.test_reference_build_draws(fits[[name]])) {
+      fit_brma <- fits[[name]]
+      expect_no_error(.test_draw(function() .test_forest(fit_brma, main = name)))
       not_compared <- c(not_compared, name)
       next
     }

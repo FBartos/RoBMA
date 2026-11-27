@@ -231,9 +231,11 @@ by another test.
   holds; otherwise compute and draw the result, then skip just the comparison
   with `.skip_reference_build_draws()`, naming the fit, after the test's other
   expectations. This covers the `standard` profile, which CI runs on Linux and
-  macOS; the visual gallery of the certification profile is compared on the
-  reference build only. A fit cache holds the draws of the build that made it,
-  so test a build against a cache it refitted, as each CI runner does.
+  macOS; run the visual gallery of the certification profile on the reference
+  build. A fit cache holds the draws of the build that made it, and its key does
+  not record the build: test a build against a cache it refitted. CI restores
+  the cache by runner OS and R version and refits what is missing or stale,
+  which holds only while a runner image keeps its compilers.
 - An expectation on a hand-built fixture that depends on the chain's
   trajectory (which node a guard names, how many moves are accepted, whether
   a chain reaches a state) must hold for at least 20 seeds, with and without
