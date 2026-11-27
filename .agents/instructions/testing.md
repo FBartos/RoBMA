@@ -224,11 +224,21 @@ by another test.
   rounding itself (`rounded_product()` in `src/selnorm/selnorm-mv.cc`) instead of
   relying on the build. Seeded draws of the location block sampler and its
   selection samplers (`RoBMA::LocationBlock`, `GatedCorrectedBlock`,
-  `ScreenedFinite`) are the references' only on the reference build, not where
-  multiply-adds fuse or under covr: compare what depends on them only where
-  `.test_reference_build_draws(fit)` holds, and otherwise skip just that
-  comparison with `.skip_reference_build_draws()`, naming the fit, after the
-  test's other expectations.
+  `ScreenedFinite`) match the locked references only on the reference build:
+  Windows x86-64 without fused multiply-adds, outside covr (even there a runner
+  drew another chain once; the test workflow prints the processor). Compare
+  what depends on those draws only where `.test_reference_build_draws(fit)`
+  holds; otherwise compute and draw the result, then skip just the comparison
+  with `.skip_reference_build_draws()`, naming the fit, after the test's other
+  expectations. This covers the `standard` profile, which CI runs on Linux and
+  macOS; the visual gallery of the certification profile is compared on the
+  reference build only. A fit cache holds the draws of the build that made it,
+  so test a build against a cache it refitted, as each CI runner does.
+- An expectation on a hand-built fixture that depends on the chain's
+  trajectory (which node a guard names, how many moves are accepted, whether
+  a chain reaches a state) must hold for at least 20 seeds, with and without
+  fused multiply-adds; start the chain in the state the expectation is about
+  instead of relying on the seed's path to it.
 - State numerical error explicitly with absolute, relative, log, or peak-scaled
   comparisons where scale matters. Do not rely on testthat edition-specific
   `expect_equal()` normalization for small probabilities or near-zero quantities.

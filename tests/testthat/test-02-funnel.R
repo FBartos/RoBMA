@@ -1119,11 +1119,15 @@ test_that("Funnel plot for RoBMA model renders base output", {
   skip_if_missing_fits(name)
 
   fit_brma <- fits[[name]]
-  if (!.test_reference_build_draws(fit_brma)) .skip_reference_build_draws(name)
-
-  expect_vdiffr_snapshot("funnel_RoBMA", function() {
+  draw <- function() {
     suppressWarnings(.test_funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE, sampling_bias = TRUE))
-  })
+  }
+  if (!.test_reference_build_draws(fit_brma)) {
+    expect_no_error(.test_draw(draw))
+    .skip_reference_build_draws(name)
+  }
+
+  expect_vdiffr_snapshot("funnel_RoBMA", draw)
 })
 
 test_that("Funnel plot for RoBMA meta-regression renders LOO-PIT output", {

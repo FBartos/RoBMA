@@ -286,11 +286,18 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   # after adaptation (the counters and the evidence record read after the
   # adapting sweeps were cleared): every attempt is skipped at its base point
   # by Q, so nothing is proposed, traced or accepted, no admitted Q is kept,
-  # and the evidence record counts the skips
-  sampled_after <- function(mutant, setup = extreme(1000, 1e-6), draws = 200L) {
+  # and the evidence record counts the skips. These chains start where the
+  # latent has absorbed the row (the state the default build reaches with
+  # this seed after adaptation): from the far start above, a chain can stay
+  # away from the row through adaptation (1 seed of 31 on a build whose
+  # RoBMA fuses multiply-adds), and the precision guard then stops the
+  # sampling, as it should; the expectations below are about the absorbed state
+  absorbed <- list(Z = c(1420.46, 1.97, -949.72), slab = c(786.94, 0), g = c(2L, 1L))
+  sampled_after <- function(mutant, setup = extreme(1000, 1e-6), draws = 200L, inits = list()) {
     invisible(trace())
     RoBMA:::.location_block_report_read()
     jags <- .location_compile(.bias_model(setup), mutant = mutant,
+                              inits = c(list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = 4127L), inits),
                               config = c(refresh = -1L, fit_rule = -1L, timing = -1L, swap = 1L, trace = 1L, coin = -1L))
     rjags::adapt(jags, 100L, end.adaptation = TRUE)
     RoBMA:::.location_block_report_read()
@@ -300,7 +307,7 @@ test_that("the cross-family swap makes no proposal while its base point is not r
     list(counters = RoBMA:::.location_block_report_read(),
          record = RoBMA:::.location_bias_evidence_read()[["chains"]][1L, ], attempts = trace())
   }
-  skipped <- sampled_after(0L)
+  skipped <- sampled_after(0L, inits = absorbed)
   expect_identical(skipped$counters[["factorization_skips"]], 0)
   expect_identical(skipped$counters[["swap_unrepresentable"]], skipped$counters[["sweeps"]])
   expect_identical(skipped$counters[["bias_label_swap_proposed"]], 0)
@@ -318,15 +325,16 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   # swaps are the identity after stage 1 (swap_irreproducible, in the
   # counters and the evidence record; the trace holds them as passed
   # attempts without a stage-2 ratio), and every swap that went on to stage
-  # 2 had both residuals within the tolerance
-  sampling <- sampled_after(24L)
+  # 2 had both residuals within the tolerance. Whether an attempt reproduces
+  # within the tolerance and is accepted follows the last bits of that
+  # rounding: over 1000 draws at least 6 swaps were accepted for each of the
+  # seeds 1-30 and 4127, with and without fused multiply-adds in RoBMA
+  sampling <- sampled_after(24L, draws = 1000L, inits = absorbed)
   record   <- sampling$record
   expect_identical(sampling$counters[["swap_unrepresentable"]], 0)
   expect_identical(unname(record[["swap_unrepresentable"]]), 0)
   expect_identical(unname(record[["swap_proposed"]]), sampling$counters[["sweeps"]])
-  # whether an attempt reproduces within the tolerance and is accepted
-  # follows the last bits of that rounding (none of 200 on the macOS runner)
-  if (.test_reference_build_draws()) expect_gt(sampling$counters[["bias_label_swap_accepted"]], 0)
+  expect_gt(sampling$counters[["bias_label_swap_accepted"]], 0)
   expect_gt(sampling$counters[["max_swap_working"]], 1e-8)
   expect_gt(sampling$counters[["swap_irreproducible"]], 0)
   expect_identical(unname(record[["swap_irreproducible"]]), sampling$counters[["swap_irreproducible"]])
@@ -398,7 +406,7 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   # the residuals being far above the tolerance, and an attempt started at
   # an accepted swap's state reproduces its rebuilt end bitwise here too
   chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 600L,
-                                burnin = 100L, adapt = 100L, probe = TRUE)
+                                burnin = 100L, adapt = 100L, probe = TRUE, inits = absorbed)
   swap <- chain$probe[chain$probe$type == "label_swap", ]
   base_skips <- swap[swap$kind == 8, ]
   expect_gt(nrow(base_skips), 500L)
@@ -406,7 +414,7 @@ test_that("the cross-family swap makes no proposal while its base point is not r
   expect_gt(min(base_skips$full[base_skips$stage1 <= 1e9]), 1e-6)
   expect_identical(chain$counters[["bias_label_swap_accepted"]], 0)
   chain <- .location_hand_chain(.bias_model(extreme(1000, 1e-6)), "bias_indicator", draws = 600L,
-                                burnin = 100L, adapt = 100L, probe = TRUE, mutant = 24L)
+                                burnin = 100L, adapt = 100L, probe = TRUE, mutant = 24L, inits = absorbed)
   swap <- chain$probe[chain$probe$type == "label_swap", ]
   rule <- swap[swap$kind == 5 & swap$stage1 == 1, ]
   expect_gt(mean(rule$full > 1e-9 | rule$selection_part > 1e-9), 0.5)
@@ -448,7 +456,6 @@ test_that("the cross-family swap makes no proposal while its base point is not r
       expect_lt(max(abs(reciprocal$log_odds) / pmax(1, abs(reciprocal$selection_part))), 1e-9, label = label)
     }
   }
-  if (!.test_reference_build_draws()) .skip_reference_build_draws("accepted swaps of mutant 24 at the 1000 / 1e-6 row")
 })
 
 

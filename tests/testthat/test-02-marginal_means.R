@@ -1850,11 +1850,14 @@ test_that("marginal_means summaries match reference tables", {
 
     name <- cases[["name"]][i]
     fit  <- fits[[name]]
+    emm  <- marginal_means(fit, n_samples = 1000)
     if (!.test_reference_build_draws(fit)) {
+      # summarized; only the reference tables depend on the draws
+      expect_no_error(summary(emm))
+      if (inherits(fit, "RoBMA")) expect_no_error(summary(emm, type = "conditional"))
       not_compared <- c(not_compared, name)
       next
     }
-    emm  <- marginal_means(fit, n_samples = 1000)
 
     if (inherits(fit, "RoBMA")) {
       test_reference_table(
@@ -1890,11 +1893,14 @@ test_that("marginal_means core plot snapshots are stable", {
     name      <- case_name(case)
     parameter <- case_value(case, "parameter")
     fit       <- fits[[name]]
+    emm       <- marginal_means(fit, n_samples = 1000)
     if (!.test_reference_build_draws(fit)) {
+      # drawn; only the snapshots depend on the draws
+      expect_no_error(.test_draw(function() plot(emm, parameter = parameter, prior = FALSE)))
+      expect_no_error(plot(emm, parameter = parameter, prior = FALSE, plot_type = "ggplot"))
       not_compared <<- c(not_compared, name)
       return()
     }
-    emm       <- marginal_means(fit, n_samples = 1000)
 
     expect_brma_plot_snapshot(
       paste0(name, "-marginal_means-baseplot-no-prior"),
