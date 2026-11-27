@@ -44,17 +44,21 @@ test_that("PET and PEESE use the fitted and explicitly predicted row exemptions"
     samples <- cbind(samples, slopes)
     colnames(samples)[ncol(samples)] <- parameter
     without_flags <- newdata["sei"]
-    expect_error(predict(object, newdata = without_flags, type = "terms", quiet = TRUE,
+    expect_error(predict(object, newdata = without_flags, type = "terms",
+                         bias_adjusted = FALSE, quiet = TRUE,
                          .posterior_samples = samples), "bias_exempt")
     corrected <- predict(object, newdata = without_flags, type = "terms",
                          bias_adjusted = TRUE, quiet = TRUE, .posterior_samples = samples)
     expect_equal(as.numeric(corrected), rep(samples[, "mu"], nrow(without_flags)))
+    default <- predict(object, newdata = without_flags, type = "terms",
+                       quiet = TRUE, .posterior_samples = samples)
+    expect_equal(default, corrected, tolerance = 0)
     for (explicit in c(FALSE, TRUE)) {
       args <- list(object = object, type = "terms", quiet = TRUE,
                    .posterior_samples = samples)
       if (explicit) args$newdata <- newdata
       adjusted <- do.call(predict, c(args, list(bias_adjusted = TRUE)))
-      observed <- do.call(predict, args)
+      observed <- do.call(predict, c(args, list(bias_adjusted = FALSE)))
       sei <- if (explicit) newdata$sei else dat$sei
       exempt <- if (explicit) newdata$bias_exempt else dat$registered
       offset <- if (parameter == "PET") -sei else -sei^2
@@ -146,9 +150,16 @@ test_that("a protected response retains its covariance with a selected sibling",
   samples <- cbind(mu = rep(0, n), "omega[1]" = 1, "omega[2]" = 0)
   withr::local_seed(4911)
   expect_error(predict(object, newdata = data.frame(paper = dat$paper),
-    V_new = V, type = "response", quiet = TRUE, .posterior_samples = samples), "bias_exempt")
+    V_new = V, type = "response", bias_adjusted = FALSE, quiet = TRUE,
+    .posterior_samples = samples), "bias_exempt")
+  # the default adjusts for publication bias and needs no exemption flags
+  # (seeded separately so that the draws below keep their stream)
+  expect_s3_class(withr::with_seed(1, predict(object,
+    newdata = data.frame(paper = dat$paper), V_new = V, type = "response",
+    quiet = TRUE, .posterior_samples = samples)), "brma_samples")
   for (explicit in c(FALSE, TRUE)) {
-    args <- list(object = object, type = "response", quiet = TRUE, .posterior_samples = samples)
+    args <- list(object = object, type = "response", bias_adjusted = FALSE, quiet = TRUE,
+                 .posterior_samples = samples)
     eligible <- 1L
     if (explicit) {
       eligible <- 2L

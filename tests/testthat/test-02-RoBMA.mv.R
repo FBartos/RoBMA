@@ -131,17 +131,20 @@ test_that("RoBMA.mv predictive and scoring targets remain multivariate", {
   terms <- predict(
     fit_robma_mv,
     type               = "terms",
-    conditioning_depth = "marginal"
+    conditioning_depth = "marginal",
+    bias_adjusted      = FALSE
   )
   estimate <- predict(
     fit_robma_mv,
     type               = "estimate",
-    conditioning_depth = "marginal"
+    conditioning_depth = "marginal",
+    bias_adjusted      = FALSE
   )
   response <- predict(
     fit_robma_mv,
     type               = "response",
-    conditioning_depth = "marginal"
+    conditioning_depth = "marginal",
+    bias_adjusted      = FALSE
   )
 
   expect_brma_samples_matrix(terms, n, "RoBMA.mv terms")

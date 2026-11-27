@@ -58,7 +58,8 @@ fitted brma object. These correspond to Best Linear Unbiased Predictions
 }
 \details{
 This function is a convenience wrapper around \code{predict.brma(...,
-type = "blup", newdata = NULL)}. Unlike \code{predict(..., type =
+type = "blup", newdata = NULL)} that passes its own \code{bias_adjusted},
+which defaults to \code{FALSE}, unlike \code{predict()}'s. Unlike \code{predict(..., type =
 "estimate", conditioning_depth = "estimate")}, it returns conditional
 location/BLUP means rather than adding conditional latent-effect uncertainty.
 

@@ -552,12 +552,12 @@ test_that("selected latent newdata requires sampling information before selectio
       BayesTools::wf_fixed(c(1, .4))))
   samples <- cbind(mu = c(.1, -.1), tau = .3)
   expect_error(predict(object, newdata = data.frame(row = 1L), type = "estimate",
-    quiet = TRUE, .posterior_samples = samples), paste0(
+    bias_adjusted = FALSE, quiet = TRUE, .posterior_samples = samples), paste0(
       "The 'newdata' must contain either 'sei' (standard error) or 'vi' (variance) column."),
     fixed = TRUE)
   for (newdata in list(data.frame(sei = .2), data.frame(vi = .04))) {
-    expect_no_error(predict(object, newdata = newdata, type = "estimate", quiet = TRUE,
-      .posterior_samples = samples))
+    expect_no_error(predict(object, newdata = newdata, type = "estimate",
+      bias_adjusted = FALSE, quiet = TRUE, .posterior_samples = samples))
   }
   for (type in c("terms", "estimate")) {
     expect_no_error(predict(object, newdata = data.frame(row = 1L), type = type,

@@ -810,15 +810,15 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   compare_bPET_preds_reg <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
       "metafor" = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "ci.lb", "ci.ub")]),
-      "bPET.mv" = unlist(as.data.frame(summary(predict(fit_RoBMA)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
+      "bPET.mv" = unlist(as.data.frame(summary(predict(fit_RoBMA, bias_adjusted = FALSE)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2, bias_adjusted = FALSE)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
     )
   }
   compare_bPET_preds_reg_pi <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
       "metafor" = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "pi.lb", "pi.ub")]),
-      "bPET.mv" = unlist(as.data.frame(summary(predict(fit_RoBMA, type = "estimate")))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2, type = "estimate")))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
+      "bPET.mv" = unlist(as.data.frame(summary(predict(fit_RoBMA, type = "estimate", bias_adjusted = FALSE)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2, type = "estimate", bias_adjusted = FALSE)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
     )
   }
   scenario_text("bPET-predictions-reg",         compare_bPET_preds_reg(fit_bPET_metafor.mv_V_reg,  fit_bPET.mv_V_reg))
@@ -1210,8 +1210,8 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   compare_bselmodel_preds_reg <- function(fit_mv, fit_specialized = NULL, type = "terms") {
 
     cbind.data.frame(
-      "bselmodel.mv" = unlist(as.data.frame(summary(predict(fit_mv, type = type)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "bselmodel"    = if (!is.null(fit_specialized)) { unlist(as.data.frame(summary(predict(fit_specialized, type = type)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE)
+      "bselmodel.mv" = unlist(as.data.frame(summary(predict(fit_mv, type = type, bias_adjusted = FALSE)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bselmodel"    = if (!is.null(fit_specialized)) { unlist(as.data.frame(summary(predict(fit_specialized, type = type, bias_adjusted = FALSE)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE)
       } else { rep(NA_real_, 9L)}
     )
   }

@@ -48,7 +48,8 @@ test_that("bselmodel.mv prediction and latent summaries remain available", {
   estimate_marginal <- predict(
     fit_bselmodel_mv,
     type               = "estimate",
-    conditioning_depth = "marginal"
+    conditioning_depth = "marginal",
+    bias_adjusted      = FALSE
   )
   estimate_fitted <- predict(
     fit_bselmodel_mv,

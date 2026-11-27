@@ -499,7 +499,7 @@ expect_prediction_matches_metafor <- function(case) {
                            info = paste(name, "pooled tau"))
 
     metafor_fitted <- predict(fit_metafor)$pred
-    brma_fitted    <- .sample_means(predict(fit_brma, type = "terms"))
+    brma_fitted    <- .sample_means(predict(fit_brma, type = "terms", bias_adjusted = FALSE))
     testthat::expect_equal(brma_fitted, metafor_fitted, tolerance = fitted_tol,
                            info = paste(name, "unadjusted fitted values"))
 
@@ -661,9 +661,10 @@ expect_newdata_prediction_matches_metafor <- function(case) {
 
   brma_terms <- .sample_means(predict(
     fit_brma,
-    newdata = newdata,
-    type    = "terms",
-    quiet   = TRUE
+    newdata       = newdata,
+    type          = "terms",
+    bias_adjusted = FALSE,
+    quiet         = TRUE
   ))
   metafor_terms <- .metafor_newdata_location(kind, fit_metafor, newdata)
 

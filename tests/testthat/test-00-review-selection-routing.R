@@ -27,11 +27,12 @@ test_that("F3-4 sole bias branches use complete backend monitors without an indi
     route <- .selection_row_routing(object$priors, samples)
     expect_identical(route$bias_indicator, if (kind == "two") as.integer(samples[, "bias_indicator"]) else rep(1L, 24))
     withr::local_seed(26010)
-    actual <- stats::predict(object, type = "response", quiet = TRUE)
+    actual <- stats::predict(object, type = "response", bias_adjusted = FALSE, quiet = TRUE)
     expect_identical(dim(actual), c(24L, 4L))
     expect_true(all(is.finite(actual)))
     set.seed(26010)
-    expect_identical(as.vector(actual), as.vector(stats::predict(object, type = "response", quiet = TRUE)))
+    expect_identical(as.vector(actual), as.vector(stats::predict(object, type = "response",
+      bias_adjusted = FALSE, quiet = TRUE)))
     if (kind %in% c("null", "false")) {
       expect_false("bias_indicator" %in% monitor)
       supplied <- cbind(samples, bias_indicator = 1)
@@ -57,9 +58,11 @@ test_that("F3-4 sole bias branches use complete backend monitors without an indi
         expect_identical(unname(control_samples[, "tau"]), unname(samples[rep(row, 24L), "tau"]))
         expect_true(all(c("mu", "tau", "omega[1]", "omega[2]") %in% colnames(control_samples)))
         set.seed(26010)
-        target_prediction <- stats::predict(matched, type = "response", quiet = TRUE)
+        target_prediction <- stats::predict(matched, type = "response", bias_adjusted = FALSE,
+          quiet = TRUE)
         set.seed(26010)
-        control_prediction <- stats::predict(control, type = "response", quiet = TRUE)
+        control_prediction <- stats::predict(control, type = "response", bias_adjusted = FALSE,
+          quiet = TRUE)
         expect_lte(max(abs(as.vector(target_prediction) - as.vector(control_prediction))), 1e-12)
       }
     }

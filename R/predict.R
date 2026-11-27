@@ -32,18 +32,24 @@
 #'   and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 #'   known-\code{V} \code{brma.mv()} response prediction, explicit
 #'   \code{newdata} also requires sampling covariance through \code{V_new}. Product-only
-#'   selection models require no publication-group column. Unadjusted normal
-#'   selected latent predictions (\code{type = "estimate"}) require \code{sei}
-#'   or \code{vi} in explicit \code{newdata}. Gaussian sampling SEs used in
+#'   selection models require no publication-group column. Normal-outcome
+#'   response predictions require \code{sei} or \code{vi} in explicit
+#'   \code{newdata} (supplied through \code{V_new} for known-\code{V} models).
+#'   With \code{bias_adjusted = FALSE}, PET/PEESE location and latent
+#'   predictions (\code{type = "terms"} or \code{"estimate"}) and normal
+#'   selected latent predictions
+#'   (\code{type = "estimate"}) require them as well. Gaussian sampling SEs used in
 #'   prediction follow the ranges in \code{\link{data_input}}. Exactly zero
 #'   sampling SE is allowed where the prediction admits it. If an active
-#'   selection branch uses \code{weight_rule = "best"}, its publication groups
-#'   must also be resolvable in the prediction data.
+#'   selection branch uses \code{weight_rule = "best"}, unadjusted selection
+#'   predictions also need its publication groups to be resolvable in the
+#'   prediction data.
 #'   Fitted-row predictions reuse their publication-bias exemptions. For
 #'   explicit new rows, supply a logical \code{bias_exempt} column when the
 #'   fit contains exempt rows and the requested prediction uses publication
-#'   bias. For fits without exempt rows, omission treats all new rows as
-#'   susceptible to the fitted publication-bias component.
+#'   bias (\code{bias_adjusted = FALSE}). For fits without exempt rows,
+#'   omission treats all new rows as susceptible to the fitted
+#'   publication-bias component.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item \code{"terms"} (alias: \code{"marginal"}): fixed location
@@ -88,7 +94,7 @@
 #' exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 #' and \code{"IRR"}.
 #' @param bias_adjusted whether predictions should adjust for publication bias.
-#' Defaults to \code{FALSE}. When \code{TRUE}:
+#' Defaults to \code{TRUE}. When \code{TRUE}:
 #' \itemize{
 #'   \item PET/PEESE terms are NOT added to the mean parameter (mu), returning
 #'   the bias-corrected effect estimate.
@@ -104,11 +110,12 @@
 #'   the selected-normal distribution reflecting the selective publishing
 #'   process.
 #' }
-#' For new outcomes, selection predictions draw retained contexts from their original Gaussian law,
-#' then sample each full publication event conditional on that context. Selected
-#' latent predictions additionally reconstruct the integrated true effects
-#' conditional on the selected response. At estimate depth, response prediction
-#' is a new replication event conditional on the fitted latent true effects;
+#' For new outcomes, unadjusted selection predictions draw retained contexts
+#' from their original Gaussian law, then sample each full publication event
+#' conditional on that context. Selected latent predictions additionally
+#' reconstruct the integrated true effects conditional on the selected
+#' response. At estimate depth, response prediction is a new replication event
+#' conditional on the fitted latent true effects;
 #' LOO-PIT instead uses deletion within the original publication event.
 #' Retained estimate-level effects use their fitted posterior values at estimate
 #' depth and fresh Gaussian draws for a new estimate within a fitted cluster.
@@ -119,8 +126,10 @@
 #' on the effect component; for \code{type = "terms.scale"}, samples are
 #' conditioned on the heterogeneity component. Conditional samples are flattened
 #' to one chain after subsetting posterior rows.
-#' @param quiet logical; whether to suppress the informational message when
-#' conditional posterior samples are flattened to one chain.
+#' @param quiet logical; whether to suppress the informational messages when
+#' conditional posterior samples are flattened to one chain and when an
+#' aggregated prediction (\code{newdata = TRUE}) averages over the moderator
+#' or scale model matrix.
 #' @param V_new optional sampling covariance for explicit
 #' \code{newdata} response or selected latent predictions from known-\code{V} \code{brma.mv()}
 #' models. Accepts a vector of diagonal variances, a square covariance matrix,
@@ -191,7 +200,8 @@
 #' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 #' predictions for the new effect size estimates. To obtain results corresponding to
 #' metafor's predict function, use \code{type = "terms"} for the mean effect size
-#' and \code{type = "estimate"} for true effects (prediction interval).
+#' and \code{type = "estimate"} for true effects (prediction interval), with
+#' \code{bias_adjusted = FALSE} for PET/PEESE models.
 #'
 #' \strong{Likelihood weights:} If the model was fitted with \code{weights},
 #' the weights affect the posterior fit, log-likelihood, LOO/WAIC, and
@@ -281,7 +291,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
                          output_measure = NULL,
                          transform = NULL,
                          probs = c(.025, .975),
-                         bias_adjusted = FALSE,
+                         bias_adjusted = TRUE,
                          quiet = FALSE,
                          conditional = FALSE,
                          V_new = NULL,

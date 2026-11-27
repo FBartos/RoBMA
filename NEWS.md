@@ -6,6 +6,7 @@
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
 - `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it
 - `adapt` and `burnin` are counted at the fit's thinning like `sample`, so fits with `thin` above 1 run `thin` times as many warm-up iterations and their draws can differ from earlier versions
+- `predict()` adjusts for publication bias by default (`bias_adjusted = TRUE`); pass `bias_adjusted = FALSE` for the previous predictions
 
 ### Features
 - `plot_models()` displays posterior probabilities of individual models and their component inclusion, coefficient directions, or mixture members

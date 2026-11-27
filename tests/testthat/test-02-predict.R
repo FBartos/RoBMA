@@ -229,6 +229,56 @@ test_that("predict preserves the released positional type argument", {
 })
 
 
+test_that("predict adjusts for publication bias by default", {
+
+  model_names <- c("dat.lehmann2018-PET", "dat.lehmann2018-PEESE",
+                   "dat.lehmann2018-3PSM", "bcg_meta-regression")
+  skip_if_missing_fits(model_names)
+
+  expect_identical(formals(predict.brma)[["bias_adjusted"]], TRUE)
+
+  # the default, bias_adjusted = TRUE, and bias_adjusted = FALSE under one seed
+  seeded_predictions <- function(fit, type, newdata = NULL, label) {
+    predictions <- lapply(list(default = NULL, adjusted = TRUE, unadjusted = FALSE), function(value) {
+      args <- list(object = fit, newdata = newdata, type = type, quiet = TRUE)
+      args[["bias_adjusted"]] <- value
+      set.seed(1)
+      do.call(predict, args)
+    })
+    expect_equal(predictions[["default"]], predictions[["adjusted"]], tolerance = 0,
+                 info = label)
+    predictions
+  }
+  max_difference <- function(predictions) {
+    max(abs(unclass(predictions[["default"]]) - unclass(predictions[["unadjusted"]])))
+  }
+
+  # PET and PEESE location terms leave out the bias term, at the fitted rows
+  # and at the average fitted design
+  for (name in c("dat.lehmann2018-PET", "dat.lehmann2018-PEESE")) {
+    for (newdata in list(NULL, TRUE)) {
+      label       <- paste(name, "terms, newdata =", format(newdata))
+      predictions <- seeded_predictions(fits[[name]], "terms", newdata, label)
+      expect_gt(max_difference(predictions), 0, label = label)
+    }
+  }
+
+  # selection-model responses come from the ordinary normal predictive
+  # distribution instead of the selected-normal distribution
+  label       <- "dat.lehmann2018-3PSM response"
+  predictions <- seeded_predictions(fits[["dat.lehmann2018-3PSM"]], "response", label = label)
+  expect_gt(max_difference(predictions), 0, label = label)
+
+  # predictions of a model without publication-bias components are unchanged
+  for (type in c("terms", "estimate", "response")) {
+    label       <- paste("bcg_meta-regression", type)
+    predictions <- seeded_predictions(fits[["bcg_meta-regression"]], type, label = label)
+    expect_equal(predictions[["default"]], predictions[["unadjusted"]], tolerance = 0,
+                 info = label)
+  }
+})
+
+
 test_that("pooled_effect aggregates fitted-design location draws directly", {
 
   name <- "bcg_meta-regression"
@@ -475,11 +525,11 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
     fit_brma  <- fits[[name]]
     n_studies <- nobs(fit_brma)
 
-    terms  <- predict(fit_brma, type = "terms")
+    terms  <- predict(fit_brma, type = "terms", bias_adjusted = FALSE)
     scale  <- predict(fit_brma, type = "terms.scale")
-    effect <- predict(fit_brma, type = "effect")
+    effect <- predict(fit_brma, type = "effect", bias_adjusted = FALSE)
     set.seed(1)
-    response <- predict(fit_brma, type = "response")
+    response <- predict(fit_brma, type = "response", bias_adjusted = FALSE)
 
     expect_brma_samples_matrix(terms, n_studies, paste(name, "terms"))
     expect_brma_samples_matrix(scale, n_studies, paste(name, "terms.scale"))

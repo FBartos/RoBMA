@@ -98,12 +98,14 @@ test_that("multivariate PET and PEESE downstream targets remain available", {
     expect_s3_class(waic(object_with_waic, unit = "estimate"), "waic")
     expect_true(is.finite(as.numeric(logml(object))))
     expect_brma_samples_matrix(
-      predict(object, type = "estimate", conditioning_depth = "marginal"),
+      predict(object, type = "estimate", conditioning_depth = "marginal",
+              bias_adjusted = FALSE),
       n,
       "marginal estimate"
     )
     expect_brma_samples_matrix(
-      predict(object, type = "estimate", conditioning_depth = "estimate"),
+      predict(object, type = "estimate", conditioning_depth = "estimate",
+              bias_adjusted = FALSE),
       n,
       "fitted estimate"
     )

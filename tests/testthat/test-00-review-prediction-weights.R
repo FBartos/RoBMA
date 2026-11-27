@@ -139,8 +139,8 @@ test_that("augmentation provenance follows reconstruction and represented varian
     value <- predict(omitted, type = type, quiet = TRUE, .posterior_samples = samples)
     expect_null(attr(value, "RoBMA_target")$latent_augmentation)
   }
-  value <- predict(omitted, type = "estimate", conditioning_depth = "marginal", quiet = TRUE,
-    .posterior_samples = samples)
+  value <- predict(omitted, type = "estimate", conditioning_depth = "marginal",
+    bias_adjusted = FALSE, quiet = TRUE, .posterior_samples = samples)
   expect_null(attr(value, "RoBMA_target")$latent_augmentation)
   retained <- .prediction_weight_fixture(selection = BayesTools::selection_model(
     estimate_random_effects = "condition"))
