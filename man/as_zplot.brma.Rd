@@ -85,7 +85,9 @@ the predictive variance before sampling error is the sum of between- and
 within-cluster heterogeneity. Cluster conditioning instead retains the fitted
 cluster effects and includes only within-cluster heterogeneity. Estimate
 conditioning uses the conditional true-effect means returned by
-\code{predict(type = "blup", bias_adjusted = extrapolate)} and additionally integrates the posterior
+\code{predict(type = "blup")} (with \code{bias_adjusted = FALSE} for the
+fitted curve and \code{TRUE} for the extrapolated curve and the EDR) and
+additionally integrates the posterior
 conditional variance of those latent effects before adding new sampling
 error. It therefore represents a posterior predictive replication of the
 same uncertain latent effects rather than a BLUP-mean plug-in distribution.

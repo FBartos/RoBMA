@@ -36,8 +36,8 @@
 #'   response predictions require \code{sei} or \code{vi} in explicit
 #'   \code{newdata} (supplied through \code{V_new} for known-\code{V} models).
 #'   With \code{bias_adjusted = FALSE}, PET/PEESE location and latent
-#'   predictions (\code{type = "terms"}, \code{"cluster"}, or
-#'   \code{"estimate"}) and normal selected latent predictions
+#'   predictions (\code{type = "terms"} or \code{"estimate"}) and normal
+#'   selected latent predictions
 #'   (\code{type = "estimate"}) require them as well. Gaussian sampling SEs used in
 #'   prediction follow the ranges in \code{\link{data_input}}. Exactly zero
 #'   sampling SE is allowed where the prediction admits it. If an active
