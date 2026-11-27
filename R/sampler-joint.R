@@ -31,7 +31,7 @@
       # to the location block (resolved once the design is bound; the
       # dispatch records the sampler taken). The row budget is a deliberate
       # exception: a fit over it keeps the ordinary samplers.
-      fallback <- if (policy == "auto" && .sampler_location_independent_auto) location(TRUE) else NULL
+      fallback <- if (policy == "auto") location(TRUE) else NULL
       return(structure(function(prior_list, formula_design, data) {
         markers <- .sampler_joint_gaussian(prior_list, formula_design, data, sign, auto_dispatch)
         if (is.null(markers) && !is.null(fallback) && is.null(auto_dispatch[["budget"]])) {
@@ -52,8 +52,9 @@
     }
   }
   # Independent fits that no other joint sampler takes: the location block
-  # (without latents) when the fit has a gated moderator.
-  if (policy == "auto" && .sampler_location_independent_auto && .is_data_mods(data)) return(location(TRUE))
+  # (without latents) when the fit has a gated moderator (decided by
+  # measurement on the Assink meta-regression).
+  if (policy == "auto" && .is_data_mods(data)) return(location(TRUE))
   return(NULL)
 }
 

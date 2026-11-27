@@ -1530,7 +1530,7 @@ std::uint64_t snapshot_abi()
     (std::uint64_t(std::numeric_limits<long double>::digits) << 16) |
     (std::uint64_t(sizeof(std::size_t)) << 24) | (std::uint64_t(sizeof(int)) << 32) |
     (std::uint64_t(*reinterpret_cast<const unsigned char *>(&one)) << 40);
-#if defined(__MINGW32__) && defined(__GNUC__) && defined(__x86_64__)
+#if defined(__MINGW32__) && defined(__GNUC__) && !defined(__clang__) && defined(__x86_64__)
   value |= std::uint64_t(selnorm_fma_detail::supported()) << 48;
 #endif
   return value;

@@ -12,8 +12,13 @@ test_that("native routines and S3 methods are registered", {
 
   expect_true(isTRUE(validate_native_test_symbols()))
 
-  # columns: generic, class, method, and the package of a foreign generic
+  # columns: generic, class, method, and the package of a foreign generic;
+  # methods for generics of suggested packages that are not installed (such as
+  # metafor in CRAN's check without suggested packages) are skipped
   methods  <- getNamespaceInfo("RoBMA", "S3methods")
+  owners   <- unique(stats::na.omit(methods[, 4L]))
+  missing_owners <- owners[!vapply(owners, requireNamespace, logical(1), quietly = TRUE)]
+  methods  <- methods[!methods[, 4L] %in% missing_owners, , drop = FALSE]
   resolved <- vapply(seq_len(nrow(methods)), function(i) {
     owner <- if (is.na(methods[i, 4L])) "RoBMA" else methods[i, 4L]
     !is.null(getS3method(methods[i, 1L], methods[i, 2L], optional = TRUE,

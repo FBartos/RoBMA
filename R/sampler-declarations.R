@@ -481,12 +481,29 @@ The error was raised by the corrected selection sampler that RoBMA uses by defau
     ))
   }
 
-  # The location block sampler and its heterogeneity scale move: the "off"
-  # policy returns their parameters to the other samplers.
+  # The location block sampler and its heterogeneity scale move, and the joint
+  # bias, Gaussian and cluster samplers: the "off" policy returns their
+  # parameters to the other samplers.
   if (grepl("Location block sampler", message, fixed = TRUE) ||
       grepl("Location scale move", message, fixed = TRUE)) {
     return(paste0(
       message, "\nThe error was raised by the location block sampler that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(sampler.joint = \"off\")' to sample these parameters ",
+      "with the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+  if (grepl("Joint bias sampler", message, fixed = TRUE) ||
+      grepl("RoBMA Gaussian joint sampler", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by a joint sampler that RoBMA uses by default. ",
+      "Fit the model again after 'RoBMA.options(sampler.joint = \"off\")' to sample these parameters ",
+      "with the ordinary samplers, and please report the model to the RoBMA developers."
+    ))
+  }
+  # the cluster sampler runs only under the "clustered" policies
+  if (grepl("Joint cluster", message, fixed = TRUE)) {
+    return(paste0(
+      message, "\nThe error was raised by the joint cluster sampler selected through 'sampler.joint'. ",
       "Fit the model again after 'RoBMA.options(sampler.joint = \"off\")' to sample these parameters ",
       "with the ordinary samplers, and please report the model to the RoBMA developers."
     ))

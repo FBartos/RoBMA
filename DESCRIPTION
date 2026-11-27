@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.1.1.9021
+Version: 4.1.1.9022
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -48,8 +48,9 @@ Imports:
     rjags (>= 5-5),
     statmod,
     stats,
+    utils,
     graphics,
-    mvtnorm,
+    grDevices,
     scales,
     Rdpack,
     rlang,
@@ -60,7 +61,6 @@ Suggests:
     posterior,
     weightr,
     lme4,
-    fixest,
     metaBMA,
     emmeans,
     metadat,
@@ -73,10 +73,10 @@ Suggests:
     rmarkdown,
     covr,
     pkgload,
-    processx
+    processx,
+    mvtnorm
 LinkingTo:
     BayesTools,
-    Matrix (>= 1.6-2),
-    mvtnorm
+    Matrix (>= 1.6-2)
 RdMacros: Rdpack
 VignetteBuilder: knitr

@@ -176,4 +176,18 @@ test_that("a protected response retains its covariance with a selected sibling",
     expect_lt(abs(mean(residual)), 6 * .6 / sqrt(n))
     expect_lt(abs(stats::var(residual) - .36), 6 * .36 * sqrt(2 / (n - 1)))
   }
+
+  # all new rows exempt: publication weight one, so no publication group is
+  # needed and the responses are the Gaussian ones, N(0, V), with their
+  # correlation; a group column changes nothing
+  args <- list(object = object, newdata = data.frame(bias_exempt = c(TRUE, TRUE)), V_new = V,
+               type = "response", bias_adjusted = FALSE, quiet = TRUE, .posterior_samples = samples)
+  y <- as.matrix(withr::with_seed(5023, do.call(predict, args)))
+  args$newdata$paper <- dat$paper
+  expect_identical(as.matrix(withr::with_seed(5023, do.call(predict, args))), y)
+  expect_lt(max(abs(colMeans(y))), 6 / sqrt(n))
+  expect_true(all(abs(apply(y, 2L, stats::var) - 1) < 6 * sqrt(2 / (n - 1))))
+  residual <- y[, 2L] - .8 * y[, 1L]
+  expect_lt(abs(mean(residual)), 6 * .6 / sqrt(n))
+  expect_lt(abs(stats::var(residual) - .36), 6 * .36 * sqrt(2 / (n - 1)))
 })

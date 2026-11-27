@@ -65,7 +65,7 @@
 #' \code{moves} counts updates in states where the declared sources are active
 #' (slice calls that exhausted their interval included), \code{identity} and
 #' \code{outside} the updates where the move is the identity (sources inactive,
-#' or an allocation weight or share outside [2^-20, 1 - 2^-20]);
+#' or an allocation weight or share outside \[2^-20, 1 - 2^-20\]);
 #' after adaptation \code{likelihood_changed} counts the moves that changed the
 #' likelihood by rounding, \code{likelihood_rejected} those its correction
 #' undid, and \code{likelihood_change_max} is the largest such change (log units).
@@ -73,7 +73,14 @@
 #' nothing and is absent when no run reported): \code{location} per gate and
 #' chain the updates after adaptation and the transitions the chain retained
 #' (\code{switched_on}, \code{switched_off}), with the inner stage's flips and
-#' log odds as \code{inner_*}; with a bias indicator owned by the block,
+#' log odds as \code{inner_*}; \code{screened} per screened indicator of the
+#' corrected selection sampler (\code{node}) and chain its \code{levels}, its
+#' \code{updates} after adaptation, the observed \code{changes} of its level,
+#' and the mean and maximum probability that an update changes the level
+#' (\code{leave_mean}, \code{leave_max}: before its exact correction, and the
+#' exact probability once the indicator fell back to exact updates), where
+#' \code{run}, \code{process} and \code{serial} identify a record whose node
+#' could not be named; with a bias indicator owned by the block,
 #' \code{bias} per chain the proposals and acceptances of its label, Gaussian
 #' family, slope and swap moves, the swaps skipped because their base point
 #' was not representable (\code{swap_unrepresentable}) or because their proposal
@@ -877,6 +884,10 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_autofit_control <- function(old_autofit_control, autofit_control){
 
+  # the caller's elements must be settings of this control; the stored control
+  # is rebuilt below, which drops what earlier versions stored in it
+  .check_control_names(autofit_control, "autofit_control", set_autofit_control)
+
   if("max_Rhat" %in% names(autofit_control)){
     max_Rhat <- autofit_control[["max_Rhat"]]
   }else{
@@ -952,6 +963,8 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_convergence_checks <- function(old_convergence_checks, convergence_checks){
 
+  .check_control_names(convergence_checks, "convergence_checks", set_convergence_checks)
+
   if("max_Rhat" %in% names(convergence_checks)){
     max_Rhat <- convergence_checks[["max_Rhat"]]
   }else{
@@ -996,8 +1009,39 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 
 
+# Elements that a control does not have (the arguments of its setter) are
+# refused, not ignored or misrouted: BayesTools' validator of the convergence
+# checks also accepts the autofit-only settings.
+.check_control_names <- function(control, name, setter){
+
+  .check_control_named(control, name)
+  BayesTools::check_list(control, name, check_names = names(formals(setter)), allow_NULL = TRUE,
+                         call = paste0("Checking '", name, "':\n\t"))
+}
+
+# Every element of a control list needs its own name: an unnamed element would
+# be dropped and a repeated one would silently lose all but its first value.
+.check_control_named <- function(control, name){
+
+  if (!is.list(control) || length(control) == 0L) {
+    return(invisible(NULL))
+  }
+  element_names <- names(control)
+  if (is.null(element_names) || anyNA(element_names) || !all(nzchar(element_names))) {
+    stop("Checking '", name, "':\n\tEvery element of the '", name, "' argument must be named.", call. = FALSE)
+  }
+  repeated <- unique(element_names[duplicated(element_names)])
+  if (length(repeated) > 0L) {
+    stop("Checking '", name, "':\n\tThe '", name, "' argument sets '", paste0(repeated, collapse = "', '"),
+         "' more than once.", call. = FALSE)
+  }
+
+  return(invisible(NULL))
+}
+
 .check_and_list_convergence_checks <- function(convergence_checks){
 
+  .check_control_names(convergence_checks, "convergence_checks", set_convergence_checks)
   call <- "Checking 'convergence_checks':\n\t"
   # 'allow_not_assessable' is an argument of BayesTools::JAGS_check_convergence()
   # but not an element of BayesTools' autofit settings, which check the others

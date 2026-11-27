@@ -1028,10 +1028,12 @@ NULL
         stop("brma.mv() input '", name, "' must contain positive finite values.", call. = FALSE)
       }
       BayesTools::check_real(value, name, check_length = 0, allow_NA = TRUE, lower = 0, allow_bound = allow_zero)
-      if (!is.null(vi) && !is.null(sei)) {
-        stop("Non-missing '", name, "' values must be finite.", call. = FALSE)
+      # an infinite value of the supplied input; a lone 'sei' keeps the
+      # wording of RoBMA 4.1.1
+      if (name == "sei" && is.null(vi)) {
+        stop("Positive 'sei' values must have positive finite squared sampling variances.", call. = FALSE)
       }
-      stop("Positive 'sei' values must have positive finite squared sampling variances.", call. = FALSE)
+      stop("Non-missing '", name, "' values must be finite.", call. = FALSE)
     }
   }
 

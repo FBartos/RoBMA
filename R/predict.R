@@ -43,7 +43,8 @@
 #'   sampling SE is allowed where the prediction admits it. If an active
 #'   selection branch uses \code{weight_rule = "best"}, unadjusted selection
 #'   predictions also need its publication groups to be resolvable in the
-#'   prediction data.
+#'   prediction data, unless every predicted row is exempt from publication
+#'   bias.
 #'   Fitted-row predictions reuse their publication-bias exemptions. For
 #'   explicit new rows, supply a logical \code{bias_exempt} column when the
 #'   fit contains exempt rows and the requested prediction uses publication
@@ -2107,11 +2108,19 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     )
     parts[["dependency_blocks"]] <- parts[["sampling_dependency_blocks"]]
   }
-  groups <- .predict_joint_selection_groups(context)
   selection <- .selection_context(
     object = context[["object"]], posterior_samples = context[["posterior_samples"]],
     newdata = context[["new_data"]]
   )
+  parts[["selection_context"]] <- selection
+  # Rows that are all exempt from publication bias have publication weight
+  # one: no publication partition is needed, and the rows keep their Gaussian
+  # covariance and dependency blocks.
+  exempt <- selection[["bias_exempt"]]
+  if (length(exempt) == K && all(exempt)) {
+    return(parts)
+  }
+  groups <- .predict_joint_selection_groups(context)
   if (any(selection[["vector_rule"]] != 0L)) {
     partition <- integer(K)
     for (group in seq_along(groups)) partition[groups[[group]]] <- group
@@ -2122,7 +2131,6 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     }
     parts[["dependency_blocks"]] <- groups
   }
-  parts[["selection_context"]] <- selection
   parts
 }
 

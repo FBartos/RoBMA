@@ -12,14 +12,15 @@ source(testthat::test_path("common-functions.R"))
 # run here; hand-written models and small fits run in the certification case
 # 'numerical-kernels' (helpers in helper-selection-coarse-exactness.R).
 
-.fallback_report_names <- c("samplers", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted",
-  "sampling_judged", "min_sampler_rate")
+# the six counters of a native report (helper-selection-coarse-exactness.R)
+.fallback_report_names <- .report_counter_names
 
 .fallback_record_names <- c("sampler", "min_acceptance", "samplers", "fallback_samplers",
   "fallback_low_acceptance", "sampling_proposed", "sampling_accepted", "sampling_judged", "acceptance_rate",
   "min_sampler_rate", "complete")
 
-# One process's report as the native routine returns it; the judged
+# The six counters of one process's report as the native routine returns them
+# (reports before the screened indicators' record had only these); the judged
 # acceptances of scalar samplers are their accepted proposals.
 .fallback_report_value <- function(samplers = 0, low = 0, proposed = 0, accepted = 0, rate = NA_real_,
                                    judged = accepted) {
@@ -83,10 +84,8 @@ test_that("the native settings take an optional threshold and the per-fit counte
 
   .selection_sampler_report_read()
   report <- .Call("RoBMA_selnorm_sampler_report", FALSE, PACKAGE = "RoBMA")
-  expect_identical(report[names(report) != "screened"], .fallback_report_value(rate = NA_real_))
+  expect_identical(.report_counts(report), .fallback_report_value(rate = NA_real_))
   # the screened indicators' evidence record: one row per indicator and chain
-  expect_identical(colnames(report[["screened"]]),
-                   c("serial", "chain", "levels", "lower", "last", "updates", "changes", "leave_sum", "leave_max"))
   expect_identical(nrow(report[["screened"]]), 0L)
   expect_error(.Call("RoBMA_selnorm_sampler_report", NA, PACKAGE = "RoBMA"),
                "'clear' must be one non-missing logical value.", fixed = TRUE)
@@ -402,6 +401,36 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
   }
   expect_identical(.sampler_error_hint("Error in node mu\nSlicer stuck"), "Error in node mu\nSlicer stuck")
 
+  # the location block sampler, its scale move and the joint samplers (their
+  # native messages): the "off" policy of 'sampler.joint'
+  joint_hint <- paste0("Fit the model again after 'RoBMA.options(sampler.joint = \"off\")' to sample these ",
+                       "parameters with the ordinary samplers, and please report the model to the RoBMA developers.")
+  for (message in c(paste0("Error in node y[1]\nLocation block sampler: the covariance of this likelihood node is ",
+                           "not positive definite"),
+                    paste0("Error in node y[1]\nLocation scale move [RoBMA_location_scale_invariance]: a parent value ",
+                           "of this likelihood node changed under the heterogeneity scale move, which must leave every ",
+                           "child unchanged; the move was undone"))) {
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe error was raised by the location block sampler that RoBMA uses by default. ", joint_hint
+    ), info = message)
+  }
+  for (message in c("Joint bias sampler encountered an invalid current state.",
+                    "Joint bias sampler could not evaluate the current state.",
+                    "Joint bias sampler could not evaluate its acceptance probability.",
+                    "RoBMA Gaussian joint sampler could not evaluate the retained state.",
+                    "RoBMA Gaussian joint sampler could not represent a raw slab draw.")) {
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe error was raised by a joint sampler that RoBMA uses by default. ", joint_hint
+    ), info = message)
+  }
+  # the cluster sampler is not a default: it runs under the "clustered" policies
+  for (message in c("Error in node mu\nJoint cluster scalar refresh has a nonfinite density",
+                    "Error in node gate[1]\nJoint cluster gate refresh has a nonfinite density")) {
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe error was raised by the joint cluster sampler selected through 'sampler.joint'. ", joint_hint
+    ), info = message)
+  }
+
   # the precision guard of every sampler: a hint about the data and the
   # chain's state, no sampler option
   for (sampler in c("Corrected slice", "Corrected slice (block)", "Corrected slice (gated block)",
@@ -504,7 +533,7 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
 
   # fallback on: the sampler switched for its low adaptive acceptance
   expect_identical(on$samplers, "RoBMA::CoarseCorrectedSlice", info = label)
-  expect_identical(on$report, .fallback_report_value(samplers = 1, low = 1), info = label)
+  expect_identical(.report_counts(on$report), .fallback_report_value(samplers = 1, low = 1), info = label)
   expect_identical(on$counters[["proposed"]], 0, info = label)
   .fallback_expect_moments(on$draws, reference, allowance, paste(label, "exact kernel"))
 
@@ -618,9 +647,10 @@ test_that("a sampler decides its kernel once, at the end of adaptation, from its
   at <- .fallback_decision(rate, 500L)$report
   expect_identical(at[["fallback_low_acceptance"]], 0)
   expect_identical(at[["sampling_proposed"]], burnin + 200)
-  expect_identical(.fallback_decision(rate * (1 + 1e-12), 500L)$report,
+  expect_identical(.report_counts(.fallback_decision(rate * (1 + 1e-12), 500L)$report),
                    .fallback_switched("fallback_low_acceptance"))
-  expect_identical(.fallback_decision(.9, 500L)$report, .fallback_switched("fallback_low_acceptance"))
+  expect_identical(.report_counts(.fallback_decision(.9, 500L)$report),
+                   .fallback_switched("fallback_low_acceptance"))
   # a threshold of 0 never switches
   expect_identical(.fallback_decision(0, 500L)$report[["fallback_low_acceptance"]], 0)
 
@@ -631,14 +661,17 @@ test_that("a sampler decides its kernel once, at the end of adaptation, from its
   # second corrected sampler.
   indicator <- "\n  ind ~ dcat(c(.5, .5))"
   quiet <- .fallback_report_value(samplers = 2)
-  expect_identical(.fallback_decision(.9, 500L, vector_rule = "vr", definitions = paste0(indicator, "\n  vr <- ind"))$report,
-                   quiet)
-  expect_identical(.fallback_decision(.9, 500L, mode = "md", definitions = paste0(indicator, "\n  md <- 0 * ind"))$report,
-                   quiet)
+  expect_identical(.report_counts(
+    .fallback_decision(.9, 500L, vector_rule = "vr", definitions = paste0(indicator, "\n  vr <- ind"))$report), quiet)
+  expect_identical(.report_counts(
+    .fallback_decision(.9, 500L, mode = "md", definitions = paste0(indicator, "\n  md <- 0 * ind"))$report), quiet)
   dense <- .coarse_dense_hand_model(.coarse_dense_setup(), min_acceptance = .9, mode = "md",
                                     definitions = paste0(indicator, "\n  md <- 0 * ind"), inits = list(ind = 1))
   expect_setequal(dense$samplers, c("RoBMA::CoarseCorrectedSlice", "RoBMA::ScreenedFinite"))
-  expect_identical(.coarse_hand_chain(dense, "mu", 200L)$report, quiet)
+  dense_report <- .coarse_hand_chain(dense, "mu", 200L)$report
+  expect_identical(.report_counts(dense_report), quiet)
+  # the screened indicator's evidence record: one indicator in one chain
+  expect_identical(nrow(dense_report[["screened"]]), 1L)
   # a kernel mode fixed at the normal kernel: the dense block can never differ
   # from its exact density, so no corrected sampler is created
   fixed <- .coarse_dense_hand_model(.coarse_dense_setup(), min_acceptance = .9, mode = 0)
@@ -675,11 +708,11 @@ test_that("a sampler decides its kernel once, at the end of adaptation, from its
     min_acceptance = .9)
   for (batch in seq_len(5L)) rjags::adapt(hand$model, 100L, end.adaptation = FALSE)
   expect_true(rjags::adapt(hand$model, 0L, end.adaptation = TRUE))
-  expect_identical(.Call("RoBMA_selnorm_sampler_report", FALSE, PACKAGE = "RoBMA"),
+  expect_identical(.report_counts(.Call("RoBMA_selnorm_sampler_report", FALSE, PACKAGE = "RoBMA")),
                    .fallback_switched("fallback_low_acceptance"))
   .Call("adapt_off", hand$model$ptr(), PACKAGE = "rjags")
   stats::update(hand$model, n.iter = 100L, progress.bar = "none")
-  expect_identical(.selection_sampler_report_read(), .fallback_switched("fallback_low_acceptance"))
+  expect_identical(.report_counts(.selection_sampler_report_read()), .fallback_switched("fallback_low_acceptance"))
 })
 
 
@@ -703,7 +736,7 @@ test_that("the worst-sampler rate is the rate of one sampler over its whole run"
   expect_identical(report[["min_sampler_rate"]], report[["sampling_accepted"]] / report[["sampling_proposed"]])
   expect_lt(report[["min_sampler_rate"]], 1)
   # two reads in a row: the second has nothing
-  expect_identical(.selection_sampler_report_read(), .fallback_report_value(rate = NA_real_))
+  expect_identical(.report_counts(.selection_sampler_report_read()), .fallback_report_value(rate = NA_real_))
 
   # a sampler destroyed before the read still counts with its rate
   hand <- build()
@@ -904,7 +937,7 @@ test_that("the JASP path, alternating fits and leftover counts keep each fit's r
   stats::update(hand$model, n.iter = 300L, progress.bar = "none")
   report <- .selection_sampler_report_callback()
   expect_identical(report(list(phase = "report"))[["sampling_proposed"]], 300)
-  expect_identical(report(list(phase = "report")), .fallback_report_value(rate = NA_real_))
+  expect_identical(.report_counts(report(list(phase = "report"))), .fallback_report_value(rate = NA_real_))
 
   # a fit with the ordinary samplers, between two identical fits
   RoBMA.options(selection.sampler = "slice")

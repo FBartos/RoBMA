@@ -67,27 +67,30 @@
 #' `c("BMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma")`.
 #'
 #' @examples \dontrun{
-#' data("dat.assink2016", package = "metadat")
-#' V <- metafor::vcalc(
-#'   vi,
-#'   cluster = study,
-#'   type = deltype,
-#'   obs = esid,
-#'   rho = c(0.7, 0.5),
-#'   data = dat.assink2016
-#' )
-#' fit <- BMA.mv(
-#'   yi = yi,
-#'   V = V,
-#'   mods = ~ deltype,
-#'   random = ~ 1 | study / esid,
-#'   data = dat.assink2016,
-#'   measure = "SMD",
-#'   seed = 1,
-#'   silent = TRUE
-#' )
-#' summary(fit)
-#' summary_models(fit)
+#' if (requireNamespace("metadat", quietly = TRUE) &&
+#'     requireNamespace("metafor", quietly = TRUE)) {
+#'   data("dat.assink2016", package = "metadat")
+#'   V <- metafor::vcalc(
+#'     vi,
+#'     cluster = study,
+#'     type = deltype,
+#'     obs = esid,
+#'     rho = c(0.7, 0.5),
+#'     data = dat.assink2016
+#'   )
+#'   fit <- BMA.mv(
+#'     yi = yi,
+#'     V = V,
+#'     mods = ~ deltype,
+#'     random = ~ 1 | study / esid,
+#'     data = dat.assink2016,
+#'     measure = "SMD",
+#'     seed = 1,
+#'     silent = TRUE
+#'   )
+#'   summary(fit)
+#'   summary_models(fit)
+#' }
 #' }
 #'
 #' @seealso [BMA()], [RoBMA.mv()], [brma.mv()], [summary.brma()],

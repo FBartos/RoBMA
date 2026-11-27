@@ -133,8 +133,9 @@ selection_cache_info <- function(clear = FALSE, component = c("all", "exact", "c
 #' @examples \dontrun{
 #' RoBMA.options(selection.cache_retain = TRUE)
 #' fit <- bselmodel.mv(yi, V = V, random = ~ 1 | study / esid, data = dat)
-#' saveRDS(fit, "fit.rds")
-#' fit <- update(readRDS("fit.rds"), sample_extend = 1000)
+#' path <- tempfile(fileext = ".rds")
+#' saveRDS(fit, path)
+#' fit <- update(readRDS(path), sample_extend = 1000)
 #' fit <- remove_selection_cache(fit)
 #' RoBMA.options(selection.cache_retain = FALSE)
 #' }
@@ -347,7 +348,8 @@ remove_selection_cache <- function(object) {
 #' Errors. An error of a corrected sampler, of the location block sampler or
 #' of its heterogeneity scale move names the node and ends with a hint, in most
 #' cases the option that returns the parameters to the ordinary samplers and a
-#' request to report the model. Errors whose message contains a bracketed name
+#' request to report the model; errors of the joint bias, Gaussian and cluster
+#' samplers end with the same hint (\code{sampler.joint = "off"}). Errors whose message contains a bracketed name
 #' are signalled with that name as condition class and the shared parent class
 #' \code{RoBMA_sampler_error}: \code{RoBMA_location_untracked_mean} (a mean of a
 #' likelihood node is not the one the location block's verified design

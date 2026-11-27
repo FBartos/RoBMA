@@ -15,7 +15,6 @@ NULL
   RoBMA.private[["selection_runtime_initialized"]] <- FALSE
   on.exit(RoBMA.private[["selection_runtime_loading"]] <- FALSE, add = TRUE)
   requireNamespace("BayesTools")
-  requireNamespace("mvtnorm")
 
   RoBMA.private$RoBMA_version   <- utils::packageDescription(pkgname, fields = "Version")
   RoBMA.private$module_location <- .RoBMA_module_location(libname, pkgname)

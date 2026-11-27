@@ -151,6 +151,24 @@
 }
 
 
+# The six counters of a native report of the corrected samplers
+# (RoBMA_selnorm_sampler_report), compared by name. Its seventh element, the
+# screened indicators' evidence record, is checked for its shape here and
+# asserted separately; tests that simulate reports of earlier versions build
+# the six counters alone.
+.report_counter_names <- c("samplers", "fallback_low_acceptance", "sampling_proposed", "sampling_accepted",
+  "sampling_judged", "min_sampler_rate")
+
+.report_counts <- function(report) {
+
+  testthat::expect_identical(names(report), c(.report_counter_names, "screened"))
+  testthat::expect_true(is.matrix(report[["screened"]]))
+  testthat::expect_identical(colnames(report[["screened"]]),
+    c("serial", "chain", "levels", "lower", "last", "updates", "changes", "leave_sum", "leave_max"))
+  report[.report_counter_names]
+}
+
+
 # Adapts for `adapt` iterations (in batches of 100), ends the adaptation (each
 # corrected sampler decides its kernel there), burns in 500 iterations and draws
 # `draws` values of `monitor`; returns them (a matrix for several monitored

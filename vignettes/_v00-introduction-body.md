@@ -98,7 +98,7 @@ The second extends the ensemble to publication-bias models used in `RoBMA()`.
 | [*Adjusting for Publication Bias Tutorial*](`r article_url("v30-tutorial")`) | @bartos2020adjusting, JASP / R tutorial on `Lui2015`              |
 | [*Robust Bayesian Meta-Regression*](`r article_url("v31-robma-metaregression")`) | @bartos2023robust, RoBMA-reg on `Andrews2021`                     |
 | [*Multilevel Robust Bayesian Meta-Analysis*](`r article_url("v32-robma-multilevel")`) | @bartos2025robust, Multilevel RoBMA on `Johnides2025`             |
-| [*Multilevel Robust Bayesian Meta-Regression*](`r article_url("v33-robma-multilevel-metaregression")`) | Multilevel RoBMA-reg on `Kroupova2021`                            |
+| [*Multilevel Robust Bayesian Meta-Regression*](`r article_url("v33-robma-multilevel-metaregression")`) | Multilevel RoBMA-reg on `Havrankova2025`                          |
 | [*Informed Bayesian Meta-Analysis in Medicine*](`r article_url("v34-bma-norm-medicine")`) | @bartos2021bayesian, informed prior distributions for medical meta-analysis (continuous outcomes) |
 | [*Informed Bayesian Meta-Analysis with Binary Outcomes*](`r article_url("v35-bma-glmm-medicine")`) | @bartos2023empirical, informed prior distributions for medical meta-analysis (binary and time-to-event outcomes) |
 | [*Zplot Publication-Bias Diagnostics*](`r article_url("v36-zplot")`) | @bartos2025zcurve, zplot diagnostics on `Hoppen2025`              |

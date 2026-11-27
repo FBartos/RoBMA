@@ -132,9 +132,6 @@ test_that("after a fallback the block runs BayesTools' factor slice update, draw
   .block_chain(.block_pair_model(min_acceptance = threshold, ...), "mu", 100L, adapt = adapt, burnin = 100L)$report
 }
 
-# The counts of a runtime report without the screened indicators' evidence record.
-.report_counts <- function(report) report[names(report) != "screened"]
-
 
 .block_switched <- function(reason) {
 

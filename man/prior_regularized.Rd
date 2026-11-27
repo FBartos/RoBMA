@@ -41,7 +41,8 @@ coding by default and a calling model can supply its factor coding.}
 With numeric scale and omitted terms, ridge and lasso return
 ordinary scalar priors accepted by \code{\link[BayesTools:prior_spike_and_slab]{prior_spike_and_slab()}} and
 \code{\link[BayesTools:prior_mixture]{prior_mixture()}}. Otherwise the result declares a coefficient group for
-\code{\link[BayesTools:JAGS_formula]{JAGS_formula()}}. \code{is.prior.regularized()} identifies group declarations.
+\code{\link[BayesTools:JAGS_formula]{JAGS_formula()}}. \code{\link[BayesTools:is.prior.regularized]{is.prior.regularized()}} identifies group declarations.
+\code{\link[BayesTools:is.prior.regularized_term]{is.prior.regularized_term()}} identifies coefficient priors bound to a group.
 }
 \description{
 Set ridge, lasso, or horseshoe priors for moderator or scale

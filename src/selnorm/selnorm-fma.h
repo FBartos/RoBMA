@@ -5,8 +5,9 @@
 
 // MinGW's software fma is expensive inside the selected-normal quadrature.
 // Use hardware only when GCC reports CPU and OS AVX/FMA support; other
-// platforms retain their standard-library implementation.
-#if defined(__MINGW32__) && defined(__GNUC__) && defined(__x86_64__)
+// platforms and compilers (Clang on MinGW also defines __GNUC__) retain their
+// standard-library implementation.
+#if defined(__MINGW32__) && defined(__GNUC__) && !defined(__clang__) && defined(__x86_64__)
 namespace selnorm_fma_detail {
 using Operation = double (*)(double, double, double);
 
