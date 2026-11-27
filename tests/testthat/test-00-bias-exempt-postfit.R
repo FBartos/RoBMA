@@ -50,6 +50,9 @@ test_that("PET and PEESE use the fitted and explicitly predicted row exemptions"
     corrected <- predict(object, newdata = without_flags, type = "terms",
                          bias_adjusted = TRUE, quiet = TRUE, .posterior_samples = samples)
     expect_equal(as.numeric(corrected), rep(samples[, "mu"], nrow(without_flags)))
+    default <- predict(object, newdata = without_flags, type = "terms",
+                       quiet = TRUE, .posterior_samples = samples)
+    expect_equal(default, corrected, tolerance = 0)
     for (explicit in c(FALSE, TRUE)) {
       args <- list(object = object, type = "terms", quiet = TRUE,
                    .posterior_samples = samples)
@@ -149,6 +152,11 @@ test_that("a protected response retains its covariance with a selected sibling",
   expect_error(predict(object, newdata = data.frame(paper = dat$paper),
     V_new = V, type = "response", bias_adjusted = FALSE, quiet = TRUE,
     .posterior_samples = samples), "bias_exempt")
+  # the default adjusts for publication bias and needs no exemption flags
+  # (seeded separately so that the draws below keep their stream)
+  expect_s3_class(withr::with_seed(1, predict(object,
+    newdata = data.frame(paper = dat$paper), V_new = V, type = "response",
+    quiet = TRUE, .posterior_samples = samples)), "brma_samples")
   for (explicit in c(FALSE, TRUE)) {
     args <- list(object = object, type = "response", bias_adjusted = FALSE, quiet = TRUE,
                  .posterior_samples = samples)

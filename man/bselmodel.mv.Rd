@@ -440,9 +440,11 @@ prediction at estimate depth describes a new reporting event around fitted
 truth, with new sampling error. Prediction's \code{conditioning_depth} is a
 separate choice from the selection-model source settings.
 Cluster depth is available only for the
-specialized \code{cluster} interface. Known-covariance latent and response
-predictions with \code{newdata} require \code{V_new} and, for \code{"best"}, the resolved
-publication-group reference; cross-covariance with fitted outcomes and
+specialized \code{cluster} interface. With \code{newdata}, known-covariance response
+predictions and latent predictions with \code{bias_adjusted = FALSE} require
+\code{V_new}; predictions that use the selection process (\code{bias_adjusted = FALSE})
+also need, for \code{"best"}, the resolved publication-group reference. The
+default bias-adjusted latent prediction takes neither. Cross-covariance with fitted outcomes and
 non-marginal \code{newdata} are unavailable. See \code{\link[=predict.brma]{predict.brma()}} for prediction
 targets and labels.
 

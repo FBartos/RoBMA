@@ -50,9 +50,13 @@ must agree. Poisson GLMM response predictions require exposures \code{t1i}
 and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 known-\code{V} \code{brma.mv()} response prediction, explicit
 \code{newdata} also requires sampling covariance through \code{V_new}. Product-only
-selection models require no publication-group column. Unadjusted normal
-selected latent predictions (\code{type = "estimate"}) require \code{sei}
-or \code{vi} in explicit \code{newdata}. Gaussian sampling SEs used in
+selection models require no publication-group column. Normal-outcome
+response predictions require \code{sei} or \code{vi} in explicit
+\code{newdata} (supplied through \code{V_new} for known-\code{V} models).
+With \code{bias_adjusted = FALSE}, PET/PEESE location and latent
+predictions (\code{type = "terms"}, \code{"cluster"}, or
+\code{"estimate"}) and normal selected latent predictions
+(\code{type = "estimate"}) require them as well. Gaussian sampling SEs used in
 prediction follow the ranges in \code{\link{data_input}}. Exactly zero
 sampling SE is allowed where the prediction admits it. If an active
 selection branch uses \code{weight_rule = "best"}, unadjusted selection
@@ -135,8 +139,10 @@ depth and fresh Gaussian draws for a new estimate within a fitted cluster.
 The fitted selection specification and prediction conditioning depth are
 separate choices.}
 
-\item{quiet}{logical; whether to suppress the informational message when
-conditional posterior samples are flattened to one chain.}
+\item{quiet}{logical; whether to suppress the informational messages when
+conditional posterior samples are flattened to one chain and when an
+aggregated prediction (\code{newdata = TRUE}) averages over the moderator
+or scale model matrix.}
 
 \item{conditional}{whether to return conditional posterior predictions for
 RoBMA product-space objects. For location predictions, samples are conditioned
@@ -251,7 +257,8 @@ stored as one flattened chain.
 Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 predictions for the new effect size estimates. To obtain results corresponding to
 metafor's predict function, use \code{type = "terms"} for the mean effect size
-and \code{type = "estimate"} for true effects (prediction interval).
+and \code{type = "estimate"} for true effects (prediction interval), with
+\code{bias_adjusted = FALSE} for PET/PEESE models.
 
 \strong{Likelihood weights:} If the model was fitted with \code{weights},
 the weights affect the posterior fit, log-likelihood, LOO/WAIC, and

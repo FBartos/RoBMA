@@ -65,7 +65,7 @@ base numeric vector, matching the usual \code{\link[stats]{fitted}} contract.
 Use \code{predict()} directly when posterior draws or intervals are needed.
 
 The default \code{conditioning_depth = "marginal"} corresponds to
-\code{predict(object, type = "terms")} and matches the usual fitted-value
+\code{predict(object, type = "terms", bias_adjusted = FALSE)} and matches the usual fitted-value
 convention for meta-regression. For normal models,
 \code{conditioning_depth = "estimate"} corresponds to BLUP means for the
 observed estimates.

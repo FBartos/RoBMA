@@ -96,7 +96,7 @@ coef.brma <- function(object, ...) {
 #' Use \code{predict()} directly when posterior draws or intervals are needed.
 #'
 #' The default \code{conditioning_depth = "marginal"} corresponds to
-#' \code{predict(object, type = "terms")} and matches the usual fitted-value
+#' \code{predict(object, type = "terms", bias_adjusted = FALSE)} and matches the usual fitted-value
 #' convention for meta-regression. For normal models,
 #' \code{conditioning_depth = "estimate"} corresponds to BLUP means for the
 #' observed estimates.
@@ -751,7 +751,8 @@ blup <- function(object, ...) {
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "blup", newdata = NULL)}. Unlike \code{predict(..., type =
+#' type = "blup", newdata = NULL)} that passes its own \code{bias_adjusted},
+#' which defaults to \code{FALSE}, unlike \code{predict()}'s. Unlike \code{predict(..., type =
 #' "estimate", conditioning_depth = "estimate")}, it returns conditional
 #' location/BLUP means rather than adding conditional latent-effect uncertainty.
 #'

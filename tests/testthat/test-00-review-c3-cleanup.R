@@ -44,4 +44,7 @@ test_that("best-weight newdata identifies its missing publication-group column",
     "The 'newdata' must contain the publication-group column 'paper' ",
     "required by 'weight_rule = \"best\"'."
   ), fixed = TRUE)
+  # the default adjusts for publication bias and needs no publication groups
+  expect_s3_class(predict(object, newdata = dat[c("yi", "sei")], type = "response",
+    quiet = TRUE, .posterior_samples = samples), "brma_samples")
 })
