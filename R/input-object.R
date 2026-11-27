@@ -25,9 +25,10 @@
 #' @param chains numeric. Number of MCMC chains. Defaults to `3`.
 #' @param thin numeric. Thinning interval: one sample is retained every
 #' `thin` iterations. Defaults to `1`. `adapt`, `burnin` and `sample` count
-#' samples at this thinning, so a fit runs `(adapt + burnin + sample) * thin`
-#' iterations per chain (without the adaptation iterations when no sampler
-#' adapts); see `thin` in [BayesTools::JAGS_fit()] for the largest settings.
+#' samples at this thinning, so a fit requests `(adapt + burnin + sample) * thin`
+#' iterations per chain before any automatic extensions of burn-in or sampling
+#' (without the adaptation iterations when no sampler adapts); see `thin` in
+#' [BayesTools::JAGS_fit()] for the largest settings.
 #' @param parallel logical. Whether to run MCMC chains in parallel. Defaults to `FALSE`.
 #' @param autofit logical. Whether to automatically extend the MCMC chains if convergence is not met.
 #' Defaults to `FALSE`.

@@ -299,9 +299,10 @@ at the thinning \code{thin}: where a sampler adapts, each chain runs
 
 \item{thin}{numeric. Thinning interval: one sample is retained every
 \code{thin} iterations. Defaults to \code{1}. \code{adapt}, \code{burnin} and \code{sample} count
-samples at this thinning, so a fit runs \code{(adapt + burnin + sample) * thin}
-iterations per chain (without the adaptation iterations when no sampler
-adapts); see \code{thin} in \code{\link[BayesTools:JAGS_fit]{BayesTools::JAGS_fit()}} for the largest settings.}
+samples at this thinning, so a fit requests \code{(adapt + burnin + sample) * thin}
+iterations per chain before any automatic extensions of burn-in or sampling
+(without the adaptation iterations when no sampler adapts); see \code{thin} in
+\code{\link[BayesTools:JAGS_fit]{BayesTools::JAGS_fit()}} for the largest settings.}
 
 \item{parallel}{logical. Whether to run MCMC chains in parallel. Defaults to \code{FALSE}.}
 
