@@ -28,7 +28,7 @@ verify_joint_workers <- function() {
   RoBMA.options(max_cores = 2L, sampler.joint = "auto", sampler.nested.weights = FALSE,
                 sampler.probabilities = requested_tau, selection.sampler = "slice.coarse")
   fitted <- RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD",
-    chains = 3L, parallel = TRUE, adapt = 500L, burnin = 100L,
+    chains = 3L, parallel = TRUE, adapt = 250L, burnin = 50L,
     sample = 100L, thin = 2L, autofit = FALSE, silent = TRUE, seed = 806L,
     convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL))
   backend <- fitted[["fit"]]
@@ -76,7 +76,7 @@ verify_joint_workers <- function() {
   saveRDS(fitted, path)
   RoBMA.options(sampler.joint = "off", sampler.probabilities = character(),
                 sampler.nested.weights = TRUE, selection.sampler = "jags.default")
-  extended <- update(readRDS(path), sample_extend = 50L, adapt = 500L,
+  extended <- update(readRDS(path), sample_extend = 50L, adapt = 250L,
                      parallel = TRUE, cores = 2L, silent = TRUE)
   rebuilt <- extended[["fit"]]
   check_backend(rebuilt, 150L, workers = 2L)

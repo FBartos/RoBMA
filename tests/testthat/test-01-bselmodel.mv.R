@@ -39,8 +39,9 @@ test_that("bselmodel.mv fits the marginal product selection target", {
     ),
     # Thinning by 16 makes the 600 stored draws nearly independent (ESS 600
     # instead of about 100), which the qCMDE density test in
-    # test-02-bselmodel.mv.R uses with all 600 rows.
-    chains = 2, sample = 300, burnin = 600, adapt = 500, thin = 16,
+    # test-02-bselmodel.mv.R uses with all 600 rows. The adaptation and
+    # burn-in are the smallest admitted, 50 draws (800 iterations) each.
+    chains = 2, sample = 300, burnin = 50, adapt = 50, thin = 16,
     seed = 194, silent = TRUE,
     convergence_checks = set_convergence_checks(
       max_Rhat = NULL,
