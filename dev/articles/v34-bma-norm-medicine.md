@@ -229,42 +229,42 @@ summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF
-#> Effect                 0.500       0.732        2.729
-#> Heterogeneity          0.500       0.678        2.103
-#> Publication Bias       0.500       0.827        4.793
+#> Effect                 0.500       0.724        2.624
+#> Heterogeneity          0.500       0.667        2.006
+#> Publication Bias       0.500       0.835        5.063
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.507 0.497 -0.252 0.507 1.306
-#> tau 0.199 0.231  0.000 0.150 0.824
+#> mu  0.495 0.489 -0.236 0.479 1.303
+#> tau 0.193 0.229  0.000 0.145 0.801
 #> 
 #> Conditional Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.693 0.457 -0.334 0.788 1.339
-#> tau 0.294 0.225  0.062 0.232 0.930
+#> mu  0.684 0.448 -0.324 0.763 1.334
+#> tau 0.289 0.226  0.062 0.229 0.915
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.961 0.146 0.397 1.000  1.000
-#> omega[0.05,0.5]   0.913 0.238 0.090 1.000  1.000
-#> omega[0.5,0.95]   0.901 0.262 0.055 1.000  1.000
-#> omega[0.95,0.975] 0.908 0.250 0.066 1.000  1.000
-#> omega[0.975,1]    0.928 0.230 0.073 1.000  1.000
-#> PET               1.508 2.027 0.000 0.000  5.434
-#> PEESE             2.447 4.823 0.000 0.000 16.088
+#> omega[0.025,0.05] 0.963 0.141 0.419 1.000  1.000
+#> omega[0.05,0.5]   0.918 0.230 0.110 1.000  1.000
+#> omega[0.5,0.95]   0.906 0.255 0.064 1.000  1.000
+#> omega[0.95,0.975] 0.913 0.243 0.077 1.000  1.000
+#> omega[0.975,1]    0.932 0.223 0.091 1.000  1.000
+#> PET               1.553 2.022 0.000 0.000  5.407
+#> PEESE             2.491 4.845 0.000 0.000 15.932
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 #> 
 #> Conditional Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.727 0.292 0.089 0.821  1.000
-#> omega[0.05,0.5]   0.390 0.280 0.012 0.352  0.944
-#> omega[0.5,0.95]   0.302 0.255 0.007 0.233  0.897
-#> omega[0.95,0.975] 0.353 0.284 0.009 0.280  0.946
-#> omega[0.975,1]    0.492 0.387 0.009 0.385  1.000
-#> PET               3.560 1.545 0.321 3.945  6.188
-#> PEESE             9.370 4.918 0.978 9.139 17.885
+#> omega[0.025,0.05] 0.727 0.289 0.080 0.817  1.000
+#> omega[0.05,0.5]   0.396 0.275 0.013 0.354  0.943
+#> omega[0.5,0.95]   0.307 0.253 0.008 0.241  0.891
+#> omega[0.95,0.975] 0.357 0.280 0.010 0.292  0.944
+#> omega[0.975,1]    0.499 0.386 0.010 0.390  1.000
+#> PET               3.560 1.492 0.354 3.947  6.074
+#> PEESE             9.453 4.825 1.036 9.317 17.781
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -273,8 +273,8 @@ the ‘Publication Bias’ row. The model is now extended with 32
 publication bias adjustment models that account for 50% of the prior
 model probability. Including publication-bias adjustment reduces the
 inclusion Bayes factor for the effect from about 242 in the unadjusted
-BMA to 2.7 in RoBMA, leaving weak evidence for an effect. The inclusion
-Bayes factor for publication bias is about 4.8, giving moderate evidence
+BMA to 2.6 in RoBMA, leaving weak evidence for an effect. The inclusion
+Bayes factor for publication bias is about 5.1, giving moderate evidence
 in its favor.
 
 We can also compare the unadjusted and publication-bias-adjusted
@@ -294,7 +294,7 @@ pooled_effect(fit_RoBMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
 #>     Mean Median  0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.693  0.788 -0.334 1.339   -0.482    1.622
+#> mu 0.684  0.763 -0.324 1.334   -0.442    1.602
 ```
 
 The same shift is visible in the prior and posterior plot below.

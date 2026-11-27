@@ -99,34 +99,34 @@ summary(fit_reg, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF
-#> Effect                 0.500       1.000   >59999.000
+#> Effect                 0.500       1.000     6665.667
 #> Heterogeneity          0.500       1.000   >59999.000
 #> Publication Bias       0.500       1.000   >59999.000
 #> 
 #> Meta-Regression Inclusion
 #>                 Prior prob. Post. prob. Inclusion BF
-#> facing_customer       0.500       1.000   >59999.000
+#> facing_customer       0.500       1.000     8570.429
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 4.531 0.379 3.875 4.504 5.351
-#> rho 0.820 0.033 0.750 0.822 0.879
+#> tau 4.527 0.381 3.863 4.498 5.360
+#> rho 0.819 0.033 0.749 0.822 0.879
 #> 
 #> Meta-Regression
 #>                                Mean    SD  0.025    0.5  0.975
-#> intercept                     3.012 0.562  1.915  3.010  4.131
-#> facing_customer[dif: No]     -2.210 0.428 -3.051 -2.209 -1.376
-#> facing_customer[dif: Some]    0.987 0.504  0.009  0.985  1.988
-#> facing_customer[dif: Direct]  1.223 0.402  0.437  1.223  2.009
+#> intercept                     3.023 0.560  1.928  3.022  4.132
+#> facing_customer[dif: No]     -2.222 0.436 -3.077 -2.218 -1.379
+#> facing_customer[dif: Some]    1.002 0.512  0.003  1.000  2.014
+#> facing_customer[dif: Direct]  1.219 0.407  0.428  1.218  2.021
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5 0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000 1.000
-#> omega[0.025,0.05] 0.890 0.106 0.670 0.904 1.000
-#> omega[0.05,0.5]   0.494 0.054 0.396 0.492 0.606
-#> omega[0.5,0.95]   0.222 0.038 0.156 0.219 0.306
-#> omega[0.95,0.975] 0.222 0.038 0.156 0.219 0.306
-#> omega[0.975,1]    0.222 0.038 0.156 0.219 0.306
+#> omega[0.025,0.05] 0.891 0.107 0.670 0.905 1.000
+#> omega[0.05,0.5]   0.494 0.054 0.395 0.492 0.608
+#> omega[0.5,0.95]   0.222 0.039 0.156 0.219 0.306
+#> omega[0.95,0.975] 0.222 0.039 0.156 0.219 0.306
+#> omega[0.975,1]    0.222 0.039 0.156 0.219 0.306
 #> PET               0.000 0.000 0.000 0.000 0.000
 #> PEESE             0.000 0.000 0.000 0.000 0.000
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
@@ -138,10 +138,11 @@ for the average effect and
 [`marginal_means()`](https://fbartos.github.io/RoBMA/dev/reference/marginal_means.md)
 for the moderator levels.
 
-All 60,000 draws include the average effect, moderation by consumer
-contact, between-study heterogeneity, and publication bias. The reported
-inclusion Bayes factors above 59,999 indicate extreme support for all
-four components at the resolution of these draws.
+All 60,000 draws include between-study heterogeneity and publication
+bias, and all but 9 and 7 of them include the average effect and the
+moderation by consumer contact. The reported inclusion Bayes factors
+(above 59,999, and about 6,700 and 8,600) indicate extreme support for
+all four components at the resolution of these draws.
 
 ``` r
 
@@ -149,7 +150,7 @@ pooled_effect(fit_reg)
 #> 
 #> Pooled Effect Size
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 3.212  3.208 2.117 4.331   -5.784   12.226
+#> mu 3.223  3.221 2.128 4.334   -5.768   12.226
 ```
 
 The model-averaged effect estimate is accompanied by considerable
@@ -173,24 +174,24 @@ mm_reg <- marginal_means(fit_reg)
 summary(mm_reg)
 #> 
 #> Model-Averaged Marginal Means:
-#>                          Mean    SD  0.025   0.5 0.975  Inclusion BF
-#> intercept               3.012 0.562  1.915 3.010 4.131  5.030263e+29
-#> facing_customer[No]     0.802 0.705 -0.605 0.806 2.171  1.070000e-01
-#> facing_customer[Some]   3.999 0.786  2.463 3.991 5.566  4.915170e+25
-#> facing_customer[Direct] 4.235 0.656  2.941 4.236 5.525 5.183739e+112
+#>                          Mean    SD  0.025   0.5 0.975 Inclusion BF
+#> intercept               3.023 0.560  1.928 3.022 4.132 5.149832e+45
+#> facing_customer[No]     0.801 0.709 -0.593 0.801 2.183 1.020000e-01
+#> facing_customer[Some]   4.025 0.792  2.474 4.023 5.589 6.088023e+13
+#> facing_customer[Direct] 4.242 0.653  2.972 4.239 5.535 1.166514e+29
 #> mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_facing_customer[Some]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_facing_customer[Direct]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 ```
 
 For jobs with no consumer contact, the marginal-mean test gives moderate
-evidence for the absence of an effect ($`\text{BF}_{10} \approx 0.11`$).
+evidence for the absence of an effect ($`\text{BF}_{10} \approx 0.10`$).
 For jobs with some or direct contact, all marginal-mean draws are
 positive. The precise Bayes factors depend on extrapolating the
 posterior densities to zero. The deviation for jobs with some contact
 measures how much their mean differs from the grand mean. Its lower
-credible limit is close to zero (0.009, Monte Carlo standard error about
-0.014).
+credible limit is close to zero (0.003, Monte Carlo standard error about
+0.005).
 
 ## Visual Fit Assessment
 

@@ -97,8 +97,9 @@ fit <- RoBMA(
 )
 ```
 
-*Note: This model takes 10-15 minutes with parallel processing enabled.
-Without parallel processing, expect over an hour.*
+*Note: This model takes a few minutes with parallel processing enabled.
+Without it, the chains run one after another and the fit takes
+correspondingly longer.*
 
 ## Interpreting the Results
 
@@ -113,26 +114,26 @@ summary(fit)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Effect                 0.500       0.617        1.614                8.064
+#> Effect                 0.500       0.623        1.656                8.286
 #> Heterogeneity          0.500       1.000   >59999.000                   NA
 #> Publication Bias       0.500       1.000   >59999.000                   NA
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> mu  0.073 0.066 0.000 0.083 0.188     0.00236          0.036  771 1.022
-#> tau 0.390 0.034 0.326 0.389 0.459     0.00071          0.021 2352 1.007
-#> rho 0.489 0.079 0.328 0.492 0.636     0.00106          0.013 5544 1.002
+#> mu  0.074 0.066 0.000 0.082 0.190     0.00241          0.036  759 1.001
+#> tau 0.391 0.034 0.327 0.390 0.460     0.00063          0.019 2981 1.001
+#> rho 0.492 0.080 0.328 0.494 0.640     0.00107          0.013 5519 1.000
 #> 
 #> Publication Bias
-#>                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-#> omega[0.025,0.05] 0.996 0.016 0.945 1.000 1.000     0.00041          0.025 1645 1.007
-#> omega[0.05,0.5]   0.942 0.050 0.814 0.956 0.998     0.00052          0.010 9590 1.002
-#> omega[0.5,0.95]   0.213 0.059 0.124 0.205 0.345     0.00141          0.024 1730 1.010
-#> omega[0.95,0.975] 0.213 0.059 0.124 0.205 0.345     0.00141          0.024 1730 1.010
-#> omega[0.975,1]    0.213 0.059 0.124 0.205 0.345     0.00141          0.024 1730 1.010
-#> PET               0.000 0.000 0.000 0.000 0.000     0.00000             NA    0    NA
-#> PEESE             0.000 0.000 0.000 0.000 0.000     0.00000             NA    0    NA
+#>                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+#> omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
+#> omega[0.025,0.05] 0.996 0.016 0.946 1.000 1.000     0.00006          0.004 61524 1.000
+#> omega[0.05,0.5]   0.942 0.050 0.815 0.955 0.998     0.00033          0.007 24268 1.000
+#> omega[0.5,0.95]   0.213 0.058 0.124 0.205 0.345     0.00142          0.024  1683 1.000
+#> omega[0.95,0.975] 0.213 0.058 0.124 0.205 0.345     0.00142          0.024  1683 1.000
+#> omega[0.975,1]    0.213 0.058 0.124 0.205 0.345     0.00142          0.024  1683 1.000
+#> PET               0.000 0.000 0.000 0.000 0.000     0.00000             NA     0    NA
+#> PEESE             0.000 0.000 0.000 0.000 0.000     0.00000             NA     0    NA
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -144,7 +145,7 @@ probability, posterior probability after observing the data, and the
 inclusion Bayes factor comparing models with versus without that
 component.
 
-The inclusion Bayes factor of about 1.6 gives weak evidence for an
+The inclusion Bayes factor of about 1.7 gives weak evidence for an
 effect. All 60,000 draws include heterogeneity and publication bias. The
 reported bounds above 59,999 express overwhelming support for both
 components at the resolution of these draws.
@@ -161,10 +162,10 @@ clusters, `rho = 1` means all heterogeneity is between clusters, and
 `rho = 0.5` means equal split. The remaining parameters summarize the
 weight function and PET/PEESE regression for publication bias.
 
-The model-averaged effect is small (*d* = 0.073, 95% credible interval
-\[0.000, 0.188\]), with substantial heterogeneity (τ = 0.390 \[0.326,
-0.459\]) and nearly balanced heterogeneity allocation (ρ = 0.489
-\[0.328, 0.636\]). The fit warns that the pooled effect falls short of
+The model-averaged effect is small (*d* = 0.074, 95% credible interval
+\[0.000, 0.190\]), with substantial heterogeneity (τ = 0.391 \[0.327,
+0.460\]) and nearly balanced heterogeneity allocation (ρ = 0.492
+\[0.328, 0.640\]). The fit warns that the pooled effect falls short of
 the convergence criterion, so its precise estimate deserves caution. The
 large heterogeneity relative to the pooled effect suggests substantial
 variation in true effects. This distribution of true effect sizes can be
@@ -180,22 +181,22 @@ summary_heterogeneity(fit)
 #> 
 #> Heterogeneity Estimates:
 #>                  Mean Median  0.025  0.975
-#> tau             0.390  0.389  0.326  0.459
-#> rho             0.489  0.492  0.328  0.636
-#> tau [within]    0.278  0.277  0.222  0.336
-#> tau [between]   0.272  0.271  0.206  0.346
-#> tau2            0.154  0.152  0.106  0.211
-#> tau2 [within]   0.078  0.077  0.049  0.113
-#> tau2 [between]  0.076  0.074  0.042  0.120
-#> I2             84.979 85.154 80.062 88.857
-#> I2 [within]    43.362 43.169 31.105 56.888
-#> I2 [between]   41.617 41.748 27.536 54.874
-#> H2              6.808  6.736  5.015  8.974
+#> tau             0.391  0.390  0.327  0.460
+#> rho             0.492  0.494  0.328  0.640
+#> tau [within]    0.277  0.277  0.222  0.335
+#> tau [between]   0.273  0.272  0.207  0.348
+#> tau2            0.154  0.152  0.107  0.211
+#> tau2 [within]   0.078  0.077  0.049  0.112
+#> tau2 [between]  0.076  0.074  0.043  0.121
+#> I2             85.010 85.193 80.134 88.889
+#> I2 [within]    43.176 42.937 30.751 56.902
+#> I2 [between]   41.834 41.944 27.558 55.294
+#> H2              6.821  6.754  5.034  9.000
 pooled_effect(fit)
 #> 
 #> Pooled Effect Size
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.073  0.083 0.000 0.188   -0.717    0.846
+#> mu 0.074  0.082 0.000 0.190   -0.717    0.847
 ```
 
 The wide prediction interval includes both negative and positive
@@ -212,8 +213,8 @@ summary_models(fit)
 #> 
 #> Effect
 #>              Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Spike(0)     Null              0.500       0.383        0.620                8.064
-#> Normal(0, 1) Alternative       0.500       0.617        1.614                8.064
+#> Spike(0)     Null              0.500       0.377        0.604                8.286
+#> Normal(0, 1) Alternative       0.500       0.623        1.656                8.286
 #> 
 #> Heterogeneity
 #>                   Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
@@ -227,8 +228,8 @@ summary_models(fit)
 #> omega[two-sided: .05, .1]       Alternative       0.042       0.000        0.000                   NA
 #> omega[one-sided: .05]           Alternative       0.042       0.000        0.000                   NA
 #> omega[one-sided: .025, .05]     Alternative       0.042       0.000        0.000                   NA
-#> omega[one-sided: .05, .5]       Alternative       0.042       0.896      198.936               11.258
-#> omega[one-sided: .025, .05, .5] Alternative       0.042       0.104        2.659               11.258
+#> omega[one-sided: .05, .5]       Alternative       0.042       0.896      197.694                1.252
+#> omega[one-sided: .025, .05, .5] Alternative       0.042       0.104        2.676                1.252
 #> PET                             Alternative       0.125       0.000        0.000                   NA
 #> PEESE                           Alternative       0.125       0.000        0.000                   NA
 ```
@@ -286,25 +287,25 @@ summary(fit_simple)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Effect                 0.500       0.052        0.055                4.755
+#> Effect                 0.500       0.054        0.057                3.414
 #> Heterogeneity          0.500       1.000   >59999.000                   NA
 #> Publication Bias       0.500       1.000   >59999.000                   NA
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-#> mu  0.002 0.012 0.000 0.000 0.037     0.00014          0.011  7893 1.003
-#> tau 0.371 0.021 0.330 0.371 0.413     0.00013          0.006 27231 1.000
+#> mu  0.001 0.012 0.000 0.000 0.033     0.00012          0.010 10611 1.001
+#> tau 0.371 0.022 0.329 0.371 0.414     0.00038          0.017 21305 1.006
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
 #> omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
-#> omega[0.025,0.05] 0.997 0.013 0.956 1.000 1.000     0.00034          0.026  1458 1.001
-#> omega[0.05,0.5]   0.950 0.044 0.837 0.962 0.998     0.00040          0.009 11708 1.000
-#> omega[0.5,0.95]   0.222 0.031 0.169 0.220 0.290     0.00022          0.007 21164 1.000
-#> omega[0.95,0.975] 0.222 0.031 0.169 0.220 0.290     0.00022          0.007 21164 1.000
-#> omega[0.975,1]    0.222 0.031 0.169 0.220 0.290     0.00022          0.007 21164 1.000
-#> PET               0.000 0.000 0.000 0.000 0.000     0.00000             NA     0    NA
-#> PEESE             0.000 0.000 0.000 0.000 0.000     0.00000             NA     0    NA
+#> omega[0.025,0.05] 0.997 0.013 0.958 1.000 1.000     0.00007          0.005 38172 1.001
+#> omega[0.05,0.5]   0.950 0.043 0.840 0.962 0.999     0.00022          0.005 37700 1.000
+#> omega[0.5,0.95]   0.225 0.058 0.168 0.220 0.293     0.00273          0.047 19830 1.192
+#> omega[0.95,0.975] 0.225 0.058 0.168 0.220 0.293     0.00273          0.047 19830 1.192
+#> omega[0.975,1]    0.225 0.058 0.168 0.220 0.293     0.00273          0.047 19830 1.192
+#> PET               0.004 0.071 0.000 0.000 0.000     0.00367          0.052   123 1.298
+#> PEESE             0.000 0.011 0.000 0.000 0.000     0.00005          0.004 20000 1.291
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -319,7 +320,7 @@ The single-level model differs by:
 The single-level model gives strong evidence for the absence of an
 effect ($`\mathrm{BF}_{01} \approx 18`$). After accounting for
 dependence within studies, the multilevel model gives weak evidence in
-favor of an effect ($`\mathrm{BF}_{10} \approx 1.6`$).
+favor of an effect ($`\mathrm{BF}_{10} \approx 1.7`$).
 
 ## References
 

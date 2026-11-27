@@ -245,24 +245,24 @@ summary(fit_BMA, include_mcmc_diagnostics = FALSE)
 #> 
 #> Meta-Regression Inclusion
 #>         Prior prob. Post. prob. Inclusion BF
-#> measure       0.500       0.736        2.782
-#> age           0.500       0.106        0.118
+#> measure       0.500       0.724        2.624
+#> age           0.500       0.108        0.121
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 0.125 0.021 0.089 0.123 0.171
+#> tau 0.125 0.021 0.089 0.124 0.171
 #> 
 #> Meta-Regression
 #>                           Mean    SD  0.025    0.5 0.975
-#> intercept                0.166 0.029  0.102  0.167 0.219
-#> measure[dif: direct]    -0.045 0.034 -0.104 -0.050 0.000
-#> measure[dif: informant]  0.045 0.034  0.000  0.050 0.104
-#> age                      0.000 0.003  0.000  0.000 0.009
+#> intercept                0.166 0.029  0.101  0.167 0.220
+#> measure[dif: direct]    -0.044 0.034 -0.104 -0.049 0.000
+#> measure[dif: informant]  0.044 0.034  0.000  0.049 0.104
+#> age                      0.000 0.002 -0.001  0.000 0.009
 pooled_effect(fit_BMA, output_measure = "COR")
 #> 
 #> Pooled Effect Size (correlation)
 #>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.160  0.160 0.114 0.206   -0.093    0.395
+#> mu 0.160  0.160 0.113 0.206   -0.094    0.396
 #> Effect estimates are transformed from Fisher's z to correlation.
 ```
 
@@ -275,10 +275,10 @@ which indicates overwhelming support at the resolution of these draws.
 
 The second section contains the `Meta-regression components summary`
 with the hypothesis test results for the moderators. The inclusion Bayes
-factor of about 2.8 gives weak evidence for moderation by executive
+factor of about 2.6 gives weak evidence for moderation by executive
 function assessment type. The inclusion Bayes factor for mean age is
 about 0.12, corresponding to moderate evidence for the absence of age
-moderation ($`\mathrm{BF}_{01} \approx 8.4`$). These findings extend the
+moderation ($`\mathrm{BF}_{01} \approx 8.3`$). These findings extend the
 frequentist meta-regression by disentangling the absence of evidence
 from the evidence of absence.
 
@@ -295,11 +295,11 @@ regression coefficient estimates. The main difference from the usual
 frequentist meta-regression output is that the categorical predictors
 are summarized as a difference from the grand mean for each factor
 level. The `intercept` corresponds to the grand mean, and the
-direct-assessment deviation from the grand mean is $`-0.045`$ (95%
+direct-assessment deviation from the grand mean is $`-0.044`$ (95%
 credible interval $`[-0.104, 0.000]`$). As such, the results suggest
 that the effect size in studies using direct assessment is lower in
 comparison to the grand mean of the studies. The `age` regression
-coefficient of 0.000, 95% CI \[0.000, 0.009\] corresponds to the
+coefficient of 0.000, 95% CI \[-0.001, 0.009\] corresponds to the
 increase in the mean effect for a one-unit increase in mean age of
 children.
 
@@ -314,13 +314,13 @@ BMA_marginal <- marginal_means(fit_BMA, output_measure = "COR")
 summary(BMA_marginal)
 #> 
 #> Model-Averaged Marginal Means (correlation):
-#>                     Mean    SD 0.025   0.5 0.975  Inclusion BF
-#> intercept          0.167 0.024 0.121 0.167 0.214 4.572268e+117
-#> measure[direct]    0.123 0.037 0.053 0.122 0.194  3.091500e+01
-#> measure[informant] 0.210 0.043 0.129 0.212 0.289  1.368088e+35
-#> age[-1SD]          0.165 0.026 0.113 0.166 0.215  2.559560e+02
-#> age[0SD]           0.167 0.024 0.121 0.167 0.214 4.572268e+117
-#> age[1SD]           0.169 0.025 0.121 0.168 0.221 6.548844e+104
+#>                     Mean    SD 0.025   0.5 0.975 Inclusion BF
+#> intercept          0.167 0.024 0.119 0.167 0.215 2.200246e+89
+#> measure[direct]    0.124 0.037 0.053 0.123 0.195 3.791000e+01
+#> measure[informant] 0.209 0.044 0.128 0.211 0.290 3.532372e+30
+#> age[-1SD]          0.165 0.026 0.112 0.166 0.215 1.229265e+40
+#> age[0SD]           0.167 0.024 0.119 0.167 0.215 2.200246e+89
+#> age[1SD]           0.169 0.026 0.119 0.168 0.222 5.088026e+75
 #> Effect estimates are transformed from Fisher's z to correlation.
 #> mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_measure[informant]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
@@ -331,14 +331,14 @@ summary(BMA_marginal)
 
 The estimated marginal means are similar to the frequentist results. The
 estimated correlation is higher for informant-completed questionnaires
-($`r = 0.210`$, 95% credible interval $`[0.129, 0.289]`$) than for
-direct assessments ($`r = 0.123`$, 95% credible interval
-$`[0.053, 0.194]`$).
+($`r = 0.209`$, 95% credible interval $`[0.128, 0.290]`$) than for
+direct assessments ($`r = 0.124`$, 95% credible interval
+$`[0.053, 0.195]`$).
 
 The last column summarizes results from a test against a null hypothesis
 of marginal means equals 0. There is strong evidence for a nonzero
 marginal effect for direct assessments
-($`\mathrm{BF}_{10} \approx 31`$). The test compares the prior and
+($`\mathrm{BF}_{10} \approx 38`$). The test compares the prior and
 posterior densities at zero, conditional on the presence of the overall
 effect or the difference according to the tested factor. For
 informant-completed questionnaires, the posterior draws all lie on the
@@ -389,42 +389,42 @@ summary(fit_RoBMA, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF
-#> Effect                 0.500       0.564        1.291
+#> Effect                 0.500       0.548        1.215
 #> Heterogeneity          0.500       1.000   >44999.000
-#> Publication Bias       0.500       0.813        4.361
+#> Publication Bias       0.500       0.813        4.360
 #> 
 #> Meta-Regression Inclusion
 #>         Prior prob. Post. prob. Inclusion BF
-#> measure       0.500       0.853        5.790
-#> age           0.500       0.092        0.102
+#> measure       0.500       0.856        5.938
+#> age           0.500       0.099        0.109
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 0.120 0.022 0.085 0.118 0.170
+#> tau 0.120 0.022 0.085 0.118 0.171
 #> 
 #> Meta-Regression
 #>                           Mean    SD  0.025    0.5 0.975
-#> intercept                0.071 0.075 -0.013  0.060 0.199
-#> measure[dif: direct]    -0.059 0.033 -0.116 -0.064 0.000
-#> measure[dif: informant]  0.059 0.033  0.000  0.064 0.116
-#> age                      0.000 0.002 -0.002  0.000 0.006
+#> intercept                0.069 0.075 -0.014  0.051 0.199
+#> measure[dif: direct]    -0.059 0.033 -0.115 -0.064 0.000
+#> measure[dif: informant]  0.059 0.033  0.000  0.064 0.115
+#> age                      0.000 0.002 -0.002  0.000 0.007
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.997 0.028 1.000 1.000  1.000
-#> omega[0.05,0.5]   0.991 0.057 0.851 1.000  1.000
-#> omega[0.5,0.95]   0.979 0.120 0.618 1.000  1.000
-#> omega[0.95,0.975] 0.979 0.120 0.621 1.000  1.000
-#> omega[0.975,1]    0.980 0.119 0.631 1.000  1.000
-#> PET               1.264 1.213 0.000 1.218  3.081
-#> PEESE             2.256 5.621 0.000 0.000 20.259
+#> omega[0.025,0.05] 0.998 0.025 1.000 1.000  1.000
+#> omega[0.05,0.5]   0.991 0.055 0.874 1.000  1.000
+#> omega[0.5,0.95]   0.981 0.115 0.691 1.000  1.000
+#> omega[0.95,0.975] 0.981 0.115 0.694 1.000  1.000
+#> omega[0.975,1]    0.982 0.114 0.715 1.000  1.000
+#> PET               1.301 1.217 0.000 1.400  3.087
+#> PEESE             2.172 5.562 0.000 0.000 20.028
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 pooled_effect(fit_RoBMA, output_measure = "COR")
 #> 
 #> Pooled Effect Size (correlation)
 #>     Mean Median  0.025 0.975 PI 0.025 PI 0.975
-#> mu 0.062  0.052 -0.019 0.189   -0.210    0.336
+#> mu 0.060  0.041 -0.019 0.188   -0.212    0.335
 #> Effect estimates are transformed from Fisher's z to correlation.
 ```
 
@@ -435,9 +435,9 @@ publication bias.
 
 The adjusted ensemble finds moderate evidence for publication bias
 ($`\mathrm{BF}_{\mathrm{pb}} \approx 4.4`$). Evidence for the overall
-effect remains undecided ($`\mathrm{BF}_{10} \approx 1.3`$), and the
-model-averaged correlation shrinks to $`r = 0.062`$ (95% credible
-interval $`[-0.019, 0.189]`$).
+effect remains undecided ($`\mathrm{BF}_{10} \approx 1.2`$), and the
+model-averaged correlation shrinks to $`r = 0.060`$ (95% credible
+interval $`[-0.019, 0.188]`$).
 
 ``` r
 
@@ -446,22 +446,22 @@ summary(RoBMA_marginal)
 #> 
 #> Model-Averaged Marginal Means (correlation):
 #>                     Mean    SD  0.025   0.5 0.975 Inclusion BF
-#> intercept          0.071 0.073  0.000 0.062 0.197        1.295
-#> measure[direct]    0.013 0.087 -0.111 0.000 0.172        0.599
-#> measure[informant] 0.130 0.073  0.000 0.118 0.266        6.241
-#> age[-1SD]          0.071 0.073 -0.009 0.061 0.196        0.653
-#> age[0SD]           0.071 0.073  0.000 0.062 0.197        1.295
-#> age[1SD]           0.072 0.074 -0.004 0.063 0.200        0.669
+#> intercept          0.070 0.074  0.000 0.052 0.196        1.212
+#> measure[direct]    0.011 0.087 -0.111 0.000 0.172        0.617
+#> measure[informant] 0.128 0.072  0.000 0.113 0.265        5.963
+#> age[-1SD]          0.069 0.073 -0.010 0.051 0.196        0.608
+#> age[0SD]           0.070 0.074  0.000 0.052 0.196        1.212
+#> age[1SD]           0.070 0.075 -0.005 0.053 0.200        0.616
 #> Effect estimates are transformed from Fisher's z to correlation.
 ```
 
 After adjustment for publication bias, the estimated marginal
-correlation for informant-completed questionnaires is $`r = 0.130`$ (95%
-credible interval $`[0.000, 0.266]`$), with moderate evidence for a
-nonzero effect ($`\mathrm{BF}_{10} \approx 6.2`$). For direct
-assessments the estimate is close to zero ($`r = 0.013`$, 95% credible
+correlation for informant-completed questionnaires is $`r = 0.128`$ (95%
+credible interval $`[0.000, 0.265]`$), with moderate evidence for a
+nonzero effect ($`\mathrm{BF}_{10} \approx 6.0`$). For direct
+assessments the estimate is close to zero ($`r = 0.011`$, 95% credible
 interval $`[-0.111, 0.172]`$), with weak evidence against a nonzero
-effect ($`\mathrm{BF}_{10} \approx 0.60`$).
+effect ($`\mathrm{BF}_{10} \approx 0.62`$).
 
 A visual summary of the estimated marginal means highlights the
 considerably wider model-averaged posterior distributions of the

@@ -365,21 +365,21 @@ summary(fit_BMA_mod)
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
 #> Effect              0.500       1.000   >14999.000                   NA
-#> Heterogeneity       0.500       0.371        0.591                2.407
+#> Heterogeneity       0.500       0.352        0.543                2.446
 #> 
 #> Meta-Regression Inclusion
 #>        Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> tailor       0.500       0.556        1.254                3.497
+#> tailor       0.500       0.549        1.219                0.944
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> tau 0.047 0.080 0.000 0.000 0.264     0.00087          0.011 8322 1.001
+#> tau 0.045 0.079 0.000 0.000 0.260     0.00084          0.011 8884 1.000
 #> 
 #> Meta-Regression
-#>                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> intercept       0.508 0.069  0.377  0.506 0.648     0.00083          0.012 6958 1.000
-#> tailor[dif: 0] -0.068 0.076 -0.228 -0.044 0.000     0.00116          0.015 4315 1.000
-#> tailor[dif: 1]  0.068 0.076  0.000  0.044 0.228     0.00116          0.015 4315 1.000
+#>                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+#> intercept       0.509 0.069  0.376  0.508 0.650     0.00060          0.009 13560 1.000
+#> tailor[dif: 0] -0.067 0.076 -0.226 -0.041 0.000     0.00047          0.006 25543 1.000
+#> tailor[dif: 1]  0.067 0.076  0.000  0.041 0.226     0.00047          0.006 25543 1.000
 ```
 
 The *Components* table now also lists `tailor` and its inclusion BF.
@@ -412,9 +412,9 @@ emm
 #> 
 #> Model-Averaged Marginal Means:
 #>            Mean    SD 0.025   0.5 0.975  Inclusion BF
-#> intercept 0.508 0.069 0.377 0.506 0.648 2.790899e+137
-#> tailor[0] 0.440 0.124 0.190 0.458 0.646  1.827880e+02
-#> tailor[1] 0.576 0.075 0.439 0.574 0.730 1.337889e+205
+#> intercept 0.509 0.069 0.376 0.508 0.650  3.046722e+34
+#> tailor[0] 0.442 0.125 0.189 0.460 0.646  1.864390e+02
+#> tailor[1] 0.576 0.075 0.437 0.573 0.727 1.175786e+120
 #> mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_tailor[1]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 

@@ -202,50 +202,51 @@ and model parameters.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect                 0.500       1.000   &gt;59999.000</span></span>
+<span><span class="co">#&gt; Effect                 0.500       1.000     6665.667</span></span>
 <span><span class="co">#&gt; Heterogeneity          0.500       1.000   &gt;59999.000</span></span>
 <span><span class="co">#&gt; Publication Bias       0.500       1.000   &gt;59999.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression Inclusion</span></span>
 <span><span class="co">#&gt;                 Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; facing_customer       0.500       1.000   &gt;59999.000</span></span>
+<span><span class="co">#&gt; facing_customer       0.500       1.000     8570.429</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; tau 4.531 0.379 3.875 4.504 5.351</span></span>
-<span><span class="co">#&gt; rho 0.820 0.033 0.750 0.822 0.879</span></span>
+<span><span class="co">#&gt; tau 4.527 0.381 3.863 4.498 5.360</span></span>
+<span><span class="co">#&gt; rho 0.819 0.033 0.749 0.822 0.879</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                                Mean    SD  0.025    0.5  0.975</span></span>
-<span><span class="co">#&gt; intercept                     3.012 0.562  1.915  3.010  4.131</span></span>
-<span><span class="co">#&gt; facing_customer[dif: No]     -2.210 0.428 -3.051 -2.209 -1.376</span></span>
-<span><span class="co">#&gt; facing_customer[dif: Some]    0.987 0.504  0.009  0.985  1.988</span></span>
-<span><span class="co">#&gt; facing_customer[dif: Direct]  1.223 0.402  0.437  1.223  2.009</span></span>
+<span><span class="co">#&gt; intercept                     3.023 0.560  1.928  3.022  4.132</span></span>
+<span><span class="co">#&gt; facing_customer[dif: No]     -2.222 0.436 -3.077 -2.218 -1.379</span></span>
+<span><span class="co">#&gt; facing_customer[dif: Some]    1.002 0.512  0.003  1.000  2.014</span></span>
+<span><span class="co">#&gt; facing_customer[dif: Direct]  1.219 0.407  0.428  1.218  2.021</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5 0.975</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000 1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.890 0.106 0.670 0.904 1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.494 0.054 0.396 0.492 0.606</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.222 0.038 0.156 0.219 0.306</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.222 0.038 0.156 0.219 0.306</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.222 0.038 0.156 0.219 0.306</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.891 0.107 0.670 0.905 1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.494 0.054 0.395 0.492 0.608</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.222 0.039 0.156 0.219 0.306</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.222 0.039 0.156 0.219 0.306</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.222 0.039 0.156 0.219 0.306</span></span>
 <span><span class="co">#&gt; PET               0.000 0.000 0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; PEESE             0.000 0.000 0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>The effect-size estimates are obtained with dedicated helpers:
 <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> for the average effect and
 <code><a href="../reference/marginal_means.html">marginal_means()</a></code> for the moderator levels.</p>
-<p>All 60,000 draws include the average effect, moderation by consumer
-contact, between-study heterogeneity, and publication bias. The reported
-inclusion Bayes factors above 59,999 indicate extreme support for all
-four components at the resolution of these draws.</p>
+<p>All 60,000 draws include between-study heterogeneity and publication
+bias, and all but 9 and 7 of them include the average effect and the
+moderation by consumer contact. The reported inclusion Bayes factors
+(above 59,999, and about 6,700 and 8,600) indicate extreme support for
+all four components at the resolution of these draws.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_reg</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pooled Effect Size</span></span>
 <span><span class="co">#&gt;     Mean Median 0.025 0.975 PI 0.025 PI 0.975</span></span>
-<span><span class="co">#&gt; mu 3.212  3.208 2.117 4.331   -5.784   12.226</span></span></code></pre></div>
+<span><span class="co">#&gt; mu 3.223  3.221 2.128 4.334   -5.768   12.226</span></span></code></pre></div>
 <p>The model-averaged effect estimate is accompanied by considerable
 overall heterogeneity and a cluster-level allocation of about 0.82,
 indicating that most modeled heterogeneity is at the study level. MCMC
@@ -262,23 +263,23 @@ marginal means.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">mm_reg</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-Averaged Marginal Means:</span></span>
-<span><span class="co">#&gt;                          Mean    SD  0.025   0.5 0.975  Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept               3.012 0.562  1.915 3.010 4.131  5.030263e+29</span></span>
-<span><span class="co">#&gt; facing_customer[No]     0.802 0.705 -0.605 0.806 2.171  1.070000e-01</span></span>
-<span><span class="co">#&gt; facing_customer[Some]   3.999 0.786  2.463 3.991 5.566  4.915170e+25</span></span>
-<span><span class="co">#&gt; facing_customer[Direct] 4.235 0.656  2.941 4.236 5.525 5.183739e+112</span></span>
+<span><span class="co">#&gt;                          Mean    SD  0.025   0.5 0.975 Inclusion BF</span></span>
+<span><span class="co">#&gt; intercept               3.023 0.560  1.928 3.022 4.132 5.149832e+45</span></span>
+<span><span class="co">#&gt; facing_customer[No]     0.801 0.709 -0.593 0.801 2.183 1.020000e-01</span></span>
+<span><span class="co">#&gt; facing_customer[Some]   4.025 0.792  2.474 4.023 5.589 6.088023e+13</span></span>
+<span><span class="co">#&gt; facing_customer[Direct] 4.242 0.653  2.972 4.239 5.535 1.166514e+29</span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_facing_customer[Some]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_facing_customer[Direct]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span></code></pre></div>
 <p>For jobs with no consumer contact, the marginal-mean test gives
 moderate evidence for the absence of an effect
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>≈</mo><mn>0.11</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} \approx 0.11</annotation></semantics></math>).
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>≈</mo><mn>0.10</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} \approx 0.10</annotation></semantics></math>).
 For jobs with some or direct contact, all marginal-mean draws are
 positive. The precise Bayes factors depend on extrapolating the
 posterior densities to zero. The deviation for jobs with some contact
 measures how much their mean differs from the grand mean. Its lower
-credible limit is close to zero (0.009, Monte Carlo standard error about
-0.014).</p>
+credible limit is close to zero (0.003, Monte Carlo standard error about
+0.005).</p>
 </div>
 <div class="section level2">
 <h2 id="visual-fit-assessment">Visual Fit Assessment<a class="anchor" aria-label="anchor" href="#visual-fit-assessment"></a>

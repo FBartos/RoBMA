@@ -121,10 +121,10 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> Bayesian Multivariate Random-Effects Model (k = 56)
 #> 
 #> Estimates
-#>      Mean    SD 0.025   0.5 0.975
-#> mu  0.182 0.083 0.022 0.180 0.361
-#> tau 0.317 0.056 0.233 0.309 0.452
-#> rho 0.621 0.142 0.311 0.634 0.859
+#>      Mean    SD  0.025   0.5 0.975
+#> mu  0.171 0.084 -0.013 0.175 0.328
+#> tau 0.322 0.058  0.233 0.313 0.458
+#> rho 0.632 0.141  0.327 0.647 0.859
 ```
 
 ## Known Sampling Covariance
@@ -394,19 +394,19 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>                     Mean    SD 0.025   0.5 0.975
-#> tau_common         4.990 0.774 3.617 4.936 6.640
-#> tau2_mult(time[1]) 0.821 0.236 0.432 0.799 1.338
-#> tau2_mult(time[2]) 1.220 0.262 0.771 1.196 1.794
-#> tau2_mult(time[3]) 0.941 0.209 0.596 0.918 1.426
-#> tau2_mult(time[4]) 1.018 0.322 0.432 0.999 1.703
-#> rho                0.822 0.074 0.642 0.835 0.927
+#> tau_common         4.982 0.764 3.651 4.926 6.614
+#> tau2_mult(time[1]) 0.804 0.237 0.407 0.784 1.327
+#> tau2_mult(time[2]) 1.197 0.276 0.693 1.177 1.790
+#> tau2_mult(time[3]) 0.962 0.221 0.597 0.937 1.465
+#> tau2_mult(time[4]) 1.036 0.353 0.428 1.009 1.817
+#> rho                0.820 0.078 0.620 0.836 0.926
 #> 
 #> Meta-Regression
 #>                   Mean    SD   0.025     0.5   0.975
-#> time_factor[1] -25.391 0.980 -27.271 -25.403 -23.432
-#> time_factor[2] -26.946 1.133 -29.181 -26.964 -24.656
-#> time_factor[3] -28.152 1.022 -30.149 -28.149 -26.100
-#> time_factor[4] -25.784 1.367 -28.445 -25.797 -23.023
+#> time_factor[1] -25.444 1.004 -27.410 -25.445 -23.431
+#> time_factor[2] -27.017 1.121 -29.186 -26.992 -24.773
+#> time_factor[3] -28.170 1.021 -30.125 -28.195 -26.113
+#> time_factor[4] -25.800 1.379 -28.489 -25.792 -23.058
 ```
 
 The `HAR` structure lets the heterogeneity differ by time point while
@@ -414,7 +414,7 @@ estimating one autocorrelation across neighboring time points. The
 estimated autocorrelation of the true effects is about 0.82. The working
 sampling-error correlation in `V_ishak` was fixed at 0.97. The fit falls
 below the effective sample size target of 500 for the autocorrelation
-and two time-specific means, so their estimates have appreciable Monte
+and three time-specific means, so their estimates have appreciable Monte
 Carlo uncertainty.
 
 ## Study and Treatment Random Effects
@@ -551,14 +551,14 @@ summary(fit4_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>                 Mean    SD 0.025   0.5 0.975
-#> study: tau     0.041 0.028 0.002 0.037 0.104
+#> study: tau     0.040 0.027 0.002 0.037 0.104
 #> treatment: tau 0.040 0.027 0.002 0.037 0.102
 #> treatment: rho 0.000 0.000 0.000 0.000 0.000
 #> 
 #> Meta-Regression
 #>            Mean    SD 0.025   0.5 0.975
 #> intercept 0.326 0.026 0.276 0.326 0.380
-#> trt[BMT]  0.137 0.043 0.053 0.137 0.222
+#> trt[BMT]  0.137 0.043 0.052 0.137 0.222
 ```
 
 The study component captures baseline heterogeneity across studies,
@@ -571,7 +571,7 @@ summary_heterogeneity(fit4_brma)
 #> 
 #> Heterogeneity Estimates (study):
 #>       Mean Median 0.025 0.975
-#> tau  0.041  0.037 0.002 0.104
+#> tau  0.040  0.037 0.002 0.104
 #> tau2 0.002  0.001 0.000 0.011
 #> 
 #> Heterogeneity Estimates (treatment):
