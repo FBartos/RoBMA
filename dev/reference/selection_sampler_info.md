@@ -234,19 +234,21 @@ extension.
 Errors. An error of a corrected sampler, of the location block sampler
 or of its heterogeneity scale move names the node and ends with a hint,
 in most cases the option that returns the parameters to the ordinary
-samplers and a request to report the model. Errors whose message
-contains a bracketed name are signalled with that name as condition
-class and the shared parent class `RoBMA_sampler_error`:
-`RoBMA_location_untracked_mean` (a mean of a likelihood node is not the
-one the location block's verified design predicts) and
-`RoBMA_location_scale_invariance` (the heterogeneity scale move changed
-a likelihood node, which it must leave unchanged). One error concerns
-the data or the chain's state instead: where a sampler evaluates the
-exact density of the state its chain is in and, after adaptation, the
-absolute log densities of the likelihood terms of that evaluation (the
-terms its move differences) sum to more than \\10^9\\, it stops with the
-class `RoBMA_likelihood_not_representable`. At that state estimates lie
-far from the values the model gives them, and double precision cannot
+samplers and a request to report the model; errors of the joint bias,
+Gaussian and cluster samplers end with the same hint
+(`sampler.joint = "off"`). Errors whose message contains a bracketed
+name are signalled with that name as condition class and the shared
+parent class `RoBMA_sampler_error`: `RoBMA_location_untracked_mean` (a
+mean of a likelihood node is not the one the location block's verified
+design predicts) and `RoBMA_location_scale_invariance` (the
+heterogeneity scale move changed a likelihood node, which it must leave
+unchanged). One error concerns the data or the chain's state instead:
+where a sampler evaluates the exact density of the state its chain is in
+and, after adaptation, the absolute log densities of the likelihood
+terms of that evaluation (the terms its move differences) sum to more
+than \\10^9\\, it stops with the class
+`RoBMA_likelihood_not_representable`. At that state estimates lie far
+from the values the model gives them, and double precision cannot
 resolve the differences that the acceptance ratios need. The ordinary
 samplers return draws for such data without a warning; check the
 estimates and their standard errors, their units and the model. A chain

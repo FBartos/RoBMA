@@ -73,7 +73,10 @@ and
 [`prior_mixture()`](https://fbartos.github.io/BayesTools/reference/prior_mixture.html).
 Otherwise the result declares a coefficient group for
 [`JAGS_formula()`](https://fbartos.github.io/BayesTools/reference/JAGS_formula.html).
-`is.prior.regularized()` identifies group declarations.
+[`is.prior.regularized()`](https://fbartos.github.io/BayesTools/reference/is.prior.html)
+identifies group declarations.
+[`is.prior.regularized_term()`](https://fbartos.github.io/BayesTools/reference/is.prior.html)
+identifies coefficient priors bound to a group.
 
 ## See also
 

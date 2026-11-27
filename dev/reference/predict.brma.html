@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9022</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -133,7 +133,8 @@ prediction follow the ranges in <code><a href="data_input.html">data_input</a></
 sampling SE is allowed where the prediction admits it. If an active
 selection branch uses <code>weight_rule = "best"</code>, unadjusted selection
 predictions also need its publication groups to be resolvable in the
-prediction data.
+prediction data, unless every predicted row is exempt from publication
+bias.
 Fitted-row predictions reuse their publication-bias exemptions. For
 explicit new rows, supply a logical <code>bias_exempt</code> column when the
 fit contains exempt rows and the requested prediction uses publication

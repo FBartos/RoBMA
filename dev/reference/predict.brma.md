@@ -72,7 +72,8 @@ predict(
   Exactly zero sampling SE is allowed where the prediction admits it. If
   an active selection branch uses `weight_rule = "best"`, unadjusted
   selection predictions also need its publication groups to be
-  resolvable in the prediction data. Fitted-row predictions reuse their
+  resolvable in the prediction data, unless every predicted row is
+  exempt from publication bias. Fitted-row predictions reuse their
   publication-bias exemptions. For explicit new rows, supply a logical
   `bias_exempt` column when the fit contains exempt rows and the
   requested prediction uses publication bias (`bias_adjusted = FALSE`).

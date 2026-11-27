@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9022</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -217,7 +217,14 @@ undid, and <code>likelihood_change_max</code> is the largest such change (log un
 nothing and is absent when no run reported): <code>location</code> per gate and
 chain the updates after adaptation and the transitions the chain retained
 (<code>switched_on</code>, <code>switched_off</code>), with the inner stage's flips and
-log odds as <code>inner_*</code>; with a bias indicator owned by the block,
+log odds as <code>inner_*</code>; <code>screened</code> per screened indicator of the
+corrected selection sampler (<code>node</code>) and chain its <code>levels</code>, its
+<code>updates</code> after adaptation, the observed <code>changes</code> of its level,
+and the mean and maximum probability that an update changes the level
+(<code>leave_mean</code>, <code>leave_max</code>: before its exact correction, and the
+exact probability once the indicator fell back to exact updates), where
+<code>run</code>, <code>process</code> and <code>serial</code> identify a record whose node
+could not be named; with a bias indicator owned by the block,
 <code>bias</code> per chain the proposals and acceptances of its label, Gaussian
 family, slope and swap moves, the swaps skipped because their base point
 was not representable (<code>swap_unrepresentable</code>) or because their proposal

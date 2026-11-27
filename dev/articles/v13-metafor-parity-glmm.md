@@ -161,20 +161,31 @@ vignette. The Poisson model corresponds to Bagos & Nikolopoulos
 
 ## Other Inference Helpers
 
-All inference helpers available for any other
-[`brma()`](https://fbartos.github.io/RoBMA/dev/reference/brma.md) fit
+Most inference helpers available for other
+[`brma()`](https://fbartos.github.io/RoBMA/dev/reference/brma.md) fits
 work the same way for a
 [`brma.glmm()`](https://fbartos.github.io/RoBMA/dev/reference/brma.glmm.md)
 fit. Meta-regression via `mods`, multilevel structures via `cluster`,
 location-scale models via `scale`, posterior summaries, plots,
-predictions, residuals, influence, and LOO comparisons with small
-exceptions where unavailable for the model specification (i.e., LOO-PIT
-residuals) all carry over. See the [*Bayesian
+predictions, residuals, influence, and LOO comparisons carry over,
+except for internally standardized and Pearson residuals, hat values,
+DFFITS and Cook’s distance (also as
+[`influence()`](https://rdrr.io/r/stats/lm.influence.html) columns),
+[`bfunnel()`](https://fbartos.github.io/RoBMA/dev/reference/funnel.md),
+the z-curve plots
+([`as_zplot()`](https://fbartos.github.io/RoBMA/dev/reference/as_zplot.brma.md),
+[`zplot()`](https://fbartos.github.io/RoBMA/dev/reference/zplot.brma.md)),
+and cluster-unit LOO; LOO-PIT residuals of a
+[`brma.glmm()`](https://fbartos.github.io/RoBMA/dev/reference/brma.glmm.md)
+fit are a descriptive normal approximation on the effect-size scale (see
+[`?residuals.brma`](https://fbartos.github.io/RoBMA/dev/reference/residuals.brma.md)).
+See the [*Bayesian
 Meta-Analysis*](https://fbartos.github.io/RoBMA/dev/articles/v02-bayesian-meta-analysis.md)
 vignette for the full walkthrough and the [*Multilevel
 Meta-Analysis*](https://fbartos.github.io/RoBMA/dev/articles/v10-metafor-parity-multilevel.md)
-vignette for the multilevel extension; the only thing that changes here
-is the count-based input and the auxiliary baseline-rate prior.
+vignette for the multilevel extension; apart from these exceptions, what
+changes here is the count-based input and the auxiliary baseline-rate
+prior.
 
 ## References
 

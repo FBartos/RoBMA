@@ -396,15 +396,22 @@ counts the moves that changed the likelihood by rounding,
 and is absent when no run reported): `location` per gate and chain the
 updates after adaptation and the transitions the chain retained
 (`switched_on`, `switched_off`), with the inner stage's flips and log
-odds as `inner_*`; with a bias indicator owned by the block, `bias` per
-chain the proposals and acceptances of its label, Gaussian family, slope
-and swap moves, the swaps skipped because their base point was not
-representable (`swap_unrepresentable`) or because their proposal did not
-reproduce them (`swap_irreproducible`), and their cross-family evidence
-over the updates after adaptation, `bias_labels` the tally of those
-updates by the label they end in, and `bias_sojourns` per chain the runs
-of the retained draws of the indicator in the step-selection and the
-Gaussian families (absent when the indicator is not monitored).
+odds as `inner_*`; `screened` per screened indicator of the corrected
+selection sampler (`node`) and chain its `levels`, its `updates` after
+adaptation, the observed `changes` of its level, and the mean and
+maximum probability that an update changes the level (`leave_mean`,
+`leave_max`: before its exact correction, and the exact probability once
+the indicator fell back to exact updates), where `run`, `process` and
+`serial` identify a record whose node could not be named; with a bias
+indicator owned by the block, `bias` per chain the proposals and
+acceptances of its label, Gaussian family, slope and swap moves, the
+swaps skipped because their base point was not representable
+(`swap_unrepresentable`) or because their proposal did not reproduce
+them (`swap_irreproducible`), and their cross-family evidence over the
+updates after adaptation, `bias_labels` the tally of those updates by
+the label they end in, and `bias_sojourns` per chain the runs of the
+retained draws of the indicator in the step-selection and the Gaussian
+families (absent when the indicator is not monitored).
 `fit$fit$samplers` lists the assigned sampler for each sampled node in
 the first worker, and `fit$fit$samplers_by_worker` records assignments
 when workers differ. The probability report includes the requested

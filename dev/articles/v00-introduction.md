@@ -151,7 +151,7 @@ ensemble to publication-bias models used in
 | [*Adjusting for Publication Bias Tutorial*](https://fbartos.github.io/RoBMA/dev/articles/v30-tutorial.md) | Bartoš et al. ([2022](#ref-bartos2020adjusting)), JASP / R tutorial on `Lui2015` |
 | [*Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/dev/articles/v31-robma-metaregression.md) | Bartoš et al. ([2025](#ref-bartos2023robust)), RoBMA-reg on `Andrews2021` |
 | [*Multilevel Robust Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/dev/articles/v32-robma-multilevel.md) | Bartoš et al. ([2026](#ref-bartos2025robust)), Multilevel RoBMA on `Johnides2025` |
-| [*Multilevel Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/dev/articles/v33-robma-multilevel-metaregression.md) | Multilevel RoBMA-reg on `Kroupova2021` |
+| [*Multilevel Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/dev/articles/v33-robma-multilevel-metaregression.md) | Multilevel RoBMA-reg on `Havrankova2025` |
 | [*Informed Bayesian Meta-Analysis in Medicine*](https://fbartos.github.io/RoBMA/dev/articles/v34-bma-norm-medicine.md) | Bartoš et al. ([2021](#ref-bartos2021bayesian)), informed prior distributions for medical meta-analysis (continuous outcomes) |
 | [*Informed Bayesian Meta-Analysis with Binary Outcomes*](https://fbartos.github.io/RoBMA/dev/articles/v35-bma-glmm-medicine.md) | Bartoš et al. ([2023](#ref-bartos2023empirical)), informed prior distributions for medical meta-analysis (binary and time-to-event outcomes) |
 | [*Zplot Publication-Bias Diagnostics*](https://fbartos.github.io/RoBMA/dev/articles/v36-zplot.md) | Bartoš & Schimmack ([2025](#ref-bartos2025zcurve)), zplot diagnostics on `Hoppen2025` |

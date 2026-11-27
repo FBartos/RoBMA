@@ -21,7 +21,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9022</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -254,17 +254,22 @@ four-way count layout.</p>
 <div class="section level2">
 <h2 id="other-inference-helpers">Other Inference Helpers<a class="anchor" aria-label="anchor" href="#other-inference-helpers"></a>
 </h2>
-<p>All inference helpers available for any other <code><a href="../reference/brma.html">brma()</a></code> fit
+<p>Most inference helpers available for other <code><a href="../reference/brma.html">brma()</a></code> fits
 work the same way for a <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code> fit. Meta-regression
 via <code>mods</code>, multilevel structures via <code>cluster</code>,
 location-scale models via <code>scale</code>, posterior summaries,
-plots, predictions, residuals, influence, and LOO comparisons with small
-exceptions where unavailable for the model specification (i.e., LOO-PIT
-residuals) all carry over. See the <a href="v02-bayesian-meta-analysis.html"><em>Bayesian
+plots, predictions, residuals, influence, and LOO comparisons carry
+over, except for internally standardized and Pearson residuals, hat
+values, DFFITS and Cook’s distance (also as <code><a href="https://rdrr.io/r/stats/lm.influence.html" class="external-link">influence()</a></code>
+columns), <code><a href="../reference/funnel.html">bfunnel()</a></code>, the z-curve plots
+(<code><a href="../reference/as_zplot.brma.html">as_zplot()</a></code>, <code><a href="../reference/zplot.brma.html">zplot()</a></code>), and cluster-unit LOO;
+LOO-PIT residuals of a <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code> fit are a descriptive
+normal approximation on the effect-size scale (see
+<code><a href="../reference/residuals.brma.html">?residuals.brma</a></code>). See the <a href="v02-bayesian-meta-analysis.html"><em>Bayesian
 Meta-Analysis</em></a> vignette for the full walkthrough and the <a href="v10-metafor-parity-multilevel.html"><em>Multilevel
-Meta-Analysis</em></a> vignette for the multilevel extension; the only
-thing that changes here is the count-based input and the auxiliary
-baseline-rate prior.</p>
+Meta-Analysis</em></a> vignette for the multilevel extension; apart from
+these exceptions, what changes here is the count-based input and the
+auxiliary baseline-rate prior.</p>
 </div>
 <div class="section level2 unnumbered">
 <h2 class="unnumbered" id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
