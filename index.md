@@ -21,23 +21,25 @@ more detailed vignettes that follow.
 
 ## System Requirements
 
-The `RoBMA` R package requires JAGS 4.x (4.3.1 or newer; JAGS 5 is not
-supported) (Plummer, 2003). Install JAGS from
-<https://mcmc-jags.sourceforge.io/> before installing the R package.
+RoBMA requires JAGS 5.0.0 or later (Plummer, 2003) and rjags 5-5 or
+later. Install JAGS from <https://mcmc-jags.sourceforge.io/> before
+installing the R package.
 
 ``` r
 install.packages("RoBMA")
 ```
 
-**Note on backwards compatibility.** The 4.0 release is not backwards
-compatible with earlier versions of the package. The *Manuscript
-Companions* section accompanies the methodological papers in which the
-`RoBMA` R package was originally developed and illustrated; the
-vignettes there have been updated to the 4.0 version of the package, and
-the numerical results differ from the published values because the
-underlying algorithms have changed. To reproduce the published analyses
-exactly, install `RoBMA` version 3.6.1 together with `BayesTools`
-version 0.2.23:
+**Note on backwards compatibility.** Version 5 uses BayesTools to fit
+models directly with rjags. To add samples to a fit created with JAGS 4,
+refit the analysis under JAGS 5 and use `update()` on the new fit. The
+4.0 release is not backwards compatible with earlier versions of the
+package. The *Manuscript Companions* section accompanies the
+methodological papers in which the `RoBMA` R package was originally
+developed and illustrated; the vignettes there have been updated to the
+4.0 version of the package, and the numerical results differ from the
+published values because the underlying algorithms have changed. To
+reproduce the published analyses exactly, install `RoBMA` version 3.6.1
+together with `BayesTools` version 0.2.23:
 
 ``` r
 remotes::install_version("BayesTools", version = "0.2.23")
@@ -132,7 +134,7 @@ ensemble to publication-bias models used in `RoBMA()`.
 | [*Adjusting for Publication Bias Tutorial*](articles/v30-tutorial.html) | Bartoš et al. (2022), JASP / R tutorial on `Lui2015` |
 | [*Robust Bayesian Meta-Regression*](articles/v31-robma-metaregression.html) | Bartoš et al. (2025), RoBMA-reg on `Andrews2021` |
 | [*Multilevel Robust Bayesian Meta-Analysis*](articles/v32-robma-multilevel.html) | Bartoš et al. (2026), Multilevel RoBMA on `Johnides2025` |
-| [*Multilevel Robust Bayesian Meta-Regression*](articles/v33-robma-multilevel-metaregression.html) | Multilevel RoBMA-reg on `Kroupova2021` |
+| [*Multilevel Robust Bayesian Meta-Regression*](articles/v33-robma-multilevel-metaregression.html) | Multilevel RoBMA-reg on `Havrankova2025` |
 | [*Informed Bayesian Meta-Analysis in Medicine*](articles/v34-bma-norm-medicine.html) | Bartoš et al. (2021), informed prior distributions for medical meta-analysis (continuous outcomes) |
 | [*Informed Bayesian Meta-Analysis with Binary Outcomes*](articles/v35-bma-glmm-medicine.html) | Bartoš et al. (2023), informed prior distributions for medical meta-analysis (binary and time-to-event outcomes) |
 | [*Zplot Publication-Bias Diagnostics*](articles/v36-zplot.html) | Bartoš & Schimmack (2025), zplot diagnostics on `Hoppen2025` |
