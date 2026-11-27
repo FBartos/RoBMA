@@ -423,6 +423,7 @@ test_that("Regression plot for BMA.norm meta-regression renders base output", {
 
   name     <- "dat.lehmann2018_BMA.norm_mods"
   fit_brma <- fits[[name]]
+  if (!.test_reference_build_draws(fit_brma)) .skip_reference_build_draws(name)
 
   expect_vdiffr_snapshot("regplot_BMAreg", function() {
     suppressWarnings(.test_regplot(fit_brma, plot_type = "base"))
@@ -453,6 +454,7 @@ test_that("Regression plot for RoBMA meta-regression renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   fit_brma <- fits[[name]]
+  if (!.test_reference_build_draws(fit_brma)) .skip_reference_build_draws(name)
 
   expect_vdiffr_snapshot("regplot_RoBMA_complex", function() {
     suppressWarnings(.test_regplot(fit_brma, mod = "Preregistered", plot_type = "base"))

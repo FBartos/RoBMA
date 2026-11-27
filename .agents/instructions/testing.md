@@ -222,7 +222,13 @@ by another test.
   build (`tests/testthat/helper-platform.R`), with the measured gap in a comment.
   Native code whose result needs a product rounded before it is added keeps that
   rounding itself (`rounded_product()` in `src/selnorm/selnorm-mv.cc`) instead of
-  relying on the build.
+  relying on the build. Seeded draws of the location block sampler and its
+  selection samplers (`RoBMA::LocationBlock`, `GatedCorrectedBlock`,
+  `ScreenedFinite`) are the references' only on the reference build, not where
+  multiply-adds fuse or under covr: compare what depends on them only where
+  `.test_reference_build_draws(fit)` holds, and otherwise skip just that
+  comparison with `.skip_reference_build_draws()`, naming the fit, after the
+  test's other expectations.
 - State numerical error explicitly with absolute, relative, log, or peak-scaled
   comparisons where scale matters. Do not rely on testthat edition-specific
   `expect_equal()` normalization for small probabilities or near-zero quantities.

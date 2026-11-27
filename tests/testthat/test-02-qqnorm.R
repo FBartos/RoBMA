@@ -394,6 +394,7 @@ test_that("Q-Q plot for RoBMA model renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
+  if (!.test_reference_build_draws(fit_brma)) .skip_reference_build_draws(name)
   set.seed(1)
 
   expect_vdiffr_snapshot("qqnorm_RoBMA", function() {

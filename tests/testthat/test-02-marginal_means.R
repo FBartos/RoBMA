@@ -1845,10 +1845,15 @@ test_that("marginal_means summaries convert effect-size measures", {
 test_that("marginal_means summaries match reference tables", {
 
   cases <- marginal_means_cases()
+  not_compared <- character()
   for (i in seq_len(nrow(cases))) {
 
     name <- cases[["name"]][i]
     fit  <- fits[[name]]
+    if (!.test_reference_build_draws(fit)) {
+      not_compared <- c(not_compared, name)
+      next
+    }
     emm  <- marginal_means(fit, n_samples = 1000)
 
     if (inherits(fit, "RoBMA")) {
@@ -1873,16 +1878,22 @@ test_that("marginal_means summaries match reference tables", {
       )
     }
   }
+  .skip_reference_build_draws(not_compared)
 })
 
 
 test_that("marginal_means core plot snapshots are stable", {
 
+  not_compared <- character()
   for_each_case(marginal_means_cases(), function(case) {
 
     name      <- case_name(case)
     parameter <- case_value(case, "parameter")
     fit       <- fits[[name]]
+    if (!.test_reference_build_draws(fit)) {
+      not_compared <<- c(not_compared, name)
+      return()
+    }
     emm       <- marginal_means(fit, n_samples = 1000)
 
     expect_brma_plot_snapshot(
@@ -1895,6 +1906,7 @@ test_that("marginal_means core plot snapshots are stable", {
       plot(emm, parameter = parameter, prior = FALSE, plot_type = "ggplot")
     )
   }, tier = visual_test_tier())
+  .skip_reference_build_draws(not_compared)
 })
 
 test_that("marginal_means prior plot gallery snapshots are stable", {

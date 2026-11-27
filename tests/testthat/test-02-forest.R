@@ -709,7 +709,12 @@ test_that("Forest plot renders representative fitted object families", {
     .forest_standard_snapshot_names,
     "bcg_meta-analysis"
   )
+  not_compared <- character()
   for (name in snapshot_names) {
+    if (!.test_reference_build_draws(fits[[name]])) {
+      not_compared <- c(not_compared, name)
+      next
+    }
     local({
       name_local <- name
       fit_brma   <- fits[[name_local]]
@@ -719,6 +724,7 @@ test_that("Forest plot renders representative fitted object families", {
       })
     })
   }
+  .skip_reference_build_draws(not_compared)
 })
 
 test_that("Forest plot renders extended visual gallery", {
