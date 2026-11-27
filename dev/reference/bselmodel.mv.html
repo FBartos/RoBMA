@@ -9,7 +9,7 @@ and BayesTools random-effect formulas."><meta name="robots" content="noindex"></
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9020</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -589,9 +589,11 @@ prediction at estimate depth describes a new reporting event around fitted
 truth, with new sampling error. Prediction's <code>conditioning_depth</code> is a
 separate choice from the selection-model source settings.
 Cluster depth is available only for the
-specialized <code>cluster</code> interface. Known-covariance latent and response
-predictions with <code>newdata</code> require <code>V_new</code> and, for <code>"best"</code>, the resolved
-publication-group reference; cross-covariance with fitted outcomes and
+specialized <code>cluster</code> interface. With <code>newdata</code>, known-covariance response
+predictions and latent predictions with <code>bias_adjusted = FALSE</code> require
+<code>V_new</code>; predictions that use the selection process (<code>bias_adjusted = FALSE</code>)
+also need, for <code>"best"</code>, the resolved publication-group reference. The
+default bias-adjusted latent prediction takes neither. Cross-covariance with fitted outcomes and
 non-marginal <code>newdata</code> are unavailable. See <code><a href="predict.brma.html">predict.brma()</a></code> for prediction
 targets and labels.</p>
 <p>When the complete sampling error is conditioned upon, total fitted truth

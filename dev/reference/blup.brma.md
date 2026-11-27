@@ -74,7 +74,9 @@ converted to posterior draws formats using
 ## Details
 
 This function is a convenience wrapper around
-`predict.brma(..., type = "blup", newdata = NULL)`. Unlike
+`predict.brma(..., type = "blup", newdata = NULL)` that passes its own
+`bias_adjusted`, which defaults to `FALSE`, unlike
+[`predict()`](https://rdrr.io/r/stats/predict.html)'s. Unlike
 `predict(..., type = "estimate", conditioning_depth = "estimate")`, it
 returns conditional location/BLUP means rather than adding conditional
 latent-effect uncertainty.

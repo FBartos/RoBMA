@@ -107,15 +107,17 @@ model fitted with `cluster`, the predictive variance before sampling
 error is the sum of between- and within-cluster heterogeneity. Cluster
 conditioning instead retains the fitted cluster effects and includes
 only within-cluster heterogeneity. Estimate conditioning uses the
-conditional true-effect means returned by `predict(type = "blup")` and
-additionally integrates the posterior conditional variance of those
-latent effects before adding new sampling error. It therefore represents
-a posterior predictive replication of the same uncertain latent effects
-rather than a BLUP-mean plug-in distribution. Thus the marginal zplot
-collapses the row-specific slices of the marginal funnel target onto the
-common significance scale. Unlike LOO diagnostics, it is a
-full-posterior predictive projection and does not leave observations or
-clusters out when estimating model parameters.
+conditional true-effect means returned by `predict(type = "blup")` (with
+`bias_adjusted = FALSE` for the fitted curve and `TRUE` for the
+extrapolated curve and the EDR) and additionally integrates the
+posterior conditional variance of those latent effects before adding new
+sampling error. It therefore represents a posterior predictive
+replication of the same uncertain latent effects rather than a BLUP-mean
+plug-in distribution. Thus the marginal zplot collapses the row-specific
+slices of the marginal funnel target onto the common significance scale.
+Unlike LOO diagnostics, it is a full-posterior predictive projection and
+does not leave observations or clusters out when estimating model
+parameters.
 
 The Expected Discovery Rate (EDR) is the posterior average probability
 that a new outcome from the bias-adjusted reference distribution is

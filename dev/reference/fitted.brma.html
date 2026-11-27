@@ -9,7 +9,7 @@ object."><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9020</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -152,7 +152,7 @@ summarizes posterior prediction draws by their column means and returns a
 base numeric vector, matching the usual <code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted</a></code> contract.
 Use <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> directly when posterior draws or intervals are needed.</p>
 <p>The default <code>conditioning_depth = "marginal"</code> corresponds to
-<code>predict(object, type = "terms")</code> and matches the usual fitted-value
+<code>predict(object, type = "terms", bias_adjusted = FALSE)</code> and matches the usual fitted-value
 convention for meta-regression. For normal models,
 <code>conditioning_depth = "estimate"</code> corresponds to BLUP means for the
 observed estimates.</p>

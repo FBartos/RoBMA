@@ -592,10 +592,13 @@ instead return conditional means. Response prediction at estimate depth
 describes a new reporting event around fitted truth, with new sampling
 error. Prediction's `conditioning_depth` is a separate choice from the
 selection-model source settings. Cluster depth is available only for the
-specialized `cluster` interface. Known-covariance latent and response
-predictions with `newdata` require `V_new` and, for `"best"`, the
-resolved publication-group reference; cross-covariance with fitted
-outcomes and non-marginal `newdata` are unavailable. See
+specialized `cluster` interface. With `newdata`, known-covariance
+response predictions and latent predictions with `bias_adjusted = FALSE`
+require `V_new`; predictions that use the selection process
+(`bias_adjusted = FALSE`) also need, for `"best"`, the resolved
+publication-group reference. The default bias-adjusted latent prediction
+takes neither. Cross-covariance with fitted outcomes and non-marginal
+`newdata` are unavailable. See
 [`predict.brma()`](https://fbartos.github.io/RoBMA/dev/reference/predict.brma.md)
 for prediction targets and labels.
 

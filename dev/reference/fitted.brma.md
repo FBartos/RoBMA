@@ -84,8 +84,8 @@ returns a base numeric vector, matching the usual
 posterior draws or intervals are needed.
 
 The default `conditioning_depth = "marginal"` corresponds to
-`predict(object, type = "terms")` and matches the usual fitted-value
-convention for meta-regression. For normal models,
+`predict(object, type = "terms", bias_adjusted = FALSE)` and matches the
+usual fitted-value convention for meta-regression. For normal models,
 `conditioning_depth = "estimate"` corresponds to BLUP means for the
 observed estimates.
 

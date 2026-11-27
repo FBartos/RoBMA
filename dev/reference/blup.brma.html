@@ -11,7 +11,7 @@ fitted brma object. These correspond to Best Linear Unbiased Predictions
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9020</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -142,7 +142,8 @@ converted to <span class="pkg">posterior</span> draws formats using <code><a hre
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>This function is a convenience wrapper around <code>predict.brma(...,
-type = "blup", newdata = NULL)</code>. Unlike <code>predict(..., type =
+type = "blup", newdata = NULL)</code> that passes its own <code>bias_adjusted</code>,
+which defaults to <code>FALSE</code>, unlike <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>'s. Unlike <code>predict(..., type =
 "estimate", conditioning_depth = "estimate")</code>, it returns conditional
 location/BLUP means rather than adding conditional latent-effect uncertainty.</p>
 <p>For unweighted two-level normal models, true effects are computed using

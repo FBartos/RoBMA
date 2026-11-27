@@ -14,7 +14,7 @@ predict(
   output_measure = NULL,
   transform = NULL,
   probs = c(0.025, 0.975),
-  bias_adjusted = FALSE,
+  bias_adjusted = TRUE,
   quiet = FALSE,
   conditional = FALSE,
   V_new = NULL,
@@ -62,18 +62,21 @@ predict(
   [`brma.mv()`](https://fbartos.github.io/RoBMA/dev/reference/brma.mv.md)
   response prediction, explicit `newdata` also requires sampling
   covariance through `V_new`. Product-only selection models require no
-  publication-group column. Unadjusted normal selected latent
-  predictions (`type = "estimate"`) require `sei` or `vi` in explicit
-  `newdata`. Gaussian sampling SEs used in prediction follow the ranges
-  in
+  publication-group column. Normal-outcome response predictions require
+  `sei` or `vi` in explicit `newdata` (supplied through `V_new` for
+  known-`V` models). With `bias_adjusted = FALSE`, PET/PEESE location
+  and latent predictions (`type = "terms"` or `"estimate"`) and normal
+  selected latent predictions (`type = "estimate"`) require them as
+  well. Gaussian sampling SEs used in prediction follow the ranges in
   [`data_input`](https://fbartos.github.io/RoBMA/dev/reference/data_input.md).
   Exactly zero sampling SE is allowed where the prediction admits it. If
-  an active selection branch uses `weight_rule = "best"`, its
-  publication groups must also be resolvable in the prediction data.
-  Fitted-row predictions reuse their publication-bias exemptions. For
-  explicit new rows, supply a logical `bias_exempt` column when the fit
-  contains exempt rows and the requested prediction uses publication
-  bias. For fits without exempt rows, omission treats all new rows as
+  an active selection branch uses `weight_rule = "best"`, unadjusted
+  selection predictions also need its publication groups to be
+  resolvable in the prediction data. Fitted-row predictions reuse their
+  publication-bias exemptions. For explicit new rows, supply a logical
+  `bias_exempt` column when the fit contains exempt rows and the
+  requested prediction uses publication bias (`bias_adjusted = FALSE`).
+  For fits without exempt rows, omission treats all new rows as
   susceptible to the fitted publication-bias component.
 
 - type:
@@ -133,7 +136,7 @@ predict(
 - bias_adjusted:
 
   whether predictions should adjust for publication bias. Defaults to
-  `FALSE`. When `TRUE`:
+  `TRUE`. When `TRUE`:
 
   - PET/PEESE terms are NOT added to the mean parameter (mu), returning
     the bias-corrected effect estimate.
@@ -153,22 +156,24 @@ predict(
     selected-normal distribution reflecting the selective publishing
     process.
 
-  For new outcomes, selection predictions draw retained contexts from
-  their original Gaussian law, then sample each full publication event
-  conditional on that context. Selected latent predictions additionally
-  reconstruct the integrated true effects conditional on the selected
-  response. At estimate depth, response prediction is a new replication
-  event conditional on the fitted latent true effects; LOO-PIT instead
-  uses deletion within the original publication event. Retained
-  estimate-level effects use their fitted posterior values at estimate
-  depth and fresh Gaussian draws for a new estimate within a fitted
-  cluster. The fitted selection specification and prediction
-  conditioning depth are separate choices.
+  For new outcomes, unadjusted selection predictions draw retained
+  contexts from their original Gaussian law, then sample each full
+  publication event conditional on that context. Selected latent
+  predictions additionally reconstruct the integrated true effects
+  conditional on the selected response. At estimate depth, response
+  prediction is a new replication event conditional on the fitted latent
+  true effects; LOO-PIT instead uses deletion within the original
+  publication event. Retained estimate-level effects use their fitted
+  posterior values at estimate depth and fresh Gaussian draws for a new
+  estimate within a fitted cluster. The fitted selection specification
+  and prediction conditioning depth are separate choices.
 
 - quiet:
 
-  logical; whether to suppress the informational message when
-  conditional posterior samples are flattened to one chain.
+  logical; whether to suppress the informational messages when
+  conditional posterior samples are flattened to one chain and when an
+  aggregated prediction (`newdata = TRUE`) averages over the moderator
+  or scale model matrix.
 
 - conditional:
 
@@ -303,7 +308,8 @@ Note that in contrast to
 the `type = "response"` produces predictions for the new effect size
 estimates. To obtain results corresponding to metafor's predict
 function, use `type = "terms"` for the mean effect size and
-`type = "estimate"` for true effects (prediction interval).
+`type = "estimate"` for true effects (prediction interval), with
+`bias_adjusted = FALSE` for PET/PEESE models.
 
 **Likelihood weights:** If the model was fitted with `weights`, the
 weights affect the posterior fit, log-likelihood, LOO/WAIC, and

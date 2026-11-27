@@ -9,7 +9,7 @@ that can be summarized and plotted to assess replicability."><meta name="robots"
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9020</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9021</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -169,7 +169,9 @@ the predictive variance before sampling error is the sum of between- and
 within-cluster heterogeneity. Cluster conditioning instead retains the fitted
 cluster effects and includes only within-cluster heterogeneity. Estimate
 conditioning uses the conditional true-effect means returned by
-<code>predict(type = "blup")</code> and additionally integrates the posterior
+<code>predict(type = "blup")</code> (with <code>bias_adjusted = FALSE</code> for the
+fitted curve and <code>TRUE</code> for the extrapolated curve and the EDR) and
+additionally integrates the posterior
 conditional variance of those latent effects before adding new sampling
 error. It therefore represents a posterior predictive replication of the
 same uncertain latent effects rather than a BLUP-mean plug-in distribution.
