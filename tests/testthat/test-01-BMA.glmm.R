@@ -14,11 +14,12 @@ test_that("BMA.glmm fits binomial model (OR)", {
   # hundreds of iterations (posterior null probability about 0.015), so short
   # chains can sit in one model and misstate the inclusion Bayes factor.
   # 160,000 iterations per chain, thinned to 1,000 draws, let every chain visit
-  # both models.
+  # both models. The adaptation and burn-in are the smallest admitted, 50
+  # draws (8,000 iterations) each.
   fit <- BMA.glmm(
     ai = tpos, bi = tneg, ci = cpos, di = cneg,
     data = dat.bcg, measure = "OR",
-    chains = 3, sample = 1000, burnin = 2000, adapt = 500, thin = 160,
+    chains = 3, sample = 1000, burnin = 50, adapt = 50, thin = 160,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))

@@ -18,9 +18,10 @@
 #'   been timed). Defaults to \code{NULL},
 #'   which does not extend the chains; the \code{sample_extend} stored in the
 #'   autofit control, including its default \code{"auto"}, is not used then.
-#' @param adapt integer. Number of adaptation iterations run when JAGS rebuilds
-#'   the sampler for this extension. Defaults to \code{NULL}, which uses the
-#'   \code{adapt} of the initial fit. A supplied value applies to this
+#' @param adapt integer. Length of the adaptation run when JAGS rebuilds the
+#'   sampler for this extension, in samples at the fit's thinning
+#'   (\code{adapt * thin} iterations), as in the fitting functions. Defaults
+#'   to \code{NULL}, which uses the \code{adapt} of the initial fit. A supplied value applies to this
 #'   extension only and does not replace the initial setting that later
 #'   extensions without \code{adapt} use. Requires \code{sample_extend}.
 #' @param slab optional character vector of study labels. Updating labels does
@@ -44,8 +45,9 @@
 #' Extending a fit preserves the fitted model and its posterior samples and
 #' adds new samples. No additional burn-in is requested. The extension
 #' rebuilds the compiled JAGS model from the stored chain states, which resets
-#' the sampler tuning, so JAGS adapts again for \code{adapt} iterations (the
-#' initial fit's setting unless supplied) before collecting those samples.
+#' the sampler tuning, so JAGS adapts again for \code{adapt * thin} iterations
+#' (with the initial fit's \code{adapt} unless supplied) before collecting
+#' those samples.
 #' Warnings that adaptation was incomplete are kept with the fit's warnings.
 #' Retained selection caches store normalizer calculations, not JAGS
 #' model pointers or sampler tuning. Prior, data, and model-structure updates are intentionally not

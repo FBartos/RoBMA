@@ -877,7 +877,7 @@ test_that("the JASP path, alternating fits and leftover counts keep each fit's r
     expect_length(values[[1L]], if (parallel) 2L else 1L)
     expect_identical(.fallback_record(jasp), .fallback_record(ordinary))
     expect_true(is.finite(.fallback_record(jasp)$min_sampler_rate))
-    .fallback_expect_identity(.fallback_record(jasp), 50 + 2 * 503, "JASP")
+    .fallback_expect_identity(.fallback_record(jasp), 2 * (50 + 503), "JASP")
   }
   # Reach the same 503 draws with one extension; the report counts the
   # adapted sampler once and includes its proposals from both runs.

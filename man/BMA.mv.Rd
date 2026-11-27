@@ -231,28 +231,34 @@ field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field
 likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
 likelihood.}
 
-\item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
+\item{sample}{numeric. Number of MCMC samples to save per chain; each
+chain runs \code{sample * thin} sampling iterations. Defaults to \code{5000}.}
 
-\item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.
-With at least two chains, the chains are checked for agreement over the
-last \code{min(burnin_extend, floor(burnin / thin))} samples of burn-in, taken
-every \code{thin} iterations (at least 100 samples), before sampling starts,
-and with \code{autofit} burn-in is extended until they
-agree (see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}} for when the check
-runs). A larger \code{thin} helps when more widely spaced samples are less
-correlated; as the check needs 100 samples at the fit's thinning, it does
-not run with \code{burnin} below \code{100 * thin}, and when it runs with \code{burnin} at
-most \code{burnin_extend * thin}, the block holds every complete window of
-\code{thin} iterations of burn-in (the first \code{burnin \%\% thin} iterations run
-unmonitored), so raise \code{burnin} together with \code{thin}. The fitted JAGS
-object (\code{object$fit$burnin}) reports the burn-in that was run; the fitting
-settings (\code{object$fit_control$burnin}) keep the requested value.}
+\item{burnin}{numeric. Length of burn-in in samples per chain at the
+thinning \code{thin}, like \code{sample}: each chain runs \code{burnin * thin} burn-in
+iterations. Defaults to \code{2000}. With at least two chains, the chains are
+checked for agreement over the last \code{min(burnin_extend, burnin)} samples
+of burn-in, taken every \code{thin} iterations (at least 100 samples), before
+sampling starts, and with \code{autofit} burn-in is extended until they agree
+(see \code{burnin_max_Rhat} in \code{\link[=set_autofit_control]{set_autofit_control()}} for when the check
+runs). With \code{burnin} below 100 the check does not run, and with \code{burnin}
+at most \code{burnin_extend} it checks the whole burn-in. The fitted JAGS
+object (\code{object$fit$burnin}) reports the burn-in that was run, in
+samples; the fitting settings (\code{object$fit_control$burnin}) keep the
+requested value.}
 
-\item{adapt}{numeric. Number of adaptation iterations. Defaults to \code{500}.}
+\item{adapt}{numeric. Length of the adaptation phase in samples per chain
+at the thinning \code{thin}: where a sampler adapts, each chain runs
+\code{adapt * thin} adaptation iterations. Defaults to \code{500}.}
 
 \item{chains}{numeric. Number of MCMC chains. Defaults to \code{3}.}
 
-\item{thin}{numeric. Thinning interval. Defaults to \code{1}.}
+\item{thin}{numeric. Thinning interval: one sample is retained every
+\code{thin} iterations. Defaults to \code{1}. \code{adapt}, \code{burnin} and \code{sample} count
+samples at this thinning, so a fit requests \code{(adapt + burnin + sample) * thin}
+iterations per chain before any automatic extensions of burn-in or sampling
+(without the adaptation iterations when no sampler adapts); see \code{thin} in
+\code{\link[BayesTools:JAGS_fit]{BayesTools::JAGS_fit()}} for the largest settings.}
 
 \item{parallel}{logical. Whether to run MCMC chains in parallel. Defaults to \code{FALSE}.}
 

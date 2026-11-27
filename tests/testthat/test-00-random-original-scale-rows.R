@@ -67,7 +67,7 @@ context("Random-effect rows without an original-scale value")
       prior_heterogeneity_null = BayesTools::prior(
         "spike", parameters = list(location = 0), prior_weights = 9
       ),
-      chains = 2, adapt = 300, burnin = 300, sample = 500, thin = 5,
+      chains = 2, adapt = 60, burnin = 60, sample = 500, thin = 5,
       seed = 1, silent = TRUE, parallel = FALSE
     ))
   }

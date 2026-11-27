@@ -105,7 +105,8 @@ than every `tier == "core"` entry. Certification extends the catalog and
 selects its own declared fit subsets; excluded core entries are not standard
 evidence. Shared GLMM settings use 1500 samples per chain in standard and 5000
 in certification, but `bcg_BMA.glmm` deliberately retains its explicit
-three-chain, 1000-sample, 2000-burn-in, 500-adaptation, thin-160 settings.
+three-chain, 1000-sample, thin-160 settings, with the smallest admitted
+adaptation and burn-in, 50 samples (8,000 iterations) each.
 These profile descriptions do not change any fitting budget.
 
 Every certification case has a hard one-hour limit shared by its cache

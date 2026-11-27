@@ -480,7 +480,8 @@ test_that("update.brma validates 'adapt' as the fitting functions do", {
     .bt_rjags_run = function(model, data, inits, monitor, adapt, burnin, sample,
                             thin, cl, silent, ..., probability_plan = NULL) {
       calls[[length(calls) + 1L]] <<- list(
-        adapt = adapt, burnin = burnin, parallel = !is.null(cl), probability_plan = probability_plan
+        adapt = adapt, burnin = burnin, sample = sample, thin = thin, parallel = !is.null(cl),
+        probability_plan = probability_plan
       )
       original(model, data, inits, monitor, adapt, burnin, sample, thin, cl, silent,
                ..., probability_plan = probability_plan)
@@ -643,6 +644,56 @@ test_that("the readiness check of burn-in receives the autofit control and the f
   fit <- .adaptation_fit(autofit_control = set_autofit_control(burnin_max_Rhat = NULL))
   expect_identical(checks, 0L)
   expect_null(attr(fit[["fit"]], "burnin_check"))
+})
+
+test_that("a thinned fit passes its settings in draws to the backend and records burn-in and adaptation in draws", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  RoBMA.options(sampler.probabilities = character())
+  # the chains disagree in the first checked block and agree in the next
+  checks <- 0L
+  testthat::local_mocked_bindings(
+    .bt_burnin_block_Rhat = function(block, ...) {
+      checks <<- checks + 1L
+      c(mu = if (checks == 1L) 3 else 1)
+    },
+    .package = "BayesTools"
+  )
+  calls <- .record_jags_runs()
+  fit <- .adaptation_fit(
+    thin = 2, autofit = TRUE,
+    autofit_control = set_autofit_control(max_Rhat = NULL, min_ESS = NULL, burnin_extend = 100,
+                                          burnin_max_extend = 2)
+  )
+  override <- update(fit, sample_extend = 20, adapt = 1000)
+
+  # the settings reach the backend unchanged, in draws at the thinning
+  backend <- calls()
+  expect_length(backend, 2L)
+  expect_equal(backend[[1L]][c("adapt", "burnin", "sample", "thin")],
+               list(adapt = 300, burnin = 100, sample = 100, thin = 2))
+  expect_equal(backend[[2L]][c("adapt", "burnin", "sample", "thin")],
+               list(adapt = 1000, burnin = 0, sample = 20, thin = 2))
+
+  # the readiness check extends burn-in by one block of 100 draws, and the
+  # first draw follows (300 + 200) * 2 warm-up iterations
+  record <- attr(fit[["fit"]], "burnin_check")
+  expect_identical(checks, 2L)
+  expect_identical(record[c("block", "burnin_extend", "extension", "status")],
+    list(block = 100L, burnin_extend = 100, extension = 100, status = "ready"))
+  expect_equal(fit[["fit"]][["burnin"]], 200)
+  expect_equal(fit[["fit_control"]][c("adapt", "burnin", "sample", "thin")],
+               list(adapt = 300, burnin = 100, sample = 100, thin = 2))
+  expect_identical(lapply(coda::as.mcmc.list(fit[["fit"]]), coda::mcpar), rep(list(c(1001, 1199, 2)), 2))
+
+  # the extension records its adaptation in draws and keeps the numbering
+  expect_identical(
+    attr(override[["fit"]], "adaptation"),
+    list(initial = 300L, extensions = data.frame(adapt = 1000L, rebuilt = TRUE))
+  )
+  expect_identical(override[["fit_control"]], fit[["fit_control"]])
+  expect_identical(lapply(coda::as.mcmc.list(override[["fit"]]), coda::mcpar), rep(list(c(1001, 1239, 2)), 2))
 })
 
 test_that("update.brma sizes an 'auto' extension from the convergence check of the stored fit", {

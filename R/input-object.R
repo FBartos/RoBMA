@@ -5,24 +5,30 @@
 #' The `brma` family of functions uses the following arguments to specify the
 #' MCMC sampling and fitting settings.
 #'
-#' @param sample numeric. Number of MCMC samples to save. Defaults to `5000`.
-#' @param burnin numeric. Number of burn-in iterations. Defaults to `2000`.
-#' With at least two chains, the chains are checked for agreement over the
-#' last `min(burnin_extend, floor(burnin / thin))` samples of burn-in, taken
-#' every `thin` iterations (at least 100 samples), before sampling starts,
-#' and with `autofit` burn-in is extended until they
-#' agree (see `burnin_max_Rhat` in [set_autofit_control()] for when the check
-#' runs). A larger `thin` helps when more widely spaced samples are less
-#' correlated; as the check needs 100 samples at the fit's thinning, it does
-#' not run with `burnin` below `100 * thin`, and when it runs with `burnin` at
-#' most `burnin_extend * thin`, the block holds every complete window of
-#' `thin` iterations of burn-in (the first `burnin %% thin` iterations run
-#' unmonitored), so raise `burnin` together with `thin`. The fitted JAGS
-#' object (`object$fit$burnin`) reports the burn-in that was run; the fitting
-#' settings (`object$fit_control$burnin`) keep the requested value.
-#' @param adapt numeric. Number of adaptation iterations. Defaults to `500`.
+#' @param sample numeric. Number of MCMC samples to save per chain; each
+#' chain runs `sample * thin` sampling iterations. Defaults to `5000`.
+#' @param burnin numeric. Length of burn-in in samples per chain at the
+#' thinning `thin`, like `sample`: each chain runs `burnin * thin` burn-in
+#' iterations. Defaults to `2000`. With at least two chains, the chains are
+#' checked for agreement over the last `min(burnin_extend, burnin)` samples
+#' of burn-in, taken every `thin` iterations (at least 100 samples), before
+#' sampling starts, and with `autofit` burn-in is extended until they agree
+#' (see `burnin_max_Rhat` in [set_autofit_control()] for when the check
+#' runs). With `burnin` below 100 the check does not run, and with `burnin`
+#' at most `burnin_extend` it checks the whole burn-in. The fitted JAGS
+#' object (`object$fit$burnin`) reports the burn-in that was run, in
+#' samples; the fitting settings (`object$fit_control$burnin`) keep the
+#' requested value.
+#' @param adapt numeric. Length of the adaptation phase in samples per chain
+#' at the thinning `thin`: where a sampler adapts, each chain runs
+#' `adapt * thin` adaptation iterations. Defaults to `500`.
 #' @param chains numeric. Number of MCMC chains. Defaults to `3`.
-#' @param thin numeric. Thinning interval. Defaults to `1`.
+#' @param thin numeric. Thinning interval: one sample is retained every
+#' `thin` iterations. Defaults to `1`. `adapt`, `burnin` and `sample` count
+#' samples at this thinning, so a fit requests `(adapt + burnin + sample) * thin`
+#' iterations per chain before any automatic extensions of burn-in or sampling
+#' (without the adaptation iterations when no sampler adapts); see `thin` in
+#' [BayesTools::JAGS_fit()] for the largest settings.
 #' @param parallel logical. Whether to run MCMC chains in parallel. Defaults to `FALSE`.
 #' @param autofit logical. Whether to automatically extend the MCMC chains if convergence is not met.
 #' Defaults to `FALSE`.
@@ -48,10 +54,10 @@ NULL
 #
 # @param dots additional arguments originally passed as ...
 # @param chains Number of MCMC chains
-# @param adapt Number of adaptation iterations
-# @param burnin Number of burnin iterations
-# @param sample Number of sampling iterations
-# @param thin Thinning interval
+# @param adapt Adaptation, in samples per chain at the thinning 'thin'
+# @param burnin Burn-in, in samples per chain at the thinning 'thin'
+# @param sample Number of samples per chain
+# @param thin Thinning interval (iterations per sample)
 # @param autofit Whether to use autofit
 # @param parallel Whether to run chains in parallel
 # @param silent Whether to suppress output
