@@ -3,26 +3,26 @@ Bayesian Model-Averaged Location-Scale Model (k = 48)
 
 Component Inclusion
               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect              0.500       0.995      196.368               41.079
+Effect              0.500       0.997      356.143               18.633
 Heterogeneity       1.000       1.000           NA                   NA
-[0;31mBayes factor MC error for (mu) intercept is based on 76 posterior samples from the less frequent model.[0m
+[0;31mBayes factor MC error for (mu) intercept is based on 42 posterior samples from the less frequent model.[0m
 
 Location Inclusion
       Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-ni100       0.500       0.592        1.451                5.178
+ni100       0.500       0.597        1.482                1.368
 
 Scale Inclusion
       Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-ni100       0.500       0.637        1.757                3.213
+ni100       0.500       0.627        1.678                3.078
 
 Location
-            Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept  0.261 0.086  0.106  0.260 0.425     0.00175          0.020 2404 1.001
-ni100     -0.035 0.035 -0.106 -0.034 0.000     0.00076          0.022 2135 1.001
+            Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+intercept  0.262 0.085  0.106  0.262 0.426     0.00063          0.007 18758 1.000
+ni100     -0.035 0.035 -0.106 -0.035 0.000     0.00024          0.007 22369 1.000
 
 Scale
                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-exp(intercept)  0.302 0.123  0.126  0.277 0.596     0.00173          0.014 5087 1.000
-ni100          -0.224 0.252 -0.803 -0.169 0.037     0.00393          0.016 4114 1.000
+exp(intercept)  0.299 0.121  0.125  0.274 0.585     0.00165          0.014 5389 1.001
+ni100          -0.220 0.250 -0.778 -0.158 0.028     0.00370          0.015 4579 1.001
 exp(intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
 

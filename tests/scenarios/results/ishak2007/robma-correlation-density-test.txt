@@ -1,2 +1,2 @@
-    bridge KDE    qCMDE
-1 24687.06 Inf 26818.03
+    bridge KDE qCMDE
+1 24488.17 Inf 44294

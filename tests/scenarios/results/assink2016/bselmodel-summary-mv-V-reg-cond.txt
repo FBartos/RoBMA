@@ -3,19 +3,19 @@ Bayesian Multivariate Mixed-Effect Selection Model (k = 100)
 
 Common Estimates
                        Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau_total             0.434 0.056 0.343 0.427 0.563     0.00095          0.017 3580 1.001
-tau2_prop(esid_study) 0.747 0.144 0.434 0.760 0.979     0.00273          0.019 2821 1.001
-tau2_prop(study)      0.253 0.144 0.021 0.240 0.566     0.00273          0.019 2821 1.001
+tau_total             0.433 0.055 0.343 0.427 0.557     0.00091          0.016 3727 1.002
+tau2_prop(esid_study) 0.747 0.141 0.446 0.759 0.976     0.00281          0.020 2530 1.002
+tau2_prop(study)      0.253 0.141 0.024 0.241 0.554     0.00281          0.020 2530 1.002
 
 Meta-Regression
                    Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept        -0.220 0.185 -0.578 -0.221 0.144     0.00244          0.013 6250 1.000
-deltype[general]  0.426 0.165  0.104  0.426 0.752     0.00176          0.011 8919 1.000
-deltype[overt]    0.270 0.187 -0.100  0.270 0.634     0.00215          0.012 7611 1.000
+intercept        -0.219 0.183 -0.572 -0.223 0.151     0.00205          0.011 8048 1.000
+deltype[general]  0.423 0.164  0.097  0.425 0.742     0.00179          0.011 8591 1.000
+deltype[overt]    0.269 0.187 -0.101  0.271 0.631     0.00197          0.011 8951 1.000
 
 Publication Bias
                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,1] 0.511 0.123 0.305 0.497 0.786     0.00148          0.012 7032 1.001
+omega[0.025,1] 0.511 0.125 0.305 0.497 0.797     0.00163          0.013 6122 1.001
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 
