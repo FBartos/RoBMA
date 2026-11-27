@@ -31,11 +31,11 @@
     return(selected)
   }
 
-  fit <- object[["fit"]]
-  if (standardized_coefficients) {
-    attr(fit, "formula_scale") <- list()
-  }
-  law <- BayesTools::parameter_prior_density(fit, entry[["selection"]])
+  fit       <- object[["fit"]]
+  selection <- .brma_random_parameter_scale_selection(
+    object, entry[["selection"]], standardized_coefficients
+  )
+  law <- BayesTools::parameter_prior_density(fit, selection)
   if (is.null(law)) {
     reason <- paste0(
       "The prior of the random-effect quantity '", spec[["label"]],
