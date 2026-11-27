@@ -9,7 +9,7 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9019</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9020</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -188,7 +188,7 @@ runs, also with <code>autofit = FALSE</code>, in the initial fit of a model (not
 when <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> extends the chains, nor in the automatic extensions
 after sampling)
 when there are at least two chains, the block of the last
-<code>min(burnin_extend, floor(burnin / thin))</code> samples of burn-in, taken
+<code>min(burnin_extend, burnin)</code> samples of burn-in, taken
 every <code>thin</code> iterations as in sampling, has at least 100 samples, and
 JAGS assigns the model a sampler. The iterations of the block run with the
 monitors on and their samples are checked and then dropped: the chains are
@@ -216,12 +216,10 @@ loses. A slowly mixing model can exceed the threshold although its chains
 agree, because the statistic grows with the autocorrelation of the block's
 samples; a larger <code>thin</code> then helps when more widely spaced samples are
 less correlated, while more burn-in is the remedy for chains that have not
-yet reached the same region. The check needs 100 samples at the fit's
-thinning: with <code>burnin</code> below <code>100 * thin</code> it does not run, and
-when it runs with <code>burnin</code> at most <code>burnin_extend * thin</code>, the
-block holds every complete window of <code>thin</code> iterations of burn-in (the
-first <code>burnin %% thin</code> iterations run unmonitored), so raise
-<code>burnin</code> together with <code>thin</code>. When the
+yet reached the same region. With <code>burnin</code> below 100 the check does
+not run, and with <code>burnin</code> at most <code>burnin_extend</code> it checks the
+whole burn-in (<code>burnin</code> counts samples at the fit's thinning, see
+<code><a href="fitting_specification.html">fitting_specification</a></code>). When the
 warning appears for chains that started in different components (for
 example of the publication-bias mixture), a longer adaptation (such as
 <code>adapt = 5000</code>) resolves it sooner than more burn-in alone.</p></dd>
@@ -231,10 +229,7 @@ example of the publication-bias mixture), a longer adaptation (such as
 <dd><p>number of final burn-in samples, taken every
 <code>thin</code> iterations, that the readiness check assesses, and of each
 extension of burn-in (<code>burnin_extend * thin</code> iterations); at least
-<code>100</code>. Defaults to <code>500</code>. When the check runs with <code>burnin</code>
-at most <code>burnin_extend * thin</code>, its block holds every complete window
-of <code>thin</code> iterations of burn-in, and the first
-<code>burnin %% thin</code> iterations run unmonitored.</p></dd>
+<code>100</code>. Defaults to <code>500</code>.</p></dd>
 
 
 <dt id="arg-burnin-max-extend">burnin_max_extend<a class="anchor" aria-label="anchor" href="#arg-burnin-max-extend"></a></dt>

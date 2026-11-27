@@ -11,7 +11,7 @@ quantities."><meta name="robots" content="noindex"></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9019</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1.9020</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -122,9 +122,10 @@ autofit control, including its default <code>"auto"</code>, is not used then.</p
 
 
 <dt id="arg-adapt">adapt<a class="anchor" aria-label="anchor" href="#arg-adapt"></a></dt>
-<dd><p>integer. Number of adaptation iterations run when JAGS rebuilds
-the sampler for this extension. Defaults to <code>NULL</code>, which uses the
-<code>adapt</code> of the initial fit. A supplied value applies to this
+<dd><p>integer. Length of the adaptation run when JAGS rebuilds the
+sampler for this extension, in samples at the fit's thinning
+(<code>adapt * thin</code> iterations), as in the fitting functions. Defaults
+to <code>NULL</code>, which uses the <code>adapt</code> of the initial fit. A supplied value applies to this
 extension only and does not replace the initial setting that later
 extensions without <code>adapt</code> use. Requires <code>sample_extend</code>.</p></dd>
 
@@ -176,8 +177,9 @@ after extension (<code>"all"</code>) or dropped with a warning (<code>"drop"</co
     <p>Extending a fit preserves the fitted model and its posterior samples and
 adds new samples. No additional burn-in is requested. The extension
 rebuilds the compiled JAGS model from the stored chain states, which resets
-the sampler tuning, so JAGS adapts again for <code>adapt</code> iterations (the
-initial fit's setting unless supplied) before collecting those samples.
+the sampler tuning, so JAGS adapts again for <code>adapt * thin</code> iterations
+(with the initial fit's <code>adapt</code> unless supplied) before collecting
+those samples.
 Warnings that adaptation was incomplete are kept with the fit's warnings.
 Retained selection caches store normalizer calculations, not JAGS
 model pointers or sampler tuning. Prior, data, and model-structure updates are intentionally not

@@ -117,16 +117,15 @@ set_convergence_checks(
   `autofit = FALSE`, in the initial fit of a model (not when
   [`update()`](https://rdrr.io/r/stats/update.html) extends the chains,
   nor in the automatic extensions after sampling) when there are at
-  least two chains, the block of the last
-  `min(burnin_extend, floor(burnin / thin))` samples of burn-in, taken
-  every `thin` iterations as in sampling, has at least 100 samples, and
-  JAGS assigns the model a sampler. The iterations of the block run with
-  the monitors on and their samples are checked and then dropped: the
-  chains are ready when the split-chain R-hat point estimate (each
-  chain's block split into halves) is at most `burnin_max_Rhat` for
-  every parameter of the convergence check (`monitor`,
-  `check_indicators`). With `autofit`, burn-in of chains that are not
-  ready is extended by blocks of `burnin_extend` samples
+  least two chains, the block of the last `min(burnin_extend, burnin)`
+  samples of burn-in, taken every `thin` iterations as in sampling, has
+  at least 100 samples, and JAGS assigns the model a sampler. The
+  iterations of the block run with the monitors on and their samples are
+  checked and then dropped: the chains are ready when the split-chain
+  R-hat point estimate (each chain's block split into halves) is at most
+  `burnin_max_Rhat` for every parameter of the convergence check
+  (`monitor`, `check_indicators`). With `autofit`, burn-in of chains
+  that are not ready is extended by blocks of `burnin_extend` samples
   (`burnin_extend * thin` iterations) until they are,
   `burnin_max_extend` blocks were added, or `max_time` is exceeded;
   without it, burn-in is kept. Chains that are still not ready start
@@ -147,25 +146,22 @@ set_convergence_checks(
   agree, because the statistic grows with the autocorrelation of the
   block's samples; a larger `thin` then helps when more widely spaced
   samples are less correlated, while more burn-in is the remedy for
-  chains that have not yet reached the same region. The check needs 100
-  samples at the fit's thinning: with `burnin` below `100 * thin` it
-  does not run, and when it runs with `burnin` at most
-  `burnin_extend * thin`, the block holds every complete window of
-  `thin` iterations of burn-in (the first `burnin %% thin` iterations
-  run unmonitored), so raise `burnin` together with `thin`. When the
-  warning appears for chains that started in different components (for
-  example of the publication-bias mixture), a longer adaptation (such as
-  `adapt = 5000`) resolves it sooner than more burn-in alone.
+  chains that have not yet reached the same region. With `burnin` below
+  100 the check does not run, and with `burnin` at most `burnin_extend`
+  it checks the whole burn-in (`burnin` counts samples at the fit's
+  thinning, see
+  [`fitting_specification`](https://fbartos.github.io/RoBMA/dev/reference/fitting_specification.md)).
+  When the warning appears for chains that started in different
+  components (for example of the publication-bias mixture), a longer
+  adaptation (such as `adapt = 5000`) resolves it sooner than more
+  burn-in alone.
 
 - burnin_extend:
 
   number of final burn-in samples, taken every `thin` iterations, that
   the readiness check assesses, and of each extension of burn-in
   (`burnin_extend * thin` iterations); at least `100`. Defaults to
-  `500`. When the check runs with `burnin` at most
-  `burnin_extend * thin`, its block holds every complete window of
-  `thin` iterations of burn-in, and the first `burnin %% thin`
-  iterations run unmonitored.
+  `500`.
 
 - burnin_max_extend:
 
