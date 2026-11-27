@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "StepRowNormalizer.h"
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-tail.h"

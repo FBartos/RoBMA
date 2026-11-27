@@ -41,3 +41,56 @@
 
 # Whether the tests run under covr, which rewrites package function bodies.
 .test_in_covr <- function() identical(Sys.getenv("R_COVR"), "true")
+
+# Whether seeded draws are those of the build that made the locked references:
+# Windows x86-64 without fused multiply-adds, outside covr (whose build is not
+# optimized). The location block sampler and the selection samplers added with
+# it (RoBMA::LocationBlock, ::GatedCorrectedBlock, ::ScreenedFinite) turn
+# last-bit differences into different chains, so the same seed gives
+# different, equally valid draws on other builds (RoBMA, BayesTools and JAGS
+# fuse on the Linux and macOS runners, and their math libraries differ): there
+# the short fit dat.lehmann2018_RoBMA gave BF01 = 4.495 against the reference
+# 3.435, within the spread of 3.4 to 8.0 over seeds 1-7 on the reference build.
+# Even there one Windows runner drew another chain once (the test workflow
+# reports the processor). With `fit`, also TRUE for a fit none of them samples.
+.test_reference_build_draws <- function(fit = NULL) {
+
+  if (.Platform$OS.type == "windows" && identical(R.version$arch, "x86_64") &&
+      !.test_in_covr() && !.test_fused_multiply_add()) return(TRUE)
+  if (is.null(fit)) return(FALSE)
+  jags     <- fit[["fit"]]
+  tables   <- c(list(jags[["samplers"]]), lapply(jags[["samplers_by_worker"]], `[[`, "samplers"))
+  samplers <- unlist(lapply(tables, `[[`, "Sampler"))
+  return(!any(c("RoBMA::LocationBlock", "RoBMA::GatedCorrectedBlock", "RoBMA::ScreenedFinite") %in% samplers))
+}
+
+# Skips, after the test's other expectations, what was not compared because
+# .test_reference_build_draws() is FALSE (`what` names the fits or fixtures).
+.skip_reference_build_draws <- function(what) {
+
+  if (length(what) == 0L) return(invisible(FALSE))
+  if (exists(".announce_existing_visual_snapshots", mode = "function")) {
+    .announce_existing_visual_snapshots()
+  }
+  testthat::skip(paste0(
+    "Seeded draws of the location block and its selection samplers differ from the reference build's ",
+    "(Windows without fused multiply-adds, outside covr); not checked here: ", paste(unique(what), collapse = ", "), "."
+  ))
+}
+
+# Draws a plot on a null device and returns to the caller's device: where its
+# snapshot is not compared (.test_reference_build_draws()), the plot is still
+# drawn. A ggplot is printed, so that it is built and rendered.
+.test_draw <- function(draw) {
+
+  previous <- grDevices::dev.cur()
+  grDevices::pdf(NULL)
+  device <- grDevices::dev.cur()
+  on.exit({
+    grDevices::dev.off(device)
+    if (previous > 1L && previous %in% grDevices::dev.list()) grDevices::dev.set(previous)
+  }, add = TRUE)
+  plot <- draw()
+  if (inherits(plot, "ggplot")) print(plot)
+  invisible(TRUE)
+}

@@ -37,6 +37,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Seeded draws of some standard fits follow the machine's arithmetic: the
+      # processor attributes a difference between runs of the same source.
+      - name: Report the processor
+        shell: pwsh
+        run: |
+          if ($IsWindows) { (Get-CimInstance Win32_Processor).Name }
+          elseif ($IsMacOS) { sysctl -n machdep.cpu.brand_string }
+          else { (Select-String -Path /proc/cpuinfo -Pattern '^model name' | Select-Object -First 1).Line }
+
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:

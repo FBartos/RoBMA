@@ -149,10 +149,11 @@
 
 # Compiles a hand-written location model (one chain, the given mutant frozen
 # into its sampler), runs adapt + burnin + draws and returns the draws, the
-# sampler of each node, the factory decision and the per-fit counters.
+# sampler of each node, the factory decision and the per-fit counters. `inits`
+# holds starting values of the chain besides its seed.
 .location_hand_chain <- function(model, monitor, draws, burnin = 500L, adapt = 100L, mutant = 0L,
                                  probe = FALSE, seed = 4127L, sampler = "slice.coarse", min_acceptance = 0,
-                                 config = NULL) {
+                                 config = NULL, inits = list()) {
 
   BayesTools::BayesTools_load_JAGS_module(quiet = TRUE)
   old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules",
@@ -170,7 +171,7 @@
   connection <- textConnection(model$syntax)
   on.exit(close(connection), add = TRUE)
   jags <- rjags::jags.model(connection, data = model$data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
-                            inits = list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = seed))
+                            inits = c(list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = seed), inits))
   hook <- .location_hook()
   samplers <- rjags::list.samplers(jags)
   assigned <- unlist(lapply(seq_along(samplers), function(i) {

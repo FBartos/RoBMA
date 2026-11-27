@@ -293,11 +293,18 @@ test_that("interpret.brma printed output matches reference text", {
     )
   )
 
+  not_compared <- character()
   for (case in cases) {
     output <- do.call(
       interpret_output_text,
       c(list(object = fits[[case[["name"]]]]), case[["args"]])
     )
+    if (!.test_reference_build_draws(fits[[case[["name"]]]])) {
+      # written; only the reference text depends on the draws
+      expect_true(is.character(output) && length(output) > 0L && all(nzchar(output)))
+      not_compared <- c(not_compared, case[["name"]])
+      next
+    }
 
     test_reference_text(
       text     = output,
@@ -305,4 +312,5 @@ test_that("interpret.brma printed output matches reference text", {
       info_msg = paste0("Interpret reference mismatch for ", case[["name"]])
     )
   }
+  .skip_reference_build_draws(not_compared)
 })

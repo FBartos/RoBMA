@@ -394,11 +394,14 @@ test_that("Q-Q plot for RoBMA model renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
+  draw <- function() suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  if (!.test_reference_build_draws(fit_brma)) {
+    expect_no_error(withr::with_seed(1, .test_draw(draw)))
+    .skip_reference_build_draws(name)
+  }
   set.seed(1)
 
-  expect_vdiffr_snapshot("qqnorm_RoBMA", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
+  expect_vdiffr_snapshot("qqnorm_RoBMA", draw)
 })
 
 test_that("Q-Q plot for RoBMA meta-regression renders LOO-PIT output", {

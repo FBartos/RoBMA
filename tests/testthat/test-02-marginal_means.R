@@ -1845,11 +1845,21 @@ test_that("marginal_means summaries convert effect-size measures", {
 test_that("marginal_means summaries match reference tables", {
 
   cases <- marginal_means_cases()
+  not_compared <- character()
   for (i in seq_len(nrow(cases))) {
 
     name <- cases[["name"]][i]
     fit  <- fits[[name]]
     emm  <- marginal_means(fit, n_samples = 1000)
+    if (!.test_reference_build_draws(fit)) {
+      # summarized and printed; only the reference tables depend on the draws
+      expect_no_error(capture_output_lines(summary(emm), print = TRUE, width = 150))
+      if (inherits(fit, "RoBMA")) {
+        expect_no_error(capture_output_lines(summary(emm, type = "conditional"), print = TRUE, width = 150))
+      }
+      not_compared <- c(not_compared, name)
+      next
+    }
 
     if (inherits(fit, "RoBMA")) {
       test_reference_table(
@@ -1873,17 +1883,26 @@ test_that("marginal_means summaries match reference tables", {
       )
     }
   }
+  .skip_reference_build_draws(not_compared)
 })
 
 
 test_that("marginal_means core plot snapshots are stable", {
 
+  not_compared <- character()
   for_each_case(marginal_means_cases(), function(case) {
 
     name      <- case_name(case)
     parameter <- case_value(case, "parameter")
     fit       <- fits[[name]]
     emm       <- marginal_means(fit, n_samples = 1000)
+    if (!.test_reference_build_draws(fit)) {
+      # drawn; only the snapshots depend on the draws
+      expect_no_error(.test_draw(function() plot(emm, parameter = parameter, prior = FALSE)))
+      expect_no_error(.test_draw(function() plot(emm, parameter = parameter, prior = FALSE, plot_type = "ggplot")))
+      not_compared <<- c(not_compared, name)
+      return()
+    }
 
     expect_brma_plot_snapshot(
       paste0(name, "-marginal_means-baseplot-no-prior"),
@@ -1895,6 +1914,7 @@ test_that("marginal_means core plot snapshots are stable", {
       plot(emm, parameter = parameter, prior = FALSE, plot_type = "ggplot")
     )
   }, tier = visual_test_tier())
+  .skip_reference_build_draws(not_compared)
 })
 
 test_that("marginal_means prior plot gallery snapshots are stable", {

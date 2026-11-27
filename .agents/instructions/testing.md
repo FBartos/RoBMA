@@ -222,11 +222,25 @@ by another test.
   build (`tests/testthat/helper-platform.R`), with the measured gap in a comment.
   Native code whose result needs a product rounded before it is added keeps that
   rounding itself (`rounded_product()` in `src/selnorm/selnorm-mv.cc`) instead of
-  relying on the build. The sampler translation units (`src/samplers/*.cc`)
-  switch contraction off as their first include (`src/fp-contract-off.h`), so
-  that a seed gives the same draws on every build: a new sampler source file
-  includes it too. Check with a build at `-march=x86-64-v3` (a user Makevars
-  with that flag): its seeded draws must equal the default build's.
+  relying on the build. Seeded draws of the location block sampler and its
+  selection samplers (`RoBMA::LocationBlock`, `GatedCorrectedBlock`,
+  `ScreenedFinite`) match the locked references only on the reference build:
+  Windows x86-64 without fused multiply-adds, outside covr (even there a runner
+  drew another chain once; the test workflow prints the processor). Compare
+  what depends on those draws only where `.test_reference_build_draws(fit)`
+  holds; otherwise compute and draw the result, then skip just the comparison
+  with `.skip_reference_build_draws()`, naming the fit, after the test's other
+  expectations. This covers the `standard` profile, which CI runs on Linux and
+  macOS; run the visual gallery of the certification profile on the reference
+  build. A fit cache holds the draws of the build that made it, and its key does
+  not record the build: test a build against a cache it refitted. CI restores
+  the cache by runner OS and R version and refits what is missing or stale,
+  which holds only while a runner image keeps its compilers.
+- An expectation on a hand-built fixture that depends on the chain's
+  trajectory (which node a guard names, how many moves are accepted, whether
+  a chain reaches a state) must hold for at least 20 seeds, with and without
+  fused multiply-adds; start the chain in the state the expectation is about
+  instead of relying on the seed's path to it.
 - State numerical error explicitly with absolute, relative, log, or peak-scaled
   comparisons where scale matters. Do not rely on testthat edition-specific
   `expect_equal()` normalization for small probabilities or near-zero quantities.

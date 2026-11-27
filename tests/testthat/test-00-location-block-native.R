@@ -93,8 +93,12 @@ Location block sampler ",
   setup$variance[1L] <- 1e-10
   model <- .location_gaussian_model(setup)
   message <- .block_run_message(.location_compile(model), 50L, end_adaptation = TRUE)
-  expect_true(startsWith(message, "Error in node y[1]
-Location block sampler [RoBMA_likelihood_not_representable]"))
+  # y[1:3] (study 1) share one mean, so their terms sum above the limit in
+  # every state; the guard names the largest term: y[1] while the latent is
+  # away from the extreme row, y[3] (the smaller variance of the other two
+  # rows) once it has absorbed it, depending on where adaptation left the
+  # chain (y[3] for 21 of 51 seeds, y[2] never)
+  expect_match(message, "^Error in node y\\[[13]\\]\nLocation block sampler \\[RoBMA_likelihood_not_representable\\]")
   expect_identical(.block_run_message(.location_compile(model), 200L, end_adaptation = FALSE), "")
 })
 

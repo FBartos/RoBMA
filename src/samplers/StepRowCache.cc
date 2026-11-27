@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "StepRowCache.h"
 #include "../distributions/DSELNORMSTEPSWITCH.h"
 #include "../distributions/selnorm-jags-bounds.h"

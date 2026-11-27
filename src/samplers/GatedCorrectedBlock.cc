@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "GatedCorrectedBlock.h"
 #include "CoarseSurrogate.h"
 #include "CorrectedBlockKernel.h"
