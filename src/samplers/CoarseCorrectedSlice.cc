@@ -1,3 +1,4 @@
+#include "../fp-contract-off.h"
 #include "CoarseCorrectedSlice.h"
 #include "CoarseSurrogate.h"
 #include "CorrectedSampler.h"

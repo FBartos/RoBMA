@@ -1,3 +1,4 @@
+#include "../fp-contract-off.h"
 #include "JointCluster.h"
 
 #include <BayesTools/sampler_declarations.h>
