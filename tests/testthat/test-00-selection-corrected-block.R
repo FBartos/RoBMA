@@ -288,6 +288,40 @@ test_that("a member whose two bounds are too wide apart stops the fit, a wide on
 })
 
 
+test_that("a member that starts farther than 1e10 from its anchoring bound stops the fit, a near one does not", {
+
+  skip_if_not_installed("rjags")
+  members <- c("dbt_block(mu, 1)", "dbt_block(nu, 1)", "dbt_block(p, 1)")
+  # far from the posterior's scale, the block samplers resolve p only relative
+  # to its distance from the bound (the nearer bound of an interval): both
+  # refuse a start beyond 1e10 when the block is built, under "slice.coarse"
+  # and under "slice" (BayesTools' sampler)
+  far <- list(lower = "  p ~ dnorm(0, 1) T(-2e10, )", upper = "  p ~ dnorm(0, 1) T(, 2e10)",
+              interval = "  p ~ dnorm(0, 1) T(-2e10, 3e10)")
+  for (sampler in c("slice.coarse", "slice")) for (support in names(far)) {
+    message <- tryCatch({
+      .block_pair_model(markers = members, extra = far[[support]], inits = list(p = .3), sampler = sampler)
+      NA_character_
+    }, error = function(error) conditionMessage(error))
+    expected <- if (sampler == "slice") "Factor slice sampler" else "Corrected slice (block)"
+    expect_true(grepl(paste0(expected, ": this node starts farther than 1e10 from its support bound, beyond the ",
+                             "sampler's precision; remove the bound if it excludes no posterior mass, rescale the ",
+                             "parameter, or declare the block without this node"), message, fixed = TRUE),
+                info = paste(sampler, support))
+    expect_true(grepl("RoBMA.options(sampler.blocks = FALSE)", .sampler_error_hint(message), fixed = TRUE),
+                info = paste(sampler, support))
+  }
+  # a start within 1e10 of its anchoring bound samples: a one-sided bound at
+  # -9e9, and an interval as wide as (0, 1e308) whose nearer bound is 0
+  for (support in c("  p ~ dnorm(0, 1) T(-9e9, )", "  p ~ dnorm(0, 1) T(0, 1e308)")) {
+    near <- .block_pair_model(markers = members, extra = support, inits = list(p = .3))
+    expect_identical(.block_assigned(near, c("mu", "nu", "p")), rep(.block_sampler, 3L), info = support)
+    chain <- .block_chain(near, c("mu", "nu", "p"), 50L, adapt = 100L, burnin = 0L)
+    expect_true(all(is.finite(chain$draws[, "p"])), info = support)
+  }
+})
+
+
 test_that("the record counts a block once per chain and model build, with the scalar samplers", {
 
   skip_if_not_installed("rjags")

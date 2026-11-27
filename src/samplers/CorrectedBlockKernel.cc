@@ -112,11 +112,17 @@ CorrectedBlockKernel::CorrectedBlockKernel(GraphView const *graph, unsigned int 
   if (_selected.empty() && _row_nodes.empty()) throw std::logic_error(options.label + " has no selection child.");
   _rows = StepRowCache(_row_nodes, chain);
   graph->checkFinite(chain);
-  // The one limit of the sampler's scale that the bounds alone decide (as in
-  // BayesTools' factor slice sampler): a two-sided member whose span
-  // upper - lower is not finite cannot be held through its distance from a
-  // bound. Other precision limits (bounds very far from where the posterior
-  // concentrates) are not detected; see the kernel header.
+  // The limits of the sampler's scale, as in BayesTools' factor slice sampler
+  // (see the kernel header). The bounds alone decide one: a two-sided member
+  // whose span upper - lower is not finite cannot be held through its
+  // distance from a bound. The other is a precision limit: a member far from
+  // its anchoring bound is resolved only relative to that distance, and a
+  // posterior much narrower than it is sampled on a coarse grid (wrong
+  // moments, frozen chains) with passing diagnostics. The posterior scale is
+  // unknown here, so a member that starts farther than max_anchor_distance
+  // (1e10) from its anchoring bound is refused.
+  std::vector<double> start(_d);
+  graph->getValue(start, chain);
   for (std::size_t k = 0; k < _plain.size(); ++k) {
     kernel::Coordinate const &coordinate = _coordinates[k];
     if (coordinate.transform() == kernel::Transform::interval &&
@@ -124,6 +130,12 @@ CorrectedBlockKernel::CorrectedBlockKernel(GraphView const *graph, unsigned int 
       throwNodeError(nodes[_plain[k]], _options.label +
         ": the support bounds of this node are too wide for the sampler's scale "
         "(their difference exceeds the largest double)");
+    }
+    if (coordinate.anchor_distance(start[_plain[k]]) > kernel::max_anchor_distance) {
+      throwNodeError(nodes[_plain[k]], _options.label +
+        ": this node starts farther than 1e10 from its support bound, beyond the sampler's precision; "
+        "remove the bound if it excludes no posterior mass, rescale the parameter, or declare the block "
+        "without this node");
     }
   }
   // Joins the live list first and the sampler registry last: a constructor
