@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "IndependentBiasJoint.h"
 #include "IndependentBiasProposal.h"
 

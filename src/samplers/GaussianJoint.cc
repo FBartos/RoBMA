@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "GaussianJoint.h"
 #include "GaussianJointKernel.h"
 

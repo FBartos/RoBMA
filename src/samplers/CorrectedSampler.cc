@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "CorrectedSampler.h"
 
 #include <module/ModuleError.h>

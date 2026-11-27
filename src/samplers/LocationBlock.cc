@@ -1,4 +1,3 @@
-#include "../fp-contract-off.h"
 #include "LocationBlock.h"
 #include "CoarseSurrogate.h"
 #include "CorrectedSampler.h"
