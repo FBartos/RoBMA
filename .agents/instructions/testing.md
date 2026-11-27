@@ -222,7 +222,11 @@ by another test.
   build (`tests/testthat/helper-platform.R`), with the measured gap in a comment.
   Native code whose result needs a product rounded before it is added keeps that
   rounding itself (`rounded_product()` in `src/selnorm/selnorm-mv.cc`) instead of
-  relying on the build.
+  relying on the build. The sampler translation units (`src/samplers/*.cc`)
+  switch contraction off as their first include (`src/fp-contract-off.h`), so
+  that a seed gives the same draws on every build: a new sampler source file
+  includes it too. Check with a build at `-march=x86-64-v3` (a user Makevars
+  with that flag): its seeded draws must equal the default build's.
 - State numerical error explicitly with absolute, relative, log, or peak-scaled
   comparisons where scale matters. Do not rely on testthat edition-specific
   `expect_equal()` normalization for small probabilities or near-zero quantities.

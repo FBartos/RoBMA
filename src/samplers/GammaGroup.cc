@@ -1,3 +1,4 @@
+#include "../fp-contract-off.h"
 #include "GammaGroup.h"
 
 #include <distribution/Distribution.h>

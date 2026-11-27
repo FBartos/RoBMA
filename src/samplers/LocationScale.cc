@@ -1,3 +1,4 @@
+#include "../fp-contract-off.h"
 #include "LocationScale.h"
 #include "LocationScaleReport.h"
 #include "CorrectedSampler.h"

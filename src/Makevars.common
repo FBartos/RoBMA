@@ -118,6 +118,9 @@ distributions/DSELNORMSTEPSWITCH.o: samplers/StepRowNormalizer.h
 
 $(filter distributions/DSELNORM%.o,$(OBJECTS)): distributions/selnorm-jags-bounds.h distributions/selnorm-node-memo.h
 
+# Every sampler translation unit switches contraction off (fp-contract-off.h).
+$(filter samplers/%.o,$(OBJECTS)): fp-contract-off.h
+
 # Local headers are transitive dependencies of the objects that include them.
 $(filter distributions/DSELNORM%.o,$(OBJECTS)) r-regplot.o r-selnorm.o selnorm/selnorm.o selnorm/selnorm-mv.o: selnorm/selnorm-fma.h
 r-regplot.o r-selnorm.o: plot-root.h
