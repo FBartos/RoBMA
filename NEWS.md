@@ -1,9 +1,11 @@
 ## development version
 ### Breaking changes
-- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools; fits saved with RoBMA 4.1.1 can be summarized but must be refitted before `update()` can extend them. Thanks to [Martyn Plummer](https://github.com/FBartos/RoBMA/pull/80) for the original JAGS 5 C++ API patch and to [Matt Denwood](https://github.com/FBartos/RoBMA/pull/119) for the rjags compiler-flag and module-loading patch. Both contributions were incorporated into the JAGS 5 migration.
+- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools. Thanks to [Martyn Plummer](https://github.com/FBartos/RoBMA/pull/80) for the original JAGS 5 C++ API patch and to [Matt Denwood](https://github.com/FBartos/RoBMA/pull/119) for the rjags compiler-flag and module-loading patch. Both contributions were incorporated into the JAGS 5 migration.
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
-- `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation; hypotheses with `#` comments are refused
+- `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
+- hypotheses passed to `hypothesis()` cannot contain `#` comments
+- fits saved with RoBMA 4.1.1 can be summarized but must be refitted before `update()` can extend them
 - `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it; `update()` and the fitting functions refuse elements of `autofit_control` and `convergence_checks` that the control does not have
 - `adapt` and `burnin` are counted at the fit's thinning like `sample`, so fits with `thin` above 1 run `thin` times as many warm-up iterations and their draws can differ from earlier versions
 - `predict()` adjusts for publication bias by default (`bias_adjusted = TRUE`); pass `bias_adjusted = FALSE` for the previous predictions
@@ -23,14 +25,14 @@
 - `sampler.nested.weights` shares weights of nested selection models (on by default) and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
-- binomial GLMM likelihoods that integrate the base rate on its quadrature grid stop with an explanation, the same on every platform, when the grid cannot represent the beta prior (very small shapes such as `Beta(1e-9, 1e-9)`, or a prior concentrated next to 0 or 1)
+- binomial GLMM likelihoods computed on the base-rate quadrature grid (`log_lik()`, LOO, residuals) stop with an explanation when the grid cannot represent an extreme beta base-rate prior
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
 - model-averaged fits with multilevel or clustered estimates, and fits with moderator inclusion indicators, update their location terms, publication-bias indicator and heterogeneity with the location block sampler; draws differ from earlier versions (option `sampler.joint`)
-- the corrected selection samplers and the location block sampler with its heterogeneity scale move stop the fit with a classed error and an explanation when, at a chain's state, estimates lie too far from the values the model gives them for the likelihood to be computed accurately; the ordinary samplers do not check this
+- the corrected selection samplers and the location block sampler stop the fit with a classed error and an explanation when, at a chain's state, estimates lie too far from the values the model gives them for the likelihood to be computed accurately
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default, also for their jointly sampled parameter blocks; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
-- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance rates and how many of its samplers fell back (option `selection.coarse_min_acceptance`)
-- `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each automatic extension from the failed convergence check; `update(sample_extend = "auto")` sizes one manual extension the same way
+- the corrected selection sampler switches to exact updates when its acceptance during adaptation is low, and a fit warns when its acceptance stays low over at least 1,000 proposals; `selection_sampler_info(fit = )` reports a fit's acceptance rates and how many of its samplers fell back (option `selection.coarse_min_acceptance`)
+- `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each extension from the convergence diagnostics; `update(sample_extend = "auto")` sizes a manual extension the same way
 - automatic fitting stops once every diagnostic that can be assessed meets its criterion instead of extending until `max_time` or `max_extend` for parameters whose diagnostics cannot be assessed
 
 ### Fixes

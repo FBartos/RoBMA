@@ -77,7 +77,8 @@
 #' corrected selection sampler (\code{node}) and chain its \code{levels}, its
 #' \code{updates} after adaptation, the observed \code{changes} of its level,
 #' and the mean and maximum probability that an update changes the level
-#' before its exact correction (\code{leave_mean}, \code{leave_max}), where
+#' (\code{leave_mean}, \code{leave_max}: before its exact correction, and the
+#' exact probability once the indicator fell back to exact updates), where
 #' \code{run}, \code{process} and \code{serial} identify a record whose node
 #' could not be named; with a bias indicator owned by the block,
 #' \code{bias} per chain the proposals and acceptances of its label, Gaussian
@@ -1013,8 +1014,29 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 # checks also accepts the autofit-only settings.
 .check_control_names <- function(control, name, setter){
 
+  .check_control_named(control, name)
   BayesTools::check_list(control, name, check_names = names(formals(setter)), allow_NULL = TRUE,
                          call = paste0("Checking '", name, "':\n\t"))
+}
+
+# Every element of a control list needs its own name: an unnamed element would
+# be dropped and a repeated one would silently lose all but its first value.
+.check_control_named <- function(control, name){
+
+  if (!is.list(control) || length(control) == 0L) {
+    return(invisible(NULL))
+  }
+  element_names <- names(control)
+  if (is.null(element_names) || anyNA(element_names) || !all(nzchar(element_names))) {
+    stop("Checking '", name, "':\n\tEvery element of the '", name, "' argument must be named.", call. = FALSE)
+  }
+  repeated <- unique(element_names[duplicated(element_names)])
+  if (length(repeated) > 0L) {
+    stop("Checking '", name, "':\n\tThe '", name, "' argument sets '", paste0(repeated, collapse = "', '"),
+         "' more than once.", call. = FALSE)
+  }
+
+  return(invisible(NULL))
 }
 
 .check_and_list_convergence_checks <- function(convergence_checks){

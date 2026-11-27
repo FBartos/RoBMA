@@ -85,6 +85,7 @@ NULL
     thin = thin, autofit = autofit, parallel = parallel, cores = chains,
     silent = silent, seed = seed
   )
+  .check_control_named(autofit_control, "autofit_control")
   object$autofit_control    <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = autofit_control)
   object$convergence_checks <- .check_and_list_convergence_checks(convergence_checks = convergence_checks)
 

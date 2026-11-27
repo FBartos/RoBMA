@@ -418,11 +418,16 @@ test_that("errors of the corrected sampler point to the ordinary samplers", {
                     "Joint bias sampler could not evaluate the current state.",
                     "Joint bias sampler could not evaluate its acceptance probability.",
                     "RoBMA Gaussian joint sampler could not evaluate the retained state.",
-                    "RoBMA Gaussian joint sampler could not represent a raw slab draw.",
-                    "Error in node mu\nJoint cluster scalar refresh has a nonfinite density",
-                    "Error in node gate[1]\nJoint cluster gate refresh has a nonfinite density")) {
+                    "RoBMA Gaussian joint sampler could not represent a raw slab draw.")) {
     expect_identical(.sampler_error_hint(message), paste0(
       message, "\nThe error was raised by a joint sampler that RoBMA uses by default. ", joint_hint
+    ), info = message)
+  }
+  # the cluster sampler is not a default: it runs under the "clustered" policies
+  for (message in c("Error in node mu\nJoint cluster scalar refresh has a nonfinite density",
+                    "Error in node gate[1]\nJoint cluster gate refresh has a nonfinite density")) {
+    expect_identical(.sampler_error_hint(message), paste0(
+      message, "\nThe error was raised by the joint cluster sampler selected through 'sampler.joint'. ", joint_hint
     ), info = message)
   }
 

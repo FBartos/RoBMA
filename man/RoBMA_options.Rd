@@ -95,7 +95,8 @@ log odds as \code{inner_*}; \code{screened} per screened indicator of the
 corrected selection sampler (\code{node}) and chain its \code{levels}, its
 \code{updates} after adaptation, the observed \code{changes} of its level,
 and the mean and maximum probability that an update changes the level
-before its exact correction (\code{leave_mean}, \code{leave_max}), where
+(\code{leave_mean}, \code{leave_max}: before its exact correction, and the
+exact probability once the indicator fell back to exact updates), where
 \code{run}, \code{process} and \code{serial} identify a record whose node
 could not be named; with a bias indicator owned by the block,
 \code{bias} per chain the proposals and acceptances of its label, Gaussian

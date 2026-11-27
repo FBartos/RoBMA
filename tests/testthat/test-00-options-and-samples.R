@@ -214,6 +214,24 @@ test_that("the readiness settings of burn-in are validated and survive control u
                refused("autofit_control", "allow_not_assessable"), fixed = TRUE)
   expect_error(.update_autofit_control(set_autofit_control(), list(max_extend = 2, max_Rhatt = 1.1)),
                refused("autofit_control", "max_Rhatt"), fixed = TRUE)
+  # an unnamed element would be dropped and a repeated one would lose a value:
+  # both are refused, in the constructors and in update()
+  unnamed  <- function(control) paste0("Checking '", control, "':\n\tEvery element of the '", control,
+                                       "' argument must be named.")
+  repeated <- function(control, element) paste0("Checking '", control, "':\n\tThe '", control, "' argument sets '",
+                                                element, "' more than once.")
+  prior_only <- function(...) brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "SMD", only_priors = TRUE,
+                                   silent = TRUE, ...)
+  expect_error(prior_only(convergence_checks = list(1.1)), unnamed("convergence_checks"), fixed = TRUE)
+  expect_error(prior_only(convergence_checks = list(max_Rhat = 1.1, 2)), unnamed("convergence_checks"), fixed = TRUE)
+  expect_error(prior_only(autofit_control = list(3)), unnamed("autofit_control"), fixed = TRUE)
+  expect_error(prior_only(autofit_control = list(max_extend = 3, max_extend = 4)),
+               repeated("autofit_control", "max_extend"), fixed = TRUE)
+  expect_error(.update_autofit_control(set_autofit_control(), list(3)), unnamed("autofit_control"), fixed = TRUE)
+  expect_error(.update_autofit_control(set_autofit_control(), list(max_extend = 3, max_extend = 4)),
+               repeated("autofit_control", "max_extend"), fixed = TRUE)
+  expect_error(.update_convergence_checks(set_convergence_checks(), list(max_Rhat = 1.1, max_Rhat = 1.2)),
+               repeated("convergence_checks", "max_Rhat"), fixed = TRUE)
 
   # update(): a supplied value or NULL replaces the stored one, an omitted one is kept
   stored <- set_autofit_control(burnin_max_Rhat = 1.3, burnin_extend = 300, burnin_max_extend = 4)
