@@ -1,12 +1,13 @@
 ## development version
 ### Breaking changes
-- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools. Thanks to [Martyn Plummer](https://github.com/FBartos/RoBMA/pull/80) for the original JAGS 5 C++ API patch and to [Matt Denwood](https://github.com/FBartos/RoBMA/pull/119) for the rjags compiler-flag and module-loading patch. Both contributions were incorporated into the JAGS 5 migration.
+- RoBMA requires JAGS 5.0.0 or later and fits models through the direct rjags backend in BayesTools; fits saved with RoBMA 4.1.1 can be summarized but must be refitted before `update()` can extend them. Thanks to [Martyn Plummer](https://github.com/FBartos/RoBMA/pull/80) for the original JAGS 5 C++ API patch and to [Matt Denwood](https://github.com/FBartos/RoBMA/pull/119) for the rjags compiler-flag and module-loading patch. Both contributions were incorporated into the JAGS 5 migration.
 - The JAGS module reports an error when asked to simulate from an observed-only likelihood
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
-- `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
+- `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation; hypotheses with `#` comments are refused
 - `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it; `update()` and the fitting functions refuse elements of `autofit_control` and `convergence_checks` that the control does not have
 - `adapt` and `burnin` are counted at the fit's thinning like `sample`, so fits with `thin` above 1 run `thin` times as many warm-up iterations and their draws can differ from earlier versions
 - `predict()` adjusts for publication bias by default (`bias_adjusted = TRUE`); pass `bias_adjusted = FALSE` for the previous predictions
+- `RoBMA()`, `bPET()`, `bPEESE()` and `bselmodel()` take the new `bias_exempt` as their 9th argument (formerly `data`) and their `.mv` forms as their 7th (formerly `R`), so the later arguments must be named, and the abbreviation `b` no longer matches `burnin`
 
 ### Features
 - `plot_models()` displays posterior probabilities of individual models and their component inclusion, coefficient directions, or mixture members
@@ -22,14 +23,14 @@
 - `sampler.nested.weights` shares weights of nested selection models (on by default) and `sampler.probabilities` records conditional indicator probabilities
 
 ### Changes
-- very small or very concentrated beta base-rate priors, such as `Beta(1e-9, 1e-9)` or `Beta(1, 1e12)`, stop with an explanation on every platform
+- binomial GLMM likelihoods that integrate the base rate on its quadrature grid stop with an explanation, the same on every platform, when the grid cannot represent the beta prior (very small shapes such as `Beta(1e-9, 1e-9)`, or a prior concentrated next to 0 or 1)
 - selection models with heterogeneity and model-averaged fits with publication-bias mixtures use faster samplers; draws differ from earlier versions (options `sampler.gates`, `sampler.blocks`)
 - model-averaged fits with multilevel or clustered estimates, and fits with moderator inclusion indicators, update their location terms, publication-bias indicator and heterogeneity with the location block sampler; draws differ from earlier versions (option `sampler.joint`)
-- fits stop with a classed error and an explanation when, at a chain's state, estimates lie too far from the values the model gives them for the likelihood to be computed accurately
+- the corrected selection samplers and the location block sampler with its heterogeneity scale move stop the fit with a classed error and an explanation when, at a chain's state, estimates lie too far from the values the model gives them for the likelihood to be computed accurately; the ordinary samplers do not check this
 - selection models with dependent estimates, model-averaged fits included, use the coarse-corrected selection sampler by default, also for their jointly sampled parameter blocks; draws differ from earlier versions
 - `selection.sampler` takes `"slice.coarse"`, `"slice"` (without the coarse-corrected sampler) and `"jags.default"` (the samplers of RoBMA 4.1.1); `"coarse_corrected"` and `"default"` are deprecated
-- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance and how often its indicators switched (option `selection.coarse_min_acceptance`)
-- `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each automatic extension from the failed convergence check
+- the corrected selection sampler falls back to the exact slice sampler when its acceptance is low; a fit with low acceptance warns; `selection_sampler_info(fit = )` reports a fit's acceptance rates and how many of its samplers fell back (option `selection.coarse_min_acceptance`)
+- `set_autofit_control()` defaults to `sample_extend = "auto"`, which sizes each automatic extension from the failed convergence check; `update(sample_extend = "auto")` sizes one manual extension the same way
 - automatic fitting stops once every diagnostic that can be assessed meets its criterion instead of extending until `max_time` or `max_extend` for parameters whose diagnostics cannot be assessed
 
 ### Fixes
@@ -42,7 +43,7 @@
 - predictive moments and residuals remain available when large finite selection weights overflow the unnormalized moment sums
 - selected-normal log tails and LOO-PIT residuals preserve positive probability immediately inside a selection cutoff
 - sampling-conditioned selection likelihoods report when a positive integrated SD cannot resolve a selection cutoff
-- multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs
+- multivariate selection likelihoods, leave-one-out scores, and z-plot densities use the correct selection weights at exact cutoffs; recompute LOO estimates stored with such fits (`add_loo()`)
 - extensions by `update()` and parallel automatic fitting adapt for the fit's `adapt` instead of 1000 iterations
 - the effective sample size of qCMDE densities no longer reflects rounding noise in constant contributions
 - selection models with many estimates on one random effect are no longer refused or slow on Apple silicon

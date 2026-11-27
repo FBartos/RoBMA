@@ -91,7 +91,13 @@ undid, and \code{likelihood_change_max} is the largest such change (log units).
 nothing and is absent when no run reported): \code{location} per gate and
 chain the updates after adaptation and the transitions the chain retained
 (\code{switched_on}, \code{switched_off}), with the inner stage's flips and
-log odds as \code{inner_*}; with a bias indicator owned by the block,
+log odds as \code{inner_*}; \code{screened} per screened indicator of the
+corrected selection sampler (\code{node}) and chain its \code{levels}, its
+\code{updates} after adaptation, the observed \code{changes} of its level,
+and the mean and maximum probability that an update changes the level
+before its exact correction (\code{leave_mean}, \code{leave_max}), where
+\code{run}, \code{process} and \code{serial} identify a record whose node
+could not be named; with a bias indicator owned by the block,
 \code{bias} per chain the proposals and acceptances of its label, Gaussian
 family, slope and swap moves, the swaps skipped because their base point
 was not representable (\code{swap_unrepresentable}) or because their proposal
