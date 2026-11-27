@@ -3,26 +3,27 @@ Robust Bayesian Model-Averaged Multivariate Random-Effects Model (k = 100)
 
 Component Inclusion
                          Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect                         0.500       0.304        0.437               10.888
+Effect                         0.500       0.283        0.395                2.045
 Heterogeneity: tau_total       0.500       1.000   >14999.000                   NA
-Publication Bias               0.500       0.991      114.385               24.391
+Publication Bias               0.500       0.994      171.414               11.961
+[0;31mBayes factor MC error for bias is based on 87 posterior samples from the less frequent model.[0m
 
 Estimates
                        Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu                    0.054 0.128 -0.078 0.000 0.426     0.01004          0.079  177 1.032
-tau_total             0.478 0.067  0.370 0.471 0.631     0.00170          0.026 1528 1.001
-tau2_prop(esid_study) 0.457 0.117  0.238 0.455 0.687     0.00295          0.025 1586 1.000
-tau2_prop(study)      0.543 0.117  0.313 0.545 0.762     0.00295          0.025 1586 1.000
+mu                    0.043 0.114 -0.088 0.000 0.377     0.00123          0.011 8684 1.000
+tau_total             0.480 0.069  0.370 0.472 0.641     0.00096          0.014 5246 1.000
+tau2_prop(esid_study) 0.457 0.118  0.238 0.455 0.692     0.00155          0.013 5837 1.000
+tau2_prop(study)      0.543 0.118  0.308 0.545 0.762     0.00155          0.013 5837 1.000
 
 Publication Bias
-                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,0.05] 0.996 0.037 1.000 1.000 1.000     0.00079          0.022 2276 1.017
-omega[0.05,0.5]   0.978 0.114 0.474 1.000 1.000     0.00402          0.035  829 1.013
-omega[0.5,0.95]   0.975 0.130 0.392 1.000 1.000     0.00477          0.037  764 1.011
-omega[0.95,0.975] 0.975 0.128 0.398 1.000 1.000     0.00472          0.037  762 1.013
-omega[0.975,1]    0.976 0.128 0.398 1.000 1.000     0.00464          0.036  778 1.013
-PET               1.439 0.858 0.000 1.734 2.580     0.05181          0.060  275 1.008
-PEESE             0.578 1.308 0.000 0.000 4.342     0.06612          0.051  393 1.012
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
+omega[0.025,0.05] 0.995 0.041 1.000 1.000 1.000     0.00075          0.019  3136 1.017
+omega[0.05,0.5]   0.972 0.129 0.402 1.000 1.000     0.00367          0.028  1244 1.013
+omega[0.5,0.95]   0.968 0.149 0.296 1.000 1.000     0.00437          0.029  1225 1.015
+omega[0.95,0.975] 0.968 0.148 0.297 1.000 1.000     0.00449          0.030  1094 1.015
+omega[0.975,1]    0.968 0.148 0.297 1.000 1.000     0.00445          0.030  1110 1.016
+PET               1.492 0.834 0.000 1.751 2.596     0.01160          0.014  5394 1.000
+PEESE             0.497 1.249 0.000 0.000 4.294     0.01149          0.009 11834 1.000
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 

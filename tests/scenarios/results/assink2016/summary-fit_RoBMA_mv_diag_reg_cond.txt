@@ -3,36 +3,36 @@ Robust Bayesian Model-Averaged Multivariate Mixed-Effect Model (k = 100)
 
 Component Inclusion
                          Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect                         0.500       0.246        0.326               11.362
+Effect                         0.500       0.227        0.294                1.949
 Heterogeneity: tau_total       0.500       1.000   >14999.000                   NA
-Publication Bias               0.500       0.992      117.110               17.473
+Publication Bias               0.500       0.991      111.782                9.481
 
 Meta-Regression Inclusion
         Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-deltype       0.500       0.992      119.968               43.287
+deltype       0.500       0.990      101.041                9.676
 
 Common Estimates
                        Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau_total             0.452 0.070 0.336 0.444 0.612     0.00195          0.028 1327 1.005
-tau2_prop(esid_study) 0.381 0.115 0.178 0.374 0.622     0.00327          0.029 1263 1.004
-tau2_prop(study)      0.619 0.115 0.378 0.626 0.822     0.00327          0.029 1263 1.004
+tau_total             0.451 0.069 0.338 0.443 0.611     0.00087          0.013 6379 1.000
+tau2_prop(esid_study) 0.379 0.115 0.180 0.371 0.622     0.00169          0.015 4777 1.001
+tau2_prop(study)      0.621 0.115 0.378 0.629 0.820     0.00169          0.015 4777 1.001
 
 Meta-Regression
-                        Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept             -0.040 0.114 -0.405  0.000  0.073     0.00836          0.074  189 1.004
-deltype[dif: covert]  -0.355 0.116 -0.576 -0.356 -0.122     0.00354          0.030 1088 1.001
-deltype[dif: general]  0.280 0.080  0.121  0.282  0.430     0.00271          0.034  871 1.000
-deltype[dif: overt]    0.075 0.094 -0.113  0.077  0.258     0.00207          0.022 2051 1.000
+                        Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+intercept             -0.026 0.099 -0.340  0.000  0.106     0.00081          0.008 14765 1.000
+deltype[dif: covert]  -0.356 0.116 -0.575 -0.359 -0.117     0.00100          0.009 13624 1.000
+deltype[dif: general]  0.280 0.080  0.121  0.282  0.433     0.00072          0.009 12224 1.000
+deltype[dif: overt]    0.076 0.092 -0.105  0.076  0.253     0.00076          0.008 14468 1.000
 
 Publication Bias
                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,0.05] 0.994 0.043 0.982 1.000 1.000     0.00097          0.023 2440 1.041
-omega[0.05,0.5]   0.969 0.135 0.385 1.000 1.000     0.00467          0.035  942 1.048
-omega[0.5,0.95]   0.964 0.154 0.305 1.000 1.000     0.00538          0.035  862 1.050
-omega[0.95,0.975] 0.965 0.153 0.305 1.000 1.000     0.00528          0.035  890 1.049
-omega[0.975,1]    0.965 0.153 0.305 1.000 1.000     0.00534          0.035  863 1.049
-PET               0.694 0.844 0.000 0.000 2.424     0.05473          0.065  240 1.011
-PEESE             1.514 1.643 0.000 0.000 4.380     0.08443          0.051  384 1.005
+omega[0.025,0.05] 0.994 0.043 0.980 1.000 1.000     0.00065          0.015 4335 1.012
+omega[0.05,0.5]   0.968 0.135 0.390 1.000 1.000     0.00305          0.023 1955 1.003
+omega[0.5,0.95]   0.963 0.154 0.307 1.000 1.000     0.00359          0.023 1858 1.002
+omega[0.95,0.975] 0.963 0.153 0.307 1.000 1.000     0.00356          0.023 1873 1.002
+omega[0.975,1]    0.964 0.153 0.307 1.000 1.000     0.00358          0.023 1840 1.002
+PET               0.646 0.804 0.000 0.000 2.311     0.00815          0.010 9742 1.000
+PEESE             1.526 1.633 0.000 0.000 4.379     0.01687          0.010 9386 1.000
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 
