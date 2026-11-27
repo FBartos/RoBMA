@@ -11,6 +11,7 @@
 #include "zplot-context.h"
 
 #include <R_ext/BLAS.h>
+#include <R_ext/Constants.h>  // M_PI, which <cmath> need not define
 #include <R_ext/Lapack.h>
 
 #include <algorithm>
