@@ -379,8 +379,8 @@ This discrepancy can be summarized with the additional statistics provided by th
 summary(as_zplot(fit_RoBMA_Hoppen2025))
 ```
 
-The observed discovery rate is 35% (13 of 37 estimates), close to the estimated EDR of 34% (95% credible interval [23%, 51%]).
-The one-sided selection models concentrate most of their weight on the marginal-significance and direction thresholds. Their inverse-weight extrapolation gives a mean Missing N of about 58 [26, 150].
+The observed discovery rate is 35% (13 of 37 estimates), close to the estimated EDR of 34% (95% credible interval [23%, 50%]).
+The one-sided selection models concentrate most of their weight on the marginal-significance and direction thresholds. Their inverse-weight extrapolation gives a mean Missing N of about 58 [26, 145].
 The mean Sorić upper bound on the false discovery rate is about 11% [5%, 17%].
 
 
@@ -446,9 +446,9 @@ summary(fit_RE_Wang2025)
 summary(fit_RoBMA_Wang2025)
 ```
 
-The estimated between-study heterogeneity is substantial ($\tau \approx 0.61$). The conventional random-effects mean is about 0.83, compared with a bias-adjusted model-averaged effect of 0.12 (95% credible interval [−0.28, 0.56]).
-The evidence strongly favors publication bias. Only 22 of 100,000 posterior draws exclude it, and the fit flags a convergence warning for one selection weight, so the precise Bayes factor is uncertain.
-Evidence for the adjusted mean effect is undecided ($\mathrm{BF}_{10} \approx 1.05$).
+The estimated between-study heterogeneity is substantial ($\tau \approx 0.61$). The conventional random-effects mean is about 0.83, compared with a bias-adjusted model-averaged effect of 0.13 (95% credible interval [−0.26, 0.56]).
+The evidence strongly favors publication bias. Only 55 of 100,000 posterior draws exclude it, so the precise Bayes factor is uncertain.
+Evidence for the adjusted mean effect is undecided ($\mathrm{BF}_{10} \approx 1.09$).
 
 **Zplot summary metrics.**
 The discovery statistics summarize the size of the discrepancy between observed and expected significant results.
@@ -503,7 +503,7 @@ The zplot for the Many Labs 2 framing effects demonstrates what we expect to see
 The observed distribution of z-statistics (gray bars) appears smooth without sharp discontinuities at significance thresholds or at zero.
 Both the random-effects model (black dashed line) and RoBMA (blue dashed line) provide essentially identical fits to the data, with their posterior predictive distributions overlapping almost perfectly.
 
-The agreement between the curves is consistent with the moderate evidence against publication bias ($\mathrm{BF}_{01} \approx 3.7$).
+The agreement between the curves is consistent with the moderate evidence against publication bias ($\mathrm{BF}_{01} \approx 4.0$).
 
 **Extrapolation to pre-publication bias.**
 We can examine whether there would be any difference in the absence of publication bias:
@@ -526,7 +526,7 @@ Both models yield similar pooled effect estimates. The model comparison moderate
 
 **Zplot summary metrics.**
 The observed discovery rate is 56% (31 of 55 estimates), close to the mean EDR of 58% [41%, 68%].
-The conventional Missing N has a median of zero and a 95% credible interval from zero to about eight missing estimates.
+The conventional Missing N has a median of zero and a 95% credible interval from zero to about seven missing estimates.
 
 ```{r}
 summary(as_zplot(fit_RoBMA_ManyLabs16))

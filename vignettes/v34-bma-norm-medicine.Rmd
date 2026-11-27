@@ -183,8 +183,8 @@ summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 
 We notice the additional values in the 'Component Inclusion' table in the 'Publication Bias' row. 
 The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. 
-Including publication-bias adjustment reduces the inclusion Bayes factor for the effect from about 242 in the unadjusted BMA to 2.7 in RoBMA, leaving weak evidence for an effect.
-The inclusion Bayes factor for publication bias is about 4.8, giving moderate evidence in its favor.
+Including publication-bias adjustment reduces the inclusion Bayes factor for the effect from about 242 in the unadjusted BMA to 2.6 in RoBMA, leaving weak evidence for an effect.
+The inclusion Bayes factor for publication bias is about 5.1, giving moderate evidence in its favor.
 
 We can also compare the unadjusted and publication-bias-adjusted conditional effect size estimates.
 Conditional on the presence of an effect, the pooled estimate decreases from *d* = 1.081 (95% credible interval [0.678, 1.414]) to *d* = 0.693 [−0.334, 1.339]. The adjusted interval is wider and includes zero.

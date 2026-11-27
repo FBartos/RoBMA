@@ -138,7 +138,7 @@ summary_models(fit_RoBMA)
 ```
 
 The posterior model weights show which sub-models the data prefer within each component's mixture.
-PET receives about 75% of the posterior model probability (individual inclusion BF about 21), followed by PEESE at 17%. The remaining bias components account for about 8%.
+PET receives about 74% of the posterior model probability (individual inclusion BF about 20), followed by PEESE at 17%. The remaining bias components account for about 9%.
 The `inclusion BF` column is the Bayes factor for that one sub-model against the rest of its mixture, so it does not need to agree with the component-level inclusion BF reported by `summary()`.
 
 `plot()` overlays the prior and the model-averaged posterior of any model parameter.
