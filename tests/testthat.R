@@ -1,13 +1,18 @@
-library(testthat)
-library(RoBMA)
+# testthat is a suggested package: without it (as in CRAN's check with only
+# the strong dependencies installed) the tests are skipped.
+if (requireNamespace("testthat", quietly = TRUE)) {
 
-on_cran <- get("on_cran", envir = asNamespace("testthat"), inherits = FALSE)
+  library(testthat)
+  library(RoBMA)
 
-if (on_cran()) {
-  if (!nzchar(Sys.getenv("ROBMA_TEST_FILES_DIR"))) {
-    Sys.setenv(ROBMA_TEST_FILES_DIR = file.path(tempdir(), "robma-test-files"))
+  on_cran <- get("on_cran", envir = asNamespace("testthat"), inherits = FALSE)
+
+  if (on_cran()) {
+    if (!nzchar(Sys.getenv("ROBMA_TEST_FILES_DIR"))) {
+      Sys.setenv(ROBMA_TEST_FILES_DIR = file.path(tempdir(), "robma-test-files"))
+    }
+    test_check("RoBMA", filter = "cran-smoke")
+  } else {
+    test_check("RoBMA")
   }
-  test_check("RoBMA", filter = "cran-smoke")
-} else {
-  test_check("RoBMA")
 }
