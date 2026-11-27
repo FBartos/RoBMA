@@ -3,26 +3,26 @@ Robust Bayesian Model-Averaged Multilevel Random-Effects Model (k = 100, cluster
 
 Component Inclusion
                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect                 0.500       0.240        0.315                8.922
+Effect                 0.500       0.280        0.390                9.981
 Heterogeneity          0.500       1.000   >14999.000                   NA
-Publication Bias       0.500       0.997      347.837               38.907
-[0;31mBayes factor MC error for bias is based on 43 posterior samples from the less frequent model.[0m
+Publication Bias       0.500       0.994      179.723               26.758
+[0;31mBayes factor MC error for bias is based on 83 posterior samples from the less frequent model.[0m
 
 Estimates
      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu  0.028 0.097 -0.102 0.000 0.330     0.00602          0.062  347 1.031
-tau 0.476 0.067  0.369 0.467 0.631     0.00199          0.030 1139 1.014
-rho 0.536 0.119  0.303 0.538 0.764     0.00340          0.029 1250 1.007
+mu  0.044 0.114 -0.080 0.000 0.378     0.00698          0.061  263 1.016
+tau 0.479 0.069  0.372 0.471 0.638     0.00239          0.035  910 1.005
+rho 0.543 0.118  0.318 0.545 0.768     0.00344          0.029 1224 1.001
 
 Publication Bias
                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,0.05] 0.997 0.034 1.000 1.000 1.000     0.00084          0.025 2062 1.022
-omega[0.05,0.5]   0.983 0.103 0.611 1.000 1.000     0.00384          0.037  752 1.031
-omega[0.5,0.95]   0.981 0.117 0.502 1.000 1.000     0.00449          0.038  703 1.033
-omega[0.95,0.975] 0.981 0.117 0.517 1.000 1.000     0.00444          0.038  706 1.034
-omega[0.975,1]    0.981 0.117 0.517 1.000 1.000     0.00442          0.038  710 1.034
-PET               1.582 0.777 0.000 1.805 2.568     0.04453          0.057  316 1.011
-PEESE             0.435 1.178 0.000 0.000 4.142     0.05737          0.049  444 1.006
+omega[0.025,0.05] 0.996 0.037 1.000 1.000 1.000     0.00090          0.024 1722 1.015
+omega[0.05,0.5]   0.977 0.116 0.447 1.000 1.000     0.00436          0.037  707 1.008
+omega[0.5,0.95]   0.974 0.133 0.360 1.000 1.000     0.00501          0.038  697 1.007
+omega[0.95,0.975] 0.974 0.132 0.361 1.000 1.000     0.00497          0.038  700 1.007
+omega[0.975,1]    0.975 0.132 0.361 1.000 1.000     0.00496          0.038  703 1.007
+PET               1.481 0.849 0.000 1.763 2.607     0.05171          0.061  271 1.007
+PEESE             0.550 1.296 0.000 0.000 4.309     0.06413          0.049  457 1.007
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 
