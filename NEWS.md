@@ -5,6 +5,7 @@
 - Gaussian models check retained effects and sampling uncertainties against measure-specific limits, including both `vi` and `sei` when supplied
 - `hypothesis()` replaces `columns` with `include_densities`, `include_probabilities`, and `include_method`; the `prior` and `posterior` columns are replaced by point densities and region probabilities, and table labels keep the notation of the hypothesis, with a constant on the right of a single relation
 - `set_autofit_control()` drops `allow_not_assessable`; `set_convergence_checks()` keeps it
+- `predict()` adjusts for publication bias by default (`bias_adjusted = TRUE`); pass `bias_adjusted = FALSE` for the previous predictions
 
 ### Features
 - `plot_models()` displays posterior probabilities of individual models and their component inclusion, coefficient directions, or mixture members

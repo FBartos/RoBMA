@@ -50,7 +50,8 @@ test_that("fixed mu and tau remain available to downstream methods", {
       expect_equal(fit[["summary"]]["tau", "Mean"], info[["tau"]], info = name)
     }
     expect_s3_class(summary(fit), "summary.brma")
-    expect_s3_class(predict(fit, type = "terms", quiet = TRUE), "brma_samples")
+    expect_s3_class(predict(fit, type = "terms", bias_adjusted = FALSE, quiet = TRUE),
+                    "brma_samples")
     expect_true(is.finite(logml(fit)), info = name)
     expect_true(all(apply(log_lik, 2L, stats::var) == 0), info = name)
     expect_equal(

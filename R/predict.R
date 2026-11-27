@@ -37,13 +37,15 @@
 #'   or \code{vi} in explicit \code{newdata}. Gaussian sampling SEs used in
 #'   prediction follow the ranges in \code{\link{data_input}}. Exactly zero
 #'   sampling SE is allowed where the prediction admits it. If an active
-#'   selection branch uses \code{weight_rule = "best"}, its publication groups
-#'   must also be resolvable in the prediction data.
+#'   selection branch uses \code{weight_rule = "best"}, unadjusted selection
+#'   predictions also need its publication groups to be resolvable in the
+#'   prediction data.
 #'   Fitted-row predictions reuse their publication-bias exemptions. For
 #'   explicit new rows, supply a logical \code{bias_exempt} column when the
 #'   fit contains exempt rows and the requested prediction uses publication
-#'   bias. For fits without exempt rows, omission treats all new rows as
-#'   susceptible to the fitted publication-bias component.
+#'   bias (\code{bias_adjusted = FALSE}). For fits without exempt rows,
+#'   omission treats all new rows as susceptible to the fitted
+#'   publication-bias component.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item \code{"terms"} (alias: \code{"marginal"}): fixed location
@@ -88,7 +90,7 @@
 #' exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 #' and \code{"IRR"}.
 #' @param bias_adjusted whether predictions should adjust for publication bias.
-#' Defaults to \code{FALSE}. When \code{TRUE}:
+#' Defaults to \code{TRUE}. When \code{TRUE}:
 #' \itemize{
 #'   \item PET/PEESE terms are NOT added to the mean parameter (mu), returning
 #'   the bias-corrected effect estimate.
@@ -104,11 +106,12 @@
 #'   the selected-normal distribution reflecting the selective publishing
 #'   process.
 #' }
-#' For new outcomes, selection predictions draw retained contexts from their original Gaussian law,
-#' then sample each full publication event conditional on that context. Selected
-#' latent predictions additionally reconstruct the integrated true effects
-#' conditional on the selected response. At estimate depth, response prediction
-#' is a new replication event conditional on the fitted latent true effects;
+#' For new outcomes, unadjusted selection predictions draw retained contexts
+#' from their original Gaussian law, then sample each full publication event
+#' conditional on that context. Selected latent predictions additionally
+#' reconstruct the integrated true effects conditional on the selected
+#' response. At estimate depth, response prediction is a new replication event
+#' conditional on the fitted latent true effects;
 #' LOO-PIT instead uses deletion within the original publication event.
 #' Retained estimate-level effects use their fitted posterior values at estimate
 #' depth and fresh Gaussian draws for a new estimate within a fitted cluster.
@@ -281,7 +284,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
                          output_measure = NULL,
                          transform = NULL,
                          probs = c(.025, .975),
-                         bias_adjusted = FALSE,
+                         bias_adjusted = TRUE,
                          quiet = FALSE,
                          conditional = FALSE,
                          V_new = NULL,

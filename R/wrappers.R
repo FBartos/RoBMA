@@ -237,11 +237,12 @@ fitted.brma <- function(object, unit = "estimate",
 .fitted_brma_scale <- function(object, conditional, quiet) {
 
   samples <- predict.brma(
-    object      = object,
-    newdata     = NULL,
-    type        = "terms.scale",
-    conditional = conditional,
-    quiet       = quiet
+    object        = object,
+    newdata       = NULL,
+    type          = "terms.scale",
+    bias_adjusted = FALSE,
+    conditional   = conditional,
+    quiet         = quiet
   )
 
   if (is.list(samples) && !is.data.frame(samples)) {

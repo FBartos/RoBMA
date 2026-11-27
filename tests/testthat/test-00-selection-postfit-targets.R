@@ -555,10 +555,10 @@ test_that("selected prediction chunks retain posterior rows and fitted-context m
   expect_identical(rownames(fitted), rownames(samples))
   expect_identical(sizes, c(2L, 2L, 2L, 1L))
   withr::local_seed(128)
-  first <- predict(object, type = "estimate", quiet = TRUE,
+  first <- predict(object, type = "estimate", bias_adjusted = FALSE, quiet = TRUE,
                    .posterior_samples = samples)
   withr::local_seed(128)
-  second <- predict(object, type = "estimate", quiet = TRUE,
+  second <- predict(object, type = "estimate", bias_adjusted = FALSE, quiet = TRUE,
                     .posterior_samples = samples)
   expect_identical(as.numeric(first), as.numeric(second))
   expect_identical(dim(first), c(7L, 2L))
