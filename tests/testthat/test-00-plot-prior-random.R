@@ -348,6 +348,47 @@ test_that("random correlations without an original-scale prior retain target ref
   )
 })
 
+test_that("random intercept SD and variance show their fitted-scale prior with scaled predictors", {
+
+  skip_on_cran()
+  fit   <- load_fit("lane_random_correlation_direct")
+  prior <- attr(fit[["fit"]], "prior_list", exact = TRUE)[["mu__xREx__study_intercept"]]
+  expect_true(BayesTools::is.prior(prior))
+
+  # On the fitted scale (the default), tau(intercept) has its declared SD prior
+  # and tau2(intercept) has the squared SD density.
+  curve <- .random_prior_curve(plot_prior(fit, "tau(intercept)", plot_type = "ggplot"))
+  .expect_random_prior_curve(
+    curve, exp(BayesTools::lpdf(prior, curve[["x"]])), 1e-6,
+    support = unlist(prior[["truncation"]])
+  )
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau(intercept)")))
+  printed <- capture.output(returned <- print_prior(fit, "tau(intercept)"))
+  expect_s3_class(returned, "prior_linear_density")
+  expect_true(any(grepl("Normal(0, 0.5)[0, Inf]", printed, fixed = TRUE)))
+
+  curve_var <- .random_prior_curve(plot_prior(fit, "tau2(intercept)", plot_type = "ggplot"))
+  .expect_random_prior_curve(
+    curve_var,
+    exp(BayesTools::lpdf(prior, sqrt(curve_var[["x"]]))) / (2 * sqrt(curve_var[["x"]])),
+    1e-6
+  )
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau2(intercept)")))
+  expect_s3_class(print_prior(fit, "tau2(intercept)", silent = TRUE), "prior_linear_density")
+
+  # On the original predictor scale, neither quantity has a closed-form prior
+  # density and both retain the fitted-scale refusal hint.
+  for (selector in c("tau(intercept)", "tau2(intercept)")) {
+    error <- tryCatch(
+      plot_prior(fit, selector, standardized_coefficients = FALSE),
+      error = identity
+    )
+    expect_s3_class(error, "BayesTools_hypothesis_target")
+    expect_s3_class(error, "BayesTools_hypothesis_unavailable")
+    expect_match(conditionMessage(error), "standardized_coefficients = TRUE", fixed = TRUE)
+  }
+})
+
 test_that("only_priors objects point to the random-effect specification", {
 
   skip_on_cran()
