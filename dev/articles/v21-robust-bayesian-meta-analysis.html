@@ -248,10 +248,16 @@ Bayes factor.</p>
 <span><span class="co">#&gt; PET                             Alternative       0.125       0.740       19.882                4.117</span></span>
 <span><span class="co">#&gt; PEESE                           Alternative       0.125       0.170        1.434                4.503</span></span></code></pre></div>
 <p>The posterior model weights show which sub-models the data prefer
-within each component’s mixture. PET receives about 74% of the posterior
-model probability (individual inclusion BF about 20), followed by PEESE
-at 17%. The remaining bias components account for about 9%. The
-<code>inclusion BF</code> column is the Bayes factor for that one
+within each component’s mixture. The bias side of the ensemble
+concentrates posterior mass on PET (posterior probability
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>0.74</mn><annotation encoding="application/x-tex">0.74</annotation></semantics></math>,
+individual inclusion BF
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≈</mo><mn>20</mn></mrow><annotation encoding="application/x-tex">\approx 20</annotation></semantics></math>),
+followed by PEESE (posterior probability
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>0.17</mn><annotation encoding="application/x-tex">0.17</annotation></semantics></math>);
+the remaining bias components together account for about
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>0.09</mn><annotation encoding="application/x-tex">0.09</annotation></semantics></math>.
+The <code>inclusion BF</code> column is the Bayes factor for that one
 sub-model against the rest of its mixture, so it does not need to agree
 with the component-level inclusion BF reported by
 <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>.</p>
@@ -407,11 +413,9 @@ in the default, because the three user-supplied alternative prior
 distributions all default to <code>prior_weights = 1</code> against the
 no-bias spike’s weight of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>1</mn><annotation encoding="application/x-tex">1</annotation></semantics></math>.
-The component inclusion Bayes factor accounts for the prior odds of any
-bias. Changing those odds alone leaves the Bayes factor unchanged when
-the relative weights of the alternatives stay fixed. Use
-<code>prior_weights</code> in <code>prior_bias</code> to specify the
-desired weights.</p>
+The component inclusion Bayes factor is invariant to this asymmetry;
+pass <code>prior_weights</code> explicitly on each prior in
+<code>prior_bias</code> to match a different prior odds split.</p>
 </div>
 <div class="section level2">
 <h2 id="other-inference-helpers">Other Inference Helpers<a class="anchor" aria-label="anchor" href="#other-inference-helpers"></a>

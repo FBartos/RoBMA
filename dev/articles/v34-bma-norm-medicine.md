@@ -116,8 +116,7 @@ effect is similar to the one reported in Bartoš et al.
 ([2021](#ref-bartos2021bayesian)), $`\text{BF}_{10} = 250`$ and
 $`\text{BF}_{\text{rf}} = 3.60`$ (minor differences are a consequence of
 the product-space estimation algorithm in the new version of the
-package). In the current fit, the inclusion Bayes factors are about 242
-for the effect and 3.5 for heterogeneity.
+package).
 
 The second part under the ‘Model-averaged estimates’ heading displays
 the parameter estimates model-averaged across all specified models
@@ -271,17 +270,20 @@ summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 We notice the additional values in the ‘Component Inclusion’ table in
 the ‘Publication Bias’ row. The model is now extended with 32
 publication bias adjustment models that account for 50% of the prior
-model probability. Including publication-bias adjustment reduces the
-inclusion Bayes factor for the effect from about 242 in the unadjusted
-BMA to 2.6 in RoBMA, leaving weak evidence for an effect. The inclusion
-Bayes factor for publication bias is about 5.1, giving moderate evidence
-in its favor.
+model probability. When comparing RoBMA to the second BMA fit, we notice
+a large decrease in the inclusion Bayes factor for the presence of the
+effect, $`\text{BF}_{10} = 2.62`$ vs. $`\text{BF}_{10} = 242`$, which
+still presents weak evidence for the presence of the effect. We can
+further quantify the evidence in favor of publication bias with the
+inclusion Bayes factor for publication bias $`\text{BF}_{pb} = 5.06`$,
+which can be interpreted as moderate evidence in favor of publication
+bias.
 
 We can also compare the unadjusted and publication-bias-adjusted
-conditional effect size estimates. Conditional on the presence of an
-effect, the pooled estimate decreases from *d* = 1.081 (95% credible
-interval \[0.678, 1.414\]) to *d* = 0.693 \[−0.334, 1.339\]. The
-adjusted interval is wider and includes zero.
+conditional effect size estimates. Including models assuming publication
+bias into our model-averaged estimate (assuming the presence of the
+effect) decreases the estimated effect to d = 0.684, 95% CI \[-0.324,
+1.334\] with a much wider credible interval.
 
 ``` r
 

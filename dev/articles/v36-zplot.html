@@ -87,7 +87,7 @@
 Bartoš</h4>
             
             <h4 data-toc-skip class="date">8th of September 2025
-(updated: 25th of October 2026)</h4>
+(updated: 27th of November 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/development/vignettes/v36-zplot.Rmd" class="external-link"><code>vignettes/v36-zplot.Rmd</code></a></small>
       <div class="d-none name"><code>v36-zplot.Rmd</code></div>
@@ -290,11 +290,10 @@ models using the <code><a href="https://rdrr.io/r/base/summary.html" class="exte
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>The Bayesian multilevel random-effects model finds results similar to
 those reported in the original publication-bias-unadjusted analysis.</p>
-<p>All 50,000 posterior draws include both publication bias and an
-average effect. This provides extreme evidence for both, with limited
-precision for the Bayes factors at this sampling budget. The adjusted
-model estimates a smaller positive effect than the conventional
-random-effects model.</p>
+<p>The RoBMA analysis reveals extreme evidence for publication bias.
+However, RoBMA still finds extreme evidence for the presence of an
+effect, with a substantially reduced but non-zero model-averaged effect
+size estimate.</p>
 <p><strong>Zplot diagnostics.</strong> We now generate zplots to assess
 how well each model captures the observed distribution of z-statistics.
 The <code><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist()</a></code> function creates a histogram of the observed
@@ -378,14 +377,18 @@ object.</p>
 <span><span class="co">#&gt; Missing N 517.228 488.134 252.465 956.952</span></span>
 <span><span class="co">#&gt; Estimated using 298 estimates, 134 significant (ODR = 0.45, 95% CI [0.39, 0.51]); conditioning depth: marginal.</span></span></code></pre></div>
 <p>The summary provides several key results. The observed discovery rate
-(ODR) is the proportion of significant estimates in the published data.
-The EDR describes the fitted distribution after removing the selection
-adjustment. The conventional Missing N extrapolates the number of
-estimates relative to the reference publication-weight interval. A paper
-can contribute multiple estimates or analyses, so this quantity cannot
-identify a count of unpublished studies. The Sorić false discovery risk
-(FDR) gives an upper bound on the proportion of significant results that
-may be false positives.</p>
+(ODR) substantially exceeds the expected discovery rate (EDR),
+indicating that many more significant results appear in the published
+literature than we would expect. The estimated number of missing studies
+suggests that a substantial number of non-significant or negative
+results may be absent from the published literature, under the
+publication bias interpretation. However, the large missing N diagnostic
+might also reflect a large number of analytic paths that were possible
+and the results were selected over. The false discovery risk (FDR)
+provides an upper bound on the proportion of statistically significant
+results that may be false positives, though this risk remains moderate
+due to evidence for a genuine underlying effect despite the extreme
+publication bias.</p>
 </div>
 <div class="section level3">
 <h3 id="example-2-social-comparison-and-behavior-change">Example 2: Social Comparison and Behavior Change<a class="anchor" aria-label="anchor" href="#example-2-social-comparison-and-behavior-change"></a>
@@ -532,13 +535,16 @@ summarized with the additional statistics provided by the
 <span><span class="co">#&gt; Soric FDR  0.108  0.106  0.052   0.175</span></span>
 <span><span class="co">#&gt; Missing N 58.096 47.316 25.527 144.540</span></span>
 <span><span class="co">#&gt; Estimated using 37 estimates, 13 significant (ODR = 0.35, 95% CI [0.21, 0.53]); conditioning depth: marginal.</span></span></code></pre></div>
-<p>The observed discovery rate is 35% (13 of 37 estimates), close to the
-estimated EDR of 34% (95% credible interval [23%, 50%]). The one-sided
-selection models concentrate most of their weight on the
-marginal-significance and direction thresholds. Their inverse-weight
-extrapolation gives a mean Missing N of about 58 [26, 145]. The mean
-Sorić upper bound on the false discovery rate is about 11% [5%,
-17%].</p>
+<p>The summary provides several results. The observed discovery rate
+(ODR, i.e., the observed proportion of statistically significant
+results) in the dataset matches the expected discovery rate (EDR) due to
+the one-sided selection for marginally significant results (instead of
+statistically significant results). The estimated number of missing
+studies suggests that a considerable number of non-significant or
+negative results may be absent from the published literature. The false
+discovery risk (FDR), which corresponds to the upper bound on the false
+positive rate, is not extremely inflated due to the possible small
+positive and negative effects under the moderate heterogeneity.</p>
 </div>
 <div class="section level3">
 <h3 id="example-3-chatgpt-and-learning-performance">Example 3: ChatGPT and Learning Performance<a class="anchor" aria-label="anchor" href="#example-3-chatgpt-and-learning-performance"></a>
@@ -589,13 +595,18 @@ ChatGPT: Model Fit Assessment
 </p>
 </div>
 <p>The zplot for the ChatGPT data shows a different pattern than the
-extreme publication bias observed in the social comparison example. The
-histogram shows a change around zero and relatively little evidence of a
-sharp drop at the conventional significance thresholds.</p>
-<p>The random-effects and RoBMA curves are closer here than in the
-social comparison example. The ensemble assigns nearly all of its
-posterior probability to PET and PEESE, which relate the effect size to
-study precision.</p>
+extreme publication bias observed in the social comparison example.
+While we do not see strong selection at conventional significance
+thresholds, there is a moderate discontinuity at the transition to
+non-conforming results (z = 0), suggesting some degree of selection
+against negative findings.</p>
+<p>The random-effects model (black dashed line) provides a better fit to
+the data than in the previous example; however, RoBMA (blue dashed line)
+captures the discontinuity at zero slightly better. This visual pattern
+corresponds to extreme statistical evidence for publication bias,
+highlighting a case where both models might be considered, though the
+RoBMA model incorporates the uncertainty about the best model and
+provides a more complete account of the data patterns.</p>
 <p><strong>Extrapolation to pre-publication bias.</strong> We can
 examine the extrapolation to assess the impact of publication bias:</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
@@ -605,8 +616,10 @@ examine the extrapolation to assess the impact of publication bias:</p>
 ChatGPT: Extrapolation Analysis
 </p>
 </div>
-<p>The extrapolated distribution lies closer to the fitted distribution
-than in the social comparison example.</p>
+<p>The extrapolated distribution (blue line) shows a more modest
+difference between the fitted and extrapolated distributions compared to
+the extreme bias example, reflecting the moderate degree of publication
+bias in this literature.</p>
 <p><strong>Model results.</strong> To quantify these visual patterns, we
 examine the model summaries:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
@@ -645,17 +658,15 @@ examine the model summaries:</p>
 <span><span class="co">#&gt; PET               1.181 1.623 0.000 0.000 4.167     0.01605          0.010 10265 1.000</span></span>
 <span><span class="co">#&gt; PEESE             4.525 3.641 0.000 5.696 9.779     0.03629          0.010 10079 1.000</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
-<p>The estimated between-study heterogeneity is substantial
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>≈</mo><mn>0.61</mn></mrow><annotation encoding="application/x-tex">\tau \approx 0.61</annotation></semantics></math>).
-The conventional random-effects mean is about 0.83, compared with a
-bias-adjusted model-averaged effect of 0.13 (95% credible interval
-[−0.26, 0.56]). The evidence strongly favors publication bias. Only 55
-of 100,000 posterior draws exclude it, so the precise Bayes factor is
-uncertain. Evidence for the adjusted mean effect is undecided
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>1.09</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 1.09</annotation></semantics></math>).</p>
-<p><strong>Zplot summary metrics.</strong> The discovery statistics
-summarize the size of the discrepancy between observed and expected
-significant results.</p>
+<p>Importantly, the results show an extreme degree of between-study
+heterogeneity that greatly complicates feasible implications and
+recommendations. This demonstrates the moderate nature of the
+publication bias, where the adjusted estimate is meaningfully smaller
+but not completely reduced. The Bayes factor for publication bias
+provides extreme evidence for publication bias, and the evidence for the
+effect becomes weak.</p>
+<p><strong>Zplot summary metrics.</strong> This moderate
+publication-bias pattern is reflected in the summary statistics,</p>
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/as_zplot.brma.html">as_zplot</a></span><span class="op">(</span><span class="va">fit_RoBMA_Wang2025</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -665,11 +676,8 @@ significant results.</p>
 <span><span class="co">#&gt; Soric FDR 0.060  0.059 0.037 0.090</span></span>
 <span><span class="co">#&gt; Missing N 0.030  0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; Estimated using 42 estimates, 27 significant (ODR = 0.64, 95% CI [0.48, 0.78]); conditioning depth: marginal.</span></span></code></pre></div>
-<p>The observed discovery rate is 64% (27 of 42 estimates), compared
-with an EDR of 47% [37%, 59%]. The conventional Missing N has a median
-of zero. PET and PEESE together account for more than 99% of the
-posterior draws, and these regression adjustments contribute zero to the
-inverse-weight missing-count diagnostic.</p>
+<p>which show a moderate-to-high EDR and a small number of missing
+estimates.</p>
 </div>
 <div class="section level3">
 <h3 id="example-4-framing-effects-from-many-labs-2">Example 4: Framing Effects from Many Labs 2<a class="anchor" aria-label="anchor" href="#example-4-framing-effects-from-many-labs-2"></a>
@@ -726,9 +734,12 @@ discontinuities at significance thresholds or at zero. Both the
 random-effects model (black dashed line) and RoBMA (blue dashed line)
 provide essentially identical fits to the data, with their posterior
 predictive distributions overlapping almost perfectly.</p>
-<p>The agreement between the curves is consistent with the moderate
-evidence against publication bias
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>01</mn></msub><mo>≈</mo><mn>4.0</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{01} \approx 4.0</annotation></semantics></math>).</p>
+<p>This close agreement between models indicates that either approach
+would be appropriate for these data. The absence of publication bias is
+further confirmed by the statistical evidence: RoBMA provides moderate
+evidence against publication bias, demonstrating how the method
+appropriately penalizes unnecessary model complexity when simpler models
+explain the data equally well.</p>
 <p><strong>Extrapolation to pre-publication bias.</strong> We can
 examine whether there would be any difference in the absence of
 publication bias:</p>
@@ -739,20 +750,25 @@ publication bias:</p>
 Framing Effects: Extrapolation Analysis
 </p>
 </div>
-<p>The fitted and extrapolated distributions nearly coincide. The fitted
-adjustment has little impact on the estimated z-statistic distribution
-for these data.</p>
+<p>The extrapolated distribution (blue line) shows virtually no
+difference between the fitted and extrapolated distributions, confirming
+that publication bias has minimal impact in this well-designed
+replication project. This example illustrates the ideal scenario where
+traditional meta-analytic approaches are fully justified.</p>
 <p><strong>Model results.</strong> The quantitative results confirm the
 visual impression:</p>
 <div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RE_ManyLabs16</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA_ManyLabs16</span><span class="op">)</span></span></code></pre></div>
-<p>Both models yield similar pooled effect estimates. The model
-comparison moderately favors models without publication bias.</p>
-<p><strong>Zplot summary metrics.</strong> The observed discovery rate
-is 56% (31 of 55 estimates), close to the mean EDR of 58% [41%, 68%].
-The conventional Missing N has a median of zero and a 95% credible
-interval from zero to about seven missing estimates.</p>
+<p>Both models yield virtually identical size estimates. The Bayes
+factor for publication bias provides moderate evidence against the
+presence of publication bias, appropriately penalizing the more complex
+model when it offers no advantage. This demonstrates the method’s
+ability to distinguish between necessary and unnecessary model
+complexity.</p>
+<p><strong>Zplot summary metrics.</strong> The absence of publication
+bias is reflected in the publication-bias assessment statistics: a
+moderate EDR matching the ODR and no missing studies.</p>
 <div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/as_zplot.brma.html">as_zplot</a></span><span class="op">(</span><span class="va">fit_RoBMA_ManyLabs16</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>

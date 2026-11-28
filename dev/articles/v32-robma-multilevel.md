@@ -98,8 +98,8 @@ fit <- RoBMA(
 ```
 
 *Note: This model takes a few minutes with parallel processing enabled.
-Without it, the chains run one after another and the fit takes
-correspondingly longer.*
+Without parallel processing, the chains run one after another and the
+fit takes correspondingly longer.*
 
 ## Interpreting the Results
 
@@ -145,10 +145,10 @@ probability, posterior probability after observing the data, and the
 inclusion Bayes factor comparing models with versus without that
 component.
 
-The inclusion Bayes factor of about 1.7 gives weak evidence for an
-effect. All 60,000 draws include heterogeneity and publication bias. The
-reported bounds above 59,999 express overwhelming support for both
-components at the resolution of these draws.
+In our example, the inclusion BF for the effect is 1.66, indicating
+undecided evidence for an effect. The inclusion BFs for heterogeneity
+and publication bias are reported as larger than 59,999, indicating
+extreme evidence for both components.
 
 ### Model-Averaged Estimates
 
@@ -162,14 +162,12 @@ clusters, `rho = 1` means all heterogeneity is between clusters, and
 `rho = 0.5` means equal split. The remaining parameters summarize the
 weight function and PET/PEESE regression for publication bias.
 
-The model-averaged effect is small (*d* = 0.074, 95% credible interval
-\[0.000, 0.190\]), with substantial heterogeneity (τ = 0.391 \[0.327,
-0.460\]) and nearly balanced heterogeneity allocation (ρ = 0.492
-\[0.328, 0.640\]). The fit warns that the pooled effect falls short of
-the convergence criterion, so its precise estimate deserves caution. The
-large heterogeneity relative to the pooled effect suggests substantial
-variation in true effects. This distribution of true effect sizes can be
-summarized with the
+In our example, we find a small effect size (*d* = 0.074, 95% CI
+\[0.000, 0.190\]), substantial heterogeneity (τ = 0.391, 95% CI \[0.327,
+0.460\]), and nearly balanced heterogeneity allocation (ρ = 0.492, 95%
+CI \[0.328, 0.640\]). The large heterogeneity combined with the small
+pooled effect suggests substantial variation in true effects. This
+distribution of true effect sizes can be summarized with the
 [`summary_heterogeneity()`](https://fbartos.github.io/RoBMA/dev/reference/summary_heterogeneity.md)
 function. A prediction interval for a new true effect can be obtained
 with
@@ -317,10 +315,10 @@ The single-level model differs by:
 - potentially biased inference: ignoring dependencies can lead to
   overconfident conclusions.
 
-The single-level model gives strong evidence for the absence of an
-effect ($`\mathrm{BF}_{01} \approx 18`$). After accounting for
-dependence within studies, the multilevel model gives weak evidence in
-favor of an effect ($`\mathrm{BF}_{10} \approx 1.7`$).
+For the Johnides et al. data, the single-level RoBMA finds strong
+evidence for the absence of an effect, while the multilevel model
+provides only weak evidence against it. Properly accounting for data
+structure leads to more conservative and appropriate inferences.
 
 ## References
 

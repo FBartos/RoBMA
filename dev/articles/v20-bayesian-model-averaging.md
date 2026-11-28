@@ -396,13 +396,11 @@ regplot(fit_BMA_mod, mod = "tailor")
 
 ![](v20-bayesian-model-averaging_files/figure-html/regplot-BMA-mod-1.png)
 
-Alternatively, we can compute the marginal means via
+Alternatively, we can directly compute the estimated marginal means via
+the
 [`marginal_means()`](https://fbartos.github.io/RoBMA/dev/reference/marginal_means.md)
-and visualize the prior and posterior distributions at each moderator
-level. The posterior draws for the intercept and the `tailor[1]`
-marginal mean all lie on one side of zero. Their very large
-Savage-Dickey Bayes factors depend on extrapolating the posterior
-density into that tail.
+function and visualize the prior and posterior distributions at each
+moderator level.
 
 ``` r
 

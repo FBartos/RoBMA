@@ -125,17 +125,16 @@ effect is similar to the one reported in Bartoš et al.
 $`\text{BF}_{\text{rf}} = 1.27`$ (minor differences are a consequence of
 the product-space estimation algorithm in the new version of the
 package), giving weak/undecided evidence for the presence of the effect
-and heterogeneity. The current fit gives inclusion Bayes factors of 2.58
-for the effect and 1.32 for heterogeneity.
+and heterogeneity.
 
 The second part under the ‘Model-averaged estimates’ heading displays
 the parameter estimates model-averaged across all specified models
 (i.e., including models specifying the effect size to be zero). These
 estimates are shrunk towards the null hypotheses of no effect or no
 heterogeneity in accordance with the posterior uncertainty about the
-presence of the effect or heterogeneity. Averaging across all models
-gives a mean odds ratio of 3.32 (95% credible interval \[0.81, 14.82\])
-and mean heterogeneity of $`\tau_\text{logOR} = 0.42`$ \[0.00, 2.53\].
+presence of the effect or heterogeneity. We find the model-averaged mean
+effect OR = 3.32, 95% CI \[0.81, 14.82\], and a heterogeneity estimate
+$`\tau_\text{logOR} = 0.42`$, 95% CI \[0.00, 2.53\].
 
 The third part under the ‘Conditional estimates’ heading displays the
 conditional effect size and heterogeneity estimates (i.e., estimates
@@ -144,11 +143,9 @@ ones reported in Bartoš et al. ([2023](#ref-bartos2023empirical)), OR =
 4.89, 95% CI \[0.77, 18.90\], and a heterogeneity estimate
 $`\tau_\text{logOR} = 0.77`$, 95% CI \[0.10, 3.62\].
 
-For the current fit, the conditional mean odds ratio is 4.22 (95%
-credible interval \[0.75, 17.97\]) and conditional mean heterogeneity is
-$`\tau_\text{logOR} = 0.74`$ \[0.10, 3.09\]. The dedicated helpers
-report these conditional estimates on the odds-ratio and log-odds-ratio
-scales, respectively.
+The dedicated helper functions extract the pooled effect on the
+odds-ratio scale and heterogeneity on the log-odds-ratio scale (assuming
+the presence of the effect and heterogeneity respectively):
 
 ``` r
 

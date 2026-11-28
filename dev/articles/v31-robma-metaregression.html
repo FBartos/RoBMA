@@ -367,19 +367,21 @@ correlation scale.</p>
 <p>The summary function produces output with multiple sections. The
 first section contains the <code>Components summary</code> with the
 hypothesis test results for the overall effect size and heterogeneity.
-All 15,000 posterior draws include both an overall effect and
-heterogeneity. The table reports inclusion Bayes factors above 14,999
-for each component, which indicates overwhelming support at the
-resolution of these draws.</p>
+We find overwhelming evidence for both with inclusion Bayes factors
+(<code>Inclusion BF</code>) above 14,999 (the numerical precision of
+Bayes factors above 100 is usually limited by the number of posterior
+samples).</p>
 <p>The second section contains the
 <code>Meta-regression components summary</code> with the hypothesis test
-results for the moderators. The inclusion Bayes factor of about 2.6
-gives weak evidence for moderation by executive function assessment
-type. The inclusion Bayes factor for mean age is about 0.12,
-corresponding to moderate evidence for the absence of age moderation
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>01</mn></msub><mo>≈</mo><mn>8.3</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{01} \approx 8.3</annotation></semantics></math>).
-These findings extend the frequentist meta-regression by disentangling
-the absence of evidence from the evidence of absence.</p>
+results for the moderators. We find weak evidence for the moderation by
+the executive function assessment type,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">measure</mtext></msub><mo>=</mo><mn>2.62</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{measure}} = 2.62</annotation></semantics></math>.
+Furthermore, we find moderate evidence for the null hypothesis of no
+moderation by mean age of the children,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">age</mtext></msub><mo>=</mo><mn>0.121</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{age}} = 0.121</annotation></semantics></math>
+(i.e., BF for the null is 1/0.121 = 8.26). These findings extend the
+frequentist meta-regression by disentangling the absence of evidence
+from the evidence of absence.</p>
 <p>The third section contains the <code>Model-averaged estimates</code>
 with the model-averaged estimates for mean effect and between-study
 heterogeneity. <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> reports the pooled mean
@@ -390,17 +392,16 @@ effect on the correlation scale via
 model-averaged regression coefficient estimates. The main difference
 from the usual frequentist meta-regression output is that the
 categorical predictors are summarized as a difference from the grand
-mean for each factor level. The <code>intercept</code> corresponds to
-the grand mean, and the direct-assessment deviation from the grand mean
-is
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>−</mi><mn>0.044</mn></mrow><annotation encoding="application/x-tex">-0.044</annotation></semantics></math>
-(95% credible interval
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mi>−</mi><mn>0.104</mn><mo>,</mo><mn>0.000</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[-0.104, 0.000]</annotation></semantics></math>).
-As such, the results suggest that the effect size in studies using
-direct assessment is lower in comparison to the grand mean of the
-studies. The <code>age</code> regression coefficient of 0.000, 95% CI
-[-0.001, 0.009] corresponds to the increase in the mean effect for a
-one-unit increase in mean age of children.</p>
+mean for each factor level. Here, the <code>intercept</code> regression
+coefficient estimate corresponds to the grand mean effect and the
+<code>measure[dif: direct]</code> regression coefficient estimate of
+-0.044, 95% CI [-0.104, 0.000] corresponds to the difference between the
+direct assessment and the grand mean. As such, the results suggest that
+the effect size in studies using direct assessment is lower in
+comparison to the grand mean of the studies. The <code>age</code>
+regression coefficient of 0.000, 95% CI [-0.001, 0.009] corresponds to
+the increase in the mean effect for a one-unit increase in mean age of
+children.</p>
 <p>Similarly to the frequentist meta-regression, we can use
 <code><a href="../reference/marginal_means.html">marginal_means()</a></code> and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> to obtain the
 marginal estimates for each factor level on the correlation scale.</p>
@@ -423,25 +424,27 @@ marginal estimates for each factor level on the correlation scale.</p>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_age[0SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_age[1SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span></code></pre></div>
 <p>The estimated marginal means are similar to the frequentist results.
-The estimated correlation is higher for informant-completed
-questionnaires
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.209</mn></mrow><annotation encoding="application/x-tex">r = 0.209</annotation></semantics></math>,
-95% credible interval
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mn>0.128</mn><mo>,</mo><mn>0.290</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[0.128, 0.290]</annotation></semantics></math>)
-than for direct assessments
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.124</mn></mrow><annotation encoding="application/x-tex">r = 0.124</annotation></semantics></math>,
-95% credible interval
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mn>0.053</mn><mo>,</mo><mn>0.195</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[0.053, 0.195]</annotation></semantics></math>).</p>
+Studies using the informant-completed questionnaires again show a
+stronger effect of household chaos on child executive functions, r =
+0.209, 95% CI [0.128, 0.290], than the direct assessment, r = 0.124, 95%
+CI [0.053, 0.195].</p>
 <p>The last column summarizes results from a test against a null
-hypothesis of marginal means equals 0. There is strong evidence for a
-nonzero marginal effect for direct assessments
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>38</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 38</annotation></semantics></math>).
-The test compares the prior and posterior densities at zero, conditional
-on the presence of the overall effect or the difference according to the
-tested factor. For informant-completed questionnaires, the posterior
-draws all lie on the positive side of zero. The magnitude of the
-resulting Savage-Dickey Bayes factor is poorly determined because the
-density estimate at zero extrapolates beyond the draws.</p>
+hypothesis of marginal means equals 0. Here, we find extreme evidence
+that the effect size for studies using the informant-completed
+questionnaires differs from zero,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>&gt;</mo><mn>10</mn><mo>,</mo><mn>000</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} &gt; 10{,}000</annotation></semantics></math>,
+and strong evidence that the effect size for studies using direct
+assessment differs from zero,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>37.9</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 37.9</annotation></semantics></math>.
+The test is performed using the change from prior to posterior
+distribution at 0 (i.e., the Savage-Dickey density ratio) assuming the
+presence of the overall effect or the presence of difference according
+to the tested factor. Because the tests use prior and posterior samples,
+calculating the Bayes factor can be problematic when the posterior
+distribution is far from the tested value. In such cases, warning
+messages are printed and very large Bayes factors returned (like here);
+while the actual Bayes factor is finite, it is still too large to be
+computed precisely given the posterior samples.</p>
 <p>The full model-averaged posterior marginal means distribution can be
 visualized by the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> method.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
@@ -516,14 +519,13 @@ now contains 144 models.</p>
 work identically with the publication bias adjusted model. As such, we
 just briefly mention the main differences found after adjusting for
 publication bias.</p>
-<p>The adjusted ensemble finds moderate evidence for publication bias
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">b</mi></mrow></msub><mo>≈</mo><mn>4.4</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{\mathrm{pb}} \approx 4.4</annotation></semantics></math>).
-Evidence for the overall effect remains undecided
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>1.2</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 1.2</annotation></semantics></math>),
-and the model-averaged correlation shrinks to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.060</mn></mrow><annotation encoding="application/x-tex">r = 0.060</annotation></semantics></math>
-(95% credible interval
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mi>−</mi><mn>0.019</mn><mo>,</mo><mn>0.188</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[-0.019, 0.188]</annotation></semantics></math>).</p>
+<p>RoBMA-reg reveals moderate evidence of publication bias
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">pb</mtext></msub><mo>=</mo><mn>4.36</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{pb}} = 4.36</annotation></semantics></math>.
+Furthermore, accounting for publication bias leaves the evidence for the
+overall effect undecided,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>1.22</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 1.22</annotation></semantics></math>,
+and notably reduces the mean effect estimate to r = 0.060, 95% CI
+[-0.019, 0.188].</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">RoBMA_marginal</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/marginal_means.html">marginal_means</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_measure <span class="op">=</span> <span class="st">"COR"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">RoBMA_marginal</span><span class="op">)</span></span>
@@ -537,19 +539,16 @@ and the model-averaged correlation shrinks to
 <span><span class="co">#&gt; age[0SD]           0.070 0.074  0.000 0.052 0.196        1.212</span></span>
 <span><span class="co">#&gt; age[1SD]           0.070 0.075 -0.005 0.053 0.200        0.616</span></span>
 <span><span class="co">#&gt; Effect estimates are transformed from Fisher's z to correlation.</span></span></code></pre></div>
-<p>After adjustment for publication bias, the estimated marginal
-correlation for informant-completed questionnaires is
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.128</mn></mrow><annotation encoding="application/x-tex">r = 0.128</annotation></semantics></math>
-(95% credible interval
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mn>0.000</mn><mo>,</mo><mn>0.265</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[0.000, 0.265]</annotation></semantics></math>),
-with moderate evidence for a nonzero effect
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>6.0</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 6.0</annotation></semantics></math>).
-For direct assessments the estimate is close to zero
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mo>=</mo><mn>0.011</mn></mrow><annotation encoding="application/x-tex">r = 0.011</annotation></semantics></math>,
-95% credible interval
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mi>−</mi><mn>0.111</mn><mo>,</mo><mn>0.172</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[-0.111, 0.172]</annotation></semantics></math>),
-with weak evidence against a nonzero effect
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">F</mi></mrow><mn>10</mn></msub><mo>≈</mo><mn>0.62</mn></mrow><annotation encoding="application/x-tex">\mathrm{BF}_{10} \approx 0.62</annotation></semantics></math>).</p>
+<p>The estimated marginal means now suggest that studies using the
+informant-completed questionnaires show a much smaller effect of
+household chaos on child executive functions, r = 0.128, 95% CI [0.000,
+0.265] with moderate evidence in favor of the effect,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>5.96</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 5.96</annotation></semantics></math>,
+while studies using direct assessment even provide weak evidence against
+the effect of household chaos on child executive functions,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.617</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.617</annotation></semantics></math>,
+with most likely effect sizes around zero, r = 0.011, 95% CI [-0.111,
+0.172].</p>
 <p>A visual summary of the estimated marginal means highlights the
 considerably wider model-averaged posterior distributions of the
 marginal means, a consequence of accounting and adjusting for

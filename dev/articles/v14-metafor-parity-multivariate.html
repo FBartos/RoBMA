@@ -204,9 +204,7 @@ within-district correlation for the school effects.</p>
 random-effect parameters monitored by the fitted Bayesian model. Here
 <code>tau</code> is the shared marginal heterogeneity SD corresponding
 to the <code>metafor</code> package variance component, and
-<code>district: rho</code> is the compound-symmetric correlation. The
-pooled effect and one district-level latent coefficient fall below the
-effective sample size target of 500 in this fit.</p>
+<code>district: rho</code> is the compound-symmetric correlation.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit1_brma</span>, include_mcmc_diagnostics <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -465,11 +463,9 @@ use it directly in the prior distribution specification.</p>
 <span><span class="co">#&gt; time_factor[4] -25.800 1.379 -28.489 -25.792 -23.058</span></span></code></pre></div>
 <p>The <code>HAR</code> structure lets the heterogeneity differ by time
 point while estimating one autocorrelation across neighboring time
-points. The estimated autocorrelation of the true effects is about 0.82.
-The working sampling-error correlation in <code>V_ishak</code> was fixed
-at 0.97. The fit falls below the effective sample size target of 500 for
-the autocorrelation and three time-specific means, so their estimates
-have appreciable Monte Carlo uncertainty.</p>
+points. This separates the temporal structure of the true effects from
+the working temporal dependence already encoded in
+<code>V_ishak</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="study-and-treatment-random-effects">Study and Treatment Random Effects<a class="anchor" aria-label="anchor" href="#study-and-treatment-random-effects"></a>

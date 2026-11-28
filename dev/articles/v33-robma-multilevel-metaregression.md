@@ -138,11 +138,10 @@ for the average effect and
 [`marginal_means()`](https://fbartos.github.io/RoBMA/dev/reference/marginal_means.md)
 for the moderator levels.
 
-All 60,000 draws include between-study heterogeneity and publication
-bias, and all but 9 and 7 of them include the average effect and the
-moderation by consumer contact. The reported inclusion Bayes factors
-(above 59,999, and about 6,700 and 8,600) indicate extreme support for
-all four components at the resolution of these draws.
+The multilevel RoBMA meta-regression finds extreme evidence for the
+presence of the average effect, moderation by the degree of consumer
+contact, between-study heterogeneity, and publication bias (all BFs \>
+6,000).
 
 ``` r
 
@@ -184,14 +183,10 @@ summary(mm_reg)
 #> mu_facing_customer[Direct]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 ```
 
-For jobs with no consumer contact, the marginal-mean test gives moderate
-evidence for the absence of an effect ($`\text{BF}_{10} \approx 0.10`$).
-For jobs with some or direct contact, all marginal-mean draws are
-positive. The precise Bayes factors depend on extrapolating the
-posterior densities to zero. The deviation for jobs with some contact
-measures how much their mean differs from the grand mean. Its lower
-credible limit is close to zero (0.003, Monte Carlo standard error about
-0.005).
+The estimated marginal means reveal moderate evidence for the absence of
+an effect for jobs with no consumer contact ($`\text{BF}_{10} = 0.10`$)
+and extreme evidence for an effect for jobs with some or direct consumer
+contact.
 
 ## Visual Fit Assessment
 

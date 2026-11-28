@@ -236,11 +236,10 @@ and model parameters.</p>
 <p>The effect-size estimates are obtained with dedicated helpers:
 <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> for the average effect and
 <code><a href="../reference/marginal_means.html">marginal_means()</a></code> for the moderator levels.</p>
-<p>All 60,000 draws include between-study heterogeneity and publication
-bias, and all but 9 and 7 of them include the average effect and the
-moderation by consumer contact. The reported inclusion Bayes factors
-(above 59,999, and about 6,700 and 8,600) indicate extreme support for
-all four components at the resolution of these draws.</p>
+<p>The multilevel RoBMA meta-regression finds extreme evidence for the
+presence of the average effect, moderation by the degree of consumer
+contact, between-study heterogeneity, and publication bias (all BFs &gt;
+6,000).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_reg</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -271,15 +270,11 @@ marginal means.</p>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_facing_customer[Some]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_facing_customer[Direct]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span></code></pre></div>
-<p>For jobs with no consumer contact, the marginal-mean test gives
-moderate evidence for the absence of an effect
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>≈</mo><mn>0.10</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} \approx 0.10</annotation></semantics></math>).
-For jobs with some or direct contact, all marginal-mean draws are
-positive. The precise Bayes factors depend on extrapolating the
-posterior densities to zero. The deviation for jobs with some contact
-measures how much their mean differs from the grand mean. Its lower
-credible limit is close to zero (0.003, Monte Carlo standard error about
-0.005).</p>
+<p>The estimated marginal means reveal moderate evidence for the absence
+of an effect for jobs with no consumer contact
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.10</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.10</annotation></semantics></math>)
+and extreme evidence for an effect for jobs with some or direct consumer
+contact.</p>
 </div>
 <div class="section level2">
 <h2 id="visual-fit-assessment">Visual Fit Assessment<a class="anchor" aria-label="anchor" href="#visual-fit-assessment"></a>

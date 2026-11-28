@@ -153,12 +153,13 @@ summary_models(fit_RoBMA)
 ```
 
 The posterior model weights show which sub-models the data prefer within
-each component’s mixture. PET receives about 74% of the posterior model
-probability (individual inclusion BF about 20), followed by PEESE at
-17%. The remaining bias components account for about 9%. The
-`inclusion BF` column is the Bayes factor for that one sub-model against
-the rest of its mixture, so it does not need to agree with the
-component-level inclusion BF reported by
+each component’s mixture. The bias side of the ensemble concentrates
+posterior mass on PET (posterior probability $`0.74`$, individual
+inclusion BF $`\approx 20`$), followed by PEESE (posterior probability
+$`0.17`$); the remaining bias components together account for about
+$`0.09`$. The `inclusion BF` column is the Bayes factor for that one
+sub-model against the rest of its mixture, so it does not need to agree
+with the component-level inclusion BF reported by
 [`summary()`](https://rdrr.io/r/base/summary.html).
 
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) overlays the
@@ -306,11 +307,9 @@ does not move the model-averaged inference.
 The prior probability of any bias is $`0.75`$ in the custom fit and
 $`0.5`$ in the default, because the three user-supplied alternative
 prior distributions all default to `prior_weights = 1` against the
-no-bias spike’s weight of $`1`$. The component inclusion Bayes factor
-accounts for the prior odds of any bias. Changing those odds alone
-leaves the Bayes factor unchanged when the relative weights of the
-alternatives stay fixed. Use `prior_weights` in `prior_bias` to specify
-the desired weights.
+no-bias spike’s weight of $`1`$. The component inclusion Bayes factor is
+invariant to this asymmetry; pass `prior_weights` explicitly on each
+prior in `prior_bias` to match a different prior odds split.
 
 ## Other Inference Helpers
 
