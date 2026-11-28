@@ -206,7 +206,6 @@ fit1_brma <- brma.mv(
 `summary()` reports the pooled effect and the random-effect parameters monitored by the fitted Bayesian model.
 Here `tau` is the shared marginal heterogeneity SD corresponding to the `metafor` package variance component, 
 and `district: rho` is the compound-symmetric correlation.
-The pooled effect and one district-level latent coefficient fall below the effective sample size target of 500 in this fit.
 
 ```{r fit1-brma-summary}
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
@@ -338,8 +337,7 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The `HAR` structure lets the heterogeneity differ by time point while estimating one autocorrelation across neighboring time points.
-The estimated autocorrelation of the true effects is about 0.82. The working sampling-error correlation in `V_ishak` was fixed at 0.97.
-The fit falls below the effective sample size target of 500 for the autocorrelation and three time-specific means, so their estimates have appreciable Monte Carlo uncertainty.
+This separates the temporal structure of the true effects from the working temporal dependence already encoded in `V_ishak`.
 
 ## Study and Treatment Random Effects
 

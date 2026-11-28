@@ -311,9 +311,11 @@ knitr::kable(
 )
 ```
 
-The point-null Bayes factors agree to within the Monte Carlo error reported for the qCMDE estimates (about 11%).
-Only 8 of the 15,000 posterior draws have a positive mean effect. The encompassing-prior estimate of $\text{BF}_{-+}$ therefore has about 35% relative Monte Carlo error.
-Both the posterior draws and bridge sampling strongly favor a negative over a positive mean effect.
+The point-null Bayes factors agree closely across the two routes.
+The posterior-based value for $\text{BF}_{-+}$ is limited by the number of posterior draws as only a very small proportion of samples is at the positive side.
+Consequently, the encompassing prior estimate is much more variable than the corresponding bridge sampling approach (see the large `error%(BF)` reported earlier).
+In general, Bayes factors larger than 100 (lower than 1/100) are likely to have limited precision when using the posterior based or product-space approaches.
+(This usually does not matter for the interpretation, i.e., the data provide overwhelming evidence for one of the hypotheses.)
 
 ## Meta-Regression
 

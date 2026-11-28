@@ -115,7 +115,6 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The posterior mean for the pooled effect tracks the REML estimate from the `metafor` package, with comparable cluster-level allocation `rho` and total heterogeneity `tau`.
-The lower endpoint of the pooled-effect credible interval rounds to zero. Its Monte Carlo standard error is about 0.008, so its sign is uncertain.
 
 ## Heterogeneity: $\tau$ and $\rho$
 
